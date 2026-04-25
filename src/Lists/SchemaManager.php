@@ -52,6 +52,7 @@ final class SchemaManager
             $this->sqlSlugHistory($charset),
             $this->sqlAutomations($charset),
             $this->sqlAutomationRuns($charset),
+            $this->sqlDashboards($charset),
         ];
 
         foreach ($statements as $sql) {
@@ -416,6 +417,33 @@ final class SchemaManager
             KEY idx_automation (automation_id),
             KEY idx_status_created (status, created_at),
             KEY idx_record (list_id, record_id)
+        ) {$charset};";
+    }
+
+    private function sqlDashboards(string $charset): string
+    {
+        $table = $this->db->systemTable('dashboards');
+        // Un dashboard agrupa N widgets. Los widgets viven dentro del
+        // JSON `widgets` (no merece su propia tabla en este punto: la
+        // edición es atómica por dashboard; no hay queries por widget
+        // independiente). `user_id` NULL = dashboard compartido por
+        // todo el espacio; cualquier valor != NULL = dashboard privado
+        // de ese usuario.
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id BIGINT UNSIGNED NULL,
+            name VARCHAR(191) NOT NULL,
+            description TEXT NULL,
+            widgets LONGTEXT NOT NULL,
+            is_default TINYINT(1) NOT NULL DEFAULT 0,
+            position INT NOT NULL DEFAULT 0,
+            created_by BIGINT UNSIGNED NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            deleted_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            KEY idx_user (user_id),
+            KEY idx_deleted (deleted_at)
         ) {$charset};";
     }
 }

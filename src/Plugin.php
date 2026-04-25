@@ -24,6 +24,8 @@ use ImaginaCRM\Comments\CommentRepository;
 use ImaginaCRM\Comments\CommentService;
 use ImaginaCRM\Comments\MentionNotifier;
 use ImaginaCRM\Comments\MentionParser;
+use ImaginaCRM\Dashboards\DashboardRepository;
+use ImaginaCRM\Dashboards\DashboardService;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\FieldTypeRegistry;
@@ -278,6 +280,19 @@ final class Plugin
                 $c->get(MentionParser::class),
                 $c->get(ActivityLogger::class),
                 $c->get(\ImaginaCRM\Lists\ListRepository::class),
+            );
+        });
+
+        // Dashboards (Fase 5).
+        $this->container->bind(DashboardRepository::class, static function (Container $c): DashboardRepository {
+            return new DashboardRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(DashboardService::class, static function (Container $c): DashboardService {
+            return new DashboardService(
+                $c->get(DashboardRepository::class),
+                $c->get(\ImaginaCRM\Lists\ListRepository::class),
+                $c->get(FieldRepository::class),
             );
         });
 
