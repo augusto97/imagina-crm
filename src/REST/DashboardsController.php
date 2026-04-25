@@ -5,6 +5,7 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Dashboards\DashboardEntity;
 use ImaginaCRM\Dashboards\DashboardService;
+use ImaginaCRM\Dashboards\WidgetEvaluator;
 use ImaginaCRM\Plugin;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
@@ -21,8 +22,10 @@ use WP_REST_Server;
  */
 final class DashboardsController extends AbstractController
 {
-    public function __construct(private readonly DashboardService $service)
-    {
+    public function __construct(
+        private readonly DashboardService $service,
+        private readonly WidgetEvaluator $evaluator,
+    ) {
         parent::__construct();
     }
 
@@ -58,6 +61,42 @@ final class DashboardsController extends AbstractController
                 'permission_callback' => [$this, 'checkAdminPermissions'],
             ],
         ]);
+
+        register_rest_route(
+            $this->namespace,
+            '/dashboards/(?P<id>\d+)/widgets/(?P<widget_id>[A-Za-z0-9_-]{1,64})/data',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'evaluateWidget'],
+                'permission_callback' => [$this, 'checkAdminPermissions'],
+            ],
+        );
+    }
+
+    public function evaluateWidget(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $id = (int) $request->get_param('id');
+        $dashboard = $this->service->find($id);
+        if ($dashboard === null) {
+            return $this->notFound(__('Dashboard no encontrado.', 'imagina-crm'));
+        }
+        // Visibilidad: si es privado de otro usuario → 404 (igual que getItem).
+        $userId  = get_current_user_id();
+        $isAdmin = current_user_can(Plugin::ADMIN_CAPABILITY);
+        if ($dashboard->userId !== null && $dashboard->userId !== $userId && ! $isAdmin) {
+            return $this->notFound(__('Dashboard no encontrado.', 'imagina-crm'));
+        }
+
+        $widgetId = (string) $request->get_param('widget_id');
+        $result   = $this->evaluator->evaluate($dashboard, $widgetId);
+        if ($result instanceof ValidationResult) {
+            $errors = $result->errors();
+            if (array_key_exists('id', $errors)) {
+                return $this->notFound($result->firstError() ?? '');
+            }
+            return $this->validationError($result);
+        }
+        return new WP_REST_Response(['data' => $result]);
     }
 
     public function getCollection(WP_REST_Request $request): WP_REST_Response
