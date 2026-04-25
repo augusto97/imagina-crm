@@ -16,6 +16,10 @@ use ImaginaCRM\Automations\AutomationService;
 use ImaginaCRM\Automations\ScheduledRunner;
 use ImaginaCRM\Automations\TriggerContext;
 use ImaginaCRM\Automations\TriggerRegistry;
+use ImaginaCRM\Activity\ActivityLogger;
+use ImaginaCRM\Activity\ActivityRepository;
+use ImaginaCRM\Automations\AutomationEntity;
+use ImaginaCRM\Comments\CommentEntity;
 use ImaginaCRM\Comments\CommentRepository;
 use ImaginaCRM\Comments\CommentService;
 use ImaginaCRM\Fields\FieldRepository;
@@ -253,6 +257,15 @@ final class Plugin
             );
         });
 
+        // Activity log (Fase 3).
+        $this->container->bind(ActivityRepository::class, static function (Container $c): ActivityRepository {
+            return new ActivityRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(ActivityLogger::class, static function (Container $c): ActivityLogger {
+            return new ActivityLogger($c->get(ActivityRepository::class));
+        });
+
         $this->container->bind(ScheduledRunner::class, static function (Container $c): ScheduledRunner {
             return new ScheduledRunner(
                 $c->get(AutomationRepository::class),
@@ -347,6 +360,110 @@ final class Plugin
                 [$scheduledRunner, 'tick'],
                 10,
                 0,
+            );
+        }
+
+        // Activity log: el logger se suscribe a los eventos de dominio
+        // que ya disparan RecordService, CommentService y AutomationEngine.
+        // Como append-only, no afecta la request original aunque falle al
+        // insertar.
+        $activity = $this->container->get(ActivityLogger::class);
+        if ($activity instanceof ActivityLogger) {
+            add_action(
+                'imagina_crm/record_created',
+                static function (mixed $list, mixed $recordId, mixed $record, mixed $values) use ($activity): void {
+                    unset($values);
+                    if (! $list instanceof ListEntity || ! is_numeric($recordId)) {
+                        return;
+                    }
+                    $activity->recordCreated(
+                        $list,
+                        (int) $recordId,
+                        is_array($record) ? $record : null,
+                    );
+                },
+                10,
+                4,
+            );
+
+            add_action(
+                'imagina_crm/record_updated',
+                static function (mixed $list, mixed $recordId, mixed $newRecord, mixed $previous) use ($activity): void {
+                    if (! $list instanceof ListEntity || ! is_numeric($recordId)) {
+                        return;
+                    }
+                    $activity->recordUpdated(
+                        $list,
+                        (int) $recordId,
+                        is_array($newRecord) ? $newRecord : null,
+                        is_array($previous) ? $previous : null,
+                    );
+                },
+                10,
+                4,
+            );
+
+            add_action(
+                'imagina_crm/record_deleted',
+                static function (mixed $list, mixed $recordId, mixed $purge) use ($activity): void {
+                    if (! $list instanceof ListEntity || ! is_numeric($recordId)) {
+                        return;
+                    }
+                    $activity->recordDeleted($list, (int) $recordId, (bool) $purge);
+                },
+                10,
+                3,
+            );
+
+            add_action(
+                'imagina_crm/comment_created',
+                static function (mixed $comment) use ($activity): void {
+                    if ($comment instanceof CommentEntity) {
+                        $activity->commentCreated($comment);
+                    }
+                },
+                10,
+                1,
+            );
+
+            add_action(
+                'imagina_crm/comment_updated',
+                static function (mixed $after, mixed $before) use ($activity): void {
+                    if ($after instanceof CommentEntity && $before instanceof CommentEntity) {
+                        $activity->commentUpdated($after, $before);
+                    }
+                },
+                10,
+                2,
+            );
+
+            add_action(
+                'imagina_crm/comment_deleted',
+                static function (mixed $comment) use ($activity): void {
+                    if ($comment instanceof CommentEntity) {
+                        $activity->commentDeleted($comment);
+                    }
+                },
+                10,
+                1,
+            );
+
+            add_action(
+                'imagina_crm/automation_run_completed',
+                static function (mixed $automation, mixed $runId, mixed $status, mixed $log) use ($activity): void {
+                    if (! $automation instanceof AutomationEntity || ! is_numeric($runId) || ! is_string($status)) {
+                        return;
+                    }
+                    $activity->automationRun(
+                        $automation,
+                        (int) $runId,
+                        $status,
+                        is_array($log) ? $log : [],
+                        null,
+                    );
+                },
+                10,
+                4,
             );
         }
 

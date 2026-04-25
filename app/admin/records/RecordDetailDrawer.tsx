@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, MessageSquare, Save, Trash2 } from 'lucide-react';
+import { Activity, FileText, MessageSquare, Save, Trash2 } from 'lucide-react';
 
+import { ActivityPanel } from '@/admin/activity/ActivityPanel';
 import { CommentsPanel } from '@/admin/comments/CommentsPanel';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,7 +59,7 @@ export function RecordDetailDrawer({
     const [values, setValues] = useState<Record<string, unknown>>(initialValues);
     const [error, setError] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-    const [tab, setTab] = useState<'details' | 'comments'>('details');
+    const [tab, setTab] = useState<'details' | 'comments' | 'activity'>('details');
     const boot = getBootData();
 
     useEffect(() => {
@@ -158,6 +159,10 @@ export function RecordDetailDrawer({
                         <MessageSquare className="imcrm-h-3.5 imcrm-w-3.5" />
                         {__('Comentarios')}
                     </TabButton>
+                    <TabButton active={tab === 'activity'} onClick={() => setTab('activity')}>
+                        <Activity className="imcrm-h-3.5 imcrm-w-3.5" />
+                        {__('Actividad')}
+                    </TabButton>
                 </div>
 
                 <SheetBody>
@@ -176,13 +181,15 @@ export function RecordDetailDrawer({
                                 </div>
                             )}
                         </>
-                    ) : (
+                    ) : tab === 'comments' ? (
                         <CommentsPanel
                             listId={listId}
                             recordId={record.id}
                             currentUserId={boot.user.id}
                             isAdmin={boot.user.capabilities.manage_options === true}
                         />
+                    ) : (
+                        <ActivityPanel listId={listId} recordId={record.id} />
                     )}
                 </SheetBody>
 

@@ -24,6 +24,7 @@ final class RestBootstrap
         SystemController::class,
         AutomationsController::class,
         CommentsController::class,
+        ActivityController::class,
     ];
 
     public function __construct(private readonly Container $container)
