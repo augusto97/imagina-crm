@@ -19,6 +19,8 @@ use ImaginaCRM\Records\RecordValidator;
 use ImaginaCRM\Records\RelationRepository;
 use ImaginaCRM\REST\RestBootstrap;
 use ImaginaCRM\Support\Database;
+use ImaginaCRM\Views\SavedViewRepository;
+use ImaginaCRM\Views\SavedViewService;
 
 /**
  * Bootstrap principal del plugin.
@@ -151,6 +153,18 @@ final class Plugin
                 $c->get(RelationRepository::class),
                 $c->get(RecordValidator::class),
                 $c->get(QueryBuilder::class),
+            );
+        });
+
+        // Saved Views.
+        $this->container->bind(SavedViewRepository::class, static function (Container $c): SavedViewRepository {
+            return new SavedViewRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(SavedViewService::class, static function (Container $c): SavedViewService {
+            return new SavedViewService(
+                $c->get(SavedViewRepository::class),
+                $c->get(ListRepository::class),
             );
         });
     }
