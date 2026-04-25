@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus, Search, Settings } from 'lucide-react';
 
@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
 import { useRecords } from '@/hooks/useRecords';
+import { useSavedViews } from '@/hooks/useSavedViews';
 import type { RecordEntity } from '@/types/record';
+import type { SavedViewEntity } from '@/types/view';
 
 import { BulkActionsToolbar } from './BulkActionsToolbar';
 import { FiltersBar } from './FiltersBar';
@@ -22,24 +24,64 @@ import {
     type RecordsState,
 } from './recordsState';
 import { TableView } from './views/TableView';
+import { SaveViewDialog } from './views/SaveViewDialog';
+import { ViewsTabs } from './views/ViewsTabs';
+import {
+    hasChangesVsView,
+    stateToViewConfig,
+    viewConfigToState,
+} from './views/savedViewMapping';
 
 export function RecordsPage(): JSX.Element {
     const { listSlug } = useParams<{ listSlug: string }>();
     const navigate = useNavigate();
     const list = useList(listSlug);
     const fields = useFields(list.data?.id);
+    const views = useSavedViews(list.data?.id);
+
     const [state, setState] = useState<RecordsState>(INITIAL_STATE);
+    const [activeViewId, setActiveViewId] = useState<number | null>(null);
+    const initialViewAppliedRef = useRef<number | null>(null);
+
     const query = useMemo(() => buildRecordsQuery(state), [state]);
     const records = useRecords(list.data?.id, query);
     const [createOpen, setCreateOpen] = useState(false);
+    const [saveViewOpen, setSaveViewOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [drawerRecordId, setDrawerRecordId] = useState<number | null>(null);
 
-    // Si cambiamos de lista, limpiamos selección y drawer.
+    // Reset al cambiar de lista.
     useEffect(() => {
         setSelectedIds([]);
         setDrawerRecordId(null);
+        setActiveViewId(null);
+        setState(INITIAL_STATE);
+        initialViewAppliedRef.current = null;
     }, [list.data?.id]);
+
+    const applyView = (view: SavedViewEntity | null): void => {
+        if (view === null) {
+            setActiveViewId(null);
+            setState(INITIAL_STATE);
+            return;
+        }
+        setActiveViewId(view.id);
+        setState(viewConfigToState(view.config, INITIAL_STATE.perPage));
+    };
+
+    // Auto-aplicar la vista default la primera vez que llegan las vistas
+    // para esta lista. Usamos un ref para evitar re-aplicarla cuando el
+    // usuario decida explícitamente ir a "Todos" o cambiar de tab.
+    useEffect(() => {
+        if (!views.data || !list.data) return;
+        if (initialViewAppliedRef.current === list.data.id) return;
+        initialViewAppliedRef.current = list.data.id;
+
+        const def = views.data.find((v) => v.is_default);
+        if (def) {
+            applyView(def);
+        }
+    }, [views.data, list.data?.id]);
 
     const setFilters = (filters: ActiveFilter[]): void => {
         setState((s) => ({ ...s, filters, page: 1 }));
@@ -65,6 +107,13 @@ export function RecordsPage(): JSX.Element {
         drawerRecordId !== null
             ? records.data?.data.find((r) => r.id === drawerRecordId) ?? null
             : null;
+
+    const activeView = activeViewId !== null
+        ? views.data?.find((v) => v.id === activeViewId) ?? null
+        : null;
+    const isDirty = activeView !== null
+        ? hasChangesVsView(state, activeView.config)
+        : state.filters.length > 0 || state.sort.length > 0 || state.search.trim() !== '';
 
     if (list.isLoading || fields.isLoading) {
         return (
@@ -141,6 +190,16 @@ export function RecordsPage(): JSX.Element {
 
             {fields.data && fields.data.length > 0 && (
                 <>
+                    <ViewsTabs
+                        listId={list.data.id}
+                        views={views.data ?? []}
+                        activeViewId={activeViewId}
+                        onSelectView={applyView}
+                        isDirty={isDirty}
+                        currentConfig={stateToViewConfig(state)}
+                        onAskCreateView={() => setSaveViewOpen(true)}
+                    />
+
                     <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-justify-between imcrm-gap-3">
                         <div className="imcrm-flex imcrm-flex-1 imcrm-flex-wrap imcrm-items-center imcrm-gap-3">
                             <div className="imcrm-relative imcrm-w-72">
@@ -206,6 +265,16 @@ export function RecordsPage(): JSX.Element {
                         record={drawerRecord}
                         open={drawerRecordId !== null}
                         onOpenChange={(open) => !open && setDrawerRecordId(null)}
+                    />
+
+                    <SaveViewDialog
+                        listId={list.data.id}
+                        config={stateToViewConfig(state)}
+                        open={saveViewOpen}
+                        onOpenChange={setSaveViewOpen}
+                        onCreated={(view) => {
+                            setActiveViewId(view.id);
+                        }}
                     />
                 </>
             )}
