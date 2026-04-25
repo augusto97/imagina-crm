@@ -224,6 +224,9 @@ final class SchemaManager
     private function sqlLists(string $charset): string
     {
         $table = $this->db->systemTable('lists');
+        // Nota: `uq_slug` incluye `deleted_at` para que soft-deleted libere
+        // el slug (NULL ≠ NULL en UNIQUE de MySQL). `table_suffix` SÍ es
+        // absoluto: los nombres físicos nunca se reutilizan (CLAUDE.md §7.9).
         return "CREATE TABLE {$table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             slug VARCHAR(64) NOT NULL,
@@ -239,7 +242,7 @@ final class SchemaManager
             updated_at DATETIME NOT NULL,
             deleted_at DATETIME NULL,
             PRIMARY KEY  (id),
-            UNIQUE KEY uq_slug (slug),
+            UNIQUE KEY uq_slug (slug, deleted_at),
             UNIQUE KEY uq_table_suffix (table_suffix),
             KEY idx_deleted (deleted_at)
         ) {$charset};";
@@ -248,6 +251,8 @@ final class SchemaManager
     private function sqlFields(string $charset): string
     {
         $table = $this->db->systemTable('fields');
+        // `uq_list_slug` incluye `deleted_at` (mismo patrón que lists).
+        // `uq_list_column` permanece absoluto: column_name nunca se reutiliza.
         return "CREATE TABLE {$table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             list_id BIGINT UNSIGNED NOT NULL,
@@ -264,7 +269,7 @@ final class SchemaManager
             updated_at DATETIME NOT NULL,
             deleted_at DATETIME NULL,
             PRIMARY KEY  (id),
-            UNIQUE KEY uq_list_slug (list_id, slug),
+            UNIQUE KEY uq_list_slug (list_id, slug, deleted_at),
             UNIQUE KEY uq_list_column (list_id, column_name),
             KEY idx_list (list_id),
             KEY idx_deleted (deleted_at)

@@ -41,7 +41,13 @@
         "phpcs": "phpcs",
         "phpcbf": "phpcbf",
         "phpstan": "phpstan analyse --memory-limit=2G",
-        "test": "phpunit"
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite Unit",
+        "test:integration": "phpunit -c phpunit-integration.xml.dist",
+        "test:all": [
+            "@test:unit",
+            "@test:integration"
+        ]
     },
     "minimum-stability": "stable",
     "prefer-stable": true

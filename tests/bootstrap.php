@@ -70,7 +70,7 @@ if (! function_exists('esc_sql')) {
 }
 
 if (! function_exists('current_time')) {
-    function current_time(string $type, int $gmt = 0): string
+    function current_time(string $type, int|bool $gmt = 0): string
     {
         unset($type, $gmt);
         return gmdate('Y-m-d H:i:s');
