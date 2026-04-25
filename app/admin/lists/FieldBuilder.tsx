@@ -1,0 +1,130 @@
+import { useState } from 'react';
+import { Plus, Trash2, KeyRound, Asterisk, Loader2 } from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useDeleteField, useFields } from '@/hooks/useFields';
+import { cn } from '@/lib/utils';
+import type { FieldEntity } from '@/types/field';
+
+import { FieldCreateDialog } from './FieldCreateDialog';
+
+interface FieldBuilderProps {
+    listId: number;
+}
+
+export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
+    const fields = useFields(listId);
+    const deleteField = useDeleteField(listId);
+    const [createOpen, setCreateOpen] = useState(false);
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-items-center imcrm-justify-between">
+                <div>
+                    <h2 className="imcrm-text-base imcrm-font-semibold">Campos</h2>
+                    <p className="imcrm-text-sm imcrm-text-muted-foreground">
+                        Cada campo se traduce en una columna real en la base de datos.
+                    </p>
+                </div>
+                <Button onClick={() => setCreateOpen(true)} size="sm" className="imcrm-gap-2">
+                    <Plus className="imcrm-h-4 imcrm-w-4" />
+                    Añadir campo
+                </Button>
+            </div>
+
+            {fields.isLoading && (
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-6 imcrm-text-sm imcrm-text-muted-foreground">
+                    <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+                    Cargando campos…
+                </div>
+            )}
+
+            {fields.data && fields.data.length === 0 && (
+                <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-p-8 imcrm-text-center">
+                    <p className="imcrm-text-sm imcrm-text-muted-foreground">
+                        Esta lista aún no tiene campos. Añade el primero para empezar.
+                    </p>
+                </div>
+            )}
+
+            {fields.data && fields.data.length > 0 && (
+                <ul className="imcrm-flex imcrm-flex-col imcrm-divide-y imcrm-divide-border imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                    {fields.data.map((field) => (
+                        <FieldRow
+                            key={field.id}
+                            field={field}
+                            onDelete={() => {
+                                if (
+                                    !confirm(
+                                        `Eliminar el campo "${field.label}"? Los datos guardados se conservan a menos que pidas borrarlos definitivamente.`,
+                                    )
+                                ) {
+                                    return;
+                                }
+                                deleteField.mutate({ id: field.id, purge: false });
+                            }}
+                        />
+                    ))}
+                </ul>
+            )}
+
+            <FieldCreateDialog listId={listId} open={createOpen} onOpenChange={setCreateOpen} />
+        </div>
+    );
+}
+
+function FieldRow({ field, onDelete }: { field: FieldEntity; onDelete: () => void }): JSX.Element {
+    return (
+        <li
+            className={cn(
+                'imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3 imcrm-px-4 imcrm-py-3',
+            )}
+        >
+            <div className="imcrm-flex imcrm-min-w-0 imcrm-items-center imcrm-gap-3">
+                <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col">
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                        <span className="imcrm-text-sm imcrm-font-medium">{field.label}</span>
+                        {field.is_primary && (
+                            <Badge variant="secondary" className="imcrm-gap-1">
+                                <KeyRound className="imcrm-h-3 imcrm-w-3" />
+                                Primario
+                            </Badge>
+                        )}
+                        {field.is_required && (
+                            <Badge variant="outline" className="imcrm-gap-1">
+                                <Asterisk className="imcrm-h-3 imcrm-w-3" />
+                                Obligatorio
+                            </Badge>
+                        )}
+                        {field.is_unique && <Badge variant="outline">Único</Badge>}
+                    </div>
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs imcrm-text-muted-foreground">
+                        <code className="imcrm-font-mono">{field.slug}</code>
+                        <span>·</span>
+                        <span className="imcrm-uppercase imcrm-tracking-wide">{field.type}</span>
+                        {field.column_name && (
+                            <>
+                                <span>·</span>
+                                <code className="imcrm-font-mono imcrm-opacity-60">
+                                    col:{field.column_name}
+                                </code>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onDelete}
+                    aria-label={`Eliminar ${field.label}`}
+                    title="Eliminar"
+                >
+                    <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                </Button>
+            </div>
+        </li>
+    );
+}

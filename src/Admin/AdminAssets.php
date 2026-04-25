@@ -17,7 +17,7 @@ final class AdminAssets
 {
     private const HANDLE   = 'imagina-crm-admin';
     private const ENTRY    = 'app/main.tsx';
-    private const MANIFEST = 'dist/.vite/manifest.json';
+    private const MANIFEST = 'dist/manifest.json';
 
     public function register(): void
     {
