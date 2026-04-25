@@ -20,6 +20,7 @@ final class RestBootstrap
         RecordsController::class,
         ViewsController::class,
         SlugsController::class,
+        LicenseController::class,
         SystemController::class,
     ];
 

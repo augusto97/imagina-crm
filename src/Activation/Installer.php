@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Activation;
 
+use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Plugin;
 use ImaginaCRM\Support\Database;
@@ -49,6 +50,11 @@ final class Installer
         }
 
         update_option(self::OPTION_DB_VERSION, Plugin::DB_VERSION, false);
+
+        // Programa el cron diario de re-validación de licencia (idempotente).
+        if (! wp_next_scheduled(LicenseManager::CRON_HOOK)) {
+            wp_schedule_event(time() + DAY_IN_SECONDS, 'daily', LicenseManager::CRON_HOOK);
+        }
 
         flush_rewrite_rules();
     }

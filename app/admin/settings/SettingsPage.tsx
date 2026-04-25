@@ -1,6 +1,8 @@
 import { getBootData } from '@/lib/boot';
 import { __ } from '@/lib/i18n';
 
+import { LicenseCard } from './LicenseCard';
+
 export function SettingsPage(): JSX.Element {
     const boot = getBootData();
 
@@ -11,16 +13,21 @@ export function SettingsPage(): JSX.Element {
                     {__('Ajustes')}
                 </h1>
                 <p className="imcrm-mt-1 imcrm-text-sm imcrm-text-muted-foreground">
-                    {__('Información del entorno actual de Imagina CRM.')}
+                    {__('Licencia, entorno e información del plugin.')}
                 </p>
             </header>
 
-            <dl className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6 sm:imcrm-grid-cols-2">
-                <Item label={__('Versión del plugin')} value={boot.version} />
-                <Item label={__('REST root')} value={boot.restRoot} />
-                <Item label={__('Locale')} value={boot.locale} />
-                <Item label={__('Timezone')} value={boot.timezone} />
-            </dl>
+            <LicenseCard />
+
+            <section className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <h2 className="imcrm-text-base imcrm-font-semibold">{__('Entorno')}</h2>
+                <dl className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6 sm:imcrm-grid-cols-2">
+                    <Item label={__('Versión del plugin')} value={boot.version} />
+                    <Item label={__('REST root')} value={boot.restRoot} />
+                    <Item label={__('Locale')} value={boot.locale} />
+                    <Item label={__('Timezone')} value={boot.timezone} />
+                </dl>
+            </section>
         </div>
     );
 }

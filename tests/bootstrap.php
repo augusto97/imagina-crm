@@ -91,6 +91,69 @@ if (! function_exists('wp_json_encode')) {
     }
 }
 
+/**
+ * Stubs de la options API: store en memoria, reseteable entre tests con
+ * `imcrm_test_reset_options()`.
+ */
+$GLOBALS['imcrm_test_options'] = [];
+
+if (! function_exists('get_option')) {
+    function get_option(string $name, mixed $default = false): mixed
+    {
+        return $GLOBALS['imcrm_test_options'][$name] ?? $default;
+    }
+}
+if (! function_exists('update_option')) {
+    function update_option(string $name, mixed $value, bool $autoload = true): bool
+    {
+        unset($autoload);
+        $GLOBALS['imcrm_test_options'][$name] = $value;
+        return true;
+    }
+}
+if (! function_exists('delete_option')) {
+    function delete_option(string $name): bool
+    {
+        unset($GLOBALS['imcrm_test_options'][$name]);
+        return true;
+    }
+}
+if (! function_exists('imcrm_test_reset_options')) {
+    function imcrm_test_reset_options(): void
+    {
+        $GLOBALS['imcrm_test_options'] = [];
+    }
+}
+
+if (! function_exists('home_url')) {
+    function home_url(string $path = ''): string
+    {
+        return 'https://example.test' . $path;
+    }
+}
+
+if (! function_exists('do_action')) {
+    function do_action(string $hook, mixed ...$args): void
+    {
+        unset($hook, $args);
+    }
+}
+
+if (! function_exists('apply_filters')) {
+    function apply_filters(string $hook, mixed $value, mixed ...$args): mixed
+    {
+        unset($hook, $args);
+        return $value;
+    }
+}
+
+if (! defined('DAY_IN_SECONDS')) {
+    define('DAY_IN_SECONDS', 86400);
+}
+if (! defined('HOUR_IN_SECONDS')) {
+    define('HOUR_IN_SECONDS', 3600);
+}
+
 if (! function_exists('remove_accents')) {
     /**
      * Stub minimalista. La implementación real de WP es mucho más completa,

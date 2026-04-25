@@ -10,6 +10,9 @@ use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\FieldTypeRegistry;
 use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Licensing\LicenseHttpClient;
+use ImaginaCRM\Licensing\LicenseManager;
+use ImaginaCRM\Licensing\UpdaterClient;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
 use ImaginaCRM\Records\QueryBuilder;
@@ -167,6 +170,19 @@ final class Plugin
                 $c->get(ListRepository::class),
             );
         });
+
+        // Licensing + Updater.
+        $this->container->bind(LicenseHttpClient::class, static function (): LicenseHttpClient {
+            return new LicenseHttpClient();
+        });
+
+        $this->container->bind(LicenseManager::class, static function (Container $c): LicenseManager {
+            return new LicenseManager($c->get(LicenseHttpClient::class));
+        });
+
+        $this->container->bind(UpdaterClient::class, static function (Container $c): UpdaterClient {
+            return new UpdaterClient($c->get(LicenseManager::class));
+        });
     }
 
     private function register(): void
@@ -176,6 +192,19 @@ final class Plugin
         // REST se registra siempre (admin + frontend pueden consumirlo).
         $rest = new RestBootstrap($this->container);
         $rest->register();
+
+        // Hook de cron diario para revalidar licencia. El registro en
+        // sí (wp_schedule_event) lo hace `Installer` en activación.
+        $licenses = $this->container->get(LicenseManager::class);
+        if ($licenses instanceof LicenseManager) {
+            add_action(LicenseManager::CRON_HOOK, [$licenses, 'dailyCheck']);
+        }
+
+        // Updater registra los filtros estándar de WP (transient + plugins_api).
+        $updater = $this->container->get(UpdaterClient::class);
+        if ($updater instanceof UpdaterClient) {
+            $updater->register();
+        }
 
         if (is_admin()) {
             $this->registerAdmin();
