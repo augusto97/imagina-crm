@@ -1,4 +1,4 @@
-import { MoreHorizontal, Plus, Save, Star, Undo2 } from 'lucide-react';
+import { Columns3, MoreHorizontal, Plus, Save, Star, Table, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -100,6 +100,13 @@ export function ViewsTabs({
                         active={isActive}
                         onClick={() => onSelectView(view)}
                         isDefault={view.is_default}
+                        typeIcon={
+                            view.type === 'kanban' ? (
+                                <Columns3 className="imcrm-h-3 imcrm-w-3" />
+                            ) : (
+                                <Table className="imcrm-h-3 imcrm-w-3" />
+                            )
+                        }
                         rightAction={
                             isActive ? (
                                 <DropdownMenu>
@@ -189,10 +196,11 @@ interface ViewTabProps {
     active: boolean;
     onClick: () => void;
     isDefault?: boolean;
+    typeIcon?: React.ReactNode;
     rightAction?: React.ReactNode;
 }
 
-function ViewTab({ label, active, onClick, isDefault, rightAction }: ViewTabProps): JSX.Element {
+function ViewTab({ label, active, onClick, isDefault, typeIcon, rightAction }: ViewTabProps): JSX.Element {
     return (
         <div
             className={cn(
@@ -204,6 +212,11 @@ function ViewTab({ label, active, onClick, isDefault, rightAction }: ViewTabProp
         >
             <button type="button" onClick={onClick} className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
                 {isDefault && <Star className="imcrm-h-3 imcrm-w-3 imcrm-text-warning" />}
+                {typeIcon && (
+                    <span aria-hidden className="imcrm-text-muted-foreground">
+                        {typeIcon}
+                    </span>
+                )}
                 <span>{label}</span>
             </button>
             {rightAction}

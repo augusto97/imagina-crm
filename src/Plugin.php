@@ -188,6 +188,7 @@ final class Plugin
             return new SavedViewService(
                 $c->get(SavedViewRepository::class),
                 $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
             );
         });
 

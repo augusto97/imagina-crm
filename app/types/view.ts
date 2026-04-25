@@ -1,4 +1,4 @@
-export type SavedViewType = 'table';
+export type SavedViewType = 'table' | 'kanban';
 
 export interface SavedViewConfig {
     visible_fields?: number[];
@@ -6,6 +6,8 @@ export interface SavedViewConfig {
     filters?: Array<{ field_id: number; op: string; value: unknown }>;
     sort?: Array<{ field_id: number; dir: 'asc' | 'desc' }>;
     search?: string;
+    /** Sólo para vistas tipo `kanban`: id del campo `select` que define columnas. */
+    group_by_field_id?: number;
 }
 
 export interface SavedViewEntity {

@@ -3,25 +3,30 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Views;
 
+use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Support\ValidationResult;
 
 /**
  * Casos de uso de Saved Views.
  *
- * En el MVP solo aceptamos `type = 'table'`. Otros tipos (kanban, calendar,
- * dashboard) se habilitan en fases posteriores.
+ * Tipos soportados:
+ * - `table` (Fase 1): vista tabla con filtros, sort, columnas visibles.
+ * - `kanban` (Fase 4): tablero agrupado por un campo `select`. Requiere
+ *   `config.group_by_field_id`. Las columnas se derivan de las options
+ *   del campo en runtime (se reflejan cambios sin reconfigurar la vista).
  *
  * `is_default` se asegura único por lista a nivel service: setear una nueva
  * default desmarca la anterior.
  */
 final class SavedViewService
 {
-    public const ALLOWED_TYPES = ['table'];
+    public const ALLOWED_TYPES = ['table', 'kanban'];
 
     public function __construct(
         private readonly SavedViewRepository $repo,
         private readonly ListRepository $lists,
+        private readonly FieldRepository $fields,
     ) {
     }
 
@@ -61,7 +66,13 @@ final class SavedViewService
             return ValidationResult::failWith('type', __('Tipo de vista no soportado.', 'imagina-crm'));
         }
 
-        $config    = is_array($input['config'] ?? null) ? $input['config'] : [];
+        $config = is_array($input['config'] ?? null) ? $input['config'] : [];
+
+        $configCheck = $this->validateConfigForType($listId, $type, $config);
+        if ($configCheck instanceof ValidationResult) {
+            return $configCheck;
+        }
+
         $isDefault = ! empty($input['is_default']);
         $now       = current_time('mysql', true);
 
@@ -104,17 +115,31 @@ final class SavedViewService
             return ValidationResult::failWith('id', __('La vista no existe.', 'imagina-crm'));
         }
 
+        $effectiveType = $current->type;
         if (isset($patch['type'])) {
             $type = (string) $patch['type'];
             if (! in_array($type, self::ALLOWED_TYPES, true)) {
                 return ValidationResult::failWith('type', __('Tipo de vista no soportado.', 'imagina-crm'));
             }
+            $effectiveType = $type;
         }
 
         if (isset($patch['name'])) {
             $patch['name'] = trim((string) $patch['name']);
             if ($patch['name'] === '') {
                 return ValidationResult::failWith('name', __('El nombre no puede estar vacío.', 'imagina-crm'));
+            }
+        }
+
+        // Si el patch trae config (o cambió el type), revalidamos contra
+        // las reglas del tipo efectivo.
+        if (array_key_exists('config', $patch) || array_key_exists('type', $patch)) {
+            $config = is_array($patch['config'] ?? null)
+                ? $patch['config']
+                : $current->config;
+            $configCheck = $this->validateConfigForType($listId, $effectiveType, $config);
+            if ($configCheck instanceof ValidationResult) {
+                return $configCheck;
             }
         }
 
@@ -150,5 +175,42 @@ final class SavedViewService
 
         do_action('imagina_crm/view_deleted', $current);
         return ValidationResult::ok();
+    }
+
+    /**
+     * Reglas específicas por tipo de vista.
+     *
+     * - `table`: cualquier config aplica (filtros, sort, columnas).
+     * - `kanban`: requiere `group_by_field_id` apuntando a un campo
+     *   `select` de la misma lista. Sin esa garantía la UI no puede
+     *   construir columnas.
+     *
+     * @param array<string, mixed> $config
+     */
+    private function validateConfigForType(int $listId, string $type, array $config): ?ValidationResult
+    {
+        if ($type === 'kanban') {
+            $groupBy = isset($config['group_by_field_id']) ? (int) $config['group_by_field_id'] : 0;
+            if ($groupBy <= 0) {
+                return ValidationResult::failWith(
+                    'config.group_by_field_id',
+                    __('La vista Kanban requiere un campo de agrupación.', 'imagina-crm'),
+                );
+            }
+            $field = $this->fields->find($groupBy);
+            if ($field === null || $field->listId !== $listId) {
+                return ValidationResult::failWith(
+                    'config.group_by_field_id',
+                    __('El campo de agrupación no pertenece a esta lista.', 'imagina-crm'),
+                );
+            }
+            if ($field->type !== 'select') {
+                return ValidationResult::failWith(
+                    'config.group_by_field_id',
+                    __('La vista Kanban sólo soporta agrupar por campos tipo Select.', 'imagina-crm'),
+                );
+            }
+        }
+        return null;
     }
 }

@@ -24,6 +24,7 @@ import {
     type ActiveFilter,
     type RecordsState,
 } from './recordsState';
+import { KanbanView } from './views/KanbanView';
 import { TableView } from './views/TableView';
 import { SaveViewDialog } from './views/SaveViewDialog';
 import { ViewsTabs } from './views/ViewsTabs';
@@ -44,7 +45,20 @@ export function RecordsPage(): JSX.Element {
     const [activeViewId, setActiveViewId] = useState<number | null>(null);
     const initialViewAppliedRef = useRef<number | null>(null);
 
-    const query = useMemo(() => buildRecordsQuery(state), [state]);
+    // En Kanban traemos hasta 500 registros (el back-end limita el
+    // máximo per_page; 500 cubre la mayoría de tableros y mantiene la
+    // query rápida). Si la lista crece más allá, el operador puede
+    // filtrar previamente con la vista Tabla y guardar como Kanban.
+    const query = useMemo(() => {
+        const base = buildRecordsQuery(state);
+        if (activeViewId !== null) {
+            const v = views.data?.find((x) => x.id === activeViewId);
+            if (v?.type === 'kanban') {
+                return { ...base, per_page: 500, page: 1 };
+            }
+        }
+        return base;
+    }, [state, activeViewId, views.data]);
     const records = useRecords(list.data?.id, query);
     const [createOpen, setCreateOpen] = useState(false);
     const [saveViewOpen, setSaveViewOpen] = useState(false);
@@ -112,9 +126,22 @@ export function RecordsPage(): JSX.Element {
     const activeView = activeViewId !== null
         ? views.data?.find((v) => v.id === activeViewId) ?? null
         : null;
-    const isDirty = activeView !== null
-        ? hasChangesVsView(state, activeView.config)
-        : state.filters.length > 0 || state.sort.length > 0 || state.search.trim() !== '';
+    const isKanban = activeView?.type === 'kanban';
+    // Para Kanban: "dirty" no aplica de la misma manera (no hay
+    // filtros/sort que se compongan vs config); lo desactivamos.
+    const isDirty = isKanban
+        ? false
+        : activeView !== null
+          ? hasChangesVsView(state, activeView.config)
+          : state.filters.length > 0 || state.sort.length > 0 || state.search.trim() !== '';
+
+    // Resolver el campo de agrupación de la vista kanban activa.
+    const groupByField = useMemo(() => {
+        if (!isKanban || !fields.data) return undefined;
+        const id = activeView?.config.group_by_field_id;
+        if (!id) return undefined;
+        return fields.data.find((f) => f.id === id);
+    }, [isKanban, fields.data, activeView?.config.group_by_field_id]);
 
     if (list.isLoading || fields.isLoading) {
         return (
@@ -241,6 +268,14 @@ export function RecordsPage(): JSX.Element {
                                 (records.error as Error).message,
                             )}
                         </p>
+                    ) : isKanban && groupByField ? (
+                        <KanbanView
+                            listId={list.data.id}
+                            fields={fields.data}
+                            records={records.data?.data ?? []}
+                            groupByField={groupByField}
+                            onCardClick={(record) => setDrawerRecordId(record.id)}
+                        />
                     ) : (
                         <TableView
                             listId={list.data.id}
@@ -254,7 +289,7 @@ export function RecordsPage(): JSX.Element {
                         />
                     )}
 
-                    {meta && <Pagination meta={meta} onPageChange={setPage} />}
+                    {meta && !isKanban && <Pagination meta={meta} onPageChange={setPage} />}
 
                     <BulkActionsToolbar
                         listId={list.data.id}

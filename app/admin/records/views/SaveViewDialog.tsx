@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { useFields } from '@/hooks/useFields';
 import { useCreateSavedView } from '@/hooks/useSavedViews';
 import { ApiError } from '@/lib/api';
 import { __, _n, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type { SavedViewConfig, SavedViewEntity } from '@/types/view';
+import type { SavedViewConfig, SavedViewEntity, SavedViewType } from '@/types/view';
 
 interface SaveViewDialogProps {
     listId: number;
@@ -32,27 +34,51 @@ export function SaveViewDialog({
     onCreated,
 }: SaveViewDialogProps): JSX.Element {
     const create = useCreateSavedView(listId);
+    const fields = useFields(listId);
     const [name, setName] = useState('');
     const [setDefault, setSetDefault] = useState(false);
+    const [type, setType] = useState<SavedViewType>('table');
+    const [groupByFieldId, setGroupByFieldId] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
+
+    const selectFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type === 'select'),
+        [fields.data],
+    );
 
     useEffect(() => {
         if (!open) {
             setName('');
             setSetDefault(false);
+            setType('table');
+            setGroupByFieldId(0);
             setError(null);
             create.reset();
         }
     }, [open, create]);
 
+    // Cuando se cambia a kanban y hay campos select, auto-seleccionar el
+    // primero — UX de menos clics.
+    useEffect(() => {
+        if (type === 'kanban' && groupByFieldId === 0 && selectFields.length > 0) {
+            setGroupByFieldId(selectFields[0]!.id);
+        }
+    }, [type, groupByFieldId, selectFields]);
+
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         setError(null);
+
+        // Para kanban: empacamos el group_by_field_id en config y omitimos
+        // filters/sort que pertenecen al state de table.
+        const payloadConfig: SavedViewConfig =
+            type === 'kanban' ? { group_by_field_id: groupByFieldId } : config;
+
         try {
             const view = await create.mutateAsync({
                 name: name.trim(),
-                type: 'table',
-                config,
+                type,
+                config: payloadConfig,
                 is_default: setDefault,
             });
             onCreated?.(view);
@@ -107,6 +133,42 @@ export function SaveViewDialog({
                             />
                         </div>
 
+                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                            <Label htmlFor="view-type">{__('Tipo de vista')}</Label>
+                            <Select
+                                id="view-type"
+                                value={type}
+                                onChange={(e) => setType(e.target.value as SavedViewType)}
+                            >
+                                <option value="table">{__('Tabla')}</option>
+                                <option value="kanban" disabled={selectFields.length === 0}>
+                                    {selectFields.length === 0
+                                        ? __('Kanban (necesitas al menos un campo Select)')
+                                        : __('Kanban')}
+                                </option>
+                            </Select>
+                        </div>
+
+                        {type === 'kanban' && (
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                <Label htmlFor="view-group-by">{__('Agrupar por')}</Label>
+                                <Select
+                                    id="view-group-by"
+                                    value={groupByFieldId}
+                                    onChange={(e) => setGroupByFieldId(Number(e.target.value))}
+                                >
+                                    {selectFields.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                            {f.label}
+                                        </option>
+                                    ))}
+                                </Select>
+                                <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                    {__('Las columnas del tablero serán las opciones de este campo.')}
+                                </p>
+                            </div>
+                        )}
+
                         <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
                             <input
                                 type="checkbox"
@@ -116,12 +178,14 @@ export function SaveViewDialog({
                             {__('Establecer como vista por defecto')}
                         </label>
 
-                        <div className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
-                            <span className="imcrm-font-medium imcrm-text-foreground">
-                                {__('Se guardará:')}
-                            </span>{' '}
-                            {summary}
-                        </div>
+                        {type === 'table' && (
+                            <div className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
+                                <span className="imcrm-font-medium imcrm-text-foreground">
+                                    {__('Se guardará:')}
+                                </span>{' '}
+                                {summary}
+                            </div>
+                        )}
 
                         {error !== null && (
                             <div className="imcrm-rounded-md imcrm-border imcrm-border-destructive/40 imcrm-bg-destructive/10 imcrm-p-3 imcrm-text-sm imcrm-text-destructive">
@@ -135,7 +199,14 @@ export function SaveViewDialog({
                                     {__('Cancelar')}
                                 </Button>
                             </Dialog.Close>
-                            <Button type="submit" disabled={name.trim() === '' || create.isPending}>
+                            <Button
+                                type="submit"
+                                disabled={
+                                    name.trim() === '' ||
+                                    create.isPending ||
+                                    (type === 'kanban' && groupByFieldId <= 0)
+                                }
+                            >
                                 {create.isPending ? __('Guardando…') : __('Guardar vista')}
                             </Button>
                         </div>
