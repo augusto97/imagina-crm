@@ -16,6 +16,7 @@ final class RestBootstrap
     /** @var array<int, class-string<AbstractController>> */
     private const CONTROLLERS = [
         ListsController::class,
+        FieldsController::class,
         SlugsController::class,
         SystemController::class,
     ];

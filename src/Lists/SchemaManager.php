@@ -98,6 +98,98 @@ final class SchemaManager
     }
 
     /**
+     * Añade una columna a la tabla dinámica de la lista.
+     *
+     * `$sqlDefinition` debe venir del FieldType correspondiente (ej.
+     * `VARCHAR(255) NULL`). El `columnName` debe haber pasado por
+     * `SlugManager::generateUnique()`. Si el tipo no materializa columna
+     * (relation), no llamar a este método.
+     */
+    public function addColumn(string $tableSuffix, string $columnName, string $sqlDefinition): void
+    {
+        if (trim($sqlDefinition) === '') {
+            throw new \InvalidArgumentException('Empty SQL definition for column ' . $columnName);
+        }
+
+        $table  = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $column = $this->quoteIdent($columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} ADD COLUMN {$column} " . $this->normalizeDefinition($sqlDefinition));
+    }
+
+    /**
+     * Cambia el tipo SQL de una columna existente. Útil cuando el usuario
+     * cambia config (ej. max_length de un text). El `columnName` no cambia.
+     */
+    public function alterColumn(string $tableSuffix, string $columnName, string $sqlDefinition): void
+    {
+        if (trim($sqlDefinition) === '') {
+            throw new \InvalidArgumentException('Empty SQL definition for column ' . $columnName);
+        }
+
+        $table  = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $column = $this->quoteIdent($columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} MODIFY COLUMN {$column} " . $this->normalizeDefinition($sqlDefinition));
+    }
+
+    public function dropColumn(string $tableSuffix, string $columnName): void
+    {
+        $table  = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $column = $this->quoteIdent($columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} DROP COLUMN {$column}");
+    }
+
+    /**
+     * Crea un índice UNIQUE para una columna. El nombre del índice se
+     * deriva del `columnName` para no colisionar con otros y poder
+     * dropearlo fácilmente.
+     */
+    public function addUniqueIndex(string $tableSuffix, string $columnName): void
+    {
+        $table  = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $column = $this->quoteIdent($columnName);
+        $index  = $this->quoteIdent('uq_' . $columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} ADD UNIQUE INDEX {$index} ({$column})");
+    }
+
+    public function dropUniqueIndex(string $tableSuffix, string $columnName): void
+    {
+        $table = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $index = $this->quoteIdent('uq_' . $columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} DROP INDEX {$index}");
+    }
+
+    public function columnExists(string $tableSuffix, string $columnName): bool
+    {
+        $tableName = $this->db->dataTable($tableSuffix);
+        $sql       = $this->db->wpdb()->prepare(
+            'SHOW COLUMNS FROM `' . esc_sql($tableName) . '` LIKE %s',
+            $columnName
+        );
+        $found = $this->db->wpdb()->get_var($sql);
+        return $found !== null;
+    }
+
+    /**
+     * Sanea una definición SQL para evitar inyectar comandos extra. Permite
+     * solamente la forma `<TYPE>[ NULL|NOT NULL][ DEFAULT <literal>]`.
+     */
+    private function normalizeDefinition(string $definition): string
+    {
+        $clean = trim($definition);
+        // Remover trailing semicolons y comentarios.
+        $clean = rtrim($clean, ";\n\r\t ");
+        if (preg_match('/--|\/\*|\*\//', $clean)) {
+            throw new \InvalidArgumentException('SQL definition contains forbidden tokens.');
+        }
+        return $clean;
+    }
+
+    /**
      * Sanitiza y rodea con backticks un identificador.
      *
      * Si `allowPrefix` está activo, se permite el prefijo de WP (`wp_imcrm_`)

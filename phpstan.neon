@@ -1,5 +1,7 @@
 parameters:
     level: 8
+    parallel:
+        maximumNumberOfProcesses: 2
     paths:
         - src
         - imagina-crm.php

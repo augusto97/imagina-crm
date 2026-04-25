@@ -5,6 +5,9 @@ namespace ImaginaCRM;
 
 use ImaginaCRM\Admin\AdminAssets;
 use ImaginaCRM\Admin\AdminMenu;
+use ImaginaCRM\Fields\FieldRepository;
+use ImaginaCRM\Fields\FieldService;
+use ImaginaCRM\Fields\FieldTypeRegistry;
 use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Lists\SchemaManager;
@@ -96,6 +99,26 @@ final class Plugin
                 $c->get(ListRepository::class),
                 $c->get(SlugManager::class),
                 $c->get(SchemaManager::class),
+            );
+        });
+
+        // Field type registry: singleton; los 14 tipos default se registran
+        // en su constructor.
+        $this->container->bind(FieldTypeRegistry::class, static function (): FieldTypeRegistry {
+            return new FieldTypeRegistry();
+        });
+
+        $this->container->bind(FieldRepository::class, static function (Container $c): FieldRepository {
+            return new FieldRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(FieldService::class, static function (Container $c): FieldService {
+            return new FieldService(
+                $c->get(FieldRepository::class),
+                $c->get(ListRepository::class),
+                $c->get(SlugManager::class),
+                $c->get(SchemaManager::class),
+                $c->get(FieldTypeRegistry::class),
             );
         });
     }
