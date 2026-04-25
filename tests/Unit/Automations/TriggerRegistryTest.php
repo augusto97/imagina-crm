@@ -23,6 +23,9 @@ final class TriggerRegistryTest extends TestCase
 
         $this->assertTrue($registry->has(RecordCreatedTrigger::SLUG));
         $this->assertTrue($registry->has(RecordUpdatedTrigger::SLUG));
+        $this->assertTrue($registry->has('field_changed'));
+        $this->assertTrue($registry->has('scheduled'));
+        $this->assertTrue($registry->has('due_date_reached'));
         $this->assertInstanceOf(RecordCreatedTrigger::class, $registry->get(RecordCreatedTrigger::SLUG));
         $this->assertInstanceOf(RecordUpdatedTrigger::class, $registry->get(RecordUpdatedTrigger::SLUG));
     }
@@ -54,7 +57,7 @@ final class TriggerRegistryTest extends TestCase
         $registry = new TriggerRegistry();
         $shape    = $registry->toArray();
 
-        $this->assertCount(2, $shape);
+        $this->assertCount(5, $shape);
         foreach ($shape as $entry) {
             $this->assertArrayHasKey('slug', $entry);
             $this->assertArrayHasKey('label', $entry);

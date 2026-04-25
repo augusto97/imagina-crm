@@ -420,7 +420,180 @@ function TriggerConfigEditor({
                     </div>
                 </div>
             )}
+
+            {triggerType === 'field_changed' && (
+                <FieldChangedConfig config={config} onChange={onChange} fields={fields} />
+            )}
+
+            {triggerType === 'scheduled' && (
+                <ScheduledConfig config={config} onChange={onChange} />
+            )}
+
+            {triggerType === 'due_date_reached' && (
+                <DueDateConfig config={config} onChange={onChange} fields={fields} />
+            )}
         </fieldset>
+    );
+}
+
+function FieldChangedConfig({
+    config,
+    onChange,
+    fields,
+}: {
+    config: TriggerConfig;
+    onChange: (next: TriggerConfig) => void;
+    fields: FieldEntity[];
+}): JSX.Element {
+    const field = typeof config.field === 'string' ? config.field : '';
+    const fromValue =
+        typeof config.from_value === 'string' ? config.from_value : '';
+    const toValue = typeof config.to_value === 'string' ? config.to_value : '';
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-3">
+            <Label>{__('Campo a observar')}</Label>
+            <Select
+                value={field}
+                onChange={(e) => onChange({ ...config, field: e.target.value })}
+                aria-label={__('Campo')}
+            >
+                <option value="">{__('— Selecciona campo —')}</option>
+                {fields.map((f) => (
+                    <option key={f.id} value={f.slug}>
+                        {f.label} ({f.slug})
+                    </option>
+                ))}
+            </Select>
+            <div className="imcrm-flex imcrm-gap-2">
+                <Input
+                    placeholder={__('Valor previo (opcional)')}
+                    value={fromValue}
+                    onChange={(e) =>
+                        onChange({
+                            ...config,
+                            from_value: e.target.value === '' ? null : e.target.value,
+                        })
+                    }
+                    className="imcrm-flex-1"
+                />
+                <Input
+                    placeholder={__('Valor nuevo (opcional)')}
+                    value={toValue}
+                    onChange={(e) =>
+                        onChange({
+                            ...config,
+                            to_value: e.target.value === '' ? null : e.target.value,
+                        })
+                    }
+                    className="imcrm-flex-1"
+                />
+            </div>
+            <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                {__('Si los valores quedan vacíos, dispara con cualquier cambio del campo.')}
+            </p>
+        </div>
+    );
+}
+
+function ScheduledConfig({
+    config,
+    onChange,
+}: {
+    config: TriggerConfig;
+    onChange: (next: TriggerConfig) => void;
+}): JSX.Element {
+    const frequency = typeof config.frequency === 'string' ? config.frequency : 'daily';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-3">
+            <Label>{__('Frecuencia')}</Label>
+            <Select
+                value={frequency}
+                onChange={(e) => onChange({ ...config, frequency: e.target.value })}
+            >
+                <option value="hourly">{__('Cada hora')}</option>
+                <option value="twicedaily">{__('Dos veces al día')}</option>
+                <option value="daily">{__('Diariamente')}</option>
+                <option value="weekly">{__('Semanalmente')}</option>
+            </Select>
+            <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                {__('La automatización se evalúa en cada tick contra todos los registros activos de la lista.')}
+            </p>
+        </div>
+    );
+}
+
+function DueDateConfig({
+    config,
+    onChange,
+    fields,
+}: {
+    config: TriggerConfig;
+    onChange: (next: TriggerConfig) => void;
+    fields: FieldEntity[];
+}): JSX.Element {
+    const dueField = typeof config.due_field === 'string' ? config.due_field : '';
+    const offset =
+        typeof config.offset_minutes === 'number'
+            ? config.offset_minutes
+            : Number(config.offset_minutes ?? 0);
+    const tolerance =
+        typeof config.tolerance_minutes === 'number'
+            ? config.tolerance_minutes
+            : Number(config.tolerance_minutes ?? 30);
+
+    const dateFields = fields.filter((f) => f.type === 'date' || f.type === 'datetime');
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-3">
+            <Label>{__('Campo de fecha')}</Label>
+            <Select
+                value={dueField}
+                onChange={(e) => onChange({ ...config, due_field: e.target.value })}
+            >
+                <option value="">{__('— Selecciona campo —')}</option>
+                {dateFields.map((f) => (
+                    <option key={f.id} value={f.slug}>
+                        {f.label}
+                    </option>
+                ))}
+            </Select>
+            {dateFields.length === 0 && (
+                <p className="imcrm-text-xs imcrm-text-warning">
+                    {__('No hay campos de tipo fecha en esta lista.')}
+                </p>
+            )}
+            <div className="imcrm-flex imcrm-gap-2">
+                <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
+                    <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Offset (minutos: negativo=antes, positivo=después)')}
+                    </Label>
+                    <Input
+                        type="number"
+                        value={offset}
+                        onChange={(e) =>
+                            onChange({ ...config, offset_minutes: Number(e.target.value) })
+                        }
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
+                    <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Tolerancia (minutos)')}
+                    </Label>
+                    <Input
+                        type="number"
+                        min={1}
+                        value={tolerance}
+                        onChange={(e) =>
+                            onChange({
+                                ...config,
+                                tolerance_minutes: Math.max(1, Number(e.target.value)),
+                            })
+                        }
+                    />
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -818,5 +991,19 @@ function cleanTriggerConfig(c: TriggerConfig): TriggerConfig {
     if (Array.isArray(c.changed_fields) && c.changed_fields.length > 0) {
         out.changed_fields = c.changed_fields;
     }
+    // field_changed
+    if (typeof c.field === 'string' && c.field !== '') out.field = c.field;
+    if (c.from_value !== undefined && c.from_value !== null && c.from_value !== '') {
+        out.from_value = c.from_value;
+    }
+    if (c.to_value !== undefined && c.to_value !== null && c.to_value !== '') {
+        out.to_value = c.to_value;
+    }
+    // scheduled
+    if (typeof c.frequency === 'string' && c.frequency !== '') out.frequency = c.frequency;
+    // due_date_reached
+    if (typeof c.due_field === 'string' && c.due_field !== '') out.due_field = c.due_field;
+    if (typeof c.offset_minutes === 'number') out.offset_minutes = c.offset_minutes;
+    if (typeof c.tolerance_minutes === 'number') out.tolerance_minutes = c.tolerance_minutes;
     return out;
 }

@@ -297,6 +297,20 @@ final class Plugin
                 10,
                 4,
             );
+
+            // Action Scheduler invoca este hook cuando un run encolado
+            // toca turno. Llega con el run_id como único argumento.
+            add_action(
+                AutomationEngine::HOOK_RUN_AUTOMATION,
+                static function (mixed $runId) use ($engine): void {
+                    if (! is_numeric($runId)) {
+                        return;
+                    }
+                    $engine->runById((int) $runId);
+                },
+                10,
+                1,
+            );
         }
 
         if (is_admin()) {

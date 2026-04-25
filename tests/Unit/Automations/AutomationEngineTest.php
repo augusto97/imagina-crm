@@ -337,6 +337,26 @@ final class InMemoryAutomationRunRepository extends AutomationRunRepository
         return false;
     }
 
+    /**
+     * Devuelve la fila tal cual el motor la ve al rehidratar: con
+     * `trigger_context` como JSON string (mimick del JSON column real).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function find(int $id): ?array
+    {
+        foreach ($this->records as $row) {
+            if (($row['id'] ?? 0) === $id) {
+                $copy = $row;
+                if (isset($copy['trigger_context']) && is_array($copy['trigger_context'])) {
+                    $copy['trigger_context'] = (string) wp_json_encode($copy['trigger_context']);
+                }
+                return $copy;
+            }
+        }
+        return null;
+    }
+
     public function recentForAutomation(int $automationId, int $limit = 50): array
     {
         return array_slice(

@@ -3,8 +3,11 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Automations;
 
+use ImaginaCRM\Automations\Triggers\DueDateReachedTrigger;
+use ImaginaCRM\Automations\Triggers\FieldChangedTrigger;
 use ImaginaCRM\Automations\Triggers\RecordCreatedTrigger;
 use ImaginaCRM\Automations\Triggers\RecordUpdatedTrigger;
+use ImaginaCRM\Automations\Triggers\ScheduledTrigger;
 use ImaginaCRM\Contracts\TriggerInterface;
 
 /**
@@ -73,5 +76,8 @@ final class TriggerRegistry
     {
         $this->register(new RecordCreatedTrigger());
         $this->register(new RecordUpdatedTrigger());
+        $this->register(new FieldChangedTrigger());
+        $this->register(new ScheduledTrigger());
+        $this->register(new DueDateReachedTrigger());
     }
 }

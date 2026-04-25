@@ -89,6 +89,24 @@ class AutomationRunRepository
     }
 
     /**
+     * @return array<string, mixed>|null Fila cruda; el caller decodifica los JSON
+     *                                   columns (`trigger_context`, `actions_log`)
+     *                                   según necesidad.
+     */
+    public function find(int $id): ?array
+    {
+        $wpdb = $this->db->wpdb();
+        $row  = $wpdb->get_row(
+            $wpdb->prepare(
+                'SELECT * FROM ' . $this->db->systemTable('automation_runs') . ' WHERE id = %d',
+                $id,
+            ),
+            ARRAY_A,
+        );
+        return is_array($row) ? $row : null;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function recentForAutomation(int $automationId, int $limit = 50): array

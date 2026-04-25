@@ -68,6 +68,14 @@ if (! is_readable($imagina_crm_autoload)) {
 
 require_once $imagina_crm_autoload;
 
+// Action Scheduler: librería de WooCommerce reutilizada para colas y cron
+// del plugin. Su entry point debe cargarse antes de `plugins_loaded` para
+// que `as_enqueue_async_action()` y compañía estén disponibles globalmente.
+$imagina_crm_action_scheduler = IMAGINA_CRM_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
+if (is_readable($imagina_crm_action_scheduler)) {
+    require_once $imagina_crm_action_scheduler;
+}
+
 register_activation_hook(__FILE__, [\ImaginaCRM\Activation\Installer::class, 'activate']);
 register_deactivation_hook(__FILE__, [\ImaginaCRM\Activation\Deactivator::class, 'deactivate']);
 

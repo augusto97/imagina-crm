@@ -159,6 +159,46 @@ if (! function_exists('is_email')) {
     }
 }
 
+/**
+ * Stubs de Action Scheduler. Cada llamada deja un registro en
+ * `$GLOBALS['imcrm_test_as_calls']` para inspección.
+ */
+$GLOBALS['imcrm_test_as_calls'] = [];
+
+if (! function_exists('as_enqueue_async_action')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_enqueue_async_action(string $hook, array $args = [], string $group = ''): int
+    {
+        $GLOBALS['imcrm_test_as_calls'][] = [
+            'kind' => 'async',
+            'hook' => $hook,
+            'args' => $args,
+            'group' => $group,
+            'when' => null,
+        ];
+        return count($GLOBALS['imcrm_test_as_calls']);
+    }
+}
+
+if (! function_exists('as_schedule_single_action')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_schedule_single_action(int $when, string $hook, array $args = [], string $group = ''): int
+    {
+        $GLOBALS['imcrm_test_as_calls'][] = [
+            'kind' => 'single',
+            'hook' => $hook,
+            'args' => $args,
+            'group' => $group,
+            'when' => $when,
+        ];
+        return count($GLOBALS['imcrm_test_as_calls']);
+    }
+}
+
 if (! function_exists('home_url')) {
     function home_url(string $path = ''): string
     {
