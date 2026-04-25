@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { Search } from 'lucide-react';
 
+import { NotificationBell } from '@/admin/layout/NotificationBell';
 import { Button } from '@/components/ui/button';
 import { getBootData } from '@/lib/boot';
 import { __ } from '@/lib/i18n';
@@ -46,6 +47,8 @@ export function Topbar(): JSX.Element {
                         <span aria-hidden="true">⌘K</span>
                     </kbd>
                 </Button>
+
+                <NotificationBell />
 
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-px-2 imcrm-py-1">
                     {boot.user.avatar ? (

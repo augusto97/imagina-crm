@@ -67,6 +67,16 @@ final class SystemController extends AbstractController
                 'offset' => ['type' => 'integer', 'default' => 0],
             ],
         ]);
+
+        register_rest_route($this->namespace, '/me/users-search', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [$this, 'usersSearch'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'args'                => [
+                'q'     => ['type' => 'string', 'default' => ''],
+                'limit' => ['type' => 'integer', 'default' => 8],
+            ],
+        ]);
     }
 
     public function me(WP_REST_Request $request): WP_REST_Response
@@ -120,5 +130,50 @@ final class SystemController extends AbstractController
             ),
         );
         return new WP_REST_Response(['data' => $items]);
+    }
+
+    /**
+     * Búsqueda de usuarios para alimentar el autocomplete de menciones.
+     * Match por user_login (prefix) y display_name (contains). Sin
+     * exponer email ni roles — solo {id, login, display_name}.
+     */
+    public function usersSearch(WP_REST_Request $request): WP_REST_Response
+    {
+        $q     = trim((string) $request->get_param('q'));
+        $limit = max(1, min(20, (int) ($request->get_param('limit') ?? 8)));
+
+        if ($q === '') {
+            return new WP_REST_Response(['data' => []]);
+        }
+
+        $query = new \WP_User_Query([
+            'search'         => '*' . esc_attr($q) . '*',
+            'search_columns' => ['user_login', 'display_name', 'user_nicename'],
+            'number'         => $limit,
+            'fields'         => ['ID', 'user_login', 'display_name'],
+            'orderby'        => 'display_name',
+            'order'          => 'ASC',
+        ]);
+
+        $rows = $query->get_results();
+        $data = [];
+        foreach ($rows as $row) {
+            // Soporta tanto objects (default) como arrays según la
+            // versión/configuración de WP. Defensivo.
+            if (is_object($row)) {
+                $data[] = [
+                    'id'           => (int) ($row->ID ?? 0),
+                    'login'        => (string) ($row->user_login ?? ''),
+                    'display_name' => (string) ($row->display_name ?? ''),
+                ];
+            } elseif (is_array($row)) {
+                $data[] = [
+                    'id'           => (int) ($row['ID'] ?? 0),
+                    'login'        => (string) ($row['user_login'] ?? ''),
+                    'display_name' => (string) ($row['display_name'] ?? ''),
+                ];
+            }
+        }
+        return new WP_REST_Response(['data' => $data]);
     }
 }

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
 
 import { CommentContent } from '@/admin/comments/CommentContent';
+import { MentionAutocomplete } from '@/admin/comments/MentionAutocomplete';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -48,7 +49,25 @@ export function CommentsPanel({
 
     const [draft, setDraft] = useState('');
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const [cursor, setCursor] = useState(0);
     const listEndRef = useRef<HTMLDivElement | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+    /**
+     * Detecta si el cursor está dentro de un token `@<word>` activo.
+     * Si sí, devuelve la query (sin el `@`) y los offsets del token
+     * para reemplazar al seleccionar.
+     */
+    const mentionToken = useMemo<{ query: string; start: number; end: number } | null>(() => {
+        const before = draft.slice(0, cursor);
+        // Buscamos el último @ precedido por inicio de línea o
+        // whitespace, sin whitespace dentro del token.
+        const m = /(?:^|\s)@([A-Za-z0-9._-]{0,60})$/.exec(before);
+        if (!m) return null;
+        const query = m[1] ?? '';
+        const start = cursor - query.length - 1; // -1 por el '@'
+        return { query, start, end: cursor };
+    }, [draft, cursor]);
 
     // Scroll al final al recibir nuevos comentarios — UX típica de chat.
     useEffect(() => {
@@ -114,14 +133,64 @@ export function CommentsPanel({
                 onSubmit={handleSubmit}
                 className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-3"
             >
-                <Textarea
-                    placeholder={__('Escribe un comentario… (Cmd/Ctrl+Enter para enviar)')}
-                    rows={3}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={create.isPending}
-                />
+                <div className="imcrm-relative">
+                    <Textarea
+                        ref={textareaRef}
+                        placeholder={__('Escribe un comentario… Usa @ para mencionar.')}
+                        rows={3}
+                        value={draft}
+                        onChange={(e) => {
+                            setDraft(e.target.value);
+                            setCursor(e.target.selectionStart ?? e.target.value.length);
+                        }}
+                        onKeyUp={(e) => {
+                            const t = e.currentTarget;
+                            setCursor(t.selectionStart ?? t.value.length);
+                        }}
+                        onClick={(e) => {
+                            const t = e.currentTarget;
+                            setCursor(t.selectionStart ?? t.value.length);
+                        }}
+                        onKeyDown={handleKeyDown}
+                        disabled={create.isPending}
+                    />
+
+                    <MentionAutocomplete
+                        query={mentionToken?.query ?? ''}
+                        anchor={
+                            mentionToken !== null
+                                ? { top: 'bottom', left: 8 }
+                                : null
+                        }
+                    onSelect={(user) => {
+                        if (mentionToken === null) return;
+                        // Reemplaza `@<query>` por `@<login> ` y reposiciona cursor.
+                        const before = draft.slice(0, mentionToken.start);
+                        const after = draft.slice(mentionToken.end);
+                        const inserted = `@${user.login} `;
+                        const next = before + inserted + after;
+                        setDraft(next);
+                        const newCursor = before.length + inserted.length;
+                        setCursor(newCursor);
+                        // Re-foco + posicionar cursor real del DOM.
+                        requestAnimationFrame(() => {
+                            const ta = textareaRef.current;
+                            if (ta) {
+                                ta.focus();
+                                ta.setSelectionRange(newCursor, newCursor);
+                            }
+                        });
+                    }}
+                        onClose={() => {
+                            // Cerrar = mover el cursor un espacio para escapar
+                            // del token; el menú simplemente desaparece sin
+                            // mutar texto.
+                            if (mentionToken !== null) {
+                                setCursor(mentionToken.end);
+                            }
+                        }}
+                    />
+                </div>
                 {submitError && (
                     <p className="imcrm-text-xs imcrm-text-destructive">{submitError}</p>
                 )}
