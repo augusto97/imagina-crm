@@ -27,6 +27,24 @@ export function useRecords(listId: string | number | undefined, query: RecordsQu
     });
 }
 
+/**
+ * Trae un record individual por id. Útil para la página de Card
+ * (ruta /lists/:slug/records/:id) — el drawer puede operar contra
+ * la cache de la list query, pero la card abierta directo necesita
+ * fetch propio.
+ */
+export function useRecord(listId: string | number | undefined, recordId: number | undefined) {
+    return useQuery({
+        queryKey: recordsKeys.item(listId ?? '', recordId ?? 0),
+        queryFn: async () => {
+            const res = await api.get<RecordEntity>(`/lists/${listId}/records/${recordId}`);
+            return res.data;
+        },
+        enabled:
+            listId !== undefined && listId !== '' && recordId !== undefined && recordId > 0,
+    });
+}
+
 export function useCreateRecord(listId: string | number) {
     const qc = useQueryClient();
     return useMutation({

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, FileText, MessageSquare, Save, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Activity, ExternalLink, FileText, MessageSquare, Save, Trash2 } from 'lucide-react';
 
 import { ActivityPanel } from '@/admin/activity/ActivityPanel';
 import { CommentsPanel } from '@/admin/comments/CommentsPanel';
@@ -26,6 +27,12 @@ import { RecordFieldsForm } from './RecordFieldsForm';
 
 interface RecordDetailDrawerProps {
     listId: number;
+    /**
+     * Slug actual de la lista. Usado para construir el link a la página
+     * de Card. Opcional para retro-compatibilidad — si no se pasa, el
+     * link no se muestra.
+     */
+    listSlug?: string;
     fields: FieldEntity[];
     record: RecordEntity | null;
     open: boolean;
@@ -43,6 +50,7 @@ interface RecordDetailDrawerProps {
  */
 export function RecordDetailDrawer({
     listId,
+    listSlug,
     fields,
     record,
     open,
@@ -143,7 +151,25 @@ export function RecordDetailDrawer({
                             )}
                         </SheetDescription>
                     </div>
-                    <SheetCloseButton />
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                        {listSlug !== undefined && (
+                            <Button
+                                asChild
+                                variant="ghost"
+                                size="icon"
+                                aria-label={__('Abrir página completa')}
+                                title={__('Abrir página completa')}
+                            >
+                                <Link
+                                    to={`/lists/${listSlug}/records/${record.id}`}
+                                    onClick={() => onOpenChange(false)}
+                                >
+                                    <ExternalLink className="imcrm-h-4 imcrm-w-4" />
+                                </Link>
+                            </Button>
+                        )}
+                        <SheetCloseButton />
+                    </div>
                 </SheetHeader>
 
                 <div

@@ -321,6 +321,7 @@ export function RecordsPage(): JSX.Element {
 
                     <RecordDetailDrawer
                         listId={list.data.id}
+                        listSlug={list.data.slug}
                         fields={fields.data}
                         record={drawerRecord}
                         open={drawerRecordId !== null}
