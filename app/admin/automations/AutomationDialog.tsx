@@ -546,6 +546,9 @@ function ActionConfigEditor({
     if (spec.type === 'call_webhook') {
         return <CallWebhookConfig spec={spec} onChange={onChange} />;
     }
+    if (spec.type === 'send_email') {
+        return <SendEmailConfig spec={spec} onChange={onChange} />;
+    }
     return <JsonConfigFallback spec={spec} onChange={onChange} />;
 }
 
@@ -671,6 +674,96 @@ function CallWebhookConfig({ spec, onChange }: { spec: ActionSpec; onChange: (ne
                 onChange={(e) => set({ body_template: e.target.value })}
                 placeholder='{"id": {{record.id}}, "name": "{{name}}"}'
             />
+        </div>
+    );
+}
+
+function SendEmailConfig({
+    spec,
+    onChange,
+}: {
+    spec: ActionSpec;
+    onChange: (next: ActionSpec) => void;
+}): JSX.Element {
+    const to = typeof spec.config.to === 'string' ? spec.config.to : '';
+    const subject = typeof spec.config.subject === 'string' ? spec.config.subject : '';
+    const body = typeof spec.config.body === 'string' ? spec.config.body : '';
+    const isHtml = Boolean(spec.config.is_html);
+    const fromName = typeof spec.config.from_name === 'string' ? spec.config.from_name : '';
+    const fromEmail = typeof spec.config.from_email === 'string' ? spec.config.from_email : '';
+    const cc = typeof spec.config.cc === 'string' ? spec.config.cc : '';
+    const bcc = typeof spec.config.bcc === 'string' ? spec.config.bcc : '';
+
+    const set = (patch: Record<string, unknown>): void => {
+        onChange({ ...spec, config: { ...spec.config, ...patch } });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+            <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                {__('Para (acepta merge tags y múltiples emails separados por coma)')}
+            </Label>
+            <Input
+                placeholder="{{email}} o user@example.com"
+                value={to}
+                onChange={(e) => set({ to: e.target.value })}
+            />
+
+            <Label className="imcrm-text-xs imcrm-text-muted-foreground">{__('Asunto')}</Label>
+            <Input
+                placeholder={__('Hola {{name}}')}
+                value={subject}
+                onChange={(e) => set({ subject: e.target.value })}
+            />
+
+            <Label className="imcrm-text-xs imcrm-text-muted-foreground">{__('Cuerpo')}</Label>
+            <Textarea
+                rows={4}
+                placeholder={__('Tu mensaje. Usa {{slug}} para insertar valores del registro.')}
+                value={body}
+                onChange={(e) => set({ body: e.target.value })}
+            />
+
+            <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
+                <input
+                    type="checkbox"
+                    checked={isHtml}
+                    onChange={(e) => set({ is_html: e.target.checked })}
+                />
+                {__('Enviar como HTML')}
+            </label>
+
+            <details className="imcrm-mt-1 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2">
+                <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-text-muted-foreground">
+                    {__('Avanzado: From, Cc, Bcc')}
+                </summary>
+                <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-2">
+                    <div className="imcrm-flex imcrm-gap-2">
+                        <Input
+                            placeholder={__('Nombre remitente')}
+                            value={fromName}
+                            onChange={(e) => set({ from_name: e.target.value })}
+                            className="imcrm-flex-1"
+                        />
+                        <Input
+                            placeholder="noreply@example.com"
+                            value={fromEmail}
+                            onChange={(e) => set({ from_email: e.target.value })}
+                            className="imcrm-flex-1"
+                        />
+                    </div>
+                    <Input
+                        placeholder={__('Cc (separados por coma)')}
+                        value={cc}
+                        onChange={(e) => set({ cc: e.target.value })}
+                    />
+                    <Input
+                        placeholder={__('Bcc (separados por coma)')}
+                        value={bcc}
+                        onChange={(e) => set({ bcc: e.target.value })}
+                    />
+                </div>
+            </details>
         </div>
     );
 }

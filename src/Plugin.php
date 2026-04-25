@@ -7,6 +7,7 @@ use ImaginaCRM\Admin\AdminAssets;
 use ImaginaCRM\Admin\AdminMenu;
 use ImaginaCRM\Automations\ActionRegistry;
 use ImaginaCRM\Automations\Actions\CallWebhookAction;
+use ImaginaCRM\Automations\Actions\SendEmailAction;
 use ImaginaCRM\Automations\Actions\UpdateFieldAction;
 use ImaginaCRM\Automations\AutomationEngine;
 use ImaginaCRM\Automations\AutomationRepository;
@@ -206,6 +207,7 @@ final class Plugin
             // (call_webhook) son `new` directo.
             $registry->register(new UpdateFieldAction($c->get(\ImaginaCRM\Records\RecordService::class)));
             $registry->register(new CallWebhookAction());
+            $registry->register(new SendEmailAction());
             return $registry;
         });
 

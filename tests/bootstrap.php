@@ -125,6 +125,40 @@ if (! function_exists('imcrm_test_reset_options')) {
     }
 }
 
+/**
+ * Stub controlable de `wp_mail()`. Los tests ajustan el comportamiento
+ * vía:
+ *  - `$GLOBALS['imcrm_test_mail_calls']`: array donde cada llamada deja
+ *    su payload (`to`, `subject`, `message`, `headers`).
+ *  - `$GLOBALS['imcrm_test_mail_should_succeed']`: bool, por defecto true.
+ */
+$GLOBALS['imcrm_test_mail_calls'] = [];
+$GLOBALS['imcrm_test_mail_should_succeed'] = true;
+
+if (! function_exists('wp_mail')) {
+    /**
+     * @param string|array<int, string>            $to
+     * @param array<int, string>|string            $headers
+     */
+    function wp_mail(string|array $to, string $subject, string $message, array|string $headers = []): bool
+    {
+        $GLOBALS['imcrm_test_mail_calls'][] = [
+            'to'      => $to,
+            'subject' => $subject,
+            'message' => $message,
+            'headers' => $headers,
+        ];
+        return (bool) ($GLOBALS['imcrm_test_mail_should_succeed'] ?? true);
+    }
+}
+
+if (! function_exists('is_email')) {
+    function is_email(string $email): bool
+    {
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
+    }
+}
+
 if (! function_exists('home_url')) {
     function home_url(string $path = ''): string
     {
