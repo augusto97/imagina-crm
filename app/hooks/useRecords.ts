@@ -114,3 +114,31 @@ export function useDeleteRecord(listId: string | number) {
         },
     });
 }
+
+interface BulkResponse {
+    succeeded: number[];
+    failed: Array<{ id: number; message: string }>;
+}
+
+interface BulkVars {
+    action: 'delete' | 'update';
+    ids: number[];
+    values?: Record<string, unknown>;
+}
+
+export function useBulkRecords(listId: string | number) {
+    const qc = useQueryClient();
+    return useMutation<BulkResponse, Error, BulkVars>({
+        mutationFn: async ({ action, ids, values }) => {
+            const res = await api.post<BulkResponse>(`/lists/${listId}/records/bulk`, {
+                action,
+                ids,
+                values: values ?? {},
+            });
+            return res.data;
+        },
+        onSuccess: () => {
+            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
+        },
+    });
+}

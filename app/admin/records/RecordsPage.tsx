@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus, Search, Settings } from 'lucide-react';
 
@@ -7,10 +7,13 @@ import { Input } from '@/components/ui/input';
 import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
 import { useRecords } from '@/hooks/useRecords';
+import type { RecordEntity } from '@/types/record';
 
+import { BulkActionsToolbar } from './BulkActionsToolbar';
 import { FiltersBar } from './FiltersBar';
 import { Pagination } from './Pagination';
 import { RecordCreateDialog } from './RecordCreateDialog';
+import { RecordDetailDrawer } from './RecordDetailDrawer';
 import {
     INITIAL_STATE,
     buildRecordsQuery,
@@ -29,6 +32,14 @@ export function RecordsPage(): JSX.Element {
     const query = useMemo(() => buildRecordsQuery(state), [state]);
     const records = useRecords(list.data?.id, query);
     const [createOpen, setCreateOpen] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [drawerRecordId, setDrawerRecordId] = useState<number | null>(null);
+
+    // Si cambiamos de lista, limpiamos selección y drawer.
+    useEffect(() => {
+        setSelectedIds([]);
+        setDrawerRecordId(null);
+    }, [list.data?.id]);
 
     const setFilters = (filters: ActiveFilter[]): void => {
         setState((s) => ({ ...s, filters, page: 1 }));
@@ -49,6 +60,11 @@ export function RecordsPage(): JSX.Element {
             page: 1,
         }));
     };
+
+    const drawerRecord: RecordEntity | null =
+        drawerRecordId !== null
+            ? records.data?.data.find((r) => r.id === drawerRecordId) ?? null
+            : null;
 
     if (list.isLoading || fields.isLoading) {
         return (
@@ -163,16 +179,33 @@ export function RecordsPage(): JSX.Element {
                             records={records.data?.data ?? []}
                             sort={state.sort}
                             onSortChange={handleSortChange}
+                            selectedIds={selectedIds}
+                            onSelectionChange={setSelectedIds}
+                            onRowClick={(record) => setDrawerRecordId(record.id)}
                         />
                     )}
 
                     {meta && <Pagination meta={meta} onPageChange={setPage} />}
+
+                    <BulkActionsToolbar
+                        listId={list.data.id}
+                        selectedIds={selectedIds}
+                        onClear={() => setSelectedIds([])}
+                    />
 
                     <RecordCreateDialog
                         listId={list.data.id}
                         fields={fields.data}
                         open={createOpen}
                         onOpenChange={setCreateOpen}
+                    />
+
+                    <RecordDetailDrawer
+                        listId={list.data.id}
+                        fields={fields.data}
+                        record={drawerRecord}
+                        open={drawerRecordId !== null}
+                        onOpenChange={(open) => !open && setDrawerRecordId(null)}
                     />
                 </>
             )}

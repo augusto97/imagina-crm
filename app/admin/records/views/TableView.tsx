@@ -21,16 +21,20 @@ interface TableViewProps {
     records: RecordEntity[];
     sort: ActiveSort[];
     onSortChange: (fieldId: number, multi: boolean) => void;
+    selectedIds: number[];
+    onSelectionChange: (ids: number[]) => void;
     onRowClick?: (record: RecordEntity) => void;
 }
 
 /**
  * Vista de tabla sobre TanStack Table v8.
  *
+ * - Columna de checkbox al inicio para selección múltiple.
  * - Headers clickeables: sort asc → desc → off; shift+click para multi.
  * - Celdas editables inline (delegado a `EditableCell`).
+ * - Click en zona vacía de la fila → onRowClick (drawer).
  * - Tipos no soportados inline (user, file, relation) muestran solo
- *   lectura — la edición se hará desde el RecordDetailDrawer (próximo).
+ *   lectura aquí; se editan desde RecordDetailDrawer.
  */
 export function TableView({
     listId,
@@ -38,8 +42,36 @@ export function TableView({
     records,
     sort,
     onSortChange,
+    selectedIds,
+    onSelectionChange,
     onRowClick,
 }: TableViewProps): JSX.Element {
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+    const allVisibleSelected =
+        records.length > 0 && records.every((r) => selectedSet.has(r.id));
+    const someVisibleSelected =
+        !allVisibleSelected && records.some((r) => selectedSet.has(r.id));
+
+    const toggleAll = (): void => {
+        if (allVisibleSelected) {
+            const visible = new Set(records.map((r) => r.id));
+            onSelectionChange(selectedIds.filter((id) => !visible.has(id)));
+        } else {
+            const next = new Set(selectedIds);
+            for (const r of records) next.add(r.id);
+            onSelectionChange([...next]);
+        }
+    };
+
+    const toggleOne = (id: number): void => {
+        if (selectedSet.has(id)) {
+            onSelectionChange(selectedIds.filter((x) => x !== id));
+        } else {
+            onSelectionChange([...selectedIds, id]);
+        }
+    };
+
     const columns = useMemo<ColumnDef<RecordEntity>[]>(() => {
         const dynamic = fields
             .filter((f) => f.type !== 'relation')
@@ -103,6 +135,17 @@ export function TableView({
                 <thead className="imcrm-bg-muted/50">
                     {table.getHeaderGroups().map((hg) => (
                         <tr key={hg.id}>
+                            <th className="imcrm-w-10 imcrm-px-3 imcrm-py-2">
+                                <input
+                                    type="checkbox"
+                                    checked={allVisibleSelected}
+                                    ref={(el) => {
+                                        if (el) el.indeterminate = someVisibleSelected;
+                                    }}
+                                    onChange={toggleAll}
+                                    aria-label="Seleccionar todos"
+                                />
+                            </th>
                             {hg.headers.map((h) => {
                                 const meta = h.column.columnDef.meta as
                                     | { fieldId: number | null; primary?: boolean }
@@ -148,35 +191,60 @@ export function TableView({
                     {table.getRowModel().rows.length === 0 ? (
                         <tr>
                             <td
-                                colSpan={columns.length}
+                                colSpan={columns.length + 1}
                                 className="imcrm-px-4 imcrm-py-12 imcrm-text-center imcrm-text-sm imcrm-text-muted-foreground"
                             >
                                 No hay registros que coincidan.
                             </td>
                         </tr>
                     ) : (
-                        table.getRowModel().rows.map((row) => (
-                            <tr
-                                key={row.id}
-                                className={cn(
-                                    'imcrm-border-t imcrm-border-border imcrm-transition-colors',
-                                    onRowClick && 'hover:imcrm-bg-accent/30',
-                                )}
-                                onClick={(e) => {
-                                    if ((e.target as HTMLElement).closest('button, input, select, a, textarea')) return;
-                                    onRowClick?.(row.original);
-                                }}
-                            >
-                                {row.getVisibleCells().map((cell) => (
+                        table.getRowModel().rows.map((row) => {
+                            const isSelected = selectedSet.has(row.original.id);
+                            return (
+                                <tr
+                                    key={row.id}
+                                    className={cn(
+                                        'imcrm-border-t imcrm-border-border imcrm-transition-colors',
+                                        isSelected
+                                            ? 'imcrm-bg-primary/5'
+                                            : 'hover:imcrm-bg-accent/30',
+                                    )}
+                                >
                                     <td
-                                        key={cell.id}
-                                        className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-1.5 imcrm-align-top"
+                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-1.5 imcrm-align-top"
+                                        onClick={(e) => e.stopPropagation()}
                                     >
-                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleOne(row.original.id)}
+                                            aria-label={`Seleccionar registro ${row.original.id}`}
+                                        />
                                     </td>
-                                ))}
-                            </tr>
-                        ))
+                                    {row.getVisibleCells().map((cell, cellIndex) => {
+                                        // El "ID" (primera celda dinámica) actúa como zona de drawer:
+                                        // click ahí abre el drawer.
+                                        const isOpenerCell = cellIndex === 0;
+                                        return (
+                                            <td
+                                                key={cell.id}
+                                                className={cn(
+                                                    'imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-1.5 imcrm-align-top',
+                                                    isOpenerCell && onRowClick && 'imcrm-cursor-pointer',
+                                                )}
+                                                onClick={
+                                                    isOpenerCell && onRowClick
+                                                        ? () => onRowClick(row.original)
+                                                        : undefined
+                                                }
+                                            >
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            );
+                        })
                     )}
                 </tbody>
             </table>
@@ -210,5 +278,4 @@ function SortIndicator({
     );
 }
 
-// Mantener export del helper por si alguien lo importa.
 export { renderCellValue };

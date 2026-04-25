@@ -1,0 +1,165 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Save, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import {
+    Sheet,
+    SheetBody,
+    SheetCloseButton,
+    SheetContent,
+    SheetDescription,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
+import { useDeleteRecord, useUpdateRecord } from '@/hooks/useRecords';
+import { ApiError } from '@/lib/api';
+import type { FieldEntity } from '@/types/field';
+import type { RecordEntity } from '@/types/record';
+
+import { RecordFieldsForm } from './RecordFieldsForm';
+
+interface RecordDetailDrawerProps {
+    listId: number;
+    fields: FieldEntity[];
+    record: RecordEntity | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Panel lateral con form completo del registro. Se usa como complemento
+ * al inline edit: aquí se editan también los campos `user`, `file` y
+ * `relation` (placeholders simples por ahora — los pickers definitivos
+ * vienen en Fase 2/3).
+ *
+ * Las mutaciones reusan `useUpdateRecord` (con su optimistic update),
+ * por lo que la tabla refleja el cambio en cuanto se guarda.
+ */
+export function RecordDetailDrawer({
+    listId,
+    fields,
+    record,
+    open,
+    onOpenChange,
+}: RecordDetailDrawerProps): JSX.Element {
+    const update = useUpdateRecord(listId);
+    const remove = useDeleteRecord(listId);
+
+    const initialValues = useMemo<Record<string, unknown>>(() => {
+        if (!record) return {};
+        return { ...record.fields, ...record.relations };
+    }, [record]);
+
+    const [values, setValues] = useState<Record<string, unknown>>(initialValues);
+    const [error, setError] = useState<string | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        setValues(initialValues);
+        setError(null);
+        setFieldErrors({});
+        update.reset();
+        remove.reset();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [record?.id]);
+
+    if (!record) {
+        return <Sheet open={open} onOpenChange={onOpenChange} />;
+    }
+
+    const dirty = JSON.stringify(values) !== JSON.stringify(initialValues);
+
+    const handleSave = async (): Promise<void> => {
+        setError(null);
+        setFieldErrors({});
+
+        // Solo enviamos los slugs que cambiaron, comparando contra el snapshot.
+        const patch: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(values)) {
+            if (JSON.stringify(v) !== JSON.stringify(initialValues[k])) {
+                patch[k] = v;
+            }
+        }
+        if (Object.keys(patch).length === 0) return;
+
+        try {
+            await update.mutateAsync({ id: record.id, values: patch });
+            onOpenChange(false);
+        } catch (err) {
+            if (err instanceof ApiError) {
+                setError(err.message);
+                setFieldErrors(err.errors);
+            } else if (err instanceof Error) {
+                setError(err.message);
+            }
+        }
+    };
+
+    const handleDelete = async (): Promise<void> => {
+        if (!confirm(`Eliminar el registro #${record.id}? Los datos se preservan a menos que pidas purgarlos.`)) {
+            return;
+        }
+        try {
+            await remove.mutateAsync({ id: record.id, purge: false });
+            onOpenChange(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar');
+        }
+    };
+
+    return (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+            <SheetContent>
+                <SheetHeader>
+                    <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                        <SheetTitle>
+                            Registro <span className="imcrm-font-mono imcrm-text-muted-foreground">#{record.id}</span>
+                        </SheetTitle>
+                        <SheetDescription>
+                            Creado{' '}
+                            {record.created_at
+                                ? new Date(record.created_at + 'Z').toLocaleString()
+                                : '—'}
+                        </SheetDescription>
+                    </div>
+                    <SheetCloseButton />
+                </SheetHeader>
+
+                <SheetBody>
+                    <RecordFieldsForm
+                        fields={fields}
+                        values={values}
+                        onChange={setValues}
+                        fieldErrors={fieldErrors}
+                    />
+
+                    {error !== null && (
+                        <div className="imcrm-mt-4 imcrm-rounded-md imcrm-border imcrm-border-destructive/40 imcrm-bg-destructive/10 imcrm-p-3 imcrm-text-sm imcrm-text-destructive">
+                            {error}
+                        </div>
+                    )}
+                </SheetBody>
+
+                <SheetFooter>
+                    <Button
+                        variant="ghost"
+                        className="imcrm-mr-auto imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
+                        onClick={handleDelete}
+                        disabled={remove.isPending}
+                    >
+                        <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                        Eliminar
+                    </Button>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={handleSave} disabled={!dirty || update.isPending} className="imcrm-gap-2">
+                        <Save className="imcrm-h-4 imcrm-w-4" />
+                        {update.isPending ? 'Guardando…' : 'Guardar cambios'}
+                    </Button>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
+    );
+}
