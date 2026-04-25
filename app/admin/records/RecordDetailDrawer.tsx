@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sheet';
 import { useDeleteRecord, useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
+import { __, sprintf } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
@@ -97,14 +98,22 @@ export function RecordDetailDrawer({
     };
 
     const handleDelete = async (): Promise<void> => {
-        if (!confirm(`Eliminar el registro #${record.id}? Los datos se preservan a menos que pidas purgarlos.`)) {
+        if (
+            !confirm(
+                sprintf(
+                    /* translators: %d: record ID */
+                    __('Eliminar el registro #%d? Los datos se preservan a menos que pidas purgarlos.'),
+                    record.id,
+                ),
+            )
+        ) {
             return;
         }
         try {
             await remove.mutateAsync({ id: record.id, purge: false });
             onOpenChange(false);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al eliminar');
+            setError(err instanceof Error ? err.message : __('Error al eliminar'));
         }
     };
 
@@ -114,13 +123,17 @@ export function RecordDetailDrawer({
                 <SheetHeader>
                     <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
                         <SheetTitle>
-                            Registro <span className="imcrm-font-mono imcrm-text-muted-foreground">#{record.id}</span>
+                            {__('Registro')}{' '}
+                            <span className="imcrm-font-mono imcrm-text-muted-foreground">#{record.id}</span>
                         </SheetTitle>
                         <SheetDescription>
-                            Creado{' '}
-                            {record.created_at
-                                ? new Date(record.created_at + 'Z').toLocaleString()
-                                : '—'}
+                            {sprintf(
+                                /* translators: %s: localized creation date */
+                                __('Creado %s'),
+                                record.created_at
+                                    ? new Date(record.created_at + 'Z').toLocaleString()
+                                    : '—',
+                            )}
                         </SheetDescription>
                     </div>
                     <SheetCloseButton />
@@ -149,14 +162,14 @@ export function RecordDetailDrawer({
                         disabled={remove.isPending}
                     >
                         <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                        Eliminar
+                        {__('Eliminar')}
                     </Button>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancelar
+                        {__('Cancelar')}
                     </Button>
                     <Button onClick={handleSave} disabled={!dirty || update.isPending} className="imcrm-gap-2">
                         <Save className="imcrm-h-4 imcrm-w-4" />
-                        {update.isPending ? 'Guardando…' : 'Guardar cambios'}
+                        {update.isPending ? __('Guardando…') : __('Guardar cambios')}
                     </Button>
                 </SheetFooter>
             </SheetContent>

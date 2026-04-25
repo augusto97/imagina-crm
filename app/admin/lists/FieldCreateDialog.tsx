@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useCreateField } from '@/hooks/useFields';
 import { useFieldTypes } from '@/hooks/useFieldTypes';
 import { ApiError } from '@/lib/api';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldTypeSlug } from '@/types/field';
 
@@ -91,14 +92,14 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                     <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
                         <div>
                             <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
-                                Añadir campo
+                                {__('Añadir campo')}
                             </Dialog.Title>
                             <Dialog.Description className="imcrm-text-sm imcrm-text-muted-foreground">
-                                Define el label, tipo y slug del nuevo campo.
+                                {__('Define el label, tipo y slug del nuevo campo.')}
                             </Dialog.Description>
                         </div>
                         <Dialog.Close asChild>
-                            <Button variant="ghost" size="icon" aria-label="Cerrar">
+                            <Button variant="ghost" size="icon" aria-label={__('Cerrar')}>
                                 <X className="imcrm-h-4 imcrm-w-4" />
                             </Button>
                         </Dialog.Close>
@@ -106,18 +107,18 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
 
                     <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-4">
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label htmlFor="new-field-label">Label</Label>
+                            <Label htmlFor="new-field-label">{__('Label')}</Label>
                             <Input
                                 id="new-field-label"
                                 value={label}
                                 onChange={(e) => setLabel(e.target.value)}
-                                placeholder="Ej. Email"
+                                placeholder={__('Ej. Email')}
                                 autoFocus
                             />
                         </div>
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label>Tipo</Label>
+                            <Label>{__('Tipo')}</Label>
                             <FieldTypeSelect value={type} onChange={setType} />
                         </div>
 
@@ -138,7 +139,7 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                                     checked={isRequired}
                                     onChange={(e) => setIsRequired(e.target.checked)}
                                 />
-                                Obligatorio
+                                {__('Obligatorio')}
                             </label>
                             <label
                                 className={cn(
@@ -152,7 +153,7 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                                     onChange={(e) => setIsUnique(e.target.checked)}
                                     disabled={!supportsUnique}
                                 />
-                                Único {!supportsUnique && type !== '' && '(no soportado por este tipo)'}
+                                {__('Único')} {!supportsUnique && type !== '' && __('(no soportado por este tipo)')}
                             </label>
                         </div>
 
@@ -165,11 +166,11 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                         <div className="imcrm-flex imcrm-justify-end imcrm-gap-2">
                             <Dialog.Close asChild>
                                 <Button type="button" variant="outline">
-                                    Cancelar
+                                    {__('Cancelar')}
                                 </Button>
                             </Dialog.Close>
                             <Button type="submit" disabled={!canSubmit}>
-                                {create.isPending ? 'Creando…' : 'Crear campo'}
+                                {create.isPending ? __('Creando…') : __('Crear campo')}
                             </Button>
                         </div>
                     </form>

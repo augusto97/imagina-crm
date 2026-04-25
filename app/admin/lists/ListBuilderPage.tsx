@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useDeleteList, useList, useUpdateList } from '@/hooks/useLists';
 import { ApiError } from '@/lib/api';
+import { __, sprintf } from '@/lib/i18n';
 
 import { FieldBuilder } from './FieldBuilder';
 import { SlugEditor } from './SlugEditor';
@@ -61,7 +62,12 @@ export function ListBuilderPage(): JSX.Element {
 
     const handleDelete = async (): Promise<void> => {
         if (!list.data) return;
-        if (!confirm(`Eliminar la lista "${list.data.name}"? Los datos se preservan a menos que pidas purgarlos.`)) {
+        const message = sprintf(
+            /* translators: %s: list name */
+            __('¿Eliminar la lista "%s"? Los datos se preservan a menos que pidas purgarlos.'),
+            list.data.name,
+        );
+        if (!confirm(message)) {
             return;
         }
         await remove.mutateAsync({ idOrSlug: list.data.id });
@@ -72,7 +78,7 @@ export function ListBuilderPage(): JSX.Element {
         return (
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-12 imcrm-text-sm imcrm-text-muted-foreground">
                 <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-                Cargando lista…
+                {__('Cargando lista…')}
             </div>
         );
     }
@@ -82,10 +88,16 @@ export function ListBuilderPage(): JSX.Element {
             <div className="imcrm-flex imcrm-flex-col imcrm-items-start imcrm-gap-3">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/lists')} className="imcrm-gap-2">
                     <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
-                    Volver a listas
+                    {__('Volver a listas')}
                 </Button>
                 <p className="imcrm-text-sm imcrm-text-destructive">
-                    No se pudo cargar la lista{listSlug ? ` "${listSlug}"` : ''}.
+                    {listSlug
+                        ? sprintf(
+                              /* translators: %s: list slug */
+                              __('No se pudo cargar la lista "%s".'),
+                              listSlug,
+                          )
+                        : __('No se pudo cargar la lista.')}
                 </p>
             </div>
         );
@@ -102,7 +114,7 @@ export function ListBuilderPage(): JSX.Element {
                         className="imcrm-gap-2 imcrm-self-start imcrm-text-muted-foreground"
                     >
                         <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
-                        Listas
+                        {__('Listas')}
                     </Button>
                     <h1 className="imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
                         {list.data.name}
@@ -113,7 +125,7 @@ export function ListBuilderPage(): JSX.Element {
                         variant="outline"
                         onClick={() => navigate(`/lists/${list.data.slug}/records`)}
                     >
-                        Ver registros
+                        {__('Ver registros')}
                     </Button>
                     <Button
                         variant="outline"
@@ -121,20 +133,20 @@ export function ListBuilderPage(): JSX.Element {
                         onClick={handleDelete}
                     >
                         <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                        Eliminar
+                        {__('Eliminar')}
                     </Button>
                 </div>
             </header>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>General</CardTitle>
-                    <CardDescription>Datos básicos y slug de la lista.</CardDescription>
+                    <CardTitle>{__('General')}</CardTitle>
+                    <CardDescription>{__('Datos básicos y slug de la lista.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="imcrm-flex imcrm-flex-col imcrm-gap-4">
                     <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 md:imcrm-grid-cols-2">
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label htmlFor="list-name">Nombre</Label>
+                            <Label htmlFor="list-name">{__('Nombre')}</Label>
                             <Input
                                 id="list-name"
                                 value={name}
@@ -152,7 +164,7 @@ export function ListBuilderPage(): JSX.Element {
                     </div>
 
                     <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                        <Label htmlFor="list-description">Descripción</Label>
+                        <Label htmlFor="list-description">{__('Descripción')}</Label>
                         <Textarea
                             id="list-description"
                             value={description}
@@ -170,11 +182,11 @@ export function ListBuilderPage(): JSX.Element {
                     {list.data.table_suffix && (
                         <details className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/40 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
                             <summary className="imcrm-cursor-pointer imcrm-font-medium">
-                                Configuración avanzada
+                                {__('Configuración avanzada')}
                             </summary>
                             <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-1">
                                 <span>
-                                    Sufijo de tabla (read-only):{' '}
+                                    {__('Sufijo de tabla (read-only):')}{' '}
                                     <code className="imcrm-font-mono">{list.data.table_suffix}</code>
                                 </span>
                             </div>
@@ -184,7 +196,7 @@ export function ListBuilderPage(): JSX.Element {
                     <div className="imcrm-flex imcrm-justify-end">
                         <Button onClick={handleSave} disabled={update.isPending} className="imcrm-gap-2">
                             <Save className="imcrm-h-4 imcrm-w-4" />
-                            {update.isPending ? 'Guardando…' : 'Guardar cambios'}
+                            {update.isPending ? __('Guardando…') : __('Guardar cambios')}
                         </Button>
                     </div>
                 </CardContent>

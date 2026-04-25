@@ -10,6 +10,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 import type { FilterOperator } from '@/types/record';
 
@@ -73,20 +74,20 @@ export function FilterPopover({
             <PopoverContent className="imcrm-w-80 imcrm-flex imcrm-flex-col imcrm-gap-3">
                 <div className="imcrm-flex imcrm-items-start imcrm-justify-between">
                     <h4 className="imcrm-text-sm imcrm-font-medium">
-                        {initial ? 'Editar filtro' : 'Añadir filtro'}
+                        {initial ? __('Editar filtro') : __('Añadir filtro')}
                     </h4>
                     <button
                         type="button"
                         onClick={() => setOpen(false)}
                         className="imcrm-text-muted-foreground hover:imcrm-text-foreground"
-                        aria-label="Cerrar"
+                        aria-label={__('Cerrar')}
                     >
                         <X className="imcrm-h-4 imcrm-w-4" />
                     </button>
                 </div>
 
                 <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label className="imcrm-text-xs">Campo</Label>
+                    <Label className="imcrm-text-xs">{__('Campo')}</Label>
                     <Select
                         value={fieldId === null ? '' : String(fieldId)}
                         onChange={(e) => {
@@ -95,7 +96,7 @@ export function FilterPopover({
                         }}
                     >
                         <option value="" disabled>
-                            Selecciona un campo
+                            {__('Selecciona un campo')}
                         </option>
                         {filterableFields.map((f) => (
                             <option key={f.id} value={f.id}>
@@ -108,7 +109,7 @@ export function FilterPopover({
                 {selectedField && (
                     <>
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label className="imcrm-text-xs">Operador</Label>
+                            <Label className="imcrm-text-xs">{__('Operador')}</Label>
                             <Select value={op} onChange={(e) => setOp(e.target.value as FilterOperator)}>
                                 {operators.map((o) => (
                                     <option key={o.op} value={o.op}>
@@ -120,7 +121,7 @@ export function FilterPopover({
 
                         {!isNullaryOperator(op) && (
                             <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                                <Label className="imcrm-text-xs">Valor</Label>
+                                <Label className="imcrm-text-xs">{__('Valor')}</Label>
                                 <FilterValueInput
                                     field={selectedField}
                                     op={op}
@@ -134,11 +135,11 @@ export function FilterPopover({
 
                 <div className="imcrm-mt-1 imcrm-flex imcrm-justify-end imcrm-gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-                        Cancelar
+                        {__('Cancelar')}
                     </Button>
                     <Button size="sm" onClick={handleApply} disabled={!canApply} className="imcrm-gap-1">
                         <Plus className="imcrm-h-3 imcrm-w-3" />
-                        {initial ? 'Guardar' : 'Aplicar'}
+                        {initial ? __('Guardar') : __('Aplicar')}
                     </Button>
                 </div>
             </PopoverContent>
@@ -161,7 +162,7 @@ function FilterValueInput({ field, op, value, onChange }: ValueInputProps): JSX.
             <Input
                 value={text}
                 onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-                placeholder="valor1, valor2…"
+                placeholder={__('valor1, valor2…')}
             />
         );
     }
@@ -176,7 +177,7 @@ function FilterValueInput({ field, op, value, onChange }: ValueInputProps): JSX.
                     onChange={(e) => onChange(e.target.value)}
                 >
                     <option value="" disabled>
-                        Selecciona…
+                        {__('Selecciona…')}
                     </option>
                     {options.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -192,8 +193,8 @@ function FilterValueInput({ field, op, value, onChange }: ValueInputProps): JSX.
                     value={value === true || value === '1' ? '1' : '0'}
                     onChange={(e) => onChange(e.target.value === '1')}
                 >
-                    <option value="1">Marcado</option>
-                    <option value="0">No marcado</option>
+                    <option value="1">{__('Marcado')}</option>
+                    <option value="0">{__('No marcado')}</option>
                 </Select>
             );
         case 'date':

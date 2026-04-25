@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
@@ -156,7 +157,7 @@ function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Ele
                     min={1}
                     value={value === undefined || value === null ? '' : String(value)}
                     onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-                    placeholder={field.type === 'user' ? 'ID de usuario WP' : 'ID de attachment'}
+                    placeholder={field.type === 'user' ? __('ID de usuario WP') : __('ID de attachment')}
                 />
             );
             break;
@@ -180,7 +181,7 @@ function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Ele
                             .filter((n) => !Number.isNaN(n));
                         onChange(ids);
                     }}
-                    placeholder="IDs separados por coma"
+                    placeholder={__('IDs separados por coma')}
                 />
             );
             break;
@@ -234,7 +235,7 @@ function renderSelect(
             onChange={(e) => onChange(e.target.value || null)}
             className="imcrm-flex imcrm-h-9 imcrm-w-full imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-3 imcrm-text-sm"
         >
-            <option value="">— Seleccionar —</option>
+            <option value="">{__('— Seleccionar —')}</option>
             {options.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                     {opt.label}

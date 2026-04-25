@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSlugCheck } from '@/hooks/useSlugCheck';
+import { __ } from '@/lib/i18n';
 import { slugify, validateSlugFormat } from '@/lib/slug';
 import { cn } from '@/lib/utils';
 
@@ -82,19 +83,19 @@ export function SlugEditor({
 
     if (showFormatError) {
         statusIcon = <AlertCircle className="imcrm-h-3.5 imcrm-w-3.5" />;
-        statusText = formatCheck.message ?? 'Formato inválido.';
+        statusText = formatCheck.message ?? __('Formato inválido.');
         statusTone = 'error';
     } else if (remoteCheck.state === 'checking') {
         statusIcon = <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />;
-        statusText = 'Verificando disponibilidad…';
+        statusText = __('Verificando disponibilidad…');
         statusTone = 'info';
     } else if (remoteCheck.state === 'available') {
         statusIcon = <CheckCircle2 className="imcrm-h-3.5 imcrm-w-3.5" />;
-        statusText = 'Disponible';
+        statusText = __('Disponible');
         statusTone = 'ok';
     } else if (remoteCheck.state === 'taken' || remoteCheck.state === 'invalid') {
         statusIcon = <AlertCircle className="imcrm-h-3.5 imcrm-w-3.5" />;
-        statusText = remoteCheck.message ?? 'No disponible';
+        statusText = remoteCheck.message ?? __('No disponible');
         statusTone = 'error';
     }
 
@@ -107,7 +108,7 @@ export function SlugEditor({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-            <Label htmlFor={`slug-${type}`}>{label ?? 'Slug'}</Label>
+            <Label htmlFor={`slug-${type}`}>{label ?? __('Slug')}</Label>
             <div className="imcrm-flex imcrm-items-stretch imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-overflow-hidden focus-within:imcrm-ring-2 focus-within:imcrm-ring-ring focus-within:imcrm-ring-offset-2">
                 {prefix !== undefined && (
                     <span className="imcrm-flex imcrm-items-center imcrm-bg-muted imcrm-px-3 imcrm-text-xs imcrm-font-mono imcrm-text-muted-foreground">
@@ -135,10 +136,10 @@ export function SlugEditor({
             )}
             {isRenaming && (
                 <p className="imcrm-text-xs imcrm-text-muted-foreground imcrm-leading-relaxed">
-                    Cambiar el slug no afectará tus datos ni filtros guardados. URLs externas,
-                    webhooks o integraciones que usen el slug actual{' '}
-                    <code className="imcrm-font-mono">{currentSlug}</code> deberán actualizarse.
-                    Imagina CRM mantendrá redirects automáticos del anterior.
+                    {__(
+                        'Cambiar el slug no afectará tus datos ni filtros guardados. URLs externas, webhooks o integraciones que usen el slug actual deberán actualizarse. Imagina CRM mantendrá redirects automáticos del anterior.',
+                    )}{' '}
+                    <code className="imcrm-font-mono">{currentSlug}</code>
                 </p>
             )}
         </div>

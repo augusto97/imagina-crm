@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateSavedView } from '@/hooks/useSavedViews';
 import { ApiError } from '@/lib/api';
+import { __, _n, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { SavedViewConfig, SavedViewEntity } from '@/types/view';
 
@@ -81,14 +82,14 @@ export function SaveViewDialog({
                     <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
                         <div>
                             <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
-                                Guardar como vista
+                                {__('Guardar como vista')}
                             </Dialog.Title>
                             <Dialog.Description className="imcrm-text-sm imcrm-text-muted-foreground">
-                                Captura los filtros, sort y búsqueda actuales en una vista nombrada.
+                                {__('Captura los filtros, sort y búsqueda actuales en una vista nombrada.')}
                             </Dialog.Description>
                         </div>
                         <Dialog.Close asChild>
-                            <Button variant="ghost" size="icon" aria-label="Cerrar">
+                            <Button variant="ghost" size="icon" aria-label={__('Cerrar')}>
                                 <X className="imcrm-h-4 imcrm-w-4" />
                             </Button>
                         </Dialog.Close>
@@ -96,12 +97,12 @@ export function SaveViewDialog({
 
                     <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-4">
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label htmlFor="view-name">Nombre</Label>
+                            <Label htmlFor="view-name">{__('Nombre')}</Label>
                             <Input
                                 id="view-name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="Ej. Vencidos esta semana"
+                                placeholder={__('Ej. Vencidos esta semana')}
                                 autoFocus
                             />
                         </div>
@@ -112,12 +113,12 @@ export function SaveViewDialog({
                                 checked={setDefault}
                                 onChange={(e) => setSetDefault(e.target.checked)}
                             />
-                            Establecer como vista por defecto
+                            {__('Establecer como vista por defecto')}
                         </label>
 
                         <div className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
                             <span className="imcrm-font-medium imcrm-text-foreground">
-                                Se guardará:
+                                {__('Se guardará:')}
                             </span>{' '}
                             {summary}
                         </div>
@@ -131,11 +132,11 @@ export function SaveViewDialog({
                         <div className="imcrm-flex imcrm-justify-end imcrm-gap-2">
                             <Dialog.Close asChild>
                                 <Button type="button" variant="outline">
-                                    Cancelar
+                                    {__('Cancelar')}
                                 </Button>
                             </Dialog.Close>
                             <Button type="submit" disabled={name.trim() === '' || create.isPending}>
-                                {create.isPending ? 'Guardando…' : 'Guardar vista'}
+                                {create.isPending ? __('Guardando…') : __('Guardar vista')}
                             </Button>
                         </div>
                     </form>
@@ -148,14 +149,32 @@ export function SaveViewDialog({
 function describeConfig(config: SavedViewConfig): string {
     const parts: string[] = [];
     if (config.filters && config.filters.length > 0) {
-        parts.push(`${config.filters.length} filtro${config.filters.length === 1 ? '' : 's'}`);
+        parts.push(
+            sprintf(
+                /* translators: %d: number of filters */
+                _n('%d filtro', '%d filtros', config.filters.length),
+                config.filters.length,
+            ),
+        );
     }
     if (config.sort && config.sort.length > 0) {
-        parts.push(`${config.sort.length} columna${config.sort.length === 1 ? '' : 's'} ordenadas`);
+        parts.push(
+            sprintf(
+                /* translators: %d: number of sorted columns */
+                _n('%d columna ordenada', '%d columnas ordenadas', config.sort.length),
+                config.sort.length,
+            ),
+        );
     }
     if (config.search && config.search.trim() !== '') {
-        parts.push(`búsqueda "${config.search}"`);
+        parts.push(
+            sprintf(
+                /* translators: %s: search query */
+                __('búsqueda "%s"'),
+                config.search,
+            ),
+        );
     }
-    if (parts.length === 0) return 'sin configuración (vista vacía).';
+    if (parts.length === 0) return __('sin configuración (vista vacía).');
     return parts.join(', ') + '.';
 }

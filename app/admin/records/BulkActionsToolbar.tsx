@@ -2,6 +2,7 @@ import { Trash2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useBulkRecords } from '@/hooks/useRecords';
+import { __, _n, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 interface BulkActionsToolbarProps {
@@ -26,7 +27,15 @@ export function BulkActionsToolbar({
 
     const handleDelete = async (): Promise<void> => {
         const ok = confirm(
-            `Eliminar ${selectedIds.length} registro${selectedIds.length === 1 ? '' : 's'}? Los datos se preservan (soft delete).`,
+            sprintf(
+                /* translators: %d: number of selected records */
+                _n(
+                    'Eliminar %d registro? Los datos se preservan (soft delete).',
+                    'Eliminar %d registros? Los datos se preservan (soft delete).',
+                    selectedIds.length,
+                ),
+                selectedIds.length,
+            ),
         );
         if (!ok) return;
         const result = await bulk.mutateAsync({ action: 'delete', ids: selectedIds });
@@ -35,9 +44,28 @@ export function BulkActionsToolbar({
             // Reportar los fallidos. UX simple por ahora — un toast llegaría en
             // el commit de notificaciones.
             alert(
-                `Se eliminaron ${result.succeeded.length} registros.\n` +
-                    `Fallaron ${result.failed.length}:\n` +
-                    result.failed.map((f) => `  #${f.id}: ${f.message}`).join('\n'),
+                sprintf(
+                    /* translators: %d: number of records successfully deleted */
+                    __('Se eliminaron %d registros.'),
+                    result.succeeded.length,
+                ) +
+                    '\n' +
+                    sprintf(
+                        /* translators: %d: number of records that failed to delete */
+                        __('Fallaron %d:'),
+                        result.failed.length,
+                    ) +
+                    '\n' +
+                    result.failed
+                        .map((f) =>
+                            sprintf(
+                                /* translators: 1: record id, 2: error message */
+                                __('  #%1$d: %2$s'),
+                                f.id,
+                                f.message,
+                            ),
+                        )
+                        .join('\n'),
             );
         }
     };
@@ -51,7 +79,11 @@ export function BulkActionsToolbar({
         >
             <div className="imcrm-flex imcrm-items-center imcrm-gap-3">
                 <span className="imcrm-text-sm imcrm-font-medium">
-                    {selectedIds.length} seleccionado{selectedIds.length === 1 ? '' : 's'}
+                    {sprintf(
+                        /* translators: %d: number of selected records */
+                        _n('%d seleccionado', '%d seleccionados', selectedIds.length),
+                        selectedIds.length,
+                    )}
                 </span>
                 <Button
                     variant="ghost"
@@ -60,7 +92,7 @@ export function BulkActionsToolbar({
                     className="imcrm-gap-1 imcrm-text-muted-foreground"
                 >
                     <X className="imcrm-h-3.5 imcrm-w-3.5" />
-                    Limpiar selección
+                    {__('Limpiar selección')}
                 </Button>
             </div>
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
@@ -72,7 +104,7 @@ export function BulkActionsToolbar({
                     className="imcrm-gap-1.5 imcrm-text-destructive hover:imcrm-text-destructive"
                 >
                     <Trash2 className="imcrm-h-3.5 imcrm-w-3.5" />
-                    {bulk.isPending ? 'Eliminando…' : 'Eliminar'}
+                    {bulk.isPending ? __('Eliminando…') : __('Eliminar')}
                 </Button>
             </div>
         </div>

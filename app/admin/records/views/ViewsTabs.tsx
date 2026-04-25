@@ -9,6 +9,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useDeleteSavedView, useUpdateSavedView } from '@/hooks/useSavedViews';
+import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { SavedViewConfig, SavedViewEntity } from '@/types/view';
 
@@ -68,7 +69,16 @@ export function ViewsTabs({
     };
 
     const handleDelete = async (view: SavedViewEntity): Promise<void> => {
-        if (!confirm(`Eliminar la vista "${view.name}"? Esta acción no afecta los registros.`)) return;
+        if (
+            !confirm(
+                sprintf(
+                    /* translators: %s: saved view name */
+                    __('Eliminar la vista "%s"? Esta acción no afecta los registros.'),
+                    view.name,
+                ),
+            )
+        )
+            return;
         await remove.mutateAsync(view.id);
         if (activeViewId === view.id) onSelectView(null);
     };
@@ -76,7 +86,7 @@ export function ViewsTabs({
     return (
         <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-1 imcrm-border-b imcrm-border-border imcrm-pb-1">
             <ViewTab
-                label="Todos"
+                label={__('Todos')}
                 active={activeViewId === null}
                 onClick={() => onSelectView(null)}
             />
@@ -96,7 +106,7 @@ export function ViewsTabs({
                                     <DropdownMenuTrigger asChild>
                                         <button
                                             type="button"
-                                            aria-label="Acciones de la vista"
+                                            aria-label={__('Acciones de la vista')}
                                             className="imcrm-rounded imcrm-p-0.5 imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground"
                                             onClick={(e) => e.stopPropagation()}
                                         >
@@ -107,12 +117,12 @@ export function ViewsTabs({
                                         {!view.is_default && (
                                             <DropdownMenuItem onSelect={() => void handleSetDefault(view)}>
                                                 <Star className="imcrm-h-3.5 imcrm-w-3.5" />
-                                                Establecer por defecto
+                                                {__('Establecer por defecto')}
                                             </DropdownMenuItem>
                                         )}
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem danger onSelect={() => void handleDelete(view)}>
-                                            Eliminar vista
+                                            {__('Eliminar vista')}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -125,9 +135,9 @@ export function ViewsTabs({
             <button
                 type="button"
                 onClick={onAskCreateView}
-                title="Guardar estado actual como vista"
+                title={__('Guardar estado actual como vista')}
                 className="imcrm-ml-1 imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground"
-                aria-label="Crear vista nueva"
+                aria-label={__('Crear vista nueva')}
             >
                 <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
             </button>

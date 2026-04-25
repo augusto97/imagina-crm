@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateList } from '@/hooks/useLists';
 import { ApiError } from '@/lib/api';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 import { SlugEditor } from './SlugEditor';
@@ -80,14 +81,14 @@ export function ListCreateDialog({ open, onOpenChange }: ListCreateDialogProps):
                     <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
                         <div>
                             <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
-                                Nueva lista
+                                {__('Nueva lista')}
                             </Dialog.Title>
                             <Dialog.Description className="imcrm-text-sm imcrm-text-muted-foreground">
-                                Define el nombre y los campos llegarán después.
+                                {__('Define el nombre y los campos llegarán después.')}
                             </Dialog.Description>
                         </div>
                         <Dialog.Close asChild>
-                            <Button variant="ghost" size="icon" aria-label="Cerrar">
+                            <Button variant="ghost" size="icon" aria-label={__('Cerrar')}>
                                 <X className="imcrm-h-4 imcrm-w-4" />
                             </Button>
                         </Dialog.Close>
@@ -95,12 +96,12 @@ export function ListCreateDialog({ open, onOpenChange }: ListCreateDialogProps):
 
                     <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-4">
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label htmlFor="new-list-name">Nombre</Label>
+                            <Label htmlFor="new-list-name">{__('Nombre')}</Label>
                             <Input
                                 id="new-list-name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="Ej. Clientes"
+                                placeholder={__('Ej. Clientes')}
                                 autoFocus
                             />
                         </div>
@@ -115,12 +116,14 @@ export function ListCreateDialog({ open, onOpenChange }: ListCreateDialogProps):
                         />
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label htmlFor="new-list-description">Descripción (opcional)</Label>
+                            <Label htmlFor="new-list-description">
+                                {__('Descripción (opcional)')}
+                            </Label>
                             <Textarea
                                 id="new-list-description"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                placeholder="¿Para qué usarás esta lista?"
+                                placeholder={__('¿Para qué usarás esta lista?')}
                                 rows={3}
                             />
                         </div>
@@ -134,11 +137,11 @@ export function ListCreateDialog({ open, onOpenChange }: ListCreateDialogProps):
                         <div className="imcrm-flex imcrm-justify-end imcrm-gap-2">
                             <Dialog.Close asChild>
                                 <Button type="button" variant="outline">
-                                    Cancelar
+                                    {__('Cancelar')}
                                 </Button>
                             </Dialog.Close>
                             <Button type="submit" disabled={!canSubmit}>
-                                {create.isPending ? 'Creando…' : 'Crear lista'}
+                                {create.isPending ? __('Creando…') : __('Crear lista')}
                             </Button>
                         </div>
                     </form>

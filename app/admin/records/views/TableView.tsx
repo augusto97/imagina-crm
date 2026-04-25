@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, KeyRound } from 'lucide-react';
 
+import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
@@ -94,7 +95,7 @@ export function TableView({
         return [
             {
                 id: 'id',
-                header: 'ID',
+                header: __('ID'),
                 accessorFn: (row) => row.id,
                 cell: (ctx) => (
                     <span className="imcrm-font-mono imcrm-text-xs imcrm-text-muted-foreground">
@@ -106,7 +107,7 @@ export function TableView({
             ...dynamic,
             {
                 id: 'updated_at',
-                header: 'Actualizado',
+                header: __('Actualizado'),
                 accessorFn: (row) => row.updated_at,
                 cell: (ctx) => {
                     const v = String(ctx.getValue() ?? '');
@@ -143,7 +144,7 @@ export function TableView({
                                         if (el) el.indeterminate = someVisibleSelected;
                                     }}
                                     onChange={toggleAll}
-                                    aria-label="Seleccionar todos"
+                                    aria-label={__('Seleccionar todos')}
                                 />
                             </th>
                             {hg.headers.map((h) => {
@@ -194,7 +195,7 @@ export function TableView({
                                 colSpan={columns.length + 1}
                                 className="imcrm-px-4 imcrm-py-12 imcrm-text-center imcrm-text-sm imcrm-text-muted-foreground"
                             >
-                                No hay registros que coincidan.
+                                {__('No hay registros que coincidan.')}
                             </td>
                         </tr>
                     ) : (
@@ -218,7 +219,11 @@ export function TableView({
                                             type="checkbox"
                                             checked={isSelected}
                                             onChange={() => toggleOne(row.original.id)}
-                                            aria-label={`Seleccionar registro ${row.original.id}`}
+                                            aria-label={sprintf(
+                                                /* translators: %d: record ID */
+                                                __('Seleccionar registro %d'),
+                                                row.original.id,
+                                            )}
                                         />
                                     </td>
                                     {row.getVisibleCells().map((cell, cellIndex) => {

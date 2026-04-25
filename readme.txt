@@ -14,21 +14,23 @@ Plataforma de gestión de listas, registros y automatizaciones tipo ClickUp/Airt
 
 Imagina CRM permite crear listas personalizadas con campos dinámicos, vistas configurables y automatizaciones, todo desde una UI moderna construida con React + shadcn/ui sobre WordPress.
 
-Esta versión 0.1.0 corresponde a la **Fase 0 — bootstrap**. Sólo provee:
-
-* Estructura del plugin y autoload Composer (PSR-4 bajo `ImaginaCRM\`).
-* Bundle Vite + React 18 + TypeScript + Tailwind (prefijo `imcrm-`).
-* Container DI propio.
-* Página de admin con shell React (sidebar + topbar) montado en `admin.php?page=imagina-crm`.
-
-La gestión real de listas, campos, registros, vistas y automatizaciones se irá añadiendo en las fases 1+.
-
 == Installation ==
 
 1. Sube el directorio del plugin a `/wp-content/plugins/imagina-crm`.
 2. Ejecuta `composer install --no-dev` y `npm install && npm run build` dentro del directorio.
 3. Activa el plugin desde el panel de WordPress.
 4. Abre **Imagina CRM** en el menú lateral.
+
+== Internationalization ==
+
+* Text domain: `imagina-crm`.
+* Idioma fuente: español (es_ES).
+* Traducciones incluidas: en_US.
+* Se aceptan PRs con nuevas traducciones en `languages/imagina-crm-<locale>.po`.
+* Para regenerar el `.pot` y compilar `.mo` / `.json`: `bin/i18n-build.sh` (requiere wp-cli y `gettext`).
+* El frontend usa `@wordpress/i18n` cargado vía `wp_set_script_translations`,
+  por lo que las traducciones JS se sirven automáticamente desde
+  `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
 

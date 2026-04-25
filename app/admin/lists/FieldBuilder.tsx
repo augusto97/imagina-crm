@@ -4,6 +4,7 @@ import { Plus, Trash2, KeyRound, Asterisk, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useDeleteField, useFields } from '@/hooks/useFields';
+import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
@@ -22,28 +23,28 @@ export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-items-center imcrm-justify-between">
                 <div>
-                    <h2 className="imcrm-text-base imcrm-font-semibold">Campos</h2>
+                    <h2 className="imcrm-text-base imcrm-font-semibold">{__('Campos')}</h2>
                     <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                        Cada campo se traduce en una columna real en la base de datos.
+                        {__('Cada campo se traduce en una columna real en la base de datos.')}
                     </p>
                 </div>
                 <Button onClick={() => setCreateOpen(true)} size="sm" className="imcrm-gap-2">
                     <Plus className="imcrm-h-4 imcrm-w-4" />
-                    Añadir campo
+                    {__('Añadir campo')}
                 </Button>
             </div>
 
             {fields.isLoading && (
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-6 imcrm-text-sm imcrm-text-muted-foreground">
                     <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-                    Cargando campos…
+                    {__('Cargando campos…')}
                 </div>
             )}
 
             {fields.data && fields.data.length === 0 && (
                 <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-p-8 imcrm-text-center">
                     <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                        Esta lista aún no tiene campos. Añade el primero para empezar.
+                        {__('Esta lista aún no tiene campos. Añade el primero para empezar.')}
                     </p>
                 </div>
             )}
@@ -57,7 +58,11 @@ export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
                             onDelete={() => {
                                 if (
                                     !confirm(
-                                        `Eliminar el campo "${field.label}"? Los datos guardados se conservan a menos que pidas borrarlos definitivamente.`,
+                                        sprintf(
+                                            /* translators: %s: field label */
+                                            __('¿Eliminar el campo "%s"? Los datos guardados se conservan a menos que pidas borrarlos definitivamente.'),
+                                            field.label,
+                                        ),
                                     )
                                 ) {
                                     return;
@@ -88,16 +93,16 @@ function FieldRow({ field, onDelete }: { field: FieldEntity; onDelete: () => voi
                         {field.is_primary && (
                             <Badge variant="secondary" className="imcrm-gap-1">
                                 <KeyRound className="imcrm-h-3 imcrm-w-3" />
-                                Primario
+                                {__('Primario')}
                             </Badge>
                         )}
                         {field.is_required && (
                             <Badge variant="outline" className="imcrm-gap-1">
                                 <Asterisk className="imcrm-h-3 imcrm-w-3" />
-                                Obligatorio
+                                {__('Obligatorio')}
                             </Badge>
                         )}
-                        {field.is_unique && <Badge variant="outline">Único</Badge>}
+                        {field.is_unique && <Badge variant="outline">{__('Único')}</Badge>}
                     </div>
                     <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs imcrm-text-muted-foreground">
                         <code className="imcrm-font-mono">{field.slug}</code>
@@ -119,8 +124,12 @@ function FieldRow({ field, onDelete }: { field: FieldEntity; onDelete: () => voi
                     variant="ghost"
                     size="icon"
                     onClick={onDelete}
-                    aria-label={`Eliminar ${field.label}`}
-                    title="Eliminar"
+                    aria-label={sprintf(
+                        /* translators: %s: field label */
+                        __('Eliminar %s'),
+                        field.label,
+                    )}
+                    title={__('Eliminar')}
                 >
                     <Trash2 className="imcrm-h-4 imcrm-w-4" />
                 </Button>

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
@@ -76,7 +77,7 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
                 ? (err.errors[field.slug] ?? err.message)
                 : err instanceof Error
                     ? err.message
-                    : 'Error';
+                    : __('Error');
             setError(msg);
             // Mantenemos el modo edición para que el usuario corrija.
         }
@@ -93,7 +94,7 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
                     canEdit && 'hover:imcrm-bg-accent/40 imcrm-rounded imcrm--mx-1 imcrm-px-1',
                     !canEdit && 'imcrm-cursor-default',
                 )}
-                title={canEdit ? 'Doble click para editar' : 'No editable inline'}
+                title={canEdit ? __('Doble click para editar') : __('No editable inline')}
             >
                 {renderCellValue(field, value)}
             </button>

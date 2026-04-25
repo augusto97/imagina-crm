@@ -1,6 +1,7 @@
 import { Filter, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 
 import { FilterPopover } from './FilterPopover';
@@ -35,7 +36,7 @@ export function FiltersBar({ fields, filters, onFiltersChange }: FiltersBarProps
             <FilterPopover fields={fields} initial={null} onApply={addFilter}>
                 <Button variant="outline" size="sm" className="imcrm-gap-1.5">
                     <Filter className="imcrm-h-3.5 imcrm-w-3.5" />
-                    {filters.length === 0 ? 'Filtrar' : 'Añadir filtro'}
+                    {filters.length === 0 ? __('Filtrar') : __('Añadir filtro')}
                 </Button>
             </FilterPopover>
 
@@ -70,7 +71,7 @@ export function FiltersBar({ fields, filters, onFiltersChange }: FiltersBarProps
                             )}
                             <span
                                 role="button"
-                                aria-label="Quitar filtro"
+                                aria-label={__('Quitar filtro')}
                                 tabIndex={0}
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -99,7 +100,7 @@ export function FiltersBar({ fields, filters, onFiltersChange }: FiltersBarProps
                     onClick={() => onFiltersChange([])}
                     className="imcrm-text-xs imcrm-text-muted-foreground"
                 >
-                    Limpiar
+                    {__('Limpiar')}
                 </Button>
             )}
         </div>

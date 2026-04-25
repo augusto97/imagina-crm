@@ -56,6 +56,15 @@ final class AdminAssets
 
         wp_script_add_data(self::HANDLE, 'type', 'module');
 
+        // Registra el handle como traducible: WordPress buscará archivos
+        // `imagina-crm-<locale>-<handle>.json` en `languages/` para servir
+        // las traducciones a `@wordpress/i18n` en el bundle.
+        wp_set_script_translations(
+            self::HANDLE,
+            Plugin::TEXT_DOMAIN,
+            IMAGINA_CRM_DIR . 'languages',
+        );
+
         if (isset($entry['css']) && is_array($entry['css'])) {
             foreach ($entry['css'] as $index => $cssFile) {
                 if (! is_string($cssFile)) {

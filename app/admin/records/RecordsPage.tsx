@@ -8,6 +8,7 @@ import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
 import { useRecords } from '@/hooks/useRecords';
 import { useSavedViews } from '@/hooks/useSavedViews';
+import { __, sprintf } from '@/lib/i18n';
 import type { RecordEntity } from '@/types/record';
 import type { SavedViewEntity } from '@/types/view';
 
@@ -119,7 +120,7 @@ export function RecordsPage(): JSX.Element {
         return (
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-12 imcrm-text-sm imcrm-text-muted-foreground">
                 <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-                Cargando…
+                {__('Cargando…')}
             </div>
         );
     }
@@ -129,9 +130,9 @@ export function RecordsPage(): JSX.Element {
             <div className="imcrm-flex imcrm-flex-col imcrm-items-start imcrm-gap-3">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/lists')} className="imcrm-gap-2">
                     <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
-                    Volver
+                    {__('Volver')}
                 </Button>
-                <p className="imcrm-text-sm imcrm-text-destructive">Lista no encontrada.</p>
+                <p className="imcrm-text-sm imcrm-text-destructive">{__('Lista no encontrada.')}</p>
             </div>
         );
     }
@@ -149,7 +150,7 @@ export function RecordsPage(): JSX.Element {
                         className="imcrm-gap-2 imcrm-self-start imcrm-text-muted-foreground"
                     >
                         <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
-                        Listas
+                        {__('Listas')}
                     </Button>
                     <h1 className="imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
                         {list.data.name}
@@ -159,7 +160,7 @@ export function RecordsPage(): JSX.Element {
                     <Button asChild variant="outline" className="imcrm-gap-2">
                         <Link to={`/lists/${list.data.slug}/edit`}>
                             <Settings className="imcrm-h-4 imcrm-w-4" />
-                            Configurar lista
+                            {__('Configurar lista')}
                         </Link>
                     </Button>
                     <Button
@@ -168,7 +169,7 @@ export function RecordsPage(): JSX.Element {
                         className="imcrm-gap-2"
                     >
                         <Plus className="imcrm-h-4 imcrm-w-4" />
-                        Nuevo registro
+                        {__('Nuevo registro')}
                     </Button>
                 </div>
             </header>
@@ -176,13 +177,12 @@ export function RecordsPage(): JSX.Element {
             {fields.data && fields.data.length === 0 && (
                 <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-p-8 imcrm-text-center">
                     <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                        Esta lista aún no tiene campos. Configúralos primero para poder crear
-                        registros.
+                        {__('Esta lista aún no tiene campos. Configúralos primero para poder crear registros.')}
                     </p>
                     <Button asChild variant="outline" className="imcrm-mt-3 imcrm-gap-2">
                         <Link to={`/lists/${list.data.slug}/edit`}>
                             <Settings className="imcrm-h-4 imcrm-w-4" />
-                            Configurar campos
+                            {__('Configurar campos')}
                         </Link>
                     </Button>
                 </div>
@@ -207,7 +207,7 @@ export function RecordsPage(): JSX.Element {
                                 <Input
                                     value={state.search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Buscar…"
+                                    placeholder={__('Buscar…')}
                                     className="imcrm-pl-8"
                                 />
                             </div>
@@ -225,11 +225,15 @@ export function RecordsPage(): JSX.Element {
                     {records.isLoading ? (
                         <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-6 imcrm-text-sm imcrm-text-muted-foreground">
                             <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-                            Cargando registros…
+                            {__('Cargando registros…')}
                         </div>
                     ) : records.isError ? (
                         <p className="imcrm-text-sm imcrm-text-destructive">
-                            Error: {(records.error as Error).message}
+                            {sprintf(
+                                /* translators: %s: error message */
+                                __('Error: %s'),
+                                (records.error as Error).message,
+                            )}
                         </p>
                     ) : (
                         <TableView

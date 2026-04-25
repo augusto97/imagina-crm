@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCreateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
@@ -73,14 +74,14 @@ export function RecordCreateDialog({
                     <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
                         <div>
                             <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
-                                Nuevo registro
+                                {__('Nuevo registro')}
                             </Dialog.Title>
                             <Dialog.Description className="imcrm-text-sm imcrm-text-muted-foreground">
-                                Completa los campos para crear un nuevo registro.
+                                {__('Completa los campos para crear un nuevo registro.')}
                             </Dialog.Description>
                         </div>
                         <Dialog.Close asChild>
-                            <Button variant="ghost" size="icon" aria-label="Cerrar">
+                            <Button variant="ghost" size="icon" aria-label={__('Cerrar')}>
                                 <X className="imcrm-h-4 imcrm-w-4" />
                             </Button>
                         </Dialog.Close>
@@ -103,11 +104,11 @@ export function RecordCreateDialog({
                         <div className="imcrm-flex imcrm-justify-end imcrm-gap-2">
                             <Dialog.Close asChild>
                                 <Button type="button" variant="outline">
-                                    Cancelar
+                                    {__('Cancelar')}
                                 </Button>
                             </Dialog.Close>
                             <Button type="submit" disabled={create.isPending}>
-                                {create.isPending ? 'Creando…' : 'Crear registro'}
+                                {create.isPending ? __('Creando…') : __('Crear registro')}
                             </Button>
                         </div>
                     </form>
