@@ -144,7 +144,7 @@ export function ViewsTabs({
 
             {isDirty && activeView !== null && (
                 <div className="imcrm-ml-auto imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-pl-3">
-                    <span className="imcrm-text-xs imcrm-text-muted-foreground">Cambios sin guardar</span>
+                    <span className="imcrm-text-xs imcrm-text-muted-foreground">{__('Cambios sin guardar')}</span>
                     <Button
                         size="sm"
                         variant="ghost"
@@ -153,7 +153,7 @@ export function ViewsTabs({
                         className="imcrm-gap-1 imcrm-text-xs"
                     >
                         <Undo2 className="imcrm-h-3 imcrm-w-3" />
-                        Descartar
+                        {__('Descartar')}
                     </Button>
                     <Button
                         size="sm"
@@ -162,7 +162,7 @@ export function ViewsTabs({
                         className="imcrm-gap-1 imcrm-text-xs"
                     >
                         <Save className="imcrm-h-3 imcrm-w-3" />
-                        {update.isPending ? 'Guardando…' : 'Guardar'}
+                        {update.isPending ? __('Guardando…') : __('Guardar')}
                     </Button>
                 </div>
             )}
@@ -176,7 +176,7 @@ export function ViewsTabs({
                         className="imcrm-gap-1 imcrm-text-xs"
                     >
                         <Save className="imcrm-h-3 imcrm-w-3" />
-                        Guardar como vista…
+                        {__('Guardar como vista…')}
                     </Button>
                 </div>
             )}

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { Database, Settings, Sparkles, Loader2 } from 'lucide-react';
 
 import { useLists } from '@/hooks/useLists';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 export function Sidebar(): JSX.Element {
@@ -20,20 +21,20 @@ export function Sidebar(): JSX.Element {
                 <div className="imcrm-flex imcrm-flex-col imcrm-leading-tight">
                     <span className="imcrm-text-sm imcrm-font-semibold">Imagina CRM</span>
                     <span className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                        Listas y registros
+                        {__('Listas y registros')}
                     </span>
                 </div>
             </div>
 
             <nav className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-p-3">
                 <NavItem to="/lists" icon={<Database className="imcrm-h-4 imcrm-w-4" />}>
-                    Listas
+                    {__('Listas')}
                 </NavItem>
 
                 {lists.isLoading && (
                     <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
                         <Loader2 className="imcrm-h-3 imcrm-w-3 imcrm-animate-spin" />
-                        Cargando listas…
+                        {__('Cargando listas…')}
                     </div>
                 )}
 
@@ -61,7 +62,7 @@ export function Sidebar(): JSX.Element {
 
                 <div className="imcrm-mt-2">
                     <NavItem to="/settings" icon={<Settings className="imcrm-h-4 imcrm-w-4" />}>
-                        Ajustes
+                        {__('Ajustes')}
                     </NavItem>
                 </div>
             </nav>

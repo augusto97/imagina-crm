@@ -3,18 +3,21 @@ import { Search } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { getBootData } from '@/lib/boot';
+import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-const ROUTE_LABELS: Record<string, string> = {
-    lists: 'Listas',
-    settings: 'Ajustes',
-};
+function getRouteLabels(): Record<string, string> {
+    return {
+        lists: __('Listas'),
+        settings: __('Ajustes'),
+    };
+}
 
 export function Topbar(): JSX.Element {
     const { pathname } = useLocation();
     const segments = pathname.split('/').filter(Boolean);
     const current = segments[0] ?? 'lists';
-    const label = ROUTE_LABELS[current] ?? 'Imagina CRM';
+    const label = getRouteLabels()[current] ?? 'Imagina CRM';
     const boot = getBootData();
 
     return (
@@ -24,7 +27,7 @@ export function Topbar(): JSX.Element {
             )}
         >
             <nav
-                aria-label="Breadcrumb"
+                aria-label={__('Breadcrumb')}
                 className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm imcrm-text-muted-foreground"
             >
                 <span>Imagina CRM</span>
@@ -35,7 +38,7 @@ export function Topbar(): JSX.Element {
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
                 <Button variant="outline" size="sm" className="imcrm-gap-2">
                     <Search className="imcrm-h-3.5 imcrm-w-3.5" />
-                    <span>Buscar</span>
+                    <span>{__('Buscar')}</span>
                     <kbd className="imcrm-ml-2 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-mono imcrm-text-muted-foreground">
                         ⌘K
                     </kbd>
@@ -52,7 +55,7 @@ export function Topbar(): JSX.Element {
                         <span className="imcrm-h-6 imcrm-w-6 imcrm-rounded-full imcrm-bg-muted" />
                     )}
                     <span className="imcrm-text-sm imcrm-font-medium">
-                        {boot.user.displayName || 'Usuario'}
+                        {boot.user.displayName || __('Usuario')}
                     </span>
                 </div>
             </div>
