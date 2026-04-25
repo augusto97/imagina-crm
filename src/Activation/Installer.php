@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Activation;
 
+use ImaginaCRM\Automations\ScheduledRunner;
 use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Plugin;
@@ -55,6 +56,9 @@ final class Installer
         if (! wp_next_scheduled(LicenseManager::CRON_HOOK)) {
             wp_schedule_event(time() + DAY_IN_SECONDS, 'daily', LicenseManager::CRON_HOOK);
         }
+
+        // Tick recurrente del runner de triggers programados. Idempotente.
+        ScheduledRunner::ensureScheduled();
 
         flush_rewrite_rules();
     }

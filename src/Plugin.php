@@ -13,6 +13,7 @@ use ImaginaCRM\Automations\AutomationEngine;
 use ImaginaCRM\Automations\AutomationRepository;
 use ImaginaCRM\Automations\AutomationRunRepository;
 use ImaginaCRM\Automations\AutomationService;
+use ImaginaCRM\Automations\ScheduledRunner;
 use ImaginaCRM\Automations\TriggerContext;
 use ImaginaCRM\Automations\TriggerRegistry;
 use ImaginaCRM\Fields\FieldRepository;
@@ -236,6 +237,16 @@ final class Plugin
                 $c->get(ActionRegistry::class),
             );
         });
+
+        $this->container->bind(ScheduledRunner::class, static function (Container $c): ScheduledRunner {
+            return new ScheduledRunner(
+                $c->get(AutomationRepository::class),
+                $c->get(AutomationRunRepository::class),
+                $c->get(\ImaginaCRM\Lists\ListRepository::class),
+                $c->get(\ImaginaCRM\Records\RecordService::class),
+                $c->get(AutomationEngine::class),
+            );
+        });
     }
 
     private function register(): void
@@ -310,6 +321,17 @@ final class Plugin
                 },
                 10,
                 1,
+            );
+        }
+
+        // Tick recurrente del runner de triggers programados.
+        $scheduledRunner = $this->container->get(ScheduledRunner::class);
+        if ($scheduledRunner instanceof ScheduledRunner) {
+            add_action(
+                ScheduledRunner::HOOK_TICK,
+                [$scheduledRunner, 'tick'],
+                10,
+                0,
             );
         }
 

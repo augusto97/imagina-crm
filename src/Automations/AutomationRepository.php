@@ -75,6 +75,38 @@ class AutomationRepository
     }
 
     /**
+     * Trae todas las automatizaciones activas (de todas las listas) cuyo
+     * `trigger_type` está en la lista dada. La query caliente del
+     * `ScheduledRunner` cuando hace su tick periódico.
+     *
+     * @param array<int, string> $triggerTypes
+     * @return array<int, AutomationEntity>
+     */
+    public function activeWithTriggers(array $triggerTypes): array
+    {
+        if ($triggerTypes === []) {
+            return [];
+        }
+        $wpdb = $this->db->wpdb();
+        // %s placeholders dinámicos según count.
+        $placeholders = implode(',', array_fill(0, count($triggerTypes), '%s'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                'SELECT * FROM ' . $this->db->systemTable('automations')
+                . ' WHERE is_active = 1 AND deleted_at IS NULL'
+                . ' AND trigger_type IN (' . $placeholders . ')'
+                . ' ORDER BY id ASC',
+                ...$triggerTypes,
+            ),
+            ARRAY_A,
+        );
+        if (! is_array($rows)) {
+            return [];
+        }
+        return array_map(static fn (array $r): AutomationEntity => AutomationEntity::fromRow($r), $rows);
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     public function insert(array $data): int

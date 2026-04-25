@@ -215,28 +215,37 @@ final class AutomationEngine
     /**
      * Resuelve trigger + filtra automatizaciones activas que matchean.
      *
+     * Importante: un mismo evento WP puede ser observado por varios
+     * triggers distintos (ej. `record_updated` lo observan tanto el
+     * trigger del mismo nombre como `field_changed`; `scheduled_tick`
+     * lo observan `scheduled` y `due_date_reached`). Iteramos todos los
+     * triggers que matchean el evento y consultamos las automatizaciones
+     * para cada uno.
+     *
      * @return array<int, AutomationEntity>
      */
     private function findCandidates(TriggerContext $context): array
     {
-        $triggerSlug = $this->resolveTriggerSlugForEvent($context->event);
-        if ($triggerSlug === null) {
-            return [];
-        }
-        $trigger = $this->triggers->get($triggerSlug);
-        if ($trigger === null) {
+        $triggerSlugs = $this->resolveTriggerSlugsForEvent($context->event);
+        if ($triggerSlugs === []) {
             return [];
         }
 
-        $automations = $this->automations->activeForListAndTrigger($context->list->id, $triggerSlug);
-        $matched     = [];
-        foreach ($automations as $automation) {
-            try {
-                if ($trigger->matches($context, $automation->triggerConfig)) {
-                    $matched[] = $automation;
+        $matched = [];
+        foreach ($triggerSlugs as $slug) {
+            $trigger = $this->triggers->get($slug);
+            if ($trigger === null) {
+                continue;
+            }
+            $automations = $this->automations->activeForListAndTrigger($context->list->id, $slug);
+            foreach ($automations as $automation) {
+                try {
+                    if ($trigger->matches($context, $automation->triggerConfig)) {
+                        $matched[] = $automation;
+                    }
+                } catch (\Throwable $e) {
+                    $this->logFailedRun($automation, $context, 'Trigger error: ' . $e->getMessage());
                 }
-            } catch (\Throwable $e) {
-                $this->logFailedRun($automation, $context, 'Trigger error: ' . $e->getMessage());
             }
         }
         return $matched;
@@ -403,13 +412,17 @@ final class AutomationEngine
         ]);
     }
 
-    private function resolveTriggerSlugForEvent(string $event): ?string
+    /**
+     * @return array<int, string>
+     */
+    private function resolveTriggerSlugsForEvent(string $event): array
     {
+        $slugs = [];
         foreach ($this->triggers->all() as $trigger) {
             if ($trigger->getEvent() === $event) {
-                return $trigger->getSlug();
+                $slugs[] = $trigger->getSlug();
             }
         }
-        return null;
+        return $slugs;
     }
 }

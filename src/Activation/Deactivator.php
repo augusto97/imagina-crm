@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Activation;
 
+use ImaginaCRM\Automations\ScheduledRunner;
 use ImaginaCRM\Licensing\LicenseManager;
 
 /**
@@ -23,6 +24,10 @@ final class Deactivator
         if ($next !== false) {
             wp_unschedule_event($next, LicenseManager::CRON_HOOK);
         }
+
+        // Quita el tick recurrente del scheduled runner para no dejar
+        // jobs huérfanos cuando el plugin se desactiva.
+        ScheduledRunner::unschedule();
 
         global $wpdb;
 
