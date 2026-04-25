@@ -5,20 +5,26 @@ namespace ImaginaCRM;
 
 use ImaginaCRM\Admin\AdminAssets;
 use ImaginaCRM\Admin\AdminMenu;
+use ImaginaCRM\Lists\ListRepository;
+use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Lists\SchemaManager;
+use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\REST\RestBootstrap;
+use ImaginaCRM\Support\Database;
 
 /**
  * Bootstrap principal del plugin.
  *
- * Mantiene el container DI compartido y registra los servicios mínimos
- * necesarios en Fase 0 (admin shell). Servicios de listas, fields, records,
- * REST, etc. se registrarán en fases siguientes.
+ * Mantiene el container DI compartido y registra los servicios necesarios.
+ * En esta fase ya se cablean SchemaManager, SlugManager, listas y la capa
+ * REST. Fields y Records llegan en commits siguientes.
  */
 final class Plugin
 {
-    public const VERSION       = IMAGINA_CRM_VERSION;
-    public const TEXT_DOMAIN   = IMAGINA_CRM_TEXT_DOMAIN;
-    public const DB_VERSION    = IMAGINA_CRM_DB_VERSION;
-    public const ADMIN_PAGE    = 'imagina-crm';
+    public const VERSION          = IMAGINA_CRM_VERSION;
+    public const TEXT_DOMAIN      = IMAGINA_CRM_TEXT_DOMAIN;
+    public const DB_VERSION       = IMAGINA_CRM_DB_VERSION;
+    public const ADMIN_PAGE       = 'imagina-crm';
     public const ADMIN_CAPABILITY = 'manage_options';
 
     private static ?self $instance = null;
@@ -29,6 +35,7 @@ final class Plugin
     {
         $this->container = new Container();
         $this->container->instance(Container::class, $this->container);
+        $this->bindServices();
     }
 
     public static function boot(): self
@@ -61,18 +68,50 @@ final class Plugin
         return IMAGINA_CRM_URL;
     }
 
+    private function bindServices(): void
+    {
+        // Database wrapper sobre wpdb global. Se resuelve perezosamente para
+        // que `init` ya tenga $wpdb disponible.
+        $this->container->bind(Database::class, static function (): Database {
+            global $wpdb;
+            return new Database($wpdb);
+        });
+
+        // SchemaManager y SlugManager dependen sólo de Database.
+        $this->container->bind(SchemaManager::class, static function (Container $c): SchemaManager {
+            return new SchemaManager($c->get(Database::class));
+        });
+
+        $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {
+            return new SlugManager($c->get(Database::class));
+        });
+
+        // Lists.
+        $this->container->bind(ListRepository::class, static function (Container $c): ListRepository {
+            return new ListRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(ListService::class, static function (Container $c): ListService {
+            return new ListService(
+                $c->get(ListRepository::class),
+                $c->get(SlugManager::class),
+                $c->get(SchemaManager::class),
+            );
+        });
+    }
+
     private function register(): void
     {
         add_action('init', [$this, 'loadTextdomain']);
+
+        // REST se registra siempre (admin + frontend pueden consumirlo).
+        $rest = new RestBootstrap($this->container);
+        $rest->register();
 
         if (is_admin()) {
             $this->registerAdmin();
         }
 
-        /**
-         * Hook para que módulos externos (o futuras fases del plugin) registren
-         * sus propios servicios contra el container compartido.
-         */
         do_action('imagina_crm/booted', $this);
     }
 

@@ -1,0 +1,272 @@
+<?php
+declare(strict_types=1);
+
+namespace ImaginaCRM\Lists;
+
+use ImaginaCRM\Support\Database;
+
+/**
+ * Único punto de salida para DDL del plugin (CREATE/ALTER/DROP TABLE).
+ *
+ * - `installSystemTables()` corre `dbDelta` para las 7 tablas fijas.
+ * - `createDataTable()` crea la tabla dinámica de una lista (sin columnas
+ *   personalizadas — esas se añaden con `addColumn()` cuando el usuario
+ *   crea fields).
+ * - `dropDataTable()` la elimina al borrar la lista.
+ *
+ * Nunca se llama DDL fuera de esta clase. Los identificadores que llegan
+ * aquí (table_suffix, column_name) deben venir ya sanitizados por
+ * `SlugManager`. Aún así, todas las queries usan el helper interno
+ * `quoteIdent()` que valida el formato `^[a-z][a-z0-9_]{0,62}$` antes de
+ * envolver con backticks — defensa en profundidad.
+ */
+final class SchemaManager
+{
+    private const IDENT_REGEX = '/^[a-z][a-z0-9_]{0,62}$/';
+
+    public function __construct(private readonly Database $db)
+    {
+    }
+
+    /**
+     * Crea/actualiza las 7 tablas del sistema vía `dbDelta`.
+     *
+     * Se llama desde `Activation\Installer::activate()`. Es idempotente:
+     * `dbDelta` aplica solo los cambios necesarios.
+     */
+    public function installSystemTables(): void
+    {
+        if (! function_exists('dbDelta')) {
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        }
+
+        $charset = $this->db->charsetCollate();
+
+        $statements = [
+            $this->sqlLists($charset),
+            $this->sqlFields($charset),
+            $this->sqlSavedViews($charset),
+            $this->sqlComments($charset),
+            $this->sqlActivity($charset),
+            $this->sqlRelations($charset),
+            $this->sqlSlugHistory($charset),
+        ];
+
+        foreach ($statements as $sql) {
+            dbDelta($sql);
+        }
+    }
+
+    /**
+     * Crea la tabla de datos para una lista recién creada.
+     *
+     * Sin columnas personalizadas — solo las base. Las columnas dinámicas se
+     * añaden con `addColumn()` cuando se crean campos.
+     */
+    public function createDataTable(string $tableSuffix): void
+    {
+        $table   = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $charset = $this->db->charsetCollate();
+
+        $sql = "CREATE TABLE IF NOT EXISTS {$table} (
+            id            BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+            created_by    BIGINT UNSIGNED  NOT NULL DEFAULT 0,
+            created_at    DATETIME         NOT NULL,
+            updated_at    DATETIME         NOT NULL,
+            deleted_at    DATETIME         NULL,
+            PRIMARY KEY (id),
+            KEY idx_deleted (deleted_at),
+            KEY idx_created (created_at)
+        ) {$charset};";
+
+        $this->db->wpdb()->query($sql);
+    }
+
+    public function dropDataTable(string $tableSuffix): void
+    {
+        $table = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $this->db->wpdb()->query("DROP TABLE IF EXISTS {$table}");
+    }
+
+    public function dataTableExists(string $tableSuffix): bool
+    {
+        $name = $this->db->dataTable($tableSuffix);
+        $found = $this->db->wpdb()->get_var(
+            $this->db->wpdb()->prepare('SHOW TABLES LIKE %s', $name)
+        );
+        return $found === $name;
+    }
+
+    /**
+     * Sanitiza y rodea con backticks un identificador.
+     *
+     * Si `allowPrefix` está activo, se permite el prefijo de WP (`wp_imcrm_`)
+     * antes del segmento validado. Si el identificador no calza el regex,
+     * lanza excepción — esto NUNCA debería pasar porque SlugManager ya valida,
+     * pero se mantiene como red de seguridad ante DDL.
+     */
+    private function quoteIdent(string $identifier, bool $allowPrefix = false): string
+    {
+        if ($allowPrefix) {
+            $prefix = $this->db->prefix();
+            if (str_starts_with($identifier, $prefix)) {
+                $tail = substr($identifier, strlen($prefix));
+                if (! preg_match('/^[a-z0-9_]+$/i', $tail)) {
+                    throw new \InvalidArgumentException(
+                        sprintf('Invalid table identifier "%s".', $identifier)
+                    );
+                }
+                return '`' . $prefix . esc_sql($tail) . '`';
+            }
+        }
+
+        if (! preg_match(self::IDENT_REGEX, $identifier)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid SQL identifier "%s".', $identifier)
+            );
+        }
+
+        return '`' . esc_sql($identifier) . '`';
+    }
+
+    private function sqlLists(string $charset): string
+    {
+        $table = $this->db->systemTable('lists');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            slug VARCHAR(64) NOT NULL,
+            table_suffix VARCHAR(64) NOT NULL,
+            name VARCHAR(191) NOT NULL,
+            description TEXT NULL,
+            icon VARCHAR(64) NULL,
+            color VARCHAR(16) NULL,
+            settings LONGTEXT NOT NULL,
+            position INT NOT NULL DEFAULT 0,
+            created_by BIGINT UNSIGNED NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            deleted_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uq_slug (slug),
+            UNIQUE KEY uq_table_suffix (table_suffix),
+            KEY idx_deleted (deleted_at)
+        ) {$charset};";
+    }
+
+    private function sqlFields(string $charset): string
+    {
+        $table = $this->db->systemTable('fields');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            slug VARCHAR(64) NOT NULL,
+            column_name VARCHAR(64) NOT NULL,
+            label VARCHAR(191) NOT NULL,
+            type VARCHAR(32) NOT NULL,
+            config LONGTEXT NOT NULL,
+            is_required TINYINT(1) NOT NULL DEFAULT 0,
+            is_unique TINYINT(1) NOT NULL DEFAULT 0,
+            is_primary TINYINT(1) NOT NULL DEFAULT 0,
+            position INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            deleted_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uq_list_slug (list_id, slug),
+            UNIQUE KEY uq_list_column (list_id, column_name),
+            KEY idx_list (list_id),
+            KEY idx_deleted (deleted_at)
+        ) {$charset};";
+    }
+
+    private function sqlSavedViews(string $charset): string
+    {
+        $table = $this->db->systemTable('saved_views');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NULL,
+            name VARCHAR(191) NOT NULL,
+            type VARCHAR(32) NOT NULL,
+            config LONGTEXT NOT NULL,
+            is_default TINYINT(1) NOT NULL DEFAULT 0,
+            position INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            KEY idx_list (list_id),
+            KEY idx_user (user_id)
+        ) {$charset};";
+    }
+
+    private function sqlComments(string $charset): string
+    {
+        $table = $this->db->systemTable('comments');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            record_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL,
+            parent_id BIGINT UNSIGNED NULL,
+            content LONGTEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            deleted_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            KEY idx_list_record (list_id, record_id),
+            KEY idx_user (user_id)
+        ) {$charset};";
+    }
+
+    private function sqlActivity(string $charset): string
+    {
+        $table = $this->db->systemTable('activity');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            record_id BIGINT UNSIGNED NULL,
+            user_id BIGINT UNSIGNED NULL,
+            action VARCHAR(64) NOT NULL,
+            changes LONGTEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            KEY idx_list_record (list_id, record_id),
+            KEY idx_created (created_at)
+        ) {$charset};";
+    }
+
+    private function sqlRelations(string $charset): string
+    {
+        $table = $this->db->systemTable('relations');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            field_id BIGINT UNSIGNED NOT NULL,
+            source_list_id BIGINT UNSIGNED NOT NULL,
+            source_record_id BIGINT UNSIGNED NOT NULL,
+            target_list_id BIGINT UNSIGNED NOT NULL,
+            target_record_id BIGINT UNSIGNED NOT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uq_relation (field_id, source_record_id, target_record_id),
+            KEY idx_source (source_list_id, source_record_id),
+            KEY idx_target (target_list_id, target_record_id)
+        ) {$charset};";
+    }
+
+    private function sqlSlugHistory(string $charset): string
+    {
+        $table = $this->db->systemTable('slug_history');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            entity_type VARCHAR(16) NOT NULL,
+            entity_id BIGINT UNSIGNED NOT NULL,
+            old_slug VARCHAR(64) NOT NULL,
+            new_slug VARCHAR(64) NOT NULL,
+            changed_by BIGINT UNSIGNED NOT NULL,
+            changed_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            KEY idx_entity (entity_type, entity_id),
+            KEY idx_old_slug (entity_type, old_slug)
+        ) {$charset};";
+    }
+}

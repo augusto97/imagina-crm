@@ -52,11 +52,6 @@ final class Container
         $this->singletons[$id] = true;
     }
 
-    /**
-     * @template T of object
-     * @param class-string<T>|string $id
-     * @return T|mixed
-     */
     public function get(string $id): mixed
     {
         if (isset($this->instances[$id])) {

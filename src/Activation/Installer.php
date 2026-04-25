@@ -3,14 +3,19 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Activation;
 
+use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Plugin;
+use ImaginaCRM\Support\Database;
 
 /**
  * Activación del plugin.
  *
- * En Fase 0 sólo deja registrados los flags de versión. Las migraciones de
- * tablas (lists, fields, saved_views, comments, activity, relations,
- * slug_history) se añadirán en la Fase 1 vía `SchemaManager` + `Upgrader`.
+ * Ejecuta migraciones de las tablas del sistema vía `SchemaManager` y deja
+ * marcadas las versiones de plugin/DB. Es idempotente: `dbDelta` aplica solo
+ * las diferencias, así que reactivar no rompe nada.
+ *
+ * Las migraciones de tablas dinámicas (`wp_imcrm_data_*`) NO van aquí — se
+ * crean cuando el usuario crea cada lista, vía `ListService`.
  */
 final class Installer
 {
@@ -35,15 +40,15 @@ final class Installer
             );
         }
 
+        global $wpdb;
+        $schema = new SchemaManager(new Database($wpdb));
+        $schema->installSystemTables();
+
         if (get_option(self::OPTION_INSTALLED) === false) {
             update_option(self::OPTION_INSTALLED, current_time('mysql', true), false);
         }
 
         update_option(self::OPTION_DB_VERSION, Plugin::DB_VERSION, false);
-
-        if (! get_role('administrator') instanceof \WP_Role) {
-            return;
-        }
 
         flush_rewrite_rules();
     }
