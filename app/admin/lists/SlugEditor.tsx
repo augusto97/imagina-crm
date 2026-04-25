@@ -129,8 +129,12 @@ export function SlugEditor({
                 />
             </div>
             {statusText !== null && statusTone !== null && (
-                <div className={cn('imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-xs', toneClass[statusTone])}>
-                    {statusIcon}
+                <div
+                    className={cn('imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-xs', toneClass[statusTone])}
+                    aria-live="polite"
+                    role={statusTone === 'error' ? 'alert' : 'status'}
+                >
+                    <span aria-hidden="true">{statusIcon}</span>
                     <span>{statusText}</span>
                 </div>
             )}

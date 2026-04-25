@@ -37,10 +37,13 @@ export function Topbar(): JSX.Element {
 
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
                 <Button variant="outline" size="sm" className="imcrm-gap-2">
-                    <Search className="imcrm-h-3.5 imcrm-w-3.5" />
+                    <Search className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden="true" />
                     <span>{__('Buscar')}</span>
-                    <kbd className="imcrm-ml-2 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-mono imcrm-text-muted-foreground">
-                        ⌘K
+                    <kbd
+                        className="imcrm-ml-2 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-mono imcrm-text-muted-foreground"
+                        aria-label={__('atajo Comando K')}
+                    >
+                        <span aria-hidden="true">⌘K</span>
                     </kbd>
                 </Button>
 

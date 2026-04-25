@@ -131,12 +131,16 @@ export function TableView({
     });
 
     return (
-        <div className="imcrm-overflow-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-            <table className="imcrm-w-full imcrm-text-sm">
+        <div
+            className="imcrm-overflow-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card"
+            role="region"
+            aria-label={__('Tabla de registros')}
+        >
+            <table className="imcrm-w-full imcrm-text-sm" aria-label={__('Registros de la lista')}>
                 <thead className="imcrm-bg-muted/50">
                     {table.getHeaderGroups().map((hg) => (
                         <tr key={hg.id}>
-                            <th className="imcrm-w-10 imcrm-px-3 imcrm-py-2">
+                            <th scope="col" className="imcrm-w-10 imcrm-px-3 imcrm-py-2">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -157,10 +161,14 @@ export function TableView({
                                     ? sort.findIndex((s) => s.field_id === fieldId)
                                     : -1;
                                 const sortDir = sortIndex >= 0 ? sort[sortIndex]?.dir : null;
+                                const ariaSort: 'ascending' | 'descending' | 'none' =
+                                    sortDir === 'asc' ? 'ascending' : sortDir === 'desc' ? 'descending' : 'none';
 
                                 return (
                                     <th
                                         key={h.id}
+                                        scope="col"
+                                        aria-sort={fieldId !== null ? ariaSort : undefined}
                                         className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2 imcrm-text-left imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-wide"
                                     >
                                         {fieldId !== null ? (
@@ -170,7 +178,7 @@ export function TableView({
                                                 className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded hover:imcrm-text-foreground"
                                             >
                                                 {isPrimary && (
-                                                    <KeyRound className="imcrm-h-3 imcrm-w-3 imcrm-text-primary" />
+                                                    <KeyRound className="imcrm-h-3 imcrm-w-3 imcrm-text-primary" aria-hidden="true" />
                                                 )}
                                                 <span>
                                                     {h.isPlaceholder
@@ -266,11 +274,13 @@ function SortIndicator({
     index: number;
     multiCount: number;
 }): JSX.Element | null {
+    // El estado de sort ya está expuesto al SR vía aria-sort en el <th>;
+    // los iconos solo son decorativos.
     if (dir === null) {
-        return <ArrowUpDown className="imcrm-h-3 imcrm-w-3 imcrm-opacity-30" />;
+        return <ArrowUpDown className="imcrm-h-3 imcrm-w-3 imcrm-opacity-30" aria-hidden="true" />;
     }
     return (
-        <span className="imcrm-flex imcrm-items-center imcrm-gap-0.5">
+        <span className="imcrm-flex imcrm-items-center imcrm-gap-0.5" aria-hidden="true">
             {dir === 'asc' ? (
                 <ArrowUp className="imcrm-h-3 imcrm-w-3 imcrm-text-primary" />
             ) : (

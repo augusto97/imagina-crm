@@ -26,7 +26,10 @@ export function Sidebar(): JSX.Element {
                 </div>
             </div>
 
-            <nav className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-p-3">
+            <nav
+                aria-label={__('Navegación principal')}
+                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-p-3"
+            >
                 <NavItem to="/lists" icon={<Database className="imcrm-h-4 imcrm-w-4" />}>
                     {__('Listas')}
                 </NavItem>

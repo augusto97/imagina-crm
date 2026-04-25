@@ -15,7 +15,8 @@ Bienvenido a la documentación oficial del plugin **Imagina CRM** para WordPress
 7. [Acciones en bloque](./acciones-en-bloque.md) — selecciona múltiples registros y opera sobre todos a la vez.
 8. [Licencia](./licencia.md) — activación, periodo de gracia y actualizaciones.
 9. [Preguntas frecuentes](./faq.md) — problemas comunes y soluciones.
-10. [Changelog](./changelog.md) — historial de versiones.
+10. [Accesibilidad](./accessibility.md) — audit WCAG 2.1 AA y checklist.
+11. [Changelog](./changelog.md) — historial de versiones.
 
 ## Convenciones
 

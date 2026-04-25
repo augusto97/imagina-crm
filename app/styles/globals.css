@@ -108,4 +108,34 @@
     #imcrm-root :focus-visible {
         @apply imcrm-outline-none imcrm-ring-2 imcrm-ring-ring imcrm-ring-offset-2 imcrm-ring-offset-background;
     }
+
+    /*
+     * Cuando el usuario marca "reducir movimiento" en su SO, anulamos
+     * animaciones y transiciones (excepto opacidad para mantener feedback
+     * visual de hover/focus). Cumple WCAG 2.3.3 (Animation from Interactions).
+     */
+    @media (prefers-reduced-motion: reduce) {
+        #imcrm-root *,
+        #imcrm-root *::before,
+        #imcrm-root *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+
+    /*
+     * Soporte para modo de alto contraste (Windows / Edge). Forza bordes
+     * visibles en elementos interactivos y mantiene textos legibles.
+     */
+    @media (forced-colors: active) {
+        #imcrm-root button,
+        #imcrm-root [role='button'],
+        #imcrm-root input,
+        #imcrm-root select,
+        #imcrm-root textarea {
+            border: 1px solid CanvasText;
+        }
+    }
 }
