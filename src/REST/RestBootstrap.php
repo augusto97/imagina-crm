@@ -23,6 +23,7 @@ final class RestBootstrap
         LicenseController::class,
         SystemController::class,
         AutomationsController::class,
+        CommentsController::class,
     ];
 
     public function __construct(private readonly Container $container)

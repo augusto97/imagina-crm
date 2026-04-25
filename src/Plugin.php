@@ -16,6 +16,8 @@ use ImaginaCRM\Automations\AutomationService;
 use ImaginaCRM\Automations\ScheduledRunner;
 use ImaginaCRM\Automations\TriggerContext;
 use ImaginaCRM\Automations\TriggerRegistry;
+use ImaginaCRM\Comments\CommentRepository;
+use ImaginaCRM\Comments\CommentService;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\FieldTypeRegistry;
@@ -235,6 +237,19 @@ final class Plugin
                 $c->get(AutomationRunRepository::class),
                 $c->get(TriggerRegistry::class),
                 $c->get(ActionRegistry::class),
+            );
+        });
+
+        // Comments (Fase 3).
+        $this->container->bind(CommentRepository::class, static function (Container $c): CommentRepository {
+            return new CommentRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(CommentService::class, static function (Container $c): CommentService {
+            return new CommentService(
+                $c->get(CommentRepository::class),
+                $c->get(\ImaginaCRM\Lists\ListRepository::class),
+                $c->get(\ImaginaCRM\Records\RecordRepository::class),
             );
         });
 
