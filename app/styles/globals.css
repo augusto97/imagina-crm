@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    #imcrm-root {
+        --imcrm-background: 0 0% 100%;
+        --imcrm-foreground: 224 12% 12%;
+
+        --imcrm-card: 0 0% 100%;
+        --imcrm-card-foreground: 224 12% 12%;
+
+        --imcrm-popover: 0 0% 100%;
+        --imcrm-popover-foreground: 224 12% 12%;
+
+        --imcrm-primary: 234 89% 60%;
+        --imcrm-primary-foreground: 0 0% 100%;
+
+        --imcrm-secondary: 220 14% 96%;
+        --imcrm-secondary-foreground: 224 12% 18%;
+
+        --imcrm-muted: 220 14% 96%;
+        --imcrm-muted-foreground: 220 9% 46%;
+
+        --imcrm-accent: 220 14% 94%;
+        --imcrm-accent-foreground: 224 12% 12%;
+
+        --imcrm-destructive: 0 72% 51%;
+        --imcrm-destructive-foreground: 0 0% 100%;
+
+        --imcrm-success: 152 65% 38%;
+        --imcrm-success-foreground: 0 0% 100%;
+
+        --imcrm-warning: 38 92% 50%;
+        --imcrm-warning-foreground: 0 0% 100%;
+
+        --imcrm-info: 211 96% 49%;
+        --imcrm-info-foreground: 0 0% 100%;
+
+        --imcrm-border: 220 13% 91%;
+        --imcrm-input: 220 13% 91%;
+        --imcrm-ring: 234 89% 60%;
+
+        --imcrm-sidebar: 224 14% 99%;
+        --imcrm-sidebar-foreground: 224 12% 18%;
+        --imcrm-sidebar-border: 220 13% 91%;
+        --imcrm-sidebar-accent: 220 14% 96%;
+        --imcrm-sidebar-accent-foreground: 234 89% 60%;
+    }
+
+    #imcrm-root[data-imcrm-theme='dark'] {
+        --imcrm-background: 224 16% 8%;
+        --imcrm-foreground: 220 14% 96%;
+
+        --imcrm-card: 224 16% 10%;
+        --imcrm-card-foreground: 220 14% 96%;
+
+        --imcrm-popover: 224 16% 10%;
+        --imcrm-popover-foreground: 220 14% 96%;
+
+        --imcrm-primary: 234 89% 65%;
+        --imcrm-primary-foreground: 224 16% 8%;
+
+        --imcrm-secondary: 224 14% 16%;
+        --imcrm-secondary-foreground: 220 14% 96%;
+
+        --imcrm-muted: 224 14% 16%;
+        --imcrm-muted-foreground: 220 9% 60%;
+
+        --imcrm-accent: 224 14% 18%;
+        --imcrm-accent-foreground: 220 14% 96%;
+
+        --imcrm-destructive: 0 72% 55%;
+        --imcrm-destructive-foreground: 0 0% 100%;
+
+        --imcrm-border: 224 14% 18%;
+        --imcrm-input: 224 14% 18%;
+        --imcrm-ring: 234 89% 65%;
+
+        --imcrm-sidebar: 224 16% 9%;
+        --imcrm-sidebar-foreground: 220 14% 90%;
+        --imcrm-sidebar-border: 224 14% 16%;
+        --imcrm-sidebar-accent: 224 14% 14%;
+        --imcrm-sidebar-accent-foreground: 234 89% 70%;
+    }
+
+    #imcrm-root {
+        @apply imcrm-bg-background imcrm-text-foreground imcrm-font-sans imcrm-tracking-tight imcrm-antialiased;
+        color-scheme: light;
+        font-feature-settings:
+            'cv02',
+            'cv03',
+            'cv04',
+            'cv11';
+        min-height: calc(100vh - 32px);
+    }
+
+    #imcrm-root * {
+        @apply imcrm-border-border;
+        box-sizing: border-box;
+    }
+
+    #imcrm-root button,
+    #imcrm-root [role='button'] {
+        cursor: pointer;
+    }
+
+    #imcrm-root :focus-visible {
+        @apply imcrm-outline-none imcrm-ring-2 imcrm-ring-ring imcrm-ring-offset-2 imcrm-ring-offset-background;
+    }
+}

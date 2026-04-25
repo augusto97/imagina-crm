@@ -1,0 +1,15 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - imagina-crm.php
+    excludePaths:
+        - vendor
+        - dist
+        - node_modules
+        - tests
+    bootstrapFiles:
+        - vendor/autoload.php
+    treatPhpDocTypesAsCertain: false
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
