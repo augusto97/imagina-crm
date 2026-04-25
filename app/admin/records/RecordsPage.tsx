@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, Search, Settings } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Search, Settings, Zap } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,6 +157,12 @@ export function RecordsPage(): JSX.Element {
                     </h1>
                 </div>
                 <div className="imcrm-flex imcrm-gap-2">
+                    <Button asChild variant="outline" className="imcrm-gap-2">
+                        <Link to={`/lists/${list.data.slug}/automations`}>
+                            <Zap className="imcrm-h-4 imcrm-w-4" />
+                            {__('Automatizaciones')}
+                        </Link>
+                    </Button>
                     <Button asChild variant="outline" className="imcrm-gap-2">
                         <Link to={`/lists/${list.data.slug}/edit`}>
                             <Settings className="imcrm-h-4 imcrm-w-4" />
