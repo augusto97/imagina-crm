@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Database, Settings, Sparkles, Loader2 } from 'lucide-react';
+import { BarChart3, Database, Loader2, Settings, Sparkles } from 'lucide-react';
 
 import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
@@ -63,7 +63,10 @@ export function Sidebar(): JSX.Element {
                     </ul>
                 )}
 
-                <div className="imcrm-mt-2">
+                <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <NavItem to="/dashboards" icon={<BarChart3 className="imcrm-h-4 imcrm-w-4" />}>
+                        {__('Dashboards')}
+                    </NavItem>
                     <NavItem to="/settings" icon={<Settings className="imcrm-h-4 imcrm-w-4" />}>
                         {__('Ajustes')}
                     </NavItem>
