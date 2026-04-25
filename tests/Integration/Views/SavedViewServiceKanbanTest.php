@@ -148,6 +148,62 @@ final class SavedViewServiceKanbanTest extends IntegrationTestCase
         $this->assertInstanceOf(ValidationResult::class, $result);
     }
 
+    public function test_create_calendar_with_valid_date_field_succeeds(): void
+    {
+        $list = $this->createList();
+        $dateField = $this->fields->create($list->id, [
+            'label' => 'Vencimiento',
+            'slug'  => 'due_at',
+            'type'  => 'datetime',
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $dateField);
+
+        $result = $this->views->create($list->id, [
+            'name'   => 'Calendario',
+            'type'   => 'calendar',
+            'config' => ['date_field_id' => $dateField->id],
+        ]);
+
+        $this->assertNotInstanceOf(ValidationResult::class, $result);
+        $this->assertSame('calendar', $result->type);
+        $this->assertSame($dateField->id, $result->config['date_field_id'] ?? null);
+    }
+
+    public function test_create_calendar_with_non_date_field_fails(): void
+    {
+        $list = $this->createList();
+        $textField = $this->fields->create($list->id, [
+            'label' => 'Notas',
+            'slug'  => 'notas',
+            'type'  => 'text',
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $textField);
+
+        $result = $this->views->create($list->id, [
+            'name'   => 'Calendario',
+            'type'   => 'calendar',
+            'config' => ['date_field_id' => $textField->id],
+        ]);
+
+        $this->assertInstanceOf(ValidationResult::class, $result);
+        /** @var ValidationResult $result */
+        $this->assertArrayHasKey('config.date_field_id', $result->errors());
+    }
+
+    public function test_create_calendar_without_date_field_fails(): void
+    {
+        $list = $this->createList();
+        $result = $this->views->create($list->id, [
+            'name'   => 'Calendario',
+            'type'   => 'calendar',
+            'config' => [],
+        ]);
+
+        $this->assertInstanceOf(ValidationResult::class, $result);
+        /** @var ValidationResult $result */
+        $this->assertArrayHasKey('config.date_field_id', $result->errors());
+    }
+
     private function createList(string $name = 'Tareas'): ListEntity
     {
         $list = $this->lists->create(['name' => $name]);

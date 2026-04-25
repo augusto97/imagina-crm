@@ -39,10 +39,15 @@ export function SaveViewDialog({
     const [setDefault, setSetDefault] = useState(false);
     const [type, setType] = useState<SavedViewType>('table');
     const [groupByFieldId, setGroupByFieldId] = useState<number>(0);
+    const [dateFieldId, setDateFieldId] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
 
     const selectFields = useMemo(
         () => (fields.data ?? []).filter((f) => f.type === 'select'),
+        [fields.data],
+    );
+    const dateFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type === 'date' || f.type === 'datetime'),
         [fields.data],
     );
 
@@ -52,27 +57,34 @@ export function SaveViewDialog({
             setSetDefault(false);
             setType('table');
             setGroupByFieldId(0);
+            setDateFieldId(0);
             setError(null);
             create.reset();
         }
     }, [open, create]);
 
-    // Cuando se cambia a kanban y hay campos select, auto-seleccionar el
-    // primero — UX de menos clics.
+    // Auto-selección al cambiar de tipo: menos clics para el operador.
     useEffect(() => {
         if (type === 'kanban' && groupByFieldId === 0 && selectFields.length > 0) {
             setGroupByFieldId(selectFields[0]!.id);
         }
-    }, [type, groupByFieldId, selectFields]);
+        if (type === 'calendar' && dateFieldId === 0 && dateFields.length > 0) {
+            setDateFieldId(dateFields[0]!.id);
+        }
+    }, [type, groupByFieldId, dateFieldId, selectFields, dateFields]);
 
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         setError(null);
 
-        // Para kanban: empacamos el group_by_field_id en config y omitimos
-        // filters/sort que pertenecen al state de table.
+        // Para vistas alternativas empacamos el config específico y
+        // omitimos filters/sort que pertenecen al state de table.
         const payloadConfig: SavedViewConfig =
-            type === 'kanban' ? { group_by_field_id: groupByFieldId } : config;
+            type === 'kanban'
+                ? { group_by_field_id: groupByFieldId }
+                : type === 'calendar'
+                  ? { date_field_id: dateFieldId }
+                  : config;
 
         try {
             const view = await create.mutateAsync({
@@ -146,6 +158,11 @@ export function SaveViewDialog({
                                         ? __('Kanban (necesitas al menos un campo Select)')
                                         : __('Kanban')}
                                 </option>
+                                <option value="calendar" disabled={dateFields.length === 0}>
+                                    {dateFields.length === 0
+                                        ? __('Calendar (necesitas al menos un campo Date o DateTime)')
+                                        : __('Calendar')}
+                                </option>
                             </Select>
                         </div>
 
@@ -165,6 +182,26 @@ export function SaveViewDialog({
                                 </Select>
                                 <p className="imcrm-text-xs imcrm-text-muted-foreground">
                                     {__('Las columnas del tablero serán las opciones de este campo.')}
+                                </p>
+                            </div>
+                        )}
+
+                        {type === 'calendar' && (
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                <Label htmlFor="view-date-field">{__('Campo de fecha')}</Label>
+                                <Select
+                                    id="view-date-field"
+                                    value={dateFieldId}
+                                    onChange={(e) => setDateFieldId(Number(e.target.value))}
+                                >
+                                    {dateFields.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                            {f.label}
+                                        </option>
+                                    ))}
+                                </Select>
+                                <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                    {__('Cada registro aparecerá en el día de este campo.')}
                                 </p>
                             </div>
                         )}
@@ -204,7 +241,8 @@ export function SaveViewDialog({
                                 disabled={
                                     name.trim() === '' ||
                                     create.isPending ||
-                                    (type === 'kanban' && groupByFieldId <= 0)
+                                    (type === 'kanban' && groupByFieldId <= 0) ||
+                                    (type === 'calendar' && dateFieldId <= 0)
                                 }
                             >
                                 {create.isPending ? __('Guardando…') : __('Guardar vista')}

@@ -1,4 +1,4 @@
-export type SavedViewType = 'table' | 'kanban';
+export type SavedViewType = 'table' | 'kanban' | 'calendar';
 
 export interface SavedViewConfig {
     visible_fields?: number[];
@@ -8,6 +8,8 @@ export interface SavedViewConfig {
     search?: string;
     /** Sólo para vistas tipo `kanban`: id del campo `select` que define columnas. */
     group_by_field_id?: number;
+    /** Sólo para vistas tipo `calendar`: id del campo `date`/`datetime` que ubica cada record. */
+    date_field_id?: number;
 }
 
 export interface SavedViewEntity {

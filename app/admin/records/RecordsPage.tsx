@@ -24,6 +24,7 @@ import {
     type ActiveFilter,
     type RecordsState,
 } from './recordsState';
+import { CalendarView } from './views/CalendarView';
 import { KanbanView } from './views/KanbanView';
 import { TableView } from './views/TableView';
 import { SaveViewDialog } from './views/SaveViewDialog';
@@ -45,15 +46,14 @@ export function RecordsPage(): JSX.Element {
     const [activeViewId, setActiveViewId] = useState<number | null>(null);
     const initialViewAppliedRef = useRef<number | null>(null);
 
-    // En Kanban traemos hasta 500 registros (el back-end limita el
-    // máximo per_page; 500 cubre la mayoría de tableros y mantiene la
-    // query rápida). Si la lista crece más allá, el operador puede
-    // filtrar previamente con la vista Tabla y guardar como Kanban.
+    // Para Kanban y Calendar traemos hasta 500 registros (el back-end
+    // limita el máximo per_page; 500 cubre la mayoría de tableros y
+    // calendarios mensuales sin paginar).
     const query = useMemo(() => {
         const base = buildRecordsQuery(state);
         if (activeViewId !== null) {
             const v = views.data?.find((x) => x.id === activeViewId);
-            if (v?.type === 'kanban') {
+            if (v?.type === 'kanban' || v?.type === 'calendar') {
                 return { ...base, per_page: 500, page: 1 };
             }
         }
@@ -127,9 +127,10 @@ export function RecordsPage(): JSX.Element {
         ? views.data?.find((v) => v.id === activeViewId) ?? null
         : null;
     const isKanban = activeView?.type === 'kanban';
-    // Para Kanban: "dirty" no aplica de la misma manera (no hay
-    // filtros/sort que se compongan vs config); lo desactivamos.
-    const isDirty = isKanban
+    const isCalendar = activeView?.type === 'calendar';
+    const isAlternativeView = isKanban || isCalendar;
+    // Para vistas no-tabla, "dirty" no se compara con filters/sort.
+    const isDirty = isAlternativeView
         ? false
         : activeView !== null
           ? hasChangesVsView(state, activeView.config)
@@ -142,6 +143,13 @@ export function RecordsPage(): JSX.Element {
         if (!id) return undefined;
         return fields.data.find((f) => f.id === id);
     }, [isKanban, fields.data, activeView?.config.group_by_field_id]);
+
+    const dateField = useMemo(() => {
+        if (!isCalendar || !fields.data) return undefined;
+        const id = activeView?.config.date_field_id;
+        if (!id) return undefined;
+        return fields.data.find((f) => f.id === id);
+    }, [isCalendar, fields.data, activeView?.config.date_field_id]);
 
     if (list.isLoading || fields.isLoading) {
         return (
@@ -276,6 +284,13 @@ export function RecordsPage(): JSX.Element {
                             groupByField={groupByField}
                             onCardClick={(record) => setDrawerRecordId(record.id)}
                         />
+                    ) : isCalendar && dateField ? (
+                        <CalendarView
+                            fields={fields.data}
+                            records={records.data?.data ?? []}
+                            dateField={dateField}
+                            onCardClick={(record) => setDrawerRecordId(record.id)}
+                        />
                     ) : (
                         <TableView
                             listId={list.data.id}
@@ -289,7 +304,7 @@ export function RecordsPage(): JSX.Element {
                         />
                     )}
 
-                    {meta && !isKanban && <Pagination meta={meta} onPageChange={setPage} />}
+                    {meta && !isAlternativeView && <Pagination meta={meta} onPageChange={setPage} />}
 
                     <BulkActionsToolbar
                         listId={list.data.id}

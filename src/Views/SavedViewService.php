@@ -15,13 +15,16 @@ use ImaginaCRM\Support\ValidationResult;
  * - `kanban` (Fase 4): tablero agrupado por un campo `select`. Requiere
  *   `config.group_by_field_id`. Las columnas se derivan de las options
  *   del campo en runtime (se reflejan cambios sin reconfigurar la vista).
+ * - `calendar` (Fase 4): calendario mensual donde cada record aparece
+ *   en el día de su `config.date_field_id` (debe ser tipo `date` o
+ *   `datetime`).
  *
  * `is_default` se asegura único por lista a nivel service: setear una nueva
  * default desmarca la anterior.
  */
 final class SavedViewService
 {
-    public const ALLOWED_TYPES = ['table', 'kanban'];
+    public const ALLOWED_TYPES = ['table', 'kanban', 'calendar'];
 
     public function __construct(
         private readonly SavedViewRepository $repo,
@@ -211,6 +214,30 @@ final class SavedViewService
                 );
             }
         }
+
+        if ($type === 'calendar') {
+            $dateFieldId = isset($config['date_field_id']) ? (int) $config['date_field_id'] : 0;
+            if ($dateFieldId <= 0) {
+                return ValidationResult::failWith(
+                    'config.date_field_id',
+                    __('La vista Calendar requiere un campo de fecha.', 'imagina-crm'),
+                );
+            }
+            $field = $this->fields->find($dateFieldId);
+            if ($field === null || $field->listId !== $listId) {
+                return ValidationResult::failWith(
+                    'config.date_field_id',
+                    __('El campo de fecha no pertenece a esta lista.', 'imagina-crm'),
+                );
+            }
+            if ($field->type !== 'date' && $field->type !== 'datetime') {
+                return ValidationResult::failWith(
+                    'config.date_field_id',
+                    __('La vista Calendar requiere un campo tipo Date o DateTime.', 'imagina-crm'),
+                );
+            }
+        }
+
         return null;
     }
 }
