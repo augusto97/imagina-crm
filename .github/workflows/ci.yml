@@ -64,14 +64,23 @@ jobs:
       - name: PHPUnit (unit)
         run: vendor/bin/phpunit --testsuite Unit
 
-      - name: PHPUnit (integration)
+      - name: PHPUnit (integration, sin performance)
         env:
           IMCRM_TEST_DB_HOST: 127.0.0.1
           IMCRM_TEST_DB_PORT: '3306'
           IMCRM_TEST_DB_NAME: imcrm_tests
           IMCRM_TEST_DB_USER: imcrm
           IMCRM_TEST_DB_PASS: imcrm
-        run: vendor/bin/phpunit -c phpunit-integration.xml.dist
+        run: vendor/bin/phpunit -c phpunit-integration.xml.dist --exclude-group performance
+
+      - name: PHPUnit (performance benchmark contra contratos §11)
+        env:
+          IMCRM_TEST_DB_HOST: 127.0.0.1
+          IMCRM_TEST_DB_PORT: '3306'
+          IMCRM_TEST_DB_NAME: imcrm_tests
+          IMCRM_TEST_DB_USER: imcrm
+          IMCRM_TEST_DB_PASS: imcrm
+        run: vendor/bin/phpunit -c phpunit-integration.xml.dist --group performance
 
   js-quality:
     name: JS quality (tsc strict + build)
