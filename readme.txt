@@ -14,6 +14,8 @@ Plataforma de gestión de listas, registros y automatizaciones tipo ClickUp/Airt
 
 Imagina CRM permite crear listas personalizadas con campos dinámicos, vistas configurables y automatizaciones, todo desde una UI moderna construida con React + shadcn/ui sobre WordPress.
 
+**Documentación de usuario**: ver [`docs/README.md`](docs/README.md) en el directorio del plugin (también publicada en https://imaginawp.com/imagina-crm/docs).
+
 == Installation ==
 
 1. Sube el directorio del plugin a `/wp-content/plugins/imagina-crm`.
