@@ -39,6 +39,9 @@ foreach ((array) $dynamic_tables as $table) {
 }
 
 $system_tables = [
+    'automation_runs',
+    'automations',
+    'dashboards',
     'slug_history',
     'relations',
     'activity',

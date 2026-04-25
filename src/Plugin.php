@@ -320,6 +320,15 @@ final class Plugin
     {
         add_action('init', [$this, 'loadTextdomain']);
 
+        // Runtime upgrade check: cuando el plugin se actualiza desde el
+        // WP admin (no se llama register_activation_hook), comparamos el
+        // DB_VERSION declarado contra el persistido. Si difieren, re-
+        // ejecutamos installSystemTables (idempotente vía dbDelta) y
+        // actualizamos el option. Esto asegura que las tablas añadidas
+        // en fases posteriores (automations, dashboards) existan en
+        // sites con el plugin pre-actualizado.
+        add_action('init', [$this, 'maybeUpgradeSchema'], 1);
+
         // REST se registra siempre (admin + frontend pueden consumirlo).
         $rest = new RestBootstrap($this->container);
         $rest->register();
@@ -552,5 +561,29 @@ final class Plugin
             false,
             dirname(IMAGINA_CRM_BASENAME) . '/languages'
         );
+    }
+
+    /**
+     * Re-corre las migraciones del SchemaManager si el `imcrm_db_version`
+     * persistido difiere del declarado en código. Cubre el flujo de
+     * `update plugin` desde el WP admin (que NO dispara
+     * `register_activation_hook`).
+     *
+     * `dbDelta` es idempotente para tablas existentes — sólo aplica
+     * diffs (nuevas tablas, nuevas columnas/índices). Es seguro
+     * llamarlo cada activación.
+     */
+    public function maybeUpgradeSchema(): void
+    {
+        $stored = get_option(\ImaginaCRM\Activation\Installer::OPTION_DB_VERSION, '0');
+        if ((string) $stored === self::DB_VERSION) {
+            return;
+        }
+        $schema = $this->container->get(\ImaginaCRM\Lists\SchemaManager::class);
+        if ($schema instanceof \ImaginaCRM\Lists\SchemaManager) {
+            $schema->installSystemTables();
+            update_option(\ImaginaCRM\Activation\Installer::OPTION_DB_VERSION, self::DB_VERSION, false);
+            do_action('imagina_crm/schema_upgraded', $stored, self::DB_VERSION);
+        }
     }
 }

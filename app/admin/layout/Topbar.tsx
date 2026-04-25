@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 function getRouteLabels(): Record<string, string> {
     return {
         lists: __('Listas'),
+        dashboards: __('Dashboards'),
         settings: __('Ajustes'),
     };
 }

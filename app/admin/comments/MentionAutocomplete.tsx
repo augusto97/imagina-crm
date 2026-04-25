@@ -64,6 +64,13 @@ export function MentionAutocomplete({
     useEffect(() => {
         if (anchor === null) return;
         const handler = (e: KeyboardEvent): void => {
+            // Cmd/Ctrl+Enter es el atajo de submit del composer — no lo
+            // interceptamos aunque el popover esté abierto, así el usuario
+            // puede mandar el comentario sin tener que cerrar el menú.
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                return;
+            }
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setHighlight((h) => Math.min(h + 1, Math.max(0, hits.length - 1)));

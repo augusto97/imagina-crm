@@ -32,7 +32,17 @@ define('IMAGINA_CRM_DIR', plugin_dir_path(__FILE__));
 define('IMAGINA_CRM_URL', plugin_dir_url(__FILE__));
 define('IMAGINA_CRM_BASENAME', plugin_basename(__FILE__));
 define('IMAGINA_CRM_TEXT_DOMAIN', 'imagina-crm');
-define('IMAGINA_CRM_DB_VERSION', '1');
+// Bump this whenever SchemaManager::installSystemTables changes (nuevas
+// tablas o nuevos índices). El runtime upgrade en Plugin::register()
+// compara contra `imcrm_db_version` en wp_options y re-ejecuta dbDelta
+// si difieren — así los updates desde el WP admin (sin desactivar/
+// reactivar) reciben el nuevo schema automáticamente.
+//
+// Historial:
+//  '1' — schema inicial (Fase 1).
+//  '2' — añade tablas automations + automation_runs (Fase 2),
+//        dashboards (Fase 5).
+define('IMAGINA_CRM_DB_VERSION', '2');
 define('IMAGINA_CRM_MIN_PHP', '8.2');
 define('IMAGINA_CRM_MIN_WP', '6.4');
 

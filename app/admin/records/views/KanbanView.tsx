@@ -46,6 +46,7 @@ export function KanbanView({
     const update = useUpdateRecord(listId);
     const [draggingId, setDraggingId] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<string | null>(null);
+    const [moveError, setMoveError] = useState<string | null>(null);
 
     const options = useMemo<SelectOption[]>(() => {
         const raw = groupByField.config?.options;
@@ -101,14 +102,18 @@ export function KanbanView({
             return;
         }
 
+        setMoveError(null);
         try {
             await update.mutateAsync({
                 id: record.id,
                 values: { [groupByField.slug]: newValue },
             });
-        } catch {
-            // Si falla, TanStack Query revertirá el optimistic update y
-            // el record reaparecerá en su columna original al re-render.
+        } catch (err) {
+            // El optimistic update de TanStack Query revierte la caché,
+            // pero el usuario merece saber qué pasó (validación que
+            // rechaza el valor, error de red, etc.) antes que ver el
+            // card "saltar" silenciosamente de columna.
+            setMoveError(err instanceof Error ? err.message : __('Error al mover el registro.'));
         } finally {
             setDraggingId(null);
         }
@@ -120,7 +125,23 @@ export function KanbanView({
     ];
 
     return (
-        <div className="imcrm-flex imcrm-gap-3 imcrm-overflow-x-auto imcrm-pb-2">
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+            {moveError !== null && (
+                <div
+                    role="alert"
+                    className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-destructive/40 imcrm-bg-destructive/10 imcrm-px-3 imcrm-py-2 imcrm-text-sm imcrm-text-destructive"
+                >
+                    <span>{moveError}</span>
+                    <button
+                        type="button"
+                        onClick={() => setMoveError(null)}
+                        className="imcrm-text-xs imcrm-underline"
+                    >
+                        {__('Cerrar')}
+                    </button>
+                </div>
+            )}
+            <div className="imcrm-flex imcrm-gap-3 imcrm-overflow-x-auto imcrm-pb-2">
             {allColumns.map((col) => {
                 const colRecords = grouped.get(col.key) ?? [];
                 const isTarget = dropTarget === col.key;
@@ -188,6 +209,7 @@ export function KanbanView({
                     </div>
                 );
             })}
+            </div>
         </div>
     );
 }
