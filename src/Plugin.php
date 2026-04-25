@@ -12,6 +12,11 @@ use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\Records\QueryBuilder;
+use ImaginaCRM\Records\RecordRepository;
+use ImaginaCRM\Records\RecordService;
+use ImaginaCRM\Records\RecordValidator;
+use ImaginaCRM\Records\RelationRepository;
 use ImaginaCRM\REST\RestBootstrap;
 use ImaginaCRM\Support\Database;
 
@@ -119,6 +124,33 @@ final class Plugin
                 $c->get(SlugManager::class),
                 $c->get(SchemaManager::class),
                 $c->get(FieldTypeRegistry::class),
+            );
+        });
+
+        // Records.
+        $this->container->bind(RecordRepository::class, static function (Container $c): RecordRepository {
+            return new RecordRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(RelationRepository::class, static function (Container $c): RelationRepository {
+            return new RelationRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(RecordValidator::class, static function (Container $c): RecordValidator {
+            return new RecordValidator($c->get(FieldTypeRegistry::class), $c->get(Database::class));
+        });
+
+        $this->container->bind(QueryBuilder::class, static function (Container $c): QueryBuilder {
+            return new QueryBuilder($c->get(Database::class), $c->get(SlugManager::class));
+        });
+
+        $this->container->bind(RecordService::class, static function (Container $c): RecordService {
+            return new RecordService(
+                $c->get(FieldRepository::class),
+                $c->get(RecordRepository::class),
+                $c->get(RelationRepository::class),
+                $c->get(RecordValidator::class),
+                $c->get(QueryBuilder::class),
             );
         });
     }

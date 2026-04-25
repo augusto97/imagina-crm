@@ -24,7 +24,7 @@ use ImaginaCRM\Support\ValidationResult;
  * - `resolveCurrentSlug()` permite redirigir un slug antiguo a su nuevo
  *   nombre cuando éste es único en el historial.
  */
-final class SlugManager
+class SlugManager
 {
     public const SLUG_REGEX        = '/^[a-z][a-z0-9_]{0,62}$/';
     public const MAX_SLUG_LENGTH   = 63;

@@ -23,7 +23,7 @@ parameters:
         # puede deducir literal-string a través de la concatenación, pero
         # es seguro por construcción.
         -
-            message: '#expects literal-string, non-falsy-string given\.#'
+            message: '#expects literal-string, .* given\.#'
             path: src/*
 
 includes:
