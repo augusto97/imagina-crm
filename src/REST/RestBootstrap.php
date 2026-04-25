@@ -22,6 +22,7 @@ final class RestBootstrap
         SlugsController::class,
         LicenseController::class,
         SystemController::class,
+        AutomationsController::class,
     ];
 
     public function __construct(private readonly Container $container)

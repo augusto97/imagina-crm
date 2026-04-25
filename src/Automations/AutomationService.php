@@ -1,0 +1,177 @@
+<?php
+declare(strict_types=1);
+
+namespace ImaginaCRM\Automations;
+
+use ImaginaCRM\Lists\ListRepository;
+use ImaginaCRM\Support\ValidationResult;
+
+/**
+ * Casos de uso de Automatizaciones (CRUD).
+ *
+ * Valida que el trigger y las acciones referenciados existan en los
+ * registries correspondientes antes de persistir; así evitamos crear
+ * automatizaciones huérfanas que el engine no podría ejecutar.
+ */
+final class AutomationService
+{
+    public function __construct(
+        private readonly AutomationRepository $repo,
+        private readonly ListRepository $lists,
+        private readonly TriggerRegistry $triggers,
+        private readonly ActionRegistry $actions,
+    ) {
+    }
+
+    /**
+     * @return array<int, AutomationEntity>
+     */
+    public function allForList(int $listId): array
+    {
+        return $this->repo->allForList($listId);
+    }
+
+    public function find(int $id): ?AutomationEntity
+    {
+        return $this->repo->find($id);
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     */
+    public function create(int $listId, array $input): AutomationEntity|ValidationResult
+    {
+        if ($this->lists->find($listId) === null) {
+            return ValidationResult::failWith('list_id', __('La lista no existe.', 'imagina-crm'));
+        }
+
+        $name = trim((string) ($input['name'] ?? ''));
+        if ($name === '') {
+            return ValidationResult::failWith('name', __('El nombre es obligatorio.', 'imagina-crm'));
+        }
+
+        $triggerType = (string) ($input['trigger_type'] ?? '');
+        if (! $this->triggers->has($triggerType)) {
+            return ValidationResult::failWith('trigger_type', __('Tipo de trigger desconocido.', 'imagina-crm'));
+        }
+
+        $actionsValidation = $this->validateActions($input['actions'] ?? null);
+        if ($actionsValidation instanceof ValidationResult) {
+            return $actionsValidation;
+        }
+
+        $now = current_time('mysql', true);
+        $id  = $this->repo->insert([
+            'list_id'        => $listId,
+            'name'           => $name,
+            'description'    => $input['description'] ?? null,
+            'trigger_type'   => $triggerType,
+            'trigger_config' => is_array($input['trigger_config'] ?? null) ? $input['trigger_config'] : [],
+            'actions'        => $actionsValidation,
+            'is_active'      => array_key_exists('is_active', $input) ? (bool) $input['is_active'] : true,
+            'created_by'     => get_current_user_id(),
+            'created_at'     => $now,
+            'updated_at'     => $now,
+        ]);
+
+        if ($id === 0) {
+            return ValidationResult::failWith('database', __('No se pudo crear la automatización.', 'imagina-crm'));
+        }
+
+        $created = $this->repo->find($id);
+        if ($created === null) {
+            return ValidationResult::failWith('database', __('Se creó pero no se pudo leer.', 'imagina-crm'));
+        }
+        do_action('imagina_crm/automation_created', $created);
+        return $created;
+    }
+
+    /**
+     * @param array<string, mixed> $patch
+     */
+    public function update(int $id, array $patch): AutomationEntity|ValidationResult
+    {
+        $current = $this->repo->find($id);
+        if ($current === null) {
+            return ValidationResult::failWith('id', __('La automatización no existe.', 'imagina-crm'));
+        }
+
+        if (isset($patch['name'])) {
+            $patch['name'] = trim((string) $patch['name']);
+            if ($patch['name'] === '') {
+                return ValidationResult::failWith('name', __('El nombre no puede estar vacío.', 'imagina-crm'));
+            }
+        }
+
+        if (isset($patch['trigger_type']) && ! $this->triggers->has((string) $patch['trigger_type'])) {
+            return ValidationResult::failWith('trigger_type', __('Tipo de trigger desconocido.', 'imagina-crm'));
+        }
+
+        if (array_key_exists('actions', $patch)) {
+            $actionsValidation = $this->validateActions($patch['actions']);
+            if ($actionsValidation instanceof ValidationResult) {
+                return $actionsValidation;
+            }
+            $patch['actions'] = $actionsValidation;
+        }
+
+        $ok = $this->repo->update($id, $patch);
+        if (! $ok) {
+            return ValidationResult::failWith('database', __('No se pudo actualizar.', 'imagina-crm'));
+        }
+
+        $updated = $this->repo->find($id);
+        if ($updated === null) {
+            return ValidationResult::failWith('database', __('No se pudo releer.', 'imagina-crm'));
+        }
+        do_action('imagina_crm/automation_updated', $updated, $current);
+        return $updated;
+    }
+
+    public function delete(int $id): ValidationResult
+    {
+        $current = $this->repo->find($id);
+        if ($current === null) {
+            return ValidationResult::failWith('id', __('La automatización no existe.', 'imagina-crm'));
+        }
+        if (! $this->repo->softDelete($id)) {
+            return ValidationResult::failWith('database', __('No se pudo eliminar.', 'imagina-crm'));
+        }
+        do_action('imagina_crm/automation_deleted', $current);
+        return ValidationResult::ok();
+    }
+
+    /**
+     * Valida y normaliza el array de acciones.
+     *
+     * @param mixed $raw
+     * @return array<int, array{type: string, config: array<string, mixed>}>|ValidationResult
+     */
+    private function validateActions(mixed $raw): array|ValidationResult
+    {
+        if (! is_array($raw) || $raw === []) {
+            return ValidationResult::failWith('actions', __('Se requiere al menos una acción.', 'imagina-crm'));
+        }
+        $out = [];
+        foreach ($raw as $i => $item) {
+            if (! is_array($item)) {
+                return ValidationResult::failWith('actions', sprintf(
+                    /* translators: %d: index */
+                    __('Acción inválida en posición %d.', 'imagina-crm'),
+                    (int) $i,
+                ));
+            }
+            $type   = isset($item['type']) && is_string($item['type']) ? $item['type'] : '';
+            $config = isset($item['config']) && is_array($item['config']) ? $item['config'] : [];
+            if (! $this->actions->has($type)) {
+                return ValidationResult::failWith('actions', sprintf(
+                    /* translators: %s: action slug */
+                    __('Tipo de acción desconocido: %s', 'imagina-crm'),
+                    $type,
+                ));
+            }
+            $out[] = ['type' => $type, 'config' => $config];
+        }
+        return $out;
+    }
+}

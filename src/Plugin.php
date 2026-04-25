@@ -5,9 +5,19 @@ namespace ImaginaCRM;
 
 use ImaginaCRM\Admin\AdminAssets;
 use ImaginaCRM\Admin\AdminMenu;
+use ImaginaCRM\Automations\ActionRegistry;
+use ImaginaCRM\Automations\Actions\CallWebhookAction;
+use ImaginaCRM\Automations\Actions\UpdateFieldAction;
+use ImaginaCRM\Automations\AutomationEngine;
+use ImaginaCRM\Automations\AutomationRepository;
+use ImaginaCRM\Automations\AutomationRunRepository;
+use ImaginaCRM\Automations\AutomationService;
+use ImaginaCRM\Automations\TriggerContext;
+use ImaginaCRM\Automations\TriggerRegistry;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\FieldTypeRegistry;
+use ImaginaCRM\Lists\ListEntity;
 use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Licensing\LicenseHttpClient;
@@ -183,6 +193,47 @@ final class Plugin
         $this->container->bind(UpdaterClient::class, static function (Container $c): UpdaterClient {
             return new UpdaterClient($c->get(LicenseManager::class));
         });
+
+        // Automations (Fase 2).
+        $this->container->bind(TriggerRegistry::class, static function (): TriggerRegistry {
+            return new TriggerRegistry();
+        });
+
+        $this->container->bind(ActionRegistry::class, static function (Container $c): ActionRegistry {
+            $registry = new ActionRegistry();
+            // Acciones default: las que necesitan dependencias se construyen
+            // aquí con servicios del container. Las que son puramente HTTP
+            // (call_webhook) son `new` directo.
+            $registry->register(new UpdateFieldAction($c->get(\ImaginaCRM\Records\RecordService::class)));
+            $registry->register(new CallWebhookAction());
+            return $registry;
+        });
+
+        $this->container->bind(AutomationRepository::class, static function (Container $c): AutomationRepository {
+            return new AutomationRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(AutomationRunRepository::class, static function (Container $c): AutomationRunRepository {
+            return new AutomationRunRepository($c->get(Database::class));
+        });
+
+        $this->container->bind(AutomationService::class, static function (Container $c): AutomationService {
+            return new AutomationService(
+                $c->get(AutomationRepository::class),
+                $c->get(ListRepository::class),
+                $c->get(TriggerRegistry::class),
+                $c->get(ActionRegistry::class),
+            );
+        });
+
+        $this->container->bind(AutomationEngine::class, static function (Container $c): AutomationEngine {
+            return new AutomationEngine(
+                $c->get(AutomationRepository::class),
+                $c->get(AutomationRunRepository::class),
+                $c->get(TriggerRegistry::class),
+                $c->get(ActionRegistry::class),
+            );
+        });
     }
 
     private function register(): void
@@ -204,6 +255,46 @@ final class Plugin
         $updater = $this->container->get(UpdaterClient::class);
         if ($updater instanceof UpdaterClient) {
             $updater->register();
+        }
+
+        // Automations: el engine escucha los do_action que dispara
+        // RecordService cuando se crean / actualizan registros.
+        $engine = $this->container->get(AutomationEngine::class);
+        if ($engine instanceof AutomationEngine) {
+            add_action(
+                'imagina_crm/record_created',
+                static function (mixed $list, mixed $recordId, mixed $record, mixed $values) use ($engine): void {
+                    if (! $list instanceof ListEntity) {
+                        return;
+                    }
+                    unset($recordId, $values);
+                    $engine->dispatch(new TriggerContext(
+                        event: 'imagina_crm/record_created',
+                        list: $list,
+                        record: is_array($record) ? $record : null,
+                    ));
+                },
+                10,
+                4,
+            );
+
+            add_action(
+                'imagina_crm/record_updated',
+                static function (mixed $list, mixed $recordId, mixed $newRecord, mixed $previous) use ($engine): void {
+                    if (! $list instanceof ListEntity) {
+                        return;
+                    }
+                    unset($recordId);
+                    $engine->dispatch(new TriggerContext(
+                        event: 'imagina_crm/record_updated',
+                        list: $list,
+                        record: is_array($newRecord) ? $newRecord : null,
+                        previousRecord: is_array($previous) ? $previous : null,
+                    ));
+                },
+                10,
+                4,
+            );
         }
 
         if (is_admin()) {

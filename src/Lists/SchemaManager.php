@@ -50,6 +50,8 @@ final class SchemaManager
             $this->sqlActivity($charset),
             $this->sqlRelations($charset),
             $this->sqlSlugHistory($charset),
+            $this->sqlAutomations($charset),
+            $this->sqlAutomationRuns($charset),
         ];
 
         foreach ($statements as $sql) {
@@ -364,6 +366,56 @@ final class SchemaManager
             PRIMARY KEY  (id),
             KEY idx_entity (entity_type, entity_id),
             KEY idx_old_slug (entity_type, old_slug)
+        ) {$charset};";
+    }
+
+    private function sqlAutomations(string $charset): string
+    {
+        $table = $this->db->systemTable('automations');
+        // Una automatización pertenece a una lista (la del trigger). `actions`
+        // es un JSON con la lista ordenada de specs `{type, config}`.
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            name VARCHAR(191) NOT NULL,
+            description TEXT NULL,
+            trigger_type VARCHAR(64) NOT NULL,
+            trigger_config LONGTEXT NOT NULL,
+            actions LONGTEXT NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_by BIGINT UNSIGNED NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            deleted_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            KEY idx_list_active (list_id, is_active, deleted_at),
+            KEY idx_trigger (trigger_type, is_active, deleted_at)
+        ) {$charset};";
+    }
+
+    private function sqlAutomationRuns(string $charset): string
+    {
+        $table = $this->db->systemTable('automation_runs');
+        // Cada disparo del engine deja una entrada acá: status (pending/
+        // running/success/failed), context original, log per-action y
+        // contador de retries para reintentos del Action Scheduler.
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            automation_id BIGINT UNSIGNED NOT NULL,
+            list_id BIGINT UNSIGNED NOT NULL,
+            record_id BIGINT UNSIGNED NULL,
+            status VARCHAR(32) NOT NULL,
+            trigger_context LONGTEXT NULL,
+            actions_log LONGTEXT NULL,
+            error TEXT NULL,
+            retries INT NOT NULL DEFAULT 0,
+            started_at DATETIME NULL,
+            finished_at DATETIME NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            KEY idx_automation (automation_id),
+            KEY idx_status_created (status, created_at),
+            KEY idx_record (list_id, record_id)
         ) {$charset};";
     }
 }

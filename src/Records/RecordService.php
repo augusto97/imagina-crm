@@ -132,9 +132,12 @@ final class RecordService
 
         $this->syncRelationsFromValues($list, $listFields, $id, $values);
 
-        do_action('imagina_crm/record_created', $list, $id, $values);
-
         $created = $this->find($list, $id);
+
+        // Disparamos con el record hidratado para que las automatizaciones
+        // tengan acceso a `{fields: {slug: value}, relations: {…}, …}`
+        // — las acciones como UpdateFieldAction lo necesitan así.
+        do_action('imagina_crm/record_created', $list, $id, $created ?? [], $values);
         if ($created === null) {
             return ValidationResult::failWith('database', __('El record se creó pero no se pudo leer.', 'imagina-crm'));
         }
@@ -155,6 +158,10 @@ final class RecordService
 
         $listFields = $this->fields->allForList($list->id);
 
+        // Snapshot previo hidratado (con `{id, fields, relations, ...}`)
+        // para que las automatizaciones puedan comparar diff antes/después.
+        $previousRecord = $this->find($list, $recordId);
+
         $validation = $this->validator->validate($listFields, $values, partial: true);
         if (! $validation->isValid()) {
             return $validation;
@@ -170,9 +177,9 @@ final class RecordService
 
         $this->syncRelationsFromValues($list, $listFields, $recordId, $values, partial: true);
 
-        do_action('imagina_crm/record_updated', $list, $recordId, $values);
-
         $updated = $this->find($list, $recordId);
+        do_action('imagina_crm/record_updated', $list, $recordId, $updated ?? [], $previousRecord);
+
         if ($updated === null) {
             return ValidationResult::failWith('database', __('No se pudo releer el record.', 'imagina-crm'));
         }
