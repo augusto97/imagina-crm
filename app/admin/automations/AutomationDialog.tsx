@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Plus, Trash2, X } from 'lucide-react';
+import { LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
+
+// Code-split: React Flow es ~60KB gzipped. La mayoría de usuarios edita
+// en la vista form; sólo cargamos el bundle del diagrama cuando lo piden.
+const AutomationVisualBuilder = lazy(() =>
+    import('@/admin/automations/AutomationVisualBuilder').then((m) => ({
+        default: m.AutomationVisualBuilder,
+    })),
+);
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,6 +99,8 @@ export function AutomationDialog({
     );
     const [error, setError] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+    const [view, setView] = useState<'form' | 'visual'>('form');
+    const actionsListRef = useRef<HTMLOListElement | null>(null);
 
     useEffect(() => {
         if (!open) {
@@ -238,13 +248,47 @@ export function AutomationDialog({
                             fields={fields.data ?? []}
                         />
 
-                        <ActionsEditor
-                            value={state.actions}
-                            onChange={(next) => setState((s) => ({ ...s, actions: next }))}
-                            actionsCatalog={actions}
-                            fields={fields.data ?? []}
-                            error={fieldErrors.actions}
-                        />
+                        <ViewSwitcher view={view} onChange={setView} />
+
+                        {view === 'form' ? (
+                            <ActionsEditor
+                                value={state.actions}
+                                onChange={(next) => setState((s) => ({ ...s, actions: next }))}
+                                actionsCatalog={actions}
+                                fields={fields.data ?? []}
+                                error={fieldErrors.actions}
+                                listRef={actionsListRef}
+                            />
+                        ) : (
+                            <Suspense
+                                fallback={
+                                    <div className="imcrm-flex imcrm-h-[480px] imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-text-sm imcrm-text-muted-foreground">
+                                        <Loader2 className="imcrm-mr-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+                                        {__('Cargando diagrama…')}
+                                    </div>
+                                }
+                            >
+                                <AutomationVisualBuilder
+                                    triggerType={state.triggerType}
+                                    triggers={triggers}
+                                    actions={state.actions}
+                                    actionsCatalog={actions}
+                                    onActionsChange={(next) => setState((s) => ({ ...s, actions: next }))}
+                                    onEditAction={(idx) => {
+                                        setView('form');
+                                        // Esperamos al re-render del form para scrollear.
+                                        requestAnimationFrame(() => {
+                                            const target = actionsListRef.current?.querySelector(
+                                                `[data-action-index="${idx}"]`,
+                                            );
+                                            if (target instanceof HTMLElement) {
+                                                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            }
+                                        });
+                                    }}
+                                />
+                            </Suspense>
+                        )}
 
                         <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
                             <input
@@ -272,6 +316,53 @@ export function AutomationDialog({
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>
+    );
+}
+
+function ViewSwitcher({
+    view,
+    onChange,
+}: {
+    view: 'form' | 'visual';
+    onChange: (next: 'form' | 'visual') => void;
+}): JSX.Element {
+    return (
+        <div
+            className="imcrm-inline-flex imcrm-self-start imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-0.5 imcrm-text-xs"
+            role="tablist"
+            aria-label={__('Vista del editor')}
+        >
+            <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'form'}
+                onClick={() => onChange('form')}
+                className={cn(
+                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-transition-colors',
+                    view === 'form'
+                        ? 'imcrm-bg-primary imcrm-text-primary-foreground'
+                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent',
+                )}
+            >
+                <LayoutList className="imcrm-h-3.5 imcrm-w-3.5" />
+                {__('Formulario')}
+            </button>
+            <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'visual'}
+                onClick={() => onChange('visual')}
+                className={cn(
+                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-transition-colors',
+                    view === 'visual'
+                        ? 'imcrm-bg-primary imcrm-text-primary-foreground'
+                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent',
+                )}
+            >
+                <Workflow className="imcrm-h-3.5 imcrm-w-3.5" />
+                {__('Diagrama')}
+            </button>
+        </div>
     );
 }
 
@@ -603,6 +694,7 @@ interface ActionsEditorProps {
     actionsCatalog: ActionMeta[];
     fields: FieldEntity[];
     error?: string;
+    listRef?: React.RefObject<HTMLOListElement>;
 }
 
 function ActionsEditor({
@@ -611,6 +703,7 @@ function ActionsEditor({
     actionsCatalog,
     fields,
     error,
+    listRef,
 }: ActionsEditorProps): JSX.Element {
     const addAction = (): void => {
         const first = actionsCatalog[0];
@@ -631,10 +724,11 @@ function ActionsEditor({
                     {__('Aún no hay acciones. Añade al menos una.')}
                 </p>
             ) : (
-                <ol className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <ol ref={listRef} className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                     {value.map((spec, i) => (
                         <li
                             key={i}
+                            data-action-index={i}
                             className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3"
                         >
                             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
