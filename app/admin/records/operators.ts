@@ -1,0 +1,88 @@
+import type { FieldTypeSlug } from '@/types/field';
+import type { FilterOperator } from '@/types/record';
+
+interface OperatorMeta {
+    op: FilterOperator;
+    label: string;
+    /** El operador no requiere valor (is_null, is_not_null). */
+    nullary?: boolean;
+}
+
+const TEXT_LIKE: OperatorMeta[] = [
+    { op: 'contains', label: 'contiene' },
+    { op: 'eq', label: 'es' },
+    { op: 'neq', label: 'no es' },
+    { op: 'starts_with', label: 'empieza con' },
+    { op: 'ends_with', label: 'termina con' },
+    { op: 'is_null', label: 'está vacío', nullary: true },
+    { op: 'is_not_null', label: 'no está vacío', nullary: true },
+];
+
+const NUMERIC: OperatorMeta[] = [
+    { op: 'eq', label: '=' },
+    { op: 'neq', label: '≠' },
+    { op: 'gt', label: '>' },
+    { op: 'gte', label: '≥' },
+    { op: 'lt', label: '<' },
+    { op: 'lte', label: '≤' },
+    { op: 'is_null', label: 'está vacío', nullary: true },
+    { op: 'is_not_null', label: 'no está vacío', nullary: true },
+];
+
+const DATE_LIKE: OperatorMeta[] = [
+    { op: 'eq', label: 'es' },
+    { op: 'neq', label: 'no es' },
+    { op: 'gte', label: 'desde' },
+    { op: 'lte', label: 'hasta' },
+    { op: 'is_null', label: 'está vacío', nullary: true },
+    { op: 'is_not_null', label: 'no está vacío', nullary: true },
+];
+
+const SELECT_LIKE: OperatorMeta[] = [
+    { op: 'eq', label: 'es' },
+    { op: 'neq', label: 'no es' },
+    { op: 'in', label: 'es alguno de' },
+    { op: 'nin', label: 'no es ninguno de' },
+    { op: 'is_null', label: 'está vacío', nullary: true },
+    { op: 'is_not_null', label: 'no está vacío', nullary: true },
+];
+
+const ID_LIKE: OperatorMeta[] = [
+    { op: 'eq', label: '=' },
+    { op: 'neq', label: '≠' },
+    { op: 'in', label: 'es alguno de' },
+    { op: 'nin', label: 'no es ninguno de' },
+    { op: 'is_null', label: 'está vacío', nullary: true },
+    { op: 'is_not_null', label: 'no está vacío', nullary: true },
+];
+
+export function operatorsForType(type: FieldTypeSlug): OperatorMeta[] {
+    switch (type) {
+        case 'text':
+        case 'long_text':
+        case 'email':
+        case 'url':
+            return TEXT_LIKE;
+        case 'number':
+        case 'currency':
+            return NUMERIC;
+        case 'date':
+        case 'datetime':
+            return DATE_LIKE;
+        case 'select':
+        case 'multi_select':
+            return SELECT_LIKE;
+        case 'checkbox':
+            return [{ op: 'eq', label: '=' }];
+        case 'user':
+        case 'file':
+            return ID_LIKE;
+        case 'relation':
+            // No filtrable en MVP (CLAUDE.md §9.4 — relation vive en wp_imcrm_relations).
+            return [];
+    }
+}
+
+export function isNullaryOperator(op: FilterOperator): boolean {
+    return op === 'is_null' || op === 'is_not_null';
+}

@@ -11,6 +11,8 @@ import { ApiError } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
+import { extractFieldOptions } from './fieldOptions';
+
 interface RecordCreateDialogProps {
     listId: number;
     fields: FieldEntity[];
@@ -254,7 +256,7 @@ function renderSelect(
     value: unknown,
     onChange: (v: unknown) => void,
 ): JSX.Element {
-    const options = extractOptions(field);
+    const options = extractFieldOptions(field);
     return (
         <select
             id={id}
@@ -278,7 +280,7 @@ function renderMultiSelect(
     value: unknown,
     onChange: (v: unknown) => void,
 ): JSX.Element {
-    const options = extractOptions(field);
+    const options = extractFieldOptions(field);
     const current = Array.isArray(value) ? value.map(String) : [];
     return (
         <div id={id} className="imcrm-flex imcrm-flex-wrap imcrm-gap-2">
@@ -310,22 +312,3 @@ function renderMultiSelect(
     );
 }
 
-function extractOptions(field: FieldEntity): Array<{ value: string; label: string }> {
-    const raw = (field.config as { options?: unknown }).options;
-    if (!Array.isArray(raw)) return [];
-    return raw
-        .map((opt) => {
-            if (typeof opt === 'string') return { value: opt, label: opt };
-            if (
-                opt &&
-                typeof opt === 'object' &&
-                'value' in opt &&
-                typeof (opt as { value: unknown }).value === 'string'
-            ) {
-                const o = opt as { value: string; label?: string };
-                return { value: o.value, label: o.label ?? o.value };
-            }
-            return null;
-        })
-        .filter((o): o is { value: string; label: string } => o !== null);
-}

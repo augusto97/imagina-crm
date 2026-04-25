@@ -5,10 +5,11 @@ import type { RecordEntity, RecordListResponse, RecordsQuery } from '@/types/rec
 
 export const recordsKeys = {
     all: ['records'] as const,
+    forList: (listId: string | number) => [...recordsKeys.all, String(listId)] as const,
     list: (listId: string | number, query: RecordsQuery) =>
-        [...recordsKeys.all, String(listId), query] as const,
+        [...recordsKeys.forList(listId), 'list', query] as const,
     item: (listId: string | number, recordId: number) =>
-        [...recordsKeys.all, String(listId), 'item', recordId] as const,
+        [...recordsKeys.forList(listId), 'item', recordId] as const,
 };
 
 export function useRecords(listId: string | number | undefined, query: RecordsQuery) {
@@ -34,22 +35,68 @@ export function useCreateRecord(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: [...recordsKeys.all, String(listId)] });
+            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
         },
     });
 }
 
+interface UpdateRecordVars {
+    id: number;
+    values: Record<string, unknown>;
+}
+
+interface UpdateRecordContext {
+    snapshots: Array<[readonly unknown[], unknown]>;
+}
+
+/**
+ * Mutación con optimistic update. Recorremos todas las queries de records
+ * para esta lista y mutamos en caché las filas que coincidan con el id —
+ * así la celda editada se actualiza al instante. Si el server falla,
+ * restauramos el snapshot.
+ */
 export function useUpdateRecord(listId: string | number) {
     const qc = useQueryClient();
-    return useMutation({
-        mutationFn: async ({ id, values }: { id: number; values: Record<string, unknown> }) => {
+    return useMutation<RecordEntity, Error, UpdateRecordVars, UpdateRecordContext>({
+        mutationFn: async ({ id, values }) => {
             const res = await api.patch<RecordEntity>(`/lists/${listId}/records/${id}`, {
                 fields: values,
             });
             return res.data;
         },
-        onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: [...recordsKeys.all, String(listId)] });
+        onMutate: async ({ id, values }) => {
+            await qc.cancelQueries({ queryKey: recordsKeys.forList(listId) });
+
+            const queries = qc.getQueriesData<RecordListResponse>({
+                queryKey: recordsKeys.forList(listId),
+            });
+            const snapshots: Array<[readonly unknown[], unknown]> = [];
+
+            for (const [key, data] of queries) {
+                if (!data || !Array.isArray(data.data)) continue;
+                snapshots.push([key, data]);
+
+                const next: RecordListResponse = {
+                    ...data,
+                    data: data.data.map((rec) =>
+                        rec.id === id
+                            ? { ...rec, fields: { ...rec.fields, ...values } }
+                            : rec,
+                    ),
+                };
+                qc.setQueryData(key, next);
+            }
+
+            return { snapshots };
+        },
+        onError: (_err, _vars, ctx) => {
+            if (!ctx) return;
+            for (const [key, snap] of ctx.snapshots) {
+                qc.setQueryData(key, snap);
+            }
+        },
+        onSettled: () => {
+            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
         },
     });
 }
@@ -63,7 +110,7 @@ export function useDeleteRecord(listId: string | number) {
             });
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: [...recordsKeys.all, String(listId)] });
+            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
         },
     });
 }
