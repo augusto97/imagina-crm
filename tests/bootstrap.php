@@ -206,6 +206,28 @@ if (! function_exists('home_url')) {
     }
 }
 
+if (! function_exists('admin_url')) {
+    function admin_url(string $path = ''): string
+    {
+        return 'https://example.test/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+/**
+ * Stub controlable de get_user_by. Los tests llenan
+ * `$GLOBALS['imcrm_test_users']` con `[$key => stdClass]` donde `$key`
+ * es el `id`/`login` que se va a buscar (prefijo "id:" / "login:").
+ */
+$GLOBALS['imcrm_test_users'] = [];
+
+if (! function_exists('get_user_by')) {
+    function get_user_by(string $field, mixed $value): mixed
+    {
+        $key = $field . ':' . (string) $value;
+        return $GLOBALS['imcrm_test_users'][$key] ?? false;
+    }
+}
+
 if (! function_exists('do_action')) {
     function do_action(string $hook, mixed ...$args): void
     {

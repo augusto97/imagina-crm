@@ -67,6 +67,57 @@ class ActivityRepository
     }
 
     /**
+     * Filtra por usuario y, opcionalmente, por action. Usado por
+     * `/me/mentions` para listar comentarios donde fui mencionado.
+     *
+     * Nota: no hay índice por user_id en la tabla por defecto; en
+     * volúmenes pequeños de actividad el escaneo es despreciable. Si
+     * la tabla crece a millones de filas considerar añadir
+     * `KEY idx_user (user_id)` vía Upgrader.
+     *
+     * @return array<int, ActivityEntity>
+     */
+    public function recentForUser(int $userId, ?string $action, int $limit = 100, int $offset = 0): array
+    {
+        $wpdb = $this->db->wpdb();
+        $table = $this->db->systemTable('activity');
+
+        if ($action !== null) {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $table
+                    . ' WHERE user_id = %d AND action = %s'
+                    . ' ORDER BY created_at DESC, id DESC'
+                    . ' LIMIT %d OFFSET %d',
+                    $userId,
+                    $action,
+                    $limit,
+                    $offset,
+                ),
+                ARRAY_A,
+            );
+        } else {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $table
+                    . ' WHERE user_id = %d'
+                    . ' ORDER BY created_at DESC, id DESC'
+                    . ' LIMIT %d OFFSET %d',
+                    $userId,
+                    $limit,
+                    $offset,
+                ),
+                ARRAY_A,
+            );
+        }
+
+        if (! is_array($rows)) {
+            return [];
+        }
+        return array_map(static fn (array $r): ActivityEntity => ActivityEntity::fromRow($r), $rows);
+    }
+
+    /**
      * @return array<int, ActivityEntity>
      */
     public function recentForList(int $listId, int $limit = 100, int $offset = 0): array

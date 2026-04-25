@@ -11,7 +11,9 @@ use ImaginaCRM\Support\Database;
  * Solo persistencia: nada de validación ni de DDL — eso vive en
  * `ListService`, `SlugManager` y `SchemaManager`.
  */
-final class ListRepository
+// No es `final` para permitir dobles de prueba en el suite unitario;
+// ningún consumer del plugin debería extenderla en runtime.
+class ListRepository
 {
     public function __construct(private readonly Database $db)
     {

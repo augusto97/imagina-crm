@@ -22,6 +22,8 @@ use ImaginaCRM\Automations\AutomationEntity;
 use ImaginaCRM\Comments\CommentEntity;
 use ImaginaCRM\Comments\CommentRepository;
 use ImaginaCRM\Comments\CommentService;
+use ImaginaCRM\Comments\MentionNotifier;
+use ImaginaCRM\Comments\MentionParser;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\FieldTypeRegistry;
@@ -266,6 +268,18 @@ final class Plugin
             return new ActivityLogger($c->get(ActivityRepository::class));
         });
 
+        $this->container->bind(MentionParser::class, static function (): MentionParser {
+            return new MentionParser();
+        });
+
+        $this->container->bind(MentionNotifier::class, static function (Container $c): MentionNotifier {
+            return new MentionNotifier(
+                $c->get(MentionParser::class),
+                $c->get(ActivityLogger::class),
+                $c->get(\ImaginaCRM\Lists\ListRepository::class),
+            );
+        });
+
         $this->container->bind(ScheduledRunner::class, static function (Container $c): ScheduledRunner {
             return new ScheduledRunner(
                 $c->get(AutomationRepository::class),
@@ -425,6 +439,24 @@ final class Plugin
                 10,
                 1,
             );
+
+            // Menciones: parsea @logins y notifica a los usuarios
+            // mencionados (priority 20 — corre después del logger
+            // base para que el orden temporal del activity log sea
+            // estable: comment.created → mention.received).
+            $mentionNotifier = $this->container->get(MentionNotifier::class);
+            if ($mentionNotifier instanceof MentionNotifier) {
+                add_action(
+                    'imagina_crm/comment_created',
+                    static function (mixed $comment) use ($mentionNotifier): void {
+                        if ($comment instanceof CommentEntity) {
+                            $mentionNotifier->handleCommentCreated($comment);
+                        }
+                    },
+                    20,
+                    1,
+                );
+            }
 
             add_action(
                 'imagina_crm/comment_updated',

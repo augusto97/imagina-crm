@@ -18,7 +18,8 @@ use ImaginaCRM\Lists\ListEntity;
  * `automation_run_completed`. Esa separación deja al logger testeable
  * sin un container completo.
  */
-final class ActivityLogger
+// No es `final` para permitir dobles de prueba en el suite unitario.
+class ActivityLogger
 {
     public const ACTION_RECORD_CREATED   = 'record.created';
     public const ACTION_RECORD_UPDATED   = 'record.updated';
@@ -27,6 +28,7 @@ final class ActivityLogger
     public const ACTION_COMMENT_UPDATED  = 'comment.updated';
     public const ACTION_COMMENT_DELETED  = 'comment.deleted';
     public const ACTION_AUTOMATION_RUN   = 'automation.run';
+    public const ACTION_MENTION_RECEIVED = 'mention.received';
 
     public function __construct(private readonly ActivityRepository $repo)
     {
@@ -98,6 +100,28 @@ final class ActivityLogger
                 'after'      => $this->truncate($after->content),
             ],
             $after->userId,
+        );
+    }
+
+    /**
+     * Registra que `$mentionedUserId` fue mencionado en `$comment`. La
+     * fila guarda al MENCIONADO en `user_id` (a diferencia del resto
+     * de actions, donde `user_id` es el actor); el actor queda en
+     * `changes.actor_user_id`. Esto permite consultar
+     * "mis menciones" como `WHERE action = mention.received AND user_id = ?`.
+     */
+    public function mentionReceived(CommentEntity $comment, int $mentionedUserId): int
+    {
+        return $this->log(
+            $comment->listId,
+            $comment->recordId,
+            self::ACTION_MENTION_RECEIVED,
+            [
+                'comment_id'     => $comment->id,
+                'actor_user_id'  => $comment->userId,
+                'snippet'        => $this->truncate($comment->content),
+            ],
+            $mentionedUserId,
         );
     }
 

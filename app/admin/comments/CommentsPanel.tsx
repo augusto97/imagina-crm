@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
 
+import { CommentContent } from '@/admin/comments/CommentContent';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/hooks/useComments';
 import { ApiError } from '@/lib/api';
 import { __, sprintf } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import type { CommentEntity } from '@/types/comment';
 
 /**
@@ -265,13 +265,7 @@ function CommentItem({
                     </div>
                 </div>
             ) : (
-                <p
-                    className={cn(
-                        'imcrm-mt-2 imcrm-whitespace-pre-wrap imcrm-text-sm imcrm-text-foreground',
-                    )}
-                >
-                    {comment.content}
-                </p>
+                <CommentContent content={comment.content} />
             )}
         </li>
     );
