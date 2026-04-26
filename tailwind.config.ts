@@ -3,7 +3,13 @@ import animate from 'tailwindcss-animate';
 
 const config: Config = {
     prefix: 'imcrm-',
-    important: '#imcrm-root',
+    // NOTA: NO usar `important: '#imcrm-root'` — Radix Dialog/Popover/
+    // Sheet renderizan su contenido vía Portal como hijo directo de
+    // <body>, fuera de #imcrm-root. Si el selector important está
+    // activo, las clases `imcrm-fixed`/`imcrm-z-50`/etc. NO aplican al
+    // contenido portaleado y los dialogs caen en flujo normal al final
+    // de la página. El prefix `imcrm-` ya da el aislamiento contra
+    // estilos de wp-admin.
     darkMode: ['class', '[data-imcrm-theme="dark"]'],
     content: ['./app/**/*.{ts,tsx}', './src/**/*.php'],
     corePlugins: {
