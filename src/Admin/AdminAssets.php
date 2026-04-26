@@ -22,6 +22,13 @@ final class AdminAssets
     public function register(): void
     {
         add_action('admin_enqueue_scripts', [$this, 'maybeEnqueue']);
+        // El bundle de Vite usa sintaxis ES modules (import/export).
+        // `wp_script_add_data($handle, 'type', 'module')` NO modifica el
+        // <script> tag en stock WP — el dato se ignora al renderizar.
+        // Filtramos `script_loader_tag` para agregar `type="module"` a
+        // nuestro handle, sin esto el browser falla con "Cannot use
+        // import statement outside a module" y el SPA no monta.
+        add_filter('script_loader_tag', [$this, 'addModuleTypeAttribute'], 10, 3);
     }
 
     public function maybeEnqueue(string $hookSuffix): void
@@ -54,6 +61,10 @@ final class AdminAssets
             true
         );
 
+        // Marca el handle para que `addModuleTypeAttribute` lo reconozca.
+        // El dato propio no afecta el render — sólo lo usamos como flag
+        // interno. (El cambio real lo hace el filtro registrado en
+        // register().)
         wp_script_add_data(self::HANDLE, 'type', 'module');
 
         // Registra el handle como traducible: WordPress buscará archivos
@@ -80,6 +91,24 @@ final class AdminAssets
         }
 
         wp_localize_script(self::HANDLE, 'IMAGINA_CRM_BOOT', $this->bootData());
+    }
+
+    /**
+     * Filtra el `<script>` tag de nuestro handle para agregar
+     * `type="module"`. WordPress no expone esto via API estable; el
+     * filtro `script_loader_tag` es el camino correcto. Defensivo:
+     * si ya tiene un `type=` (otro plugin lo añadió), no lo duplicamos.
+     */
+    public function addModuleTypeAttribute(string $tag, string $handle, string $src): string
+    {
+        unset($src);
+        if ($handle !== self::HANDLE) {
+            return $tag;
+        }
+        if (str_contains($tag, ' type=')) {
+            return $tag;
+        }
+        return preg_replace('/<script\s/i', '<script type="module" ', $tag, 1) ?? $tag;
     }
 
     public function renderBuildMissingNotice(): void
