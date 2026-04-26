@@ -12,6 +12,9 @@ pnpm-debug.log*
 # Build output
 /dist/
 /.vite/
+# Output del script bin/build-release.sh — se publica vía CI a la rama
+# `release`, no se trackea en main.
+/build/
 
 # Tooling caches
 .eslintcache

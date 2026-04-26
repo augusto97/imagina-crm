@@ -78,6 +78,22 @@ if (! is_readable($imagina_crm_autoload)) {
 
 require_once $imagina_crm_autoload;
 
+// Salvaguarda: el bundle de Vite (`dist/manifest.json`) tiene que existir
+// para que el admin React cargue. Si el plugin se instaló desde el código
+// fuente sin ejecutar `npm run build`, avisamos antes de que el usuario
+// vea una pantalla en blanco. (Las descargas de la rama `release` ya lo
+// incluyen, así que esto solo dispara para developers.)
+if (is_admin() && ! is_readable(IMAGINA_CRM_DIR . 'dist/manifest.json')) {
+    add_action('admin_notices', static function (): void {
+        echo '<div class="notice notice-warning"><p>';
+        echo esc_html__(
+            'Imagina CRM: el bundle JS no está compilado. Ejecuta "npm ci && npm run build" en el directorio del plugin, o descarga el ZIP pre-compilado desde la rama "release" del repositorio.',
+            'imagina-crm'
+        );
+        echo '</p></div>';
+    });
+}
+
 // Action Scheduler: librería de WooCommerce reutilizada para colas y cron
 // del plugin. Su entry point debe cargarse antes de `plugins_loaded` para
 // que `as_enqueue_async_action()` y compañía estén disponibles globalmente.

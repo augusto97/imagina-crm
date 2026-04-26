@@ -18,10 +18,29 @@ Imagina CRM permite crear listas personalizadas con campos dinámicos, vistas co
 
 == Installation ==
 
-1. Sube el directorio del plugin a `/wp-content/plugins/imagina-crm`.
-2. Ejecuta `composer install --no-dev` y `npm install && npm run build` dentro del directorio.
-3. Activa el plugin desde el panel de WordPress.
+**Para administradores de WordPress (instalación normal):**
+
+1. Descarga el ZIP del plugin desde la rama `release` del repositorio
+   en GitHub (Code → Switch branches → `release` → Code → Download ZIP)
+   o desde la pestaña Releases para una versión etiquetada.
+2. En el WP admin: **Plugins → Añadir nuevo → Subir plugin** y
+   selecciona el ZIP descargado.
+3. Activa el plugin desde la lista de Plugins.
 4. Abre **Imagina CRM** en el menú lateral.
+
+El ZIP de la rama `release` ya incluye `vendor/` (dependencias de
+Composer) y `dist/` (bundle JS compilado), así que no requiere
+herramientas adicionales en el servidor.
+
+**Para developers (instalación desde código fuente):**
+
+1. Clona el repo en `/wp-content/plugins/imagina-crm`.
+2. Ejecuta `composer install --no-dev` y `npm ci && npm run build`
+   dentro del directorio (o usa `bin/build-release.sh` para una build
+   completa equivalente al ZIP de release).
+3. Activa el plugin desde el panel de WordPress.
+
+Más detalles en `README.md` en la raíz del repo.
 
 == Internationalization ==
 
