@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.4.0
+Stable tag: 0.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,22 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.4.1 =
+* Fix CRÍTICO fullscreen: dialogs, popovers y dropdowns no aparecían
+  (o aparecían debajo) cuando el modo Pantalla completa estaba
+  activo. Causa: #imcrm-root subía a z-99999 en fullscreen pero los
+  Radix portals (que renderean en <body> como hermanos del root)
+  seguían en z-50. Fix: CSS override en
+  `html.imcrm-fullscreen-mode` que bumpea
+  `.imcrm-fixed.imcrm-z-50` y `[data-radix-popper-content-wrapper]`
+  a z-1000000.
+* Fix layout del modal del visual builder: el canvas del Diagrama
+  pasa de altura fija (640px) a `h-[min(78vh,820px)]` con flex
+  interno → ajusta al alto disponible del modal sin requerir
+  scroll en pantallas chicas. El panel lateral derecho ahora tiene
+  scroll propio cuando el editor de la acción es largo (ej.
+  if_else con muchas branches).
 
 = 0.4.0 =
 * Feature: modo "Pantalla completa" — botón maximize en la topbar del

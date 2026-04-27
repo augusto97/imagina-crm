@@ -155,6 +155,23 @@
         overflow: auto !important;
     }
 
+    /*
+     * Cuando fullscreen está activo, #imcrm-root sube a z-99999 para
+     * tapar el chrome de WP. Pero los Radix portals (Dialog, Popover,
+     * DropdownMenu) renderean en <body> como hermanos del root, con
+     * sus propios z-index (50, 60). Sin este override quedarían DEBAJO
+     * del root → dialogs y dropdowns "no funcionan" en fullscreen.
+     *
+     * Targeteamos:
+     *  - .imcrm-fixed.imcrm-z-50 → nuestros Dialog.Overlay / Content.
+     *  - [data-radix-popper-content-wrapper] → wrapper de Popover /
+     *    DropdownMenu / Tooltip / Select (lo inyecta @floating-ui).
+     */
+    html.imcrm-fullscreen-mode .imcrm-fixed.imcrm-z-50,
+    html.imcrm-fullscreen-mode [data-radix-popper-content-wrapper] {
+        z-index: 1000000 !important;
+    }
+
     #imcrm-root * {
         @apply imcrm-border-border;
         box-sizing: border-box;

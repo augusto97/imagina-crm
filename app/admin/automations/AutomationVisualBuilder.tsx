@@ -200,10 +200,12 @@ function Inner({
         selected?.kind === 'action' ? getActionAt(actions, selected.path) : undefined;
 
     return (
-        <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 lg:imcrm-grid-cols-[3fr_1fr] imcrm-min-h-[640px]">
-            {/* Flow canvas */}
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-                <div className="imcrm-relative imcrm-h-[640px] imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-muted/30 imcrm-to-muted/10 imcrm-shadow-imcrm-sm">
+        <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 lg:imcrm-grid-cols-[3fr_1fr] imcrm-h-[min(78vh,820px)]">
+            {/* Flow canvas — fills available height; el modal en visual
+                 mode tiene max-h:95vh, así que el canvas usa todo el alto
+                 menos los ~150px del header del dialog + tabs. */}
+            <div className="imcrm-flex imcrm-min-h-0 imcrm-flex-col imcrm-gap-2">
+                <div className="imcrm-relative imcrm-min-h-0 imcrm-flex-1 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-muted/30 imcrm-to-muted/10 imcrm-shadow-imcrm-sm">
                     <ReactFlow
                         nodes={nodes}
                         edges={edges}
@@ -276,7 +278,7 @@ function Inner({
             </div>
 
             {/* Side panel: editor del nodo seleccionado */}
-            <aside className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
+            <aside className="imcrm-flex imcrm-min-h-0 imcrm-flex-col imcrm-gap-3 imcrm-overflow-y-auto imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3 imcrm-shadow-imcrm-sm">
                 {selected === null ? (
                     <EmptyPanel />
                 ) : selected.kind === 'trigger' ? (
