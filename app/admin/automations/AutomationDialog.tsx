@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
 // Code-split: React Flow es ~60KB gzipped. La mayoría de usuarios edita
 // en la vista form; sólo cargamos el bundle del diagrama cuando lo piden.
 const AutomationVisualBuilder = lazy(() =>
@@ -265,34 +267,39 @@ export function AutomationDialog({
                                 listRef={actionsListRef}
                             />
                         ) : (
-                            <Suspense
-                                fallback={
-                                    <div className="imcrm-flex imcrm-h-[480px] imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-text-sm imcrm-text-muted-foreground">
-                                        <Loader2 className="imcrm-mr-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-                                        {__('Cargando diagrama…')}
-                                    </div>
-                                }
+                            <ErrorBoundary
+                                label={__('No se pudo cargar el diagrama. Usa la vista Formulario por ahora.')}
+                                onReset={() => setView('form')}
                             >
-                                <AutomationVisualBuilder
-                                    triggerType={state.triggerType}
-                                    triggers={triggers}
-                                    actions={state.actions}
-                                    actionsCatalog={actions}
-                                    onActionsChange={(next) => setState((s) => ({ ...s, actions: next }))}
-                                    onEditAction={(idx) => {
-                                        setView('form');
-                                        // Esperamos al re-render del form para scrollear.
-                                        requestAnimationFrame(() => {
-                                            const target = actionsListRef.current?.querySelector(
-                                                `[data-action-index="${idx}"]`,
-                                            );
-                                            if (target instanceof HTMLElement) {
-                                                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                            }
-                                        });
-                                    }}
-                                />
-                            </Suspense>
+                                <Suspense
+                                    fallback={
+                                        <div className="imcrm-flex imcrm-h-[480px] imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-text-sm imcrm-text-muted-foreground">
+                                            <Loader2 className="imcrm-mr-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+                                            {__('Cargando diagrama…')}
+                                        </div>
+                                    }
+                                >
+                                    <AutomationVisualBuilder
+                                        triggerType={state.triggerType}
+                                        triggers={triggers}
+                                        actions={state.actions}
+                                        actionsCatalog={actions}
+                                        onActionsChange={(next) => setState((s) => ({ ...s, actions: next }))}
+                                        onEditAction={(idx) => {
+                                            setView('form');
+                                            // Esperamos al re-render del form para scrollear.
+                                            requestAnimationFrame(() => {
+                                                const target = actionsListRef.current?.querySelector(
+                                                    `[data-action-index="${idx}"]`,
+                                                );
+                                                if (target instanceof HTMLElement) {
+                                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                }
+                                            });
+                                        }}
+                                    />
+                                </Suspense>
+                            </ErrorBoundary>
                         )}
 
                         <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
@@ -462,44 +469,22 @@ function TriggerConfigEditor({
                     {__('Solo dispara si el registro cumple TODOS estos pares slug = valor.')}
                 </p>
                 {filters.map((f, i) => (
-                    <div key={i} className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                        <Select
-                            value={f.slug}
-                            onChange={(e) => {
-                                const next = [...filters];
-                                next[i] = { ...next[i]!, slug: e.target.value };
-                                updateFilters(next);
-                            }}
-                            aria-label={__('Campo')}
-                            className="imcrm-flex-1"
-                        >
-                            <option value="">{__('— Selecciona campo —')}</option>
-                            {fields.map((field) => (
-                                <option key={field.id} value={field.slug}>
-                                    {field.label} ({field.slug})
-                                </option>
-                            ))}
-                        </Select>
-                        <Input
-                            placeholder={__('Valor')}
-                            value={typeof f.value === 'string' ? f.value : String(f.value ?? '')}
-                            onChange={(e) => {
-                                const next = [...filters];
-                                next[i] = { ...next[i]!, value: e.target.value };
-                                updateFilters(next);
-                            }}
-                            className="imcrm-flex-1"
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => updateFilters(filters.filter((_, j) => j !== i))}
-                            aria-label={__('Eliminar filtro')}
-                        >
-                            <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                        </Button>
-                    </div>
+                    <FilterRow
+                        key={i}
+                        f={f}
+                        fields={fields}
+                        onChangeSlug={(slug) => {
+                            const next = [...filters];
+                            next[i] = { slug, value: '' };
+                            updateFilters(next);
+                        }}
+                        onChangeValue={(value) => {
+                            const arr = [...filters];
+                            arr[i] = { ...arr[i]!, value };
+                            updateFilters(arr);
+                        }}
+                        onRemove={() => updateFilters(filters.filter((_, j) => j !== i))}
+                    />
                 ))}
                 <Button type="button" variant="ghost" size="sm" onClick={addFilter} className="imcrm-self-start imcrm-gap-2">
                     <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
@@ -644,6 +629,26 @@ function ScheduledConfig({
     );
 }
 
+/**
+ * Presets para `offset_minutes` que cubren el 95% de los casos típicos.
+ * Si el operador necesita algo distinto puede elegir "Personalizado" y
+ * editar el valor manualmente.
+ */
+const DUE_DATE_PRESETS: Array<{ id: string; label: string; offsetMinutes: number }> = [
+    { id: 'now',         label: 'Cuando llega la fecha (mismo día)',     offsetMinutes: 0 },
+    { id: 'before_1h',   label: '1 hora antes',                          offsetMinutes: -60 },
+    { id: 'before_1d',   label: '1 día antes',                           offsetMinutes: -1440 },
+    { id: 'before_3d',   label: '3 días antes',                          offsetMinutes: -4320 },
+    { id: 'before_7d',   label: '1 semana antes',                        offsetMinutes: -10080 },
+    { id: 'after_1d',    label: '1 día después (vencido hace 1 día)',    offsetMinutes: 1440 },
+    { id: 'after_3d',    label: '3 días después',                        offsetMinutes: 4320 },
+    { id: 'after_7d',    label: '1 semana después',                      offsetMinutes: 10080 },
+];
+
+function offsetToPresetId(offset: number): string {
+    return DUE_DATE_PRESETS.find((p) => p.offsetMinutes === offset)?.id ?? 'custom';
+}
+
 function DueDateConfig({
     config,
     onChange,
@@ -661,9 +666,10 @@ function DueDateConfig({
     const tolerance =
         typeof config.tolerance_minutes === 'number'
             ? config.tolerance_minutes
-            : Number(config.tolerance_minutes ?? 30);
+            : Number(config.tolerance_minutes ?? 1440); // default 1 día — más útil que 30min para casos tipo "vencido hoy"
 
     const dateFields = fields.filter((f) => f.type === 'date' || f.type === 'datetime');
+    const currentPreset = offsetToPresetId(offset);
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-3">
@@ -684,10 +690,34 @@ function DueDateConfig({
                     {__('No hay campos de tipo fecha en esta lista.')}
                 </p>
             )}
-            <div className="imcrm-flex imcrm-gap-2">
-                <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
+
+            <Label className="imcrm-mt-1">{__('Cuándo disparar')}</Label>
+            <Select
+                value={currentPreset}
+                onChange={(e) => {
+                    const id = e.target.value;
+                    if (id === 'custom') {
+                        // Mantén el offset que ya estaba.
+                        return;
+                    }
+                    const preset = DUE_DATE_PRESETS.find((p) => p.id === id);
+                    if (preset) {
+                        onChange({ ...config, offset_minutes: preset.offsetMinutes });
+                    }
+                }}
+            >
+                {DUE_DATE_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                        {__(p.label)}
+                    </option>
+                ))}
+                <option value="custom">{__('Personalizado…')}</option>
+            </Select>
+
+            {currentPreset === 'custom' && (
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
                     <Label className="imcrm-text-xs imcrm-text-muted-foreground">
-                        {__('Offset (minutos: negativo=antes, positivo=después)')}
+                        {__('Offset en minutos (negativo = antes, positivo = después)')}
                     </Label>
                     <Input
                         type="number"
@@ -697,7 +727,13 @@ function DueDateConfig({
                         }
                     />
                 </div>
-                <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
+            )}
+
+            <details className="imcrm-mt-1 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-px-2 imcrm-py-1">
+                <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-text-muted-foreground">
+                    {__('Avanzado: ventana de tolerancia')}
+                </summary>
+                <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-1">
                     <Label className="imcrm-text-xs imcrm-text-muted-foreground">
                         {__('Tolerancia (minutos)')}
                     </Label>
@@ -712,8 +748,11 @@ function DueDateConfig({
                             })
                         }
                     />
+                    <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                        {__('Ventana alrededor del momento target en la que el trigger todavía dispara — evita perder registros por jitter del cron. Default 1 día (1440 min).')}
+                    </p>
                 </div>
-            </div>
+            </details>
         </div>
     );
 }
@@ -877,46 +916,51 @@ function UpdateFieldConfig({
             <p className="imcrm-text-xs imcrm-text-muted-foreground">
                 {__('Setea pares campo → valor en el registro que disparó el trigger. Soporta merge tags como {{slug}} o {{record.id}}.')}
             </p>
-            {values.map((v, i) => (
-                <div key={i} className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                    <Select
-                        value={v.slug}
-                        onChange={(e) => {
-                            const next = [...values];
-                            next[i] = { ...next[i]!, slug: e.target.value };
-                            setValues(next);
-                        }}
-                        aria-label={__('Campo a actualizar')}
-                        className="imcrm-flex-1"
-                    >
-                        <option value="">{__('— Campo —')}</option>
-                        {fields.map((field) => (
-                            <option key={field.id} value={field.slug}>
-                                {field.label}
-                            </option>
-                        ))}
-                    </Select>
-                    <Input
-                        placeholder={__('Valor o {{slug}}')}
-                        value={v.value}
-                        onChange={(e) => {
-                            const next = [...values];
-                            next[i] = { ...next[i]!, value: e.target.value };
-                            setValues(next);
-                        }}
-                        className="imcrm-flex-1"
-                    />
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setValues(values.filter((_, j) => j !== i))}
-                        aria-label={__('Eliminar')}
-                    >
-                        <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                    </Button>
-                </div>
-            ))}
+            {values.map((v, i) => {
+                const selectedField = fields.find((f) => f.slug === v.slug);
+                return (
+                    <div key={i} className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                        <Select
+                            value={v.slug}
+                            onChange={(e) => {
+                                const next = [...values];
+                                // Reset value cuando cambia el campo: el valor
+                                // que tenía sentido para el field anterior
+                                // probablemente no aplica al nuevo.
+                                next[i] = { slug: e.target.value, value: '' };
+                                setValues(next);
+                            }}
+                            aria-label={__('Campo a actualizar')}
+                            className="imcrm-flex-1"
+                        >
+                            <option value="">{__('— Campo —')}</option>
+                            {fields.map((field) => (
+                                <option key={field.id} value={field.slug}>
+                                    {field.label}
+                                </option>
+                            ))}
+                        </Select>
+                        <FieldValueInput
+                            field={selectedField}
+                            value={v.value}
+                            onChange={(next) => {
+                                const arr = [...values];
+                                arr[i] = { ...arr[i]!, value: next };
+                                setValues(arr);
+                            }}
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setValues(values.filter((_, j) => j !== i))}
+                            aria-label={__('Eliminar')}
+                        >
+                            <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                        </Button>
+                    </div>
+                );
+            })}
             <Button
                 type="button"
                 variant="ghost"
@@ -926,6 +970,166 @@ function UpdateFieldConfig({
             >
                 <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
                 {__('Añadir valor')}
+            </Button>
+        </div>
+    );
+}
+
+/**
+ * Input contextual para el VALOR de un campo. Switchea según el tipo:
+ * - select: dropdown con las options del campo (más merge-tag custom)
+ * - checkbox: select true/false
+ * - date / datetime: input nativo
+ * - resto: input de texto (acepta merge tags `{{slug}}`)
+ *
+ * `field` puede ser undefined si el campo aún no fue elegido — en ese
+ * caso mostramos placeholder.
+ */
+function FieldValueInput({
+    field,
+    value,
+    onChange,
+}: {
+    field: FieldEntity | undefined;
+    value: string;
+    onChange: (next: string) => void;
+}): JSX.Element {
+    if (!field) {
+        return (
+            <Input
+                placeholder={__('Selecciona un campo primero')}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="imcrm-flex-1"
+                disabled
+            />
+        );
+    }
+
+    if (field.type === 'select') {
+        const options = (field.config?.options as Array<{ value: string; label?: string }> | undefined) ?? [];
+        return (
+            <Select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="imcrm-flex-1"
+                aria-label={__('Valor')}
+            >
+                <option value="">{__('— Selecciona valor —')}</option>
+                {options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                        {opt.label || opt.value}
+                    </option>
+                ))}
+            </Select>
+        );
+    }
+
+    if (field.type === 'checkbox') {
+        return (
+            <Select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="imcrm-flex-1"
+                aria-label={__('Valor')}
+            >
+                <option value="">{__('— —')}</option>
+                <option value="1">{__('Marcado')}</option>
+                <option value="0">{__('Desmarcado')}</option>
+            </Select>
+        );
+    }
+
+    if (field.type === 'date') {
+        return (
+            <Input
+                type="date"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="imcrm-flex-1"
+            />
+        );
+    }
+
+    if (field.type === 'datetime') {
+        return (
+            <Input
+                type="datetime-local"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="imcrm-flex-1"
+            />
+        );
+    }
+
+    if (field.type === 'number' || field.type === 'currency') {
+        return (
+            <Input
+                type="number"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={field.type === 'currency' ? '0.00' : '0'}
+                className="imcrm-flex-1"
+            />
+        );
+    }
+
+    // text / long_text / email / url / multi_select / relation / user / file:
+    // texto libre por simplicidad. Para multi_select el operador escribe
+    // valores separados por coma; para relation pasa IDs separados por
+    // coma; etc. Soporta merge tags como `{{otroCampo}}`.
+    return (
+        <Input
+            placeholder={__('Valor o {{slug}}')}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="imcrm-flex-1"
+        />
+    );
+}
+
+interface FilterRowProps {
+    f: { slug: string; value: unknown };
+    fields: FieldEntity[];
+    onChangeSlug: (slug: string) => void;
+    onChangeValue: (value: string) => void;
+    onRemove: () => void;
+}
+
+/**
+ * Una fila del editor de `field_filters`. Extraída como componente
+ * para que el `key` del map quede correctamente en la raíz.
+ */
+function FilterRow({ f, fields, onChangeSlug, onChangeValue, onRemove }: FilterRowProps): JSX.Element {
+    const selectedField = fields.find((field) => field.slug === f.slug);
+    return (
+        <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+            <Select
+                value={f.slug}
+                onChange={(e) => onChangeSlug(e.target.value)}
+                aria-label={__('Campo')}
+                className="imcrm-flex-1"
+            >
+                <option value="">{__('— Selecciona campo —')}</option>
+                {fields.map((field) => (
+                    <option key={field.id} value={field.slug}>
+                        {field.label} ({field.slug})
+                    </option>
+                ))}
+            </Select>
+            <FieldValueInput
+                field={selectedField}
+                value={typeof f.value === 'string' ? f.value : String(f.value ?? '')}
+                onChange={onChangeValue}
+            />
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onRemove}
+                aria-label={__('Eliminar filtro')}
+            >
+                <Trash2 className="imcrm-h-4 imcrm-w-4" />
             </Button>
         </div>
     );

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.1.1
+Stable tag: 0.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,30 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.1.2 =
+* Fix: el form de FieldDialog/AutomationDialog/WidgetFormDialog se
+  reseteaba en cada keystroke por hooks de TanStack Query inestables
+  en `useEffect` deps.
+* Fix: CI fallaba en lint y en 2 integration tests (faltaban globals
+  de browser en eslint config y stubs de Action Scheduler +
+  DAY_IN_SECONDS/HOUR_IN_SECONDS en wp-stubs.php).
+* Fix: el "Diagrama" de automatizaciones podía dejar el dialog en
+  blanco si React Flow fallaba en runtime — añadido ErrorBoundary
+  con fallback al form view.
+* Feature: en la acción `update_field` el value picker ahora es
+  contextual al tipo de campo:
+  · select → dropdown con las options del campo
+  · checkbox → toggle marcado/desmarcado
+  · date / datetime → input nativo del browser
+  · number / currency → input numérico
+  · resto → input de texto con merge tags
+  Mismo treatment para los `field_filters` del trigger.
+* Feature: editor de `due_date_reached` con presets entendibles
+  ("Cuando llega la fecha", "1 día antes", "1 semana antes",
+  "1 día después", etc.) en lugar de pedir offset_minutes raw.
+  Tolerancia movida a `<details>` avanzado y default subido a
+  1 día (más útil para casos tipo "vencido hoy").
 
 = 0.1.1 =
 * Fix: dialogs/sheets/popovers de Radix se renderizaban transparentes.
