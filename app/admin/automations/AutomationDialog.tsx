@@ -392,6 +392,23 @@ interface TriggerConfigEditorProps {
  * Editor del trigger_config: filtros simples por slug=valor y, para
  * `record_updated`, lista de campos cuyo cambio dispara la regla.
  */
+function helpForTrigger(triggerType: string): string {
+    switch (triggerType) {
+        case 'record_created':
+            return __('Se ejecuta cada vez que se crea un nuevo registro en esta lista. Útil para asignaciones automáticas, notificaciones de bienvenida, etc.');
+        case 'record_updated':
+            return __('Se ejecuta cada vez que se modifica un registro de esta lista. Si configuras "Disparar solo si cambian estos campos", solo dispara cuando alguno de los campos elegidos efectivamente cambió.');
+        case 'field_changed':
+            return __('Se ejecuta cuando un campo específico cambia, opcionalmente con condiciones sobre el valor previo o nuevo. Ejemplo: "cuando status pasa de lead a won".');
+        case 'scheduled':
+            return __('Se ejecuta de forma recurrente (cada hora, dos veces al día, diario o semanal). En cada tick recorre todos los registros activos de la lista — útil para reportes periódicos o limpieza programada.');
+        case 'due_date_reached':
+            return __('Se ejecuta cuando un campo de fecha del registro entra en una ventana relativa al "ahora". Ejemplo: "1 día antes del vencimiento" → offset = -1440 minutos. Tolerancia define la ventana alrededor del target para no perder registros por jitter del cron.');
+        default:
+            return '';
+    }
+}
+
 function TriggerConfigEditor({
     triggerType,
     config,
@@ -421,11 +438,19 @@ function TriggerConfigEditor({
 
     const addFilter = (): void => updateFilters([...filters, { slug: '', value: '' }]);
 
+    const help = helpForTrigger(triggerType);
+
     return (
         <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
             <legend className="imcrm-px-1 imcrm-text-xs imcrm-font-medium imcrm-uppercase imcrm-text-muted-foreground">
-                {__('Filtros del trigger')}
+                {__('Configuración del trigger')}
             </legend>
+
+            {help !== '' && (
+                <p className="imcrm-rounded-md imcrm-border imcrm-border-info/30 imcrm-bg-info/10 imcrm-p-2 imcrm-text-xs imcrm-text-foreground">
+                    {help}
+                </p>
+            )}
 
             <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                 <p className="imcrm-text-xs imcrm-text-muted-foreground">

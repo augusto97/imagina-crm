@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, KeyRound, Asterisk, Loader2 } from 'lucide-react';
+import { Asterisk, KeyRound, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
-import { FieldCreateDialog } from './FieldCreateDialog';
+import { FieldDialog } from './FieldDialog';
 
 interface FieldBuilderProps {
     listId: number;
@@ -17,7 +17,17 @@ interface FieldBuilderProps {
 export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
     const fields = useFields(listId);
     const deleteField = useDeleteField(listId);
-    const [createOpen, setCreateOpen] = useState(false);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [editingField, setEditingField] = useState<FieldEntity | null>(null);
+
+    const openCreate = (): void => {
+        setEditingField(null);
+        setDialogOpen(true);
+    };
+    const openEdit = (field: FieldEntity): void => {
+        setEditingField(field);
+        setDialogOpen(true);
+    };
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
@@ -28,7 +38,7 @@ export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
                         {__('Cada campo se traduce en una columna real en la base de datos.')}
                     </p>
                 </div>
-                <Button onClick={() => setCreateOpen(true)} size="sm" className="imcrm-gap-2">
+                <Button onClick={openCreate} size="sm" className="imcrm-gap-2">
                     <Plus className="imcrm-h-4 imcrm-w-4" />
                     {__('Añadir campo')}
                 </Button>
@@ -55,6 +65,7 @@ export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
                         <FieldRow
                             key={field.id}
                             field={field}
+                            onEdit={() => openEdit(field)}
                             onDelete={() => {
                                 if (
                                     !confirm(
@@ -74,12 +85,26 @@ export function FieldBuilder({ listId }: FieldBuilderProps): JSX.Element {
                 </ul>
             )}
 
-            <FieldCreateDialog listId={listId} open={createOpen} onOpenChange={setCreateOpen} />
+            <FieldDialog
+                listId={listId}
+                field={editingField}
+                open={dialogOpen}
+                onOpenChange={(open) => {
+                    setDialogOpen(open);
+                    if (!open) setEditingField(null);
+                }}
+            />
         </div>
     );
 }
 
-function FieldRow({ field, onDelete }: { field: FieldEntity; onDelete: () => void }): JSX.Element {
+interface FieldRowProps {
+    field: FieldEntity;
+    onEdit: () => void;
+    onDelete: () => void;
+}
+
+function FieldRow({ field, onEdit, onDelete }: FieldRowProps): JSX.Element {
     return (
         <li
             className={cn(
@@ -120,6 +145,19 @@ function FieldRow({ field, onDelete }: { field: FieldEntity; onDelete: () => voi
                 </div>
             </div>
             <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onEdit}
+                    aria-label={sprintf(
+                        /* translators: %s: field label */
+                        __('Editar %s'),
+                        field.label,
+                    )}
+                    title={__('Editar')}
+                >
+                    <Pencil className="imcrm-h-4 imcrm-w-4" />
+                </Button>
                 <Button
                     variant="ghost"
                     size="icon"

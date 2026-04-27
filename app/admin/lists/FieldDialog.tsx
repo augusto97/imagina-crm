@@ -1,29 +1,52 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
+import { FieldConfigEditor } from '@/admin/lists/FieldConfigEditor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateField } from '@/hooks/useFields';
+import { useCreateField, useUpdateField } from '@/hooks/useFields';
 import { useFieldTypes } from '@/hooks/useFieldTypes';
 import { ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type { FieldTypeSlug } from '@/types/field';
+import type { FieldEntity, FieldTypeSlug } from '@/types/field';
 
 import { FieldTypeSelect } from './FieldTypeSelect';
 import { SlugEditor } from './SlugEditor';
 
-interface FieldCreateDialogProps {
+/**
+ * Dialog unificado de creación + edición de campos. Maneja:
+ * - label / slug / type
+ * - is_required / is_unique
+ * - config específica del tipo (delegada a `<FieldConfigEditor />`)
+ *
+ * En modo edición (cuando `field` está presente):
+ * - El selector de tipo queda deshabilitado (cambiar el tipo de un
+ *   campo con datos existentes corrompería la columna; la solución
+ *   correcta es eliminar y recrear).
+ * - Los demás atributos siguen siendo editables.
+ */
+interface FieldDialogProps {
     listId: number;
+    /** Si se pasa, el dialog está en modo edición. */
+    field?: FieldEntity | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
 
-export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDialogProps): JSX.Element {
+export function FieldDialog({
+    listId,
+    field,
+    open,
+    onOpenChange,
+}: FieldDialogProps): JSX.Element {
     const create = useCreateField(listId);
+    const update = useUpdateField(listId);
     const { data: fieldTypes } = useFieldTypes();
+
+    const isEdit = field !== undefined && field !== null;
 
     const [label, setLabel] = useState('');
     const [type, setType] = useState<FieldTypeSlug | ''>('');
@@ -31,22 +54,40 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
     const [slugDirty, setSlugDirty] = useState(false);
     const [isRequired, setIsRequired] = useState(false);
     const [isUnique, setIsUnique] = useState(false);
+    const [config, setConfig] = useState<Record<string, unknown>>({});
     const [submitError, setSubmitError] = useState<string | null>(null);
 
+    // Pre-llenar al abrir en modo edición; resetear al cerrar.
     useEffect(() => {
         if (!open) {
+            create.reset();
+            update.reset();
+            return;
+        }
+        if (isEdit && field) {
+            setLabel(field.label);
+            setType(field.type);
+            setSlug(field.slug);
+            setSlugDirty(true);
+            setIsRequired(field.is_required);
+            setIsUnique(field.is_unique);
+            setConfig(field.config ?? {});
+        } else {
             setLabel('');
             setType('');
             setSlug('');
             setSlugDirty(false);
             setIsRequired(false);
             setIsUnique(false);
-            setSubmitError(null);
-            create.reset();
+            setConfig({});
         }
-    }, [open, create]);
+        setSubmitError(null);
+    }, [open, isEdit, field, create, update]);
 
-    const supportsUnique = fieldTypes?.find((t) => t.slug === type)?.supports_unique ?? false;
+    const supportsUnique = useMemo(
+        () => fieldTypes?.find((t) => t.slug === type)?.supports_unique ?? false,
+        [fieldTypes, type],
+    );
 
     useEffect(() => {
         if (!supportsUnique && isUnique) {
@@ -54,25 +95,47 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
         }
     }, [supportsUnique, isUnique]);
 
+    // Cuando cambia el tipo, reseteamos config para evitar arrastrar
+    // claves de un tipo previo (ej. options al pasar de select a number).
+    const handleTypeChange = (next: FieldTypeSlug | ''): void => {
+        setType(next);
+        setConfig({});
+    };
+
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         if (!type) return;
         setSubmitError(null);
         try {
-            await create.mutateAsync({
-                label: label.trim(),
-                type,
-                slug: slug || undefined,
-                is_required: isRequired,
-                is_unique: isUnique,
-            });
+            if (isEdit && field) {
+                await update.mutateAsync({
+                    id: field.id,
+                    input: {
+                        label: label.trim(),
+                        slug: slug || undefined,
+                        is_required: isRequired,
+                        is_unique: isUnique,
+                        config,
+                    },
+                });
+            } else {
+                await create.mutateAsync({
+                    label: label.trim(),
+                    type,
+                    slug: slug || undefined,
+                    is_required: isRequired,
+                    is_unique: isUnique,
+                    config,
+                });
+            }
             onOpenChange(false);
         } catch (err) {
             setSubmitError(err instanceof ApiError || err instanceof Error ? err.message : 'Error');
         }
     };
 
-    const canSubmit = label.trim() !== '' && type !== '' && !create.isPending;
+    const isPending = create.isPending || update.isPending;
+    const canSubmit = label.trim() !== '' && type !== '' && !isPending;
 
     return (
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -86,16 +149,19 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                     className={cn(
                         'imcrm-fixed imcrm-left-1/2 imcrm-top-1/2 imcrm-z-50 imcrm-w-full imcrm-max-w-md',
                         'imcrm--translate-x-1/2 imcrm--translate-y-1/2',
-                        'imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6 imcrm-shadow-imcrm-lg',
+                        'imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-text-card-foreground imcrm-p-6 imcrm-shadow-imcrm-lg',
+                        'imcrm-max-h-[85vh] imcrm-overflow-y-auto',
                     )}
                 >
                     <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
                         <div>
                             <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
-                                {__('Añadir campo')}
+                                {isEdit ? __('Editar campo') : __('Añadir campo')}
                             </Dialog.Title>
                             <Dialog.Description className="imcrm-text-sm imcrm-text-muted-foreground">
-                                {__('Define el label, tipo y slug del nuevo campo.')}
+                                {isEdit
+                                    ? __('El tipo no se puede cambiar tras crear el campo. Los demás atributos sí.')
+                                    : __('Define el label, tipo, slug y configuración del nuevo campo.')}
                             </Dialog.Description>
                         </div>
                         <Dialog.Close asChild>
@@ -107,9 +173,9 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
 
                     <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-4">
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <Label htmlFor="new-field-label">{__('Label')}</Label>
+                            <Label htmlFor="field-label">{__('Label')}</Label>
                             <Input
-                                id="new-field-label"
+                                id="field-label"
                                 value={label}
                                 onChange={(e) => setLabel(e.target.value)}
                                 placeholder={__('Ej. Email')}
@@ -119,7 +185,11 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
                             <Label>{__('Tipo')}</Label>
-                            <FieldTypeSelect value={type} onChange={setType} />
+                            <FieldTypeSelect
+                                value={type}
+                                onChange={handleTypeChange}
+                                disabled={isEdit}
+                            />
                         </div>
 
                         <SlugEditor
@@ -131,6 +201,8 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                             isDirty={slugDirty}
                             onDirty={() => setSlugDirty(true)}
                         />
+
+                        <FieldConfigEditor type={type} config={config} onChange={setConfig} />
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                             <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
@@ -153,7 +225,8 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                                     onChange={(e) => setIsUnique(e.target.checked)}
                                     disabled={!supportsUnique}
                                 />
-                                {__('Único')} {!supportsUnique && type !== '' && __('(no soportado por este tipo)')}
+                                {__('Único')}
+                                {!supportsUnique && type !== '' && ' ' + __('(no soportado por este tipo)')}
                             </label>
                         </div>
 
@@ -170,7 +243,11 @@ export function FieldCreateDialog({ listId, open, onOpenChange }: FieldCreateDia
                                 </Button>
                             </Dialog.Close>
                             <Button type="submit" disabled={!canSubmit}>
-                                {create.isPending ? __('Creando…') : __('Crear campo')}
+                                {isPending
+                                    ? __('Guardando…')
+                                    : isEdit
+                                      ? __('Guardar cambios')
+                                      : __('Crear campo')}
                             </Button>
                         </div>
                     </form>

@@ -3,7 +3,18 @@
 @tailwind utilities;
 
 @layer base {
-    #imcrm-root {
+    /*
+     * Las variables CSS del tema viven en `:root` (no en `#imcrm-root`)
+     * porque Radix Dialog/Sheet/Popover renderizan su contenido vía
+     * Portal como hijo directo de <body>, FUERA de #imcrm-root. Si las
+     * variables sólo existieran ahí dentro, los flotantes resolverían
+     * `hsl(var(--imcrm-card))` a `hsl(undefined)` → fondo transparente
+     * (bug visual reportado: "todos los flotantes salen transparentes").
+     *
+     * Las variables tienen prefijo `--imcrm-` así que no chocan con
+     * variables de WordPress admin ni de otros plugins.
+     */
+    :root {
         --imcrm-background: 0 0% 100%;
         --imcrm-foreground: 224 12% 12%;
 
@@ -48,7 +59,8 @@
         --imcrm-sidebar-accent-foreground: 234 89% 60%;
     }
 
-    #imcrm-root[data-imcrm-theme='dark'] {
+    #imcrm-root[data-imcrm-theme='dark'],
+    [data-imcrm-theme='dark'] {
         --imcrm-background: 224 16% 8%;
         --imcrm-foreground: 220 14% 96%;
 
