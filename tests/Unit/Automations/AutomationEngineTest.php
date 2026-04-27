@@ -154,6 +154,163 @@ final class AutomationEngineTest extends TestCase
         $this->assertSame('success', $runsRepo->records[0]['status']);
     }
 
+    public function test_if_else_executes_then_branch_when_condition_matches(): void
+    {
+        $list       = $this->stubList();
+        $automation = $this->makeAutomation(20, $list->id, 'record_created', actions: [
+            ['type' => 'if_else', 'config' => [
+                'condition'    => ['status' => 'won'],
+                'then_actions' => [
+                    ['type' => 'noop_ok', 'config' => []],
+                ],
+                'else_actions' => [
+                    ['type' => 'noop_fail', 'config' => []],
+                ],
+            ]],
+        ]);
+
+        $automationsRepo = new InMemoryAutomationRepository([$automation]);
+        $runsRepo        = new InMemoryAutomationRunRepository();
+        $actions         = new ActionRegistry();
+        $actions->register(new StubAction('noop_ok',   ActionResult::success('noop_ok')));
+        $actions->register(new StubAction('noop_fail', ActionResult::failed('noop_fail', 'shouldnt run')));
+        $actions->register(new \ImaginaCRM\Automations\Actions\IfElseAction());
+
+        $engine = new AutomationEngine($automationsRepo, $runsRepo, new TriggerRegistry(), $actions);
+        $engine->dispatch(new TriggerContext(
+            event: 'imagina_crm/record_created',
+            list: $list,
+            record: ['id' => 99, 'fields' => ['status' => 'won']],
+        ));
+
+        $log = $runsRepo->records[0]['actions_log'];
+        // 1 entry para el if_else summary + 1 para noop_ok del branch then.
+        $this->assertCount(2, $log);
+        $this->assertSame('if_else', $log[0]['action']);
+        $this->assertSame('then',    $log[0]['details']['branch']);
+        $this->assertSame('noop_ok', $log[1]['action']);
+        $this->assertSame('success', $log[1]['status']);
+        // El else NO corrió, así que el run termina success.
+        $this->assertSame('success', $runsRepo->records[0]['status']);
+    }
+
+    public function test_if_else_executes_else_branch_when_condition_fails(): void
+    {
+        $list       = $this->stubList();
+        $automation = $this->makeAutomation(21, $list->id, 'record_created', actions: [
+            ['type' => 'if_else', 'config' => [
+                'condition'    => ['status' => 'won'],
+                'then_actions' => [
+                    ['type' => 'noop_ok', 'config' => []],
+                ],
+                'else_actions' => [
+                    ['type' => 'noop_other', 'config' => []],
+                ],
+            ]],
+        ]);
+
+        $automationsRepo = new InMemoryAutomationRepository([$automation]);
+        $runsRepo        = new InMemoryAutomationRunRepository();
+        $actions         = new ActionRegistry();
+        $actions->register(new StubAction('noop_ok',    ActionResult::success('noop_ok',    'shouldnt run')));
+        $actions->register(new StubAction('noop_other', ActionResult::success('noop_other', 'else branch')));
+        $actions->register(new \ImaginaCRM\Automations\Actions\IfElseAction());
+
+        $engine = new AutomationEngine($automationsRepo, $runsRepo, new TriggerRegistry(), $actions);
+        $engine->dispatch(new TriggerContext(
+            event: 'imagina_crm/record_created',
+            list: $list,
+            record: ['id' => 99, 'fields' => ['status' => 'lost']],
+        ));
+
+        $log = $runsRepo->records[0]['actions_log'];
+        $this->assertCount(2, $log);
+        $this->assertSame('else',       $log[0]['details']['branch']);
+        $this->assertSame('noop_other', $log[1]['action']);
+        $this->assertSame('else branch', $log[1]['message']);
+    }
+
+    public function test_if_else_handles_nested_if_else(): void
+    {
+        $list       = $this->stubList();
+        $automation = $this->makeAutomation(22, $list->id, 'record_created', actions: [
+            ['type' => 'if_else', 'config' => [
+                'condition'    => ['tier' => 'gold'],
+                'then_actions' => [
+                    // Nested if_else dentro del then.
+                    ['type' => 'if_else', 'config' => [
+                        'condition'    => ['region' => 'eu'],
+                        'then_actions' => [['type' => 'noop_eu', 'config' => []]],
+                        'else_actions' => [['type' => 'noop_other_region', 'config' => []]],
+                    ]],
+                ],
+                'else_actions' => [
+                    ['type' => 'noop_silver', 'config' => []],
+                ],
+            ]],
+        ]);
+
+        $automationsRepo = new InMemoryAutomationRepository([$automation]);
+        $runsRepo        = new InMemoryAutomationRunRepository();
+        $actions         = new ActionRegistry();
+        $actions->register(new StubAction('noop_eu',           ActionResult::success('noop_eu')));
+        $actions->register(new StubAction('noop_other_region', ActionResult::success('noop_other_region')));
+        $actions->register(new StubAction('noop_silver',       ActionResult::success('noop_silver')));
+        $actions->register(new \ImaginaCRM\Automations\Actions\IfElseAction());
+
+        $engine = new AutomationEngine($automationsRepo, $runsRepo, new TriggerRegistry(), $actions);
+        $engine->dispatch(new TriggerContext(
+            event: 'imagina_crm/record_created',
+            list: $list,
+            record: ['id' => 1, 'fields' => ['tier' => 'gold', 'region' => 'eu']],
+        ));
+
+        $log = $runsRepo->records[0]['actions_log'];
+        // Outer if_else summary + inner if_else summary + noop_eu.
+        $this->assertCount(3, $log);
+        $this->assertSame('if_else', $log[0]['action']);
+        $this->assertSame('then',    $log[0]['details']['branch']);
+        $this->assertSame('if_else', $log[1]['action']);
+        $this->assertSame('then',    $log[1]['details']['branch']);
+        $this->assertSame('noop_eu', $log[2]['action']);
+    }
+
+    public function test_if_else_action_level_condition_skips_entire_block(): void
+    {
+        $list       = $this->stubList();
+        $automation = $this->makeAutomation(23, $list->id, 'record_created', actions: [
+            // Condition de NIVEL acción (sibling de type/config) en if_else.
+            // Si no matchea, ni el summary ni los nested corren.
+            [
+                'type'      => 'if_else',
+                'condition' => ['active' => '1'],
+                'config'    => [
+                    'condition'    => ['status' => 'won'],
+                    'then_actions' => [['type' => 'noop_ok', 'config' => []]],
+                    'else_actions' => [],
+                ],
+            ],
+        ]);
+
+        $automationsRepo = new InMemoryAutomationRepository([$automation]);
+        $runsRepo        = new InMemoryAutomationRunRepository();
+        $actions         = new ActionRegistry();
+        $actions->register(new StubAction('noop_ok', ActionResult::success('noop_ok')));
+        $actions->register(new \ImaginaCRM\Automations\Actions\IfElseAction());
+
+        $engine = new AutomationEngine($automationsRepo, $runsRepo, new TriggerRegistry(), $actions);
+        $engine->dispatch(new TriggerContext(
+            event: 'imagina_crm/record_created',
+            list: $list,
+            record: ['id' => 1, 'fields' => ['active' => '0', 'status' => 'won']],
+        ));
+
+        $log = $runsRepo->records[0]['actions_log'];
+        $this->assertCount(1, $log);
+        $this->assertSame('skipped', $log[0]['status']);
+        $this->assertSame('if_else', $log[0]['action']);
+    }
+
     public function test_empty_condition_does_not_skip(): void
     {
         $list       = $this->stubList();

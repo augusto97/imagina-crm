@@ -142,20 +142,58 @@ final class AutomationService
     }
 
     /**
+     * Anidamiento máximo de `if_else` permitido. Cap conservador para
+     * evitar configs maliciosas (ej. JSON con 1000 niveles que tumben
+     * el motor en runtime). 4 niveles cubre cualquier flujo razonable.
+     */
+    private const MAX_IF_ELSE_DEPTH = 4;
+
+    /**
      * Valida y normaliza el array de acciones.
      *
      * `condition` es opcional. Si se pasa debe ser objeto `{slug: valor}`
      * — mismo shape que `field_filters` del trigger. Vacío o null se
      * normaliza a no incluir la key (acción ejecuta siempre).
      *
+     * Para `if_else`, se valida recursivamente `config.then_actions` y
+     * `config.else_actions`, hasta `MAX_IF_ELSE_DEPTH` niveles.
+     *
      * @param mixed $raw
      * @return array<int, array{type: string, config: array<string, mixed>, condition?: array<string, mixed>}>|ValidationResult
      */
     private function validateActions(mixed $raw): array|ValidationResult
     {
-        if (! is_array($raw) || $raw === []) {
+        $result = $this->validateActionsAtDepth($raw, 0, true);
+        if ($result instanceof ValidationResult) {
+            return $result;
+        }
+        /** @var array<int, array{type: string, config: array<string, mixed>, condition?: array<string, mixed>}> $result */
+        return $result;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int, array<string, mixed>>|ValidationResult
+     */
+    private function validateActionsAtDepth(mixed $raw, int $depth, bool $requireNonEmpty): array|ValidationResult
+    {
+        if ($depth > self::MAX_IF_ELSE_DEPTH) {
+            return ValidationResult::failWith(
+                'actions',
+                sprintf(
+                    /* translators: %d: depth limit */
+                    __('Anidamiento de "Si / sino" excede el límite de %d niveles.', 'imagina-crm'),
+                    self::MAX_IF_ELSE_DEPTH,
+                ),
+            );
+        }
+        if (! is_array($raw)) {
+            return ValidationResult::failWith('actions', __('Acciones inválidas.', 'imagina-crm'));
+        }
+        if ($requireNonEmpty && $raw === []) {
             return ValidationResult::failWith('actions', __('Se requiere al menos una acción.', 'imagina-crm'));
         }
+
         $out = [];
         foreach ($raw as $i => $item) {
             if (! is_array($item)) {
@@ -173,6 +211,38 @@ final class AutomationService
                     __('Tipo de acción desconocido: %s', 'imagina-crm'),
                     $type,
                 ));
+            }
+
+            // Para if_else, recursamos en cada branch. Branches vacíos
+            // son válidos (ej. solo then sin else).
+            if ($type === 'if_else') {
+                foreach (['then_actions', 'else_actions'] as $branch) {
+                    $rawBranch = $config[$branch] ?? [];
+                    if (! is_array($rawBranch)) {
+                        return ValidationResult::failWith('actions', sprintf(
+                            /* translators: 1: branch name */
+                            __('Branch %1$s inválido en if_else.', 'imagina-crm'),
+                            $branch,
+                        ));
+                    }
+                    $validated = $this->validateActionsAtDepth($rawBranch, $depth + 1, false);
+                    if ($validated instanceof ValidationResult) {
+                        return $validated;
+                    }
+                    $config[$branch] = $validated;
+                }
+
+                $rawIfCondition = $config['condition'] ?? null;
+                $cleanedCondition = [];
+                if (is_array($rawIfCondition)) {
+                    foreach ($rawIfCondition as $slug => $value) {
+                        if (! is_string($slug) || $slug === '') {
+                            continue;
+                        }
+                        $cleanedCondition[$slug] = $value;
+                    }
+                }
+                $config['condition'] = $cleanedCondition;
             }
 
             $entry = ['type' => $type, 'config' => $config];

@@ -13,6 +13,7 @@ import {
     type NodeProps,
 } from '@xyflow/react';
 import {
+    GitBranch,
     GripVertical,
     Mail,
     Plus,
@@ -83,6 +84,8 @@ interface ActionNodeData extends Record<string, unknown> {
     title: string;
     label: string;
     selected: boolean;
+    /** Solo presente cuando type === 'if_else'. */
+    branchCounts?: { then: number; else: number };
 }
 
 type SelectedNode = { kind: 'trigger' } | { kind: 'action'; index: number } | null;
@@ -431,7 +434,12 @@ function ActionEditorPanel({
                 </Select>
             </div>
 
-            <ActionConfigEditor spec={spec} onChange={onChange} fields={fields} />
+            <ActionConfigEditor
+                spec={spec}
+                onChange={onChange}
+                fields={fields}
+                actionsCatalog={actionsCatalog}
+            />
         </div>
     );
 }
@@ -463,6 +471,17 @@ function buildNodes(
     actions.forEach((action, i) => {
         const meta = catalog.find((a) => a.slug === action.type);
         const title = typeof action.config.title === 'string' ? action.config.title : '';
+        const branchCounts =
+            action.type === 'if_else'
+                ? {
+                      then: Array.isArray(action.config.then_actions)
+                          ? (action.config.then_actions as unknown[]).length
+                          : 0,
+                      else: Array.isArray(action.config.else_actions)
+                          ? (action.config.else_actions as unknown[]).length
+                          : 0,
+                  }
+                : undefined;
         nodes.push({
             id: `action-${i}`,
             type: 'action',
@@ -474,6 +493,7 @@ function buildNodes(
                 title,
                 label: meta?.label ?? action.type,
                 selected: selected?.kind === 'action' && selected.index === i,
+                ...(branchCounts ? { branchCounts } : {}),
             } satisfies ActionNodeData,
         });
     });
@@ -558,6 +578,16 @@ function ActionNode({ data }: NodeProps): JSX.Element {
                     </span>
                 </div>
             </div>
+            {d.branchCounts && (
+                <div className="imcrm-mt-2 imcrm-flex imcrm-gap-1 imcrm-text-[10px] imcrm-font-medium">
+                    <span className="imcrm-rounded imcrm-bg-success/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-success">
+                        {__('Si')}: {d.branchCounts.then}
+                    </span>
+                    <span className="imcrm-rounded imcrm-bg-warning/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-warning">
+                        {__('Si no')}: {d.branchCounts.else}
+                    </span>
+                </div>
+            )}
             <Handle type="source" position={Position.Bottom} className="!imcrm-bg-muted-foreground" />
         </div>
     );
@@ -569,6 +599,8 @@ function iconForActionType(type: string): JSX.Element {
             return <Mail className="imcrm-h-3.5 imcrm-w-3.5" />;
         case 'call_webhook':
             return <Webhook className="imcrm-h-3.5 imcrm-w-3.5" />;
+        case 'if_else':
+            return <GitBranch className="imcrm-h-3.5 imcrm-w-3.5" />;
         case 'update_field':
         default:
             return <Workflow className="imcrm-h-3.5 imcrm-w-3.5" />;

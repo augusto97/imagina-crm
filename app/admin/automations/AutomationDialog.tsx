@@ -851,6 +851,7 @@ function ActionsEditor({
                                     onChange(arr);
                                 }}
                                 fields={fields}
+                                actionsCatalog={actionsCatalog}
                             />
                         </li>
                     ))}
@@ -883,11 +884,22 @@ export interface ActionConfigEditorProps {
  * MVP (update_field, call_webhook); para tipos custom registrados por
  * terceros, fallback a editor JSON crudo.
  */
+export interface ActionConfigEditorPropsExtended extends ActionConfigEditorProps {
+    /**
+     * Catálogo de acciones disponibles. Solo se usa para `if_else` (que
+     * ofrece sub-listas anidadas de acciones); el resto de tipos lo ignora.
+     * Si no se pasa, los nested editors arrancan con catalog vacío y
+     * deshabilitan "Añadir acción" — no rompen.
+     */
+    actionsCatalog?: ActionMeta[];
+}
+
 export function ActionConfigEditor({
     spec,
     onChange,
     fields,
-}: ActionConfigEditorProps): JSX.Element {
+    actionsCatalog,
+}: ActionConfigEditorPropsExtended): JSX.Element {
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             {spec.type === 'update_field' ? (
@@ -896,11 +908,177 @@ export function ActionConfigEditor({
                 <CallWebhookConfig spec={spec} onChange={onChange} />
             ) : spec.type === 'send_email' ? (
                 <SendEmailConfig spec={spec} onChange={onChange} />
+            ) : spec.type === 'if_else' ? (
+                <IfElseConfig
+                    spec={spec}
+                    onChange={onChange}
+                    fields={fields}
+                    actionsCatalog={actionsCatalog ?? []}
+                />
             ) : (
                 <JsonConfigFallback spec={spec} onChange={onChange} />
             )}
 
-            <ActionConditionEditor spec={spec} onChange={onChange} fields={fields} />
+            {/* La condición a-nivel-acción no aplica a if_else (la lógica
+                 de branch ya vive dentro de su propio config.condition). */}
+            {spec.type !== 'if_else' && (
+                <ActionConditionEditor spec={spec} onChange={onChange} fields={fields} />
+            )}
+        </div>
+    );
+}
+
+/**
+ * Editor del config de `if_else`: condición + dos sub-listas anidadas
+ * (then / else) de acciones. Reusa `ActionsEditor` recursivamente —
+ * cada acción nested puede ser de cualquier tipo, incluyendo otro
+ * `if_else` (limitado a 4 niveles por backend).
+ */
+function IfElseConfig({
+    spec,
+    onChange,
+    fields,
+    actionsCatalog,
+}: {
+    spec: ActionSpec;
+    onChange: (next: ActionSpec) => void;
+    fields: FieldEntity[];
+    actionsCatalog: ActionMeta[];
+}): JSX.Element {
+    const condition =
+        spec.config.condition && typeof spec.config.condition === 'object'
+            ? (spec.config.condition as Record<string, unknown>)
+            : {};
+    const thenActions: ActionSpec[] = Array.isArray(spec.config.then_actions)
+        ? (spec.config.then_actions as ActionSpec[])
+        : [];
+    const elseActions: ActionSpec[] = Array.isArray(spec.config.else_actions)
+        ? (spec.config.else_actions as ActionSpec[])
+        : [];
+
+    const updateConfig = (patch: Record<string, unknown>): void => {
+        onChange({ ...spec, config: { ...spec.config, ...patch } });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            {/* Condición que decide which branch ejecuta */}
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <span className="imcrm-rounded imcrm-bg-primary/10 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-text-primary">
+                        {__('Si')}
+                    </span>
+                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Todos estos pares campo = valor matchean el registro.')}
+                    </p>
+                </div>
+                <ConditionRows
+                    condition={condition}
+                    fields={fields}
+                    onChange={(next) => updateConfig({ condition: next })}
+                />
+            </div>
+
+            {/* Branch THEN */}
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-success/40 imcrm-bg-success/5 imcrm-p-3">
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <span className="imcrm-rounded imcrm-bg-success/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-text-success">
+                        {__('Entonces')}
+                    </span>
+                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Acciones que se ejecutan si la condición es verdadera.')}
+                    </p>
+                </div>
+                <ActionsEditor
+                    value={thenActions}
+                    onChange={(next) => updateConfig({ then_actions: next })}
+                    actionsCatalog={actionsCatalog}
+                    fields={fields}
+                />
+            </div>
+
+            {/* Branch ELSE */}
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-warning/40 imcrm-bg-warning/5 imcrm-p-3">
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <span className="imcrm-rounded imcrm-bg-warning/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-text-warning">
+                        {__('Si no')}
+                    </span>
+                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Acciones que se ejecutan si la condición es falsa.')}
+                    </p>
+                </div>
+                <ActionsEditor
+                    value={elseActions}
+                    onChange={(next) => updateConfig({ else_actions: next })}
+                    actionsCatalog={actionsCatalog}
+                    fields={fields}
+                />
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Filas editables de una condición `[slug => valor]`. Mismo buffer-local
+ * pattern que TriggerConfigEditor / UpdateFieldConfig — permite filas
+ * con slug vacío durante la edición.
+ */
+function ConditionRows({
+    condition,
+    fields,
+    onChange,
+}: {
+    condition: Record<string, unknown>;
+    fields: FieldEntity[];
+    onChange: (next: Record<string, unknown>) => void;
+}): JSX.Element {
+    const [rows, setRows] = useState<Array<{ slug: string; value: string }>>(() =>
+        Object.entries(condition).map(([slug, v]) => ({
+            slug,
+            value: typeof v === 'string' ? v : String(v ?? ''),
+        })),
+    );
+
+    const commit = (next: Array<{ slug: string; value: string }>): void => {
+        setRows(next);
+        const out: Record<string, string> = {};
+        for (const r of next) {
+            if (r.slug.trim() === '') continue;
+            out[r.slug.trim()] = r.value;
+        }
+        onChange(out);
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+            {rows.map((r, i) => (
+                <FilterRow
+                    key={i}
+                    f={r}
+                    fields={fields}
+                    onChangeSlug={(slug) => {
+                        const next = [...rows];
+                        next[i] = { slug, value: '' };
+                        commit(next);
+                    }}
+                    onChangeValue={(value) => {
+                        const arr = [...rows];
+                        arr[i] = { ...arr[i]!, value };
+                        commit(arr);
+                    }}
+                    onRemove={() => commit(rows.filter((_, j) => j !== i))}
+                />
+            ))}
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => commit([...rows, { slug: '', value: '' }])}
+                className="imcrm-self-start imcrm-gap-2"
+            >
+                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                {__('Añadir condición')}
+            </Button>
         </div>
     );
 }

@@ -25,6 +25,19 @@ export interface ActionSpec {
     condition?: Record<string, unknown>;
 }
 
+/**
+ * Shape canónica del config de una acción `if_else`. El backend valida
+ * recursivamente — `then_actions` y `else_actions` aceptan cualquier
+ * acción válida (incluyendo otro `if_else`, hasta `MAX_IF_ELSE_DEPTH`
+ * niveles).
+ */
+export interface IfElseActionConfig {
+    condition: Record<string, unknown>;
+    then_actions: ActionSpec[];
+    else_actions: ActionSpec[];
+    [key: string]: unknown;
+}
+
 export interface AutomationEntity {
     id: number;
     list_id: number;

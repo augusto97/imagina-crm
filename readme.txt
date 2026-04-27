@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.2.1
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.3.0 =
+* Feature: acción `if_else` (Si / sino) con branching real, anidable.
+  Cada `if_else` tiene `condition` + `then_actions` + `else_actions`.
+  El engine evalúa la condición y ejecuta UNICAMENTE el branch
+  correspondiente. Las acciones nested pueden ser de cualquier tipo,
+  incluyendo otros `if_else` (hasta 4 niveles de anidamiento — cap
+  validado en backend para evitar configs maliciosas).
+  · UI Formulario: dos sub-listas anidadas (then / else) con borders
+    success/warning. Cada sub-lista reusa `ActionsEditor` recursivo
+    — añadir/eliminar/configurar acciones igual que en el nivel raíz.
+  · UI Diagrama: el nodo `if_else` muestra contadores de cada branch
+    ("Si: 3 / Si no: 1") y abre el editor completo en el panel lateral.
+  · `actions_log` incluye un summary del if_else (con qué branch
+    matcheó) seguido de los ActionResult de las acciones nested.
+* Refactor: `AutomationEngine::executeAction()` → `executeStep()` que
+  retorna `array<int, ActionResult>` para soportar control flow que
+  emite múltiples resultados desde un solo step.
+* Tests: 4 nuevos casos cubren then-branch, else-branch, nested
+  if_else y skip por condition de nivel-acción en if_else.
 
 = 0.2.1 =
 * Fix CRÍTICO: la vista Diagrama del visual builder rompía con

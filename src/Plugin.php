@@ -7,6 +7,7 @@ use ImaginaCRM\Admin\AdminAssets;
 use ImaginaCRM\Admin\AdminMenu;
 use ImaginaCRM\Automations\ActionRegistry;
 use ImaginaCRM\Automations\Actions\CallWebhookAction;
+use ImaginaCRM\Automations\Actions\IfElseAction;
 use ImaginaCRM\Automations\Actions\SendEmailAction;
 use ImaginaCRM\Automations\Actions\UpdateFieldAction;
 use ImaginaCRM\Automations\AutomationEngine;
@@ -221,6 +222,11 @@ final class Plugin
             $registry->register(new UpdateFieldAction($c->get(\ImaginaCRM\Records\RecordService::class)));
             $registry->register(new CallWebhookAction());
             $registry->register(new SendEmailAction());
+            // Control flow: stub que el engine intercepta. Aparece en el
+            // catálogo /actions para que la UI lo ofrezca como tipo,
+            // pero su `execute()` jamás corre — `AutomationEngine`
+            // maneja la recursión.
+            $registry->register(new IfElseAction());
             return $registry;
         });
 

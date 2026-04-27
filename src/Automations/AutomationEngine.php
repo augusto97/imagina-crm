@@ -166,12 +166,13 @@ final class AutomationEngine
         $hadAnyFail  = false;
 
         foreach ($automation->actions as $spec) {
-            $result = $this->executeAction($spec, $context);
-            $log[]  = $result->toArray();
-            if ($result->isSuccess()) {
-                $hadAnyOk = true;
-            } elseif ($result->isFailed()) {
-                $hadAnyFail = true;
+            foreach ($this->executeStep($spec, $context) as $result) {
+                $log[] = $result->toArray();
+                if ($result->isSuccess()) {
+                    $hadAnyOk = true;
+                } elseif ($result->isFailed()) {
+                    $hadAnyFail = true;
+                }
             }
         }
 
@@ -267,12 +268,13 @@ final class AutomationEngine
         $hadAnyFail  = false;
 
         foreach ($automation->actions as $spec) {
-            $result = $this->executeAction($spec, $context);
-            $log[]  = $result->toArray();
-            if ($result->isSuccess()) {
-                $hadAnyOk = true;
-            } elseif ($result->isFailed()) {
-                $hadAnyFail = true;
+            foreach ($this->executeStep($spec, $context) as $result) {
+                $log[] = $result->toArray();
+                if ($result->isSuccess()) {
+                    $hadAnyOk = true;
+                } elseif ($result->isFailed()) {
+                    $hadAnyFail = true;
+                }
             }
         }
 
@@ -298,31 +300,88 @@ final class AutomationEngine
     }
 
     /**
+     * Ejecuta un step y retorna todos los `ActionResult` que produjo —
+     * normalmente uno solo, pero `if_else` emite uno por la decisión
+     * más uno por cada acción del branch elegido.
+     *
      * @param array{type: string, config: array<string, mixed>, condition?: array<string, mixed>|null} $spec
+     * @return array<int, ActionResult>
      */
-    private function executeAction(array $spec, TriggerContext $context): ActionResult
+    private function executeStep(array $spec, TriggerContext $context): array
     {
-        $action = $this->actions->get($spec['type']);
-        if ($action === null) {
-            return ActionResult::skipped(
-                $spec['type'],
-                'Acción no registrada en el ActionRegistry.',
-            );
-        }
-
+        // Gate por condition de nivel-acción (común a TODAS las acciones,
+        // incluido `if_else`). Si no matchea, skip ANTES de tocar nada.
         $condition = isset($spec['condition']) && is_array($spec['condition']) ? $spec['condition'] : null;
         if (! ConditionEvaluator::matches($context, $condition)) {
-            return ActionResult::skipped(
+            return [ActionResult::skipped(
                 $spec['type'],
                 'Condición de ejecución no cumplida.',
-            );
+            )];
+        }
+
+        // `if_else`: control de flujo — el engine maneja la recursión.
+        // Nunca llamamos al ActionRegistry para este tipo (su execute()
+        // es solo un stub).
+        if ($spec['type'] === 'if_else') {
+            return $this->executeIfElse($spec['config'], $context);
+        }
+
+        $action = $this->actions->get($spec['type']);
+        if ($action === null) {
+            return [ActionResult::skipped(
+                $spec['type'],
+                'Acción no registrada en el ActionRegistry.',
+            )];
         }
 
         try {
-            return $action->execute($context, $spec['config']);
+            return [$action->execute($context, $spec['config'])];
         } catch (\Throwable $e) {
-            return ActionResult::failed($spec['type'], $e->getMessage());
+            return [ActionResult::failed($spec['type'], $e->getMessage())];
         }
+    }
+
+    /**
+     * Evalúa `config.condition` y ejecuta el branch correspondiente
+     * (`then_actions` o `else_actions`). Devuelve UN summary del nodo
+     * if_else + los resultados de cada acción del branch ejecutado.
+     *
+     * Cada acción nested es un `ActionSpec` regular y puede ser otro
+     * `if_else` (anidamiento sin límite en runtime — la validación lo
+     * cap a `MAX_IF_ELSE_DEPTH` antes de llegar acá).
+     *
+     * @param array<string, mixed> $config
+     * @return array<int, ActionResult>
+     */
+    private function executeIfElse(array $config, TriggerContext $context): array
+    {
+        $condition = isset($config['condition']) && is_array($config['condition']) ? $config['condition'] : null;
+        $matched = ConditionEvaluator::matches($context, $condition);
+
+        $branchKey = $matched ? 'then_actions' : 'else_actions';
+        $branch = isset($config[$branchKey]) && is_array($config[$branchKey]) ? $config[$branchKey] : [];
+
+        $summary = ActionResult::success(
+            'if_else',
+            $matched ? 'Condición matcheó → branch then' : 'Condición no matcheó → branch else',
+            ['branch' => $matched ? 'then' : 'else', 'count' => count($branch)],
+        );
+
+        $results = [$summary];
+        foreach ($branch as $nested) {
+            if (! is_array($nested) || ! isset($nested['type']) || ! is_string($nested['type'])) {
+                continue;
+            }
+            $stepSpec = [
+                'type'      => $nested['type'],
+                'config'    => isset($nested['config']) && is_array($nested['config']) ? $nested['config'] : [],
+                'condition' => isset($nested['condition']) && is_array($nested['condition']) ? $nested['condition'] : null,
+            ];
+            foreach ($this->executeStep($stepSpec, $context) as $r) {
+                $results[] = $r;
+            }
+        }
+        return $results;
     }
 
     private function persistPendingRun(AutomationEntity $automation, TriggerContext $context): int
