@@ -118,6 +118,64 @@ final class AutomationEngineTest extends TestCase
         $this->assertSame('skipped', $run['actions_log'][0]['status']);
     }
 
+    public function test_action_with_unmet_condition_is_skipped(): void
+    {
+        $list       = $this->stubList();
+        $automation = $this->makeAutomation(10, $list->id, 'record_created', actions: [
+            // Action 1: condition status=won → matchea, ejecuta.
+            ['type' => 'noop_ok', 'config' => [], 'condition' => ['status' => 'won']],
+            // Action 2: condition status=lost → no matchea, skipped.
+            ['type' => 'noop_ok', 'config' => [], 'condition' => ['status' => 'lost']],
+            // Action 3: sin condition → ejecuta siempre.
+            ['type' => 'noop_ok', 'config' => []],
+        ]);
+
+        $automationsRepo = new InMemoryAutomationRepository([$automation]);
+        $runsRepo        = new InMemoryAutomationRunRepository();
+        $actions         = new ActionRegistry();
+        $actions->register(new StubAction('noop_ok', ActionResult::success('noop_ok')));
+
+        $engine = new AutomationEngine($automationsRepo, $runsRepo, new TriggerRegistry(), $actions);
+
+        $engine->dispatch(new TriggerContext(
+            event: 'imagina_crm/record_created',
+            list: $list,
+            record: ['id' => 99, 'fields' => ['status' => 'won']],
+        ));
+
+        $this->assertCount(1, $runsRepo->records);
+        $log = $runsRepo->records[0]['actions_log'];
+        $this->assertCount(3, $log);
+        $this->assertSame('success', $log[0]['status'], 'condición matchea → ejecuta');
+        $this->assertSame('skipped', $log[1]['status'], 'condición no matchea → skipped');
+        $this->assertSame('Condición de ejecución no cumplida.', $log[1]['message']);
+        $this->assertSame('success', $log[2]['status'], 'sin condición → siempre corre');
+        // Run final = success: skipped no cuenta como failure.
+        $this->assertSame('success', $runsRepo->records[0]['status']);
+    }
+
+    public function test_empty_condition_does_not_skip(): void
+    {
+        $list       = $this->stubList();
+        $automation = $this->makeAutomation(11, $list->id, 'record_created', actions: [
+            ['type' => 'noop_ok', 'config' => [], 'condition' => []],
+        ]);
+
+        $automationsRepo = new InMemoryAutomationRepository([$automation]);
+        $runsRepo        = new InMemoryAutomationRunRepository();
+        $actions         = new ActionRegistry();
+        $actions->register(new StubAction('noop_ok', ActionResult::success('noop_ok')));
+
+        $engine = new AutomationEngine($automationsRepo, $runsRepo, new TriggerRegistry(), $actions);
+        $engine->dispatch(new TriggerContext(
+            event: 'imagina_crm/record_created',
+            list: $list,
+            record: ['id' => 1, 'fields' => []],
+        ));
+
+        $this->assertSame('success', $runsRepo->records[0]['actions_log'][0]['status']);
+    }
+
     public function test_dispatch_ignores_event_with_no_active_automation(): void
     {
         $list = $this->stubList();
@@ -205,7 +263,7 @@ final class AutomationEngineTest extends TestCase
     }
 
     /**
-     * @param array<int, array{type: string, config: array<string, mixed>}> $actions
+     * @param array<int, array{type: string, config: array<string, mixed>, condition?: array<string, mixed>}> $actions
      */
     private function makeAutomation(int $id, int $listId, string $triggerType, array $actions): AutomationEntity
     {

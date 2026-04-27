@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.1.4
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.2.0 =
+* Feature: visual builder REAL para automatizaciones (Diagrama).
+  Layout dos columnas — diagrama React Flow a la izquierda + panel
+  lateral a la derecha. Click en el trigger o en una acción la
+  selecciona y abre su editor en el panel (mismo editor del modo
+  Formulario, reutilizado), incluyendo type select, título, configs
+  específicos por tipo (update_field / call_webhook / send_email) y
+  el editor de condición. El "+" abre type picker para elegir qué
+  acción agregar; arrastrar acciones reordena la cadena. Antes la
+  vista Diagrama era solo preview/reorder, ahora es feature-parity
+  con Formulario.
+* Feature: cada acción acepta una "Condición de ejecución" opcional
+  (`{slug: valor}`). Si los pares no matchean el registro disparado,
+  la acción se omite con `status=skipped` (no falla el run). Mismo
+  shape que `field_filters` del trigger — el operador no aprende
+  dos sintaxis. UI: collapsible "Condición de ejecución" en el
+  editor de cada acción, en ambos modos (Formulario y Diagrama).
+* Refactor: `ConditionEvaluator` compartido entre triggers y engine
+  para no duplicar la lógica de igualdad laxa.
 
 = 0.1.4 =
 * Fix CRÍTICO: "Añadir filtro" del trigger y "Añadir valor" de la

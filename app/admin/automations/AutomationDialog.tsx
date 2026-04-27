@@ -222,50 +222,52 @@ export function AutomationDialog({
                             />
                         </FieldGroup>
 
-                        <FieldGroup error={fieldErrors.trigger_type}>
-                            <Label htmlFor="auto-trigger">{__('Trigger')}</Label>
-                            <Select
-                                id="auto-trigger"
-                                value={state.triggerType}
-                                onChange={(e) =>
-                                    setState((s) => ({
-                                        ...s,
-                                        triggerType: e.target.value,
-                                        triggerConfig: {},
-                                    }))
-                                }
-                            >
-                                {triggers.map((t) => (
-                                    <option key={t.slug} value={t.slug}>
-                                        {t.label}
-                                    </option>
-                                ))}
-                            </Select>
-                            {triggerMeta && (
-                                <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                                    <code className="imcrm-font-mono">{triggerMeta.event}</code>
-                                </p>
-                            )}
-                        </FieldGroup>
-
-                        <TriggerConfigEditor
-                            triggerType={state.triggerType}
-                            config={state.triggerConfig}
-                            onChange={(triggerConfig) => setState((s) => ({ ...s, triggerConfig }))}
-                            fields={fields.data ?? []}
-                        />
-
                         <ViewSwitcher view={view} onChange={setView} />
 
                         {view === 'form' ? (
-                            <ActionsEditor
-                                value={state.actions}
-                                onChange={(next) => setState((s) => ({ ...s, actions: next }))}
-                                actionsCatalog={actions}
-                                fields={fields.data ?? []}
-                                error={fieldErrors.actions}
-                                listRef={actionsListRef}
-                            />
+                            <>
+                                <FieldGroup error={fieldErrors.trigger_type}>
+                                    <Label htmlFor="auto-trigger">{__('Trigger')}</Label>
+                                    <Select
+                                        id="auto-trigger"
+                                        value={state.triggerType}
+                                        onChange={(e) =>
+                                            setState((s) => ({
+                                                ...s,
+                                                triggerType: e.target.value,
+                                                triggerConfig: {},
+                                            }))
+                                        }
+                                    >
+                                        {triggers.map((t) => (
+                                            <option key={t.slug} value={t.slug}>
+                                                {t.label}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                    {triggerMeta && (
+                                        <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                            <code className="imcrm-font-mono">{triggerMeta.event}</code>
+                                        </p>
+                                    )}
+                                </FieldGroup>
+
+                                <TriggerConfigEditor
+                                    triggerType={state.triggerType}
+                                    config={state.triggerConfig}
+                                    onChange={(triggerConfig) => setState((s) => ({ ...s, triggerConfig }))}
+                                    fields={fields.data ?? []}
+                                />
+
+                                <ActionsEditor
+                                    value={state.actions}
+                                    onChange={(next) => setState((s) => ({ ...s, actions: next }))}
+                                    actionsCatalog={actions}
+                                    fields={fields.data ?? []}
+                                    error={fieldErrors.actions}
+                                    listRef={actionsListRef}
+                                />
+                            </>
                         ) : (
                             <ErrorBoundary
                                 label={__('No se pudo cargar el diagrama. Usa la vista Formulario por ahora.')}
@@ -280,23 +282,23 @@ export function AutomationDialog({
                                     }
                                 >
                                     <AutomationVisualBuilder
+                                        listId={listId}
                                         triggerType={state.triggerType}
+                                        triggerConfig={state.triggerConfig}
+                                        onTriggerTypeChange={(next) =>
+                                            setState((s) => ({
+                                                ...s,
+                                                triggerType: next,
+                                                triggerConfig: {},
+                                            }))
+                                        }
+                                        onTriggerConfigChange={(triggerConfig) =>
+                                            setState((s) => ({ ...s, triggerConfig }))
+                                        }
                                         triggers={triggers}
                                         actions={state.actions}
                                         actionsCatalog={actions}
                                         onActionsChange={(next) => setState((s) => ({ ...s, actions: next }))}
-                                        onEditAction={(idx) => {
-                                            setView('form');
-                                            // Esperamos al re-render del form para scrollear.
-                                            requestAnimationFrame(() => {
-                                                const target = actionsListRef.current?.querySelector(
-                                                    `[data-action-index="${idx}"]`,
-                                                );
-                                                if (target instanceof HTMLElement) {
-                                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                }
-                                            });
-                                        }}
                                     />
                                 </Suspense>
                             </ErrorBoundary>
@@ -393,7 +395,7 @@ function FieldGroup({
     );
 }
 
-interface TriggerConfigEditorProps {
+export interface TriggerConfigEditorProps {
     triggerType: string;
     config: TriggerConfig;
     onChange: (next: TriggerConfig) => void;
@@ -421,7 +423,7 @@ function helpForTrigger(triggerType: string): string {
     }
 }
 
-function TriggerConfigEditor({
+export function TriggerConfigEditor({
     triggerType,
     config,
     onChange,
@@ -870,7 +872,7 @@ function ActionsEditor({
     );
 }
 
-interface ActionConfigEditorProps {
+export interface ActionConfigEditorProps {
     spec: ActionSpec;
     onChange: (next: ActionSpec) => void;
     fields: FieldEntity[];
@@ -881,21 +883,118 @@ interface ActionConfigEditorProps {
  * MVP (update_field, call_webhook); para tipos custom registrados por
  * terceros, fallback a editor JSON crudo.
  */
-function ActionConfigEditor({
+export function ActionConfigEditor({
     spec,
     onChange,
     fields,
 }: ActionConfigEditorProps): JSX.Element {
-    if (spec.type === 'update_field') {
-        return <UpdateFieldConfig spec={spec} onChange={onChange} fields={fields} />;
-    }
-    if (spec.type === 'call_webhook') {
-        return <CallWebhookConfig spec={spec} onChange={onChange} />;
-    }
-    if (spec.type === 'send_email') {
-        return <SendEmailConfig spec={spec} onChange={onChange} />;
-    }
-    return <JsonConfigFallback spec={spec} onChange={onChange} />;
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            {spec.type === 'update_field' ? (
+                <UpdateFieldConfig spec={spec} onChange={onChange} fields={fields} />
+            ) : spec.type === 'call_webhook' ? (
+                <CallWebhookConfig spec={spec} onChange={onChange} />
+            ) : spec.type === 'send_email' ? (
+                <SendEmailConfig spec={spec} onChange={onChange} />
+            ) : (
+                <JsonConfigFallback spec={spec} onChange={onChange} />
+            )}
+
+            <ActionConditionEditor spec={spec} onChange={onChange} fields={fields} />
+        </div>
+    );
+}
+
+/**
+ * Editor opcional de la condición de ejecución de la acción.
+ *
+ * Si se definen filtros, la acción solo corre cuando todos los pares
+ * `[slug => valor]` matchean el registro que disparó el trigger
+ * (igualdad laxa, misma semántica que `field_filters` del trigger).
+ *
+ * Mantenemos un buffer local idéntico al de `TriggerConfigEditor` para
+ * que filas con slug vacío persistan visualmente durante la edición.
+ */
+function ActionConditionEditor({
+    spec,
+    onChange,
+    fields,
+}: ActionConfigEditorProps): JSX.Element {
+    const [rows, setRows] = useState<Array<{ slug: string; value: string }>>(() => {
+        const raw = spec.condition;
+        if (!raw || typeof raw !== 'object') return [];
+        return Object.entries(raw as Record<string, unknown>).map(([slug, v]) => ({
+            slug,
+            value: typeof v === 'string' ? v : String(v ?? ''),
+        }));
+    });
+
+    const commit = (next: Array<{ slug: string; value: string }>): void => {
+        setRows(next);
+        const out: Record<string, string> = {};
+        for (const r of next) {
+            if (r.slug.trim() === '') continue;
+            out[r.slug.trim()] = r.value;
+        }
+        if (Object.keys(out).length === 0) {
+            // Eliminamos la key para no persistir condition vacía.
+            const { condition: _omit, ...rest } = spec;
+            onChange(rest as ActionSpec);
+            return;
+        }
+        onChange({ ...spec, condition: out });
+    };
+
+    const hasRows = rows.length > 0;
+
+    return (
+        <details
+            className="imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2"
+            open={hasRows}
+        >
+            <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground">
+                {__('Condición de ejecución (opcional)')}
+                {hasRows && (
+                    <span className="imcrm-ml-2 imcrm-rounded-full imcrm-bg-primary/10 imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-text-primary">
+                        {rows.length}
+                    </span>
+                )}
+            </summary>
+            <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                    {__('Esta acción solo se ejecuta si TODOS los pares campo = valor matchean el registro. Vacío = ejecutar siempre.')}
+                </p>
+                {rows.map((r, i) => (
+                    <FilterRow
+                        key={i}
+                        f={r}
+                        fields={fields}
+                        onChangeSlug={(slug) => {
+                            const next = [...rows];
+                            next[i] = { slug, value: '' };
+                            commit(next);
+                        }}
+                        onChangeValue={(value) => {
+                            const arr = [...rows];
+                            arr[i] = { ...arr[i]!, value };
+                            commit(arr);
+                        }}
+                        onRemove={() => commit(rows.filter((_, j) => j !== i))}
+                    />
+                ))}
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => commit([...rows, { slug: '', value: '' }])}
+                    className="imcrm-self-start imcrm-gap-2"
+                >
+                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                    {__('Añadir condición')}
+                </Button>
+            </div>
+        </details>
+    );
 }
 
 function UpdateFieldConfig({

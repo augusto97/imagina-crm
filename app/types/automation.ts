@@ -17,6 +17,12 @@ export interface TriggerConfig {
 export interface ActionSpec {
     type: ActionSlug;
     config: Record<string, unknown>;
+    /**
+     * Condición opcional `[slug => valor_esperado]`. Si se define y la
+     * evaluación contra el registro del trigger falla, la acción se omite
+     * con `status: 'skipped'`. Misma shape que `TriggerConfig.field_filters`.
+     */
+    condition?: Record<string, unknown>;
 }
 
 export interface AutomationEntity {

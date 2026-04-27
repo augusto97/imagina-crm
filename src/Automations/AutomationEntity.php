@@ -13,7 +13,7 @@ final class AutomationEntity
 {
     /**
      * @param array<string, mixed>                                $triggerConfig
-     * @param array<int, array{type: string, config: array<string, mixed>}> $actions
+     * @param array<int, array{type: string, config: array<string, mixed>, condition?: array<string, mixed>}> $actions
      */
     public function __construct(
         public readonly int $id,
@@ -80,11 +80,11 @@ final class AutomationEntity
 
     /**
      * Normaliza el array de acciones tras decode JSON: cada item debe
-     * tener `type` (string) y `config` (array). Items inválidos se
-     * descartan silenciosamente.
+     * tener `type` (string) y `config` (array). `condition` es opcional
+     * (`{slug: valor}`). Items inválidos se descartan silenciosamente.
      *
      * @param mixed $raw
-     * @return array<int, array{type: string, config: array<string, mixed>}>
+     * @return array<int, array{type: string, config: array<string, mixed>, condition?: array<string, mixed>}>
      */
     private static function normalizeActions(mixed $raw): array
     {
@@ -101,7 +101,11 @@ final class AutomationEntity
             if ($type === '') {
                 continue;
             }
-            $out[] = ['type' => $type, 'config' => $config];
+            $entry = ['type' => $type, 'config' => $config];
+            if (isset($item['condition']) && is_array($item['condition']) && $item['condition'] !== []) {
+                $entry['condition'] = $item['condition'];
+            }
+            $out[] = $entry;
         }
         return $out;
     }

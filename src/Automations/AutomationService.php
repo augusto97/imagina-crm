@@ -144,8 +144,12 @@ final class AutomationService
     /**
      * Valida y normaliza el array de acciones.
      *
+     * `condition` es opcional. Si se pasa debe ser objeto `{slug: valor}`
+     * — mismo shape que `field_filters` del trigger. Vacío o null se
+     * normaliza a no incluir la key (acción ejecuta siempre).
+     *
      * @param mixed $raw
-     * @return array<int, array{type: string, config: array<string, mixed>}>|ValidationResult
+     * @return array<int, array{type: string, config: array<string, mixed>, condition?: array<string, mixed>}>|ValidationResult
      */
     private function validateActions(mixed $raw): array|ValidationResult
     {
@@ -170,7 +174,24 @@ final class AutomationService
                     $type,
                 ));
             }
-            $out[] = ['type' => $type, 'config' => $config];
+
+            $entry = ['type' => $type, 'config' => $config];
+
+            $rawCondition = $item['condition'] ?? null;
+            if (is_array($rawCondition) && $rawCondition !== []) {
+                $cleaned = [];
+                foreach ($rawCondition as $slug => $value) {
+                    if (! is_string($slug) || $slug === '') {
+                        continue;
+                    }
+                    $cleaned[$slug] = $value;
+                }
+                if ($cleaned !== []) {
+                    $entry['condition'] = $cleaned;
+                }
+            }
+
+            $out[] = $entry;
         }
         return $out;
     }

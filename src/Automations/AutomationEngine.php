@@ -298,7 +298,7 @@ final class AutomationEngine
     }
 
     /**
-     * @param array{type: string, config: array<string, mixed>} $spec
+     * @param array{type: string, config: array<string, mixed>, condition?: array<string, mixed>|null} $spec
      */
     private function executeAction(array $spec, TriggerContext $context): ActionResult
     {
@@ -309,6 +309,15 @@ final class AutomationEngine
                 'Acción no registrada en el ActionRegistry.',
             );
         }
+
+        $condition = isset($spec['condition']) && is_array($spec['condition']) ? $spec['condition'] : null;
+        if (! ConditionEvaluator::matches($context, $condition)) {
+            return ActionResult::skipped(
+                $spec['type'],
+                'Condición de ejecución no cumplida.',
+            );
+        }
+
         try {
             return $action->execute($context, $spec['config']);
         } catch (\Throwable $e) {
