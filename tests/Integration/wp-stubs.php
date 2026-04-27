@@ -47,6 +47,14 @@ if (! defined('ARRAY_A')) {
 if (! defined('OBJECT')) {
     define('OBJECT', 'OBJECT');
 }
+// Constantes de tiempo de WordPress usadas por código del plugin
+// (ScheduledTrigger::frequencyToSeconds, etc.).
+if (! defined('HOUR_IN_SECONDS')) {
+    define('HOUR_IN_SECONDS', 3600);
+}
+if (! defined('DAY_IN_SECONDS')) {
+    define('DAY_IN_SECONDS', 86400);
+}
 
 if (! class_exists('wpdb')) {
     /**
@@ -485,5 +493,99 @@ if (! function_exists('dbDelta')) {
                 $wpdb->query($sql);
             }
         }
+    }
+}
+
+/**
+ * Stubs de Action Scheduler para el suite integration. Mantienen las
+ * llamadas en `$GLOBALS['imcrm_test_as_calls']` para que los tests
+ * verifiquen el comportamiento del enqueue del engine y el runner sin
+ * necesidad de la librería real.
+ *
+ * IMPORTANTE: mantener en paralelo con `tests/bootstrap.php` — los
+ * dos suites comparten estos stubs y todos los tests que verifican
+ * Action Scheduler asumen este shape.
+ */
+$GLOBALS['imcrm_test_as_calls'] = [];
+
+if (! function_exists('as_enqueue_async_action')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_enqueue_async_action(string $hook, array $args = [], string $group = ''): int
+    {
+        $GLOBALS['imcrm_test_as_calls'][] = [
+            'kind' => 'async',
+            'hook' => $hook,
+            'args' => $args,
+            'group' => $group,
+            'when' => null,
+        ];
+        return count($GLOBALS['imcrm_test_as_calls']);
+    }
+}
+
+if (! function_exists('as_schedule_single_action')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_schedule_single_action(int $when, string $hook, array $args = [], string $group = ''): int
+    {
+        $GLOBALS['imcrm_test_as_calls'][] = [
+            'kind' => 'single',
+            'hook' => $hook,
+            'args' => $args,
+            'group' => $group,
+            'when' => $when,
+        ];
+        return count($GLOBALS['imcrm_test_as_calls']);
+    }
+}
+
+if (! function_exists('as_schedule_recurring_action')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_schedule_recurring_action(int $start, int $interval, string $hook, array $args = [], string $group = ''): int
+    {
+        $GLOBALS['imcrm_test_as_calls'][] = [
+            'kind' => 'recurring',
+            'hook' => $hook,
+            'args' => $args,
+            'group' => $group,
+            'when' => $start,
+            'interval' => $interval,
+        ];
+        return count($GLOBALS['imcrm_test_as_calls']);
+    }
+}
+
+if (! function_exists('as_has_scheduled_action')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_has_scheduled_action(string $hook, array $args = [], string $group = ''): bool
+    {
+        unset($args, $group);
+        foreach ($GLOBALS['imcrm_test_as_calls'] ?? [] as $call) {
+            if (($call['hook'] ?? null) === $hook) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+if (! function_exists('as_unschedule_all_actions')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function as_unschedule_all_actions(string $hook, array $args = [], string $group = ''): void
+    {
+        unset($args, $group);
+        $GLOBALS['imcrm_test_as_calls'] = array_values(array_filter(
+            $GLOBALS['imcrm_test_as_calls'] ?? [],
+            static fn (array $c): bool => ($c['hook'] ?? null) !== $hook,
+        ));
     }
 }
