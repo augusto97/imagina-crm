@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.2.1 =
+* Fix CRÍTICO: la vista Diagrama del visual builder rompía con
+  "No QueryClient set, use QueryClientProvider to set one". Causa:
+  mismo patrón que el bug de React #321 — el chunk lazy de
+  AutomationVisualBuilder bundleaba su propia copia de
+  `@tanstack/react-query`, así que el `useQuery` interno buscaba
+  el provider en su instancia local (que nunca fue inicializado)
+  en lugar de la del SPA root. Fix: añadir `@tanstack/react-query`
+  a `resolve.dedupe`, `optimizeDeps.include` y al `manualChunks`
+  que fuerza la lib al chunk principal.
 
 = 0.2.0 =
 * Feature: visual builder REAL para automatizaciones (Diagrama).
