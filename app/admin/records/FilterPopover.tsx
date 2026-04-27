@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { AutocompleteInput } from '@/components/ui/autocomplete-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -19,6 +20,7 @@ import { isNullaryOperator, operatorsForType } from './operators';
 import type { ActiveFilter } from './recordsState';
 
 interface FilterPopoverProps {
+    listId: number | undefined;
     fields: FieldEntity[];
     /** Filtro existente para edit, o `null` para añadir uno nuevo. */
     initial: ActiveFilter | null;
@@ -28,6 +30,7 @@ interface FilterPopoverProps {
 }
 
 export function FilterPopover({
+    listId,
     fields,
     initial,
     onApply,
@@ -123,6 +126,7 @@ export function FilterPopover({
                             <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
                                 <Label className="imcrm-text-xs">{__('Valor')}</Label>
                                 <FilterValueInput
+                                    listId={listId}
                                     field={selectedField}
                                     op={op}
                                     value={value}
@@ -148,13 +152,14 @@ export function FilterPopover({
 }
 
 interface ValueInputProps {
+    listId: number | undefined;
     field: FieldEntity;
     op: FilterOperator;
     value: unknown;
     onChange: (v: unknown) => void;
 }
 
-function FilterValueInput({ field, op, value, onChange }: ValueInputProps): JSX.Element {
+function FilterValueInput({ listId, field, op, value, onChange }: ValueInputProps): JSX.Element {
     if (op === 'in' || op === 'nin') {
         // Acepta CSV; el QueryBuilder backend trabaja con array.
         const text = Array.isArray(value) ? value.join(', ') : (typeof value === 'string' ? value : '');
@@ -227,9 +232,12 @@ function FilterValueInput({ field, op, value, onChange }: ValueInputProps): JSX.
             );
         default:
             return (
-                <Input
+                <AutocompleteInput
+                    listId={listId}
+                    fieldId={field.id}
                     value={typeof value === 'string' ? value : ''}
-                    onChange={(e) => onChange(e.target.value)}
+                    onChange={onChange}
+                    aria-label={__('Valor')}
                 />
             );
     }

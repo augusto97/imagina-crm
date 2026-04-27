@@ -6,6 +6,7 @@ namespace ImaginaCRM\Fields;
 use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\Records\RecordRepository;
 use ImaginaCRM\Support\RenameResult;
 use ImaginaCRM\Support\SlugContext;
 use ImaginaCRM\Support\ValidationResult;
@@ -32,6 +33,7 @@ final class FieldService
         private readonly SlugManager $slugs,
         private readonly SchemaManager $schema,
         private readonly FieldTypeRegistry $registry,
+        private readonly RecordRepository $records,
     ) {
     }
 
@@ -362,5 +364,61 @@ final class FieldService
             }
         }
         return $max + 1;
+    }
+
+    /**
+     * Tipos de campo donde NO tiene sentido autocompletar valores
+     * desde la data — o porque ya tienen options fijas (select), o
+     * porque el valor es opaco (file, relation, user) o booleano
+     * (checkbox).
+     */
+    private const NO_AUTOCOMPLETE_TYPES = [
+        'select',
+        'multi_select',
+        'checkbox',
+        'date',
+        'datetime',
+        'file',
+        'relation',
+        'user',
+    ];
+
+    /**
+     * Devuelve hasta `$limit` valores distintos de un campo, ordenados
+     * por frecuencia descendente, opcionalmente filtrados por LIKE
+     * `$search`. Para autocomplete en filtros y conditions de
+     * automatizaciones.
+     *
+     * Retorna `[]` si:
+     * - La lista no existe o está soft-deleted.
+     * - El campo no existe en esa lista.
+     * - El tipo del campo no soporta autocomplete (ver
+     *   `NO_AUTOCOMPLETE_TYPES`).
+     *
+     * @return array<int, array{value: string, count: int}>
+     */
+    public function distinctValues(
+        int $listId,
+        int $fieldId,
+        ?string $search,
+        int $limit,
+    ): array {
+        $list = $this->lists->find($listId);
+        if ($list === null || $list->deletedAt !== null) {
+            return [];
+        }
+        $field = $this->fields->find($fieldId);
+        if ($field === null || $field->listId !== $listId || $field->deletedAt !== null) {
+            return [];
+        }
+        if (in_array($field->type, self::NO_AUTOCOMPLETE_TYPES, true)) {
+            return [];
+        }
+        return $this->records->getDistinctValues(
+            $list->tableSuffix,
+            $field->columnName,
+            $search,
+            $limit,
+        );
     }
 }

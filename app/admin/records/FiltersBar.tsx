@@ -9,12 +9,13 @@ import { isNullaryOperator, operatorsForType } from './operators';
 import type { ActiveFilter } from './recordsState';
 
 interface FiltersBarProps {
+    listId: number | undefined;
     fields: FieldEntity[];
     filters: ActiveFilter[];
     onFiltersChange: (filters: ActiveFilter[]) => void;
 }
 
-export function FiltersBar({ fields, filters, onFiltersChange }: FiltersBarProps): JSX.Element {
+export function FiltersBar({ listId, fields, filters, onFiltersChange }: FiltersBarProps): JSX.Element {
     const fieldsById = new Map(fields.map((f) => [f.id, f]));
 
     const addFilter = (filter: ActiveFilter): void => {
@@ -33,7 +34,7 @@ export function FiltersBar({ fields, filters, onFiltersChange }: FiltersBarProps
 
     return (
         <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2">
-            <FilterPopover fields={fields} initial={null} onApply={addFilter}>
+            <FilterPopover listId={listId} fields={fields} initial={null} onApply={addFilter}>
                 <Button variant="outline" size="sm" className="imcrm-gap-1.5">
                     <Filter className="imcrm-h-3.5 imcrm-w-3.5" />
                     {filters.length === 0 ? __('Filtrar') : __('Añadir filtro')}
@@ -54,6 +55,7 @@ export function FiltersBar({ fields, filters, onFiltersChange }: FiltersBarProps
                 return (
                     <FilterPopover
                         key={index}
+                        listId={listId}
                         fields={fields}
                         initial={filter}
                         onApply={(next) => updateFilter(index, next)}

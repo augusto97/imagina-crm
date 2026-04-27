@@ -146,6 +146,12 @@ final class Plugin
             return new FieldRepository($c->get(Database::class));
         });
 
+        // Records (debe construirse antes que FieldService porque éste lo
+        // recibe inyectado para resolver autocomplete de valores).
+        $this->container->bind(RecordRepository::class, static function (Container $c): RecordRepository {
+            return new RecordRepository($c->get(Database::class));
+        });
+
         $this->container->bind(FieldService::class, static function (Container $c): FieldService {
             return new FieldService(
                 $c->get(FieldRepository::class),
@@ -153,12 +159,8 @@ final class Plugin
                 $c->get(SlugManager::class),
                 $c->get(SchemaManager::class),
                 $c->get(FieldTypeRegistry::class),
+                $c->get(RecordRepository::class),
             );
-        });
-
-        // Records.
-        $this->container->bind(RecordRepository::class, static function (Container $c): RecordRepository {
-            return new RecordRepository($c->get(Database::class));
         });
 
         $this->container->bind(RelationRepository::class, static function (Container $c): RelationRepository {

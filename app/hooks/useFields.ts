@@ -19,6 +19,49 @@ export function useFields(listId: string | number | undefined) {
     });
 }
 
+export interface FieldDistinctValue {
+    value: string;
+    count: number;
+}
+
+/**
+ * Trae los valores distintos existentes para un campo, ordenados por
+ * frecuencia desc. Para autocomplete en value pickers de filtros y
+ * conditions de automatizaciones.
+ *
+ * Cache 30s — los valores cambian con cada record creado/editado pero
+ * no necesitamos refrescar en cada keystroke.
+ */
+export function useFieldDistinctValues(
+    listId: string | number | undefined,
+    fieldId: string | number | undefined,
+    search: string,
+    enabled: boolean,
+) {
+    return useQuery({
+        queryKey: [
+            'field-distinct-values',
+            String(listId ?? ''),
+            String(fieldId ?? ''),
+            search,
+        ] as const,
+        queryFn: async (): Promise<FieldDistinctValue[]> => {
+            const params = new URLSearchParams();
+            if (search !== '') params.set('search', search);
+            params.set('limit', '50');
+            const qs  = params.toString();
+            const url = `/lists/${listId}/fields/${fieldId}/values?${qs}`;
+            const res = await api.get<FieldDistinctValue[]>(url);
+            return res.data;
+        },
+        enabled:
+            enabled
+            && listId !== undefined && listId !== ''
+            && fieldId !== undefined && fieldId !== '',
+        staleTime: 30_000,
+    });
+}
+
 export function useCreateField(listId: string | number) {
     const qc = useQueryClient();
     return useMutation({

@@ -151,6 +151,66 @@ final class RecordRepository
         return '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';
     }
 
+    /**
+     * Devuelve los valores distintos de una columna ordenados por
+     * frecuencia descendente, con conteo. Útil para autocomplete en
+     * filtros y condiciones de automatización.
+     *
+     * `$columnName` debe venir YA validado por el caller (siempre
+     * resuelto desde `wp_imcrm_fields.column_name`, que es inmutable
+     * y pasó por SlugManager). Lo escapamos defensivamente igual.
+     *
+     * `$search` filtra por LIKE %search% case-insensitive si no es null.
+     *
+     * @return array<int, array{value: string, count: int}>
+     */
+    public function getDistinctValues(
+        string $tableSuffix,
+        string $columnName,
+        ?string $search,
+        int $limit,
+    ): array {
+        $table  = $this->qualifiedTable($tableSuffix);
+        $column = '`' . esc_sql($columnName) . '`';
+        $wpdb   = $this->db->wpdb();
+
+        $sql = "SELECT {$column} AS value, COUNT(*) AS cnt "
+             . "FROM {$table} "
+             . "WHERE deleted_at IS NULL AND {$column} IS NOT NULL AND {$column} != ''";
+        $args = [];
+
+        if ($search !== null && $search !== '') {
+            $sql   .= " AND {$column} LIKE %s";
+            $args[] = '%' . $wpdb->esc_like($search) . '%';
+        }
+
+        $sql   .= " GROUP BY {$column} ORDER BY cnt DESC, value ASC LIMIT %d";
+        $args[] = max(1, min(500, $limit));
+
+        // $args nunca está vacío (siempre incluye el LIMIT) — siempre prepare.
+        $prepared = (string) $wpdb->prepare($sql, $args);
+        $rows     = $wpdb->get_results($prepared, ARRAY_A);
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $value = $row['value'] ?? null;
+            if ($value === null) {
+                continue;
+            }
+            $out[] = [
+                'value' => (string) $value,
+                'count' => (int) ($row['cnt'] ?? 0),
+            ];
+        }
+        return $out;
+    }
+
     private function placeholderForValue(mixed $value): string
     {
         if (is_int($value)) {

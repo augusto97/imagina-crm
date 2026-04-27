@@ -253,6 +253,7 @@ export function RecordsPage(): JSX.Element {
                                 />
                             </div>
                             <FiltersBar
+                                listId={list.data?.id}
                                 fields={fields.data}
                                 filters={state.filters}
                                 onFiltersChange={setFilters}

@@ -1,8 +1,22 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AutocompleteInput } from '@/components/ui/autocomplete-input';
+
+/**
+ * Context para exponer el `listId` actual a componentes profundos
+ * del editor (FilterRow, FieldValueInput, etc.) sin prop-drilling.
+ * Lo setea `<AutomationDialog>` al montar y lo consume cualquier
+ * `<AutocompleteInput>` que necesite resolver valores distintos
+ * desde el endpoint del backend.
+ */
+const AutomationEditorListContext = createContext<number | undefined>(undefined);
+
+export function useAutomationListId(): number | undefined {
+    return useContext(AutomationEditorListContext);
+}
 
 // Code-split: React Flow es ~60KB gzipped. La mayoría de usuarios edita
 // en la vista form; sólo cargamos el bundle del diagrama cuando lo piden.
@@ -158,6 +172,7 @@ export function AutomationDialog({
     const isPending = create.isPending || update.isPending;
 
     return (
+        <AutomationEditorListContext.Provider value={listId}>
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
             <Dialog.Portal>
                 <Dialog.Overlay
@@ -336,6 +351,7 @@ export function AutomationDialog({
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>
+        </AutomationEditorListContext.Provider>
     );
 }
 
@@ -1292,6 +1308,8 @@ function FieldValueInput({
     value: string;
     onChange: (next: string) => void;
 }): JSX.Element {
+    const listId = useAutomationListId();
+
     if (!field) {
         return (
             <Input
@@ -1362,26 +1380,32 @@ function FieldValueInput({
 
     if (field.type === 'number' || field.type === 'currency') {
         return (
-            <Input
+            <AutocompleteInput
+                listId={listId}
+                fieldId={field.id}
                 type="number"
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={onChange}
                 placeholder={field.type === 'currency' ? '0.00' : '0'}
                 className="imcrm-flex-1"
+                aria-label={__('Valor')}
             />
         );
     }
 
     // text / long_text / email / url / multi_select / relation / user / file:
-    // texto libre por simplicidad. Para multi_select el operador escribe
-    // valores separados por coma; para relation pasa IDs separados por
-    // coma; etc. Soporta merge tags como `{{otroCampo}}`.
+    // input con autocomplete contra los valores existentes en la columna.
+    // Para multi_select / relation / etc. el endpoint backend skipea
+    // (devuelve []) y el componente cae a Input plano sin sugerencias.
     return (
-        <Input
-            placeholder={__('Valor o {{slug}}')}
+        <AutocompleteInput
+            listId={listId}
+            fieldId={field.id}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={onChange}
+            placeholder={__('Valor o {{slug}}')}
             className="imcrm-flex-1"
+            aria-label={__('Valor')}
         />
     );
 }

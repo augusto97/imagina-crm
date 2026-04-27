@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.4.1
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,27 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.5.0 =
+* Feature: autocomplete inteligente en value pickers — al editar
+  un filtro de records o una condición de automatización, el
+  campo de valor abre un dropdown con los valores que YA EXISTEN
+  en esa columna, ordenados por frecuencia descendente y con
+  conteo. Filtra server-side por LIKE mientras tipeas. Navegable
+  por teclado (↑↓ Enter Esc).
+  · Backend: nuevo `GET /lists/{list}/fields/{field}/values?search=&limit=`
+    consulta `SELECT DISTINCT col, COUNT(*) FROM data_table` con
+    el column_name resuelto desde el field. Tipos sin sentido
+    (select, multi_select, checkbox, date, file, relation, user)
+    devuelven `[]`.
+  · Frontend: nuevo `<AutocompleteInput>` (Popover-based combobox)
+    montado en `FieldValueInput` (automations) y `FilterValueInput`
+    (records).
+  · `listId` se inyecta vía un Context interno
+    (`AutomationEditorListContext`) — los componentes profundos
+    no necesitan prop-drilling.
+* Refactor: `RecordRepository::getDistinctValues` reusable;
+  `FieldService::distinctValues` orquesta list+field+repo.
 
 = 0.4.1 =
 * Fix CRÍTICO fullscreen: dialogs, popovers y dropdowns no aparecían

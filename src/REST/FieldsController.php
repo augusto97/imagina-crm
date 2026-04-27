@@ -70,6 +70,20 @@ final class FieldsController extends AbstractController
                 ],
             ],
         ]);
+
+        register_rest_route(
+            $this->namespace,
+            '/' . $base . '/(?P<id_or_slug>[a-zA-Z0-9_-]+)/values',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'distinctValues'],
+                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'args'                => [
+                    'search' => ['type' => 'string'],
+                    'limit'  => ['type' => 'integer', 'default' => 50],
+                ],
+            ],
+        );
     }
 
     public function getCollection(WP_REST_Request $request): WP_REST_Response|WP_Error
@@ -256,5 +270,34 @@ final class FieldsController extends AbstractController
         }
 
         return new WP_REST_Response(['data' => ['ok' => true, 'count' => count($order)]]);
+    }
+
+    /**
+     * `GET /lists/{list}/fields/{field}/values?search=&limit=`
+     *
+     * Devuelve hasta `limit` valores distintos del campo, ordenados
+     * por frecuencia descendente. Para autocomplete en filtros y
+     * conditions de automatizaciones. Tipos sin sentido (select,
+     * checkbox, date, etc.) devuelven `[]` — el FE lo ignora y
+     * cae al picker específico del tipo.
+     */
+    public function distinctValues(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
+        if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+
+        $field = $this->service->findByIdOrSlug($list->id, (string) $request->get_param('id_or_slug'));
+        if ($field === null) {
+            return $this->notFound();
+        }
+
+        $rawSearch = $request->get_param('search');
+        $search    = is_string($rawSearch) && $rawSearch !== '' ? $rawSearch : null;
+        $limit     = (int) ($request->get_param('limit') ?? 50);
+
+        $values = $this->service->distinctValues($list->id, $field->id, $search, $limit);
+        return new WP_REST_Response(['data' => $values]);
     }
 }
