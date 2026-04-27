@@ -54,6 +54,10 @@ export function WidgetFormDialog({
         [fields.data],
     );
 
+    // Inicializa el form al abrir. NO depender de `lists.data` porque
+    // cambia de referencia en refetches de TanStack Query y reseteaba
+    // el formulario mientras el usuario lo editaba. Tomamos el primer
+    // listId solo si es necesario y solo en el momento inicial.
     useEffect(() => {
         if (!open) return;
         if (initial) {
@@ -73,7 +77,8 @@ export function WidgetFormDialog({
             setGroupByFieldId(0);
             setDateFieldId(0);
         }
-    }, [open, initial, lists.data]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initial?.id]);
 
     const handleSubmit = (e: React.FormEvent): void => {
         e.preventDefault();

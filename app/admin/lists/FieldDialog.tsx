@@ -57,11 +57,14 @@ export function FieldDialog({
     const [config, setConfig] = useState<Record<string, unknown>>({});
     const [submitError, setSubmitError] = useState<string | null>(null);
 
-    // Pre-llenar al abrir en modo edición; resetear al cerrar.
+    // Pre-llenar / resetear al abrir el dialog. Importante: `create` y
+    // `update` (hooks de TanStack Query) cambian de referencia en cada
+    // render — si los incluimos en las deps, el efecto re-corre tras
+    // cada keystroke y RESETEA el label que el usuario está escribiendo.
+    // Por eso dependemos sólo de `[open, isEdit, field?.id]` (estables)
+    // y disable la regla exhaustive-deps.
     useEffect(() => {
         if (!open) {
-            create.reset();
-            update.reset();
             return;
         }
         if (isEdit && field) {
@@ -82,7 +85,11 @@ export function FieldDialog({
             setConfig({});
         }
         setSubmitError(null);
-    }, [open, isEdit, field, create, update]);
+        // Limpia errores de un attempt anterior (idempotente).
+        create.reset();
+        update.reset();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, isEdit, field?.id]);
 
     const supportsUnique = useMemo(
         () => fieldTypes?.find((t) => t.slug === type)?.supports_unique ?? false,

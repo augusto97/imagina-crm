@@ -102,18 +102,23 @@ export function AutomationDialog({
     const [view, setView] = useState<'form' | 'visual'>('form');
     const actionsListRef = useRef<HTMLOListElement | null>(null);
 
+    // OJO: los hooks de TanStack Query (create, update) cambian de
+    // referencia en cada render. Si los incluimos en las deps, el
+    // efecto re-corre tras cada keystroke y resetea el state que el
+    // usuario está editando. Por eso dependemos sólo de `[open,
+    // automation?.id]` y disable la regla exhaustive-deps.
     useEffect(() => {
         if (!open) {
-            create.reset();
-            update.reset();
-            setError(null);
-            setFieldErrors({});
             return;
         }
         setState(automation ? fromAutomation(automation) : EMPTY_STATE);
         setError(null);
         setFieldErrors({});
-    }, [open, automation, create, update]);
+        // Reset idempotente de errores previos del último submit.
+        create.reset();
+        update.reset();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, automation?.id]);
 
     const triggerMeta = triggers.find((t) => t.slug === state.triggerType);
 
