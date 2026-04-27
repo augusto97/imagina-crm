@@ -1322,7 +1322,7 @@ function FieldValueInput({
         );
     }
 
-    if (field.type === 'select') {
+    if (field.type === 'select' || field.type === 'multi_select') {
         const options = (field.config?.options as Array<{ value: string; label?: string }> | undefined) ?? [];
         return (
             <Select

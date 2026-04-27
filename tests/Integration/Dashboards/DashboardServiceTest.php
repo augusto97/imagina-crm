@@ -42,7 +42,7 @@ final class DashboardServiceTest extends IntegrationTestCase
         $this->repo = new DashboardRepository($this->db());
 
         $this->lists      = new ListService($listRepo, $slugs, $this->schema);
-        $this->fields     = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry);
+        $this->fields     = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry, $recordRepo);
         $this->dashboards = new DashboardService($this->repo, $listRepo, $fieldRepo);
     }
 

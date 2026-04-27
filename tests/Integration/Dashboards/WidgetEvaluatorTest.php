@@ -52,7 +52,7 @@ final class WidgetEvaluatorTest extends IntegrationTestCase
         $dashboardRepo = new DashboardRepository($this->db());
 
         $this->lists      = new ListService($listRepo, $slugs, $this->schema);
-        $this->fields     = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry);
+        $this->fields     = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry, new \ImaginaCRM\Records\RecordRepository($this->db()));
         $this->records    = new RecordService($fieldRepo, $recordRepo, $relationsRepo, $validator, $queryBuilder);
         $this->dashboards = new DashboardService($dashboardRepo, $listRepo, $fieldRepo);
         $this->evaluator  = new WidgetEvaluator($this->db(), $listRepo, $fieldRepo);

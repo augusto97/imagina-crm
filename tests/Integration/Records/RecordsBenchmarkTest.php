@@ -51,7 +51,7 @@ final class RecordsBenchmarkTest extends IntegrationTestCase
         $fieldRepo = new FieldRepository($this->db());
 
         $this->lists = new ListService($listRepo, $slugs, $this->schema);
-        $this->fields = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry);
+        $this->fields = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry, new \ImaginaCRM\Records\RecordRepository($this->db()));
         $this->records = new RecordService(
             $fieldRepo,
             new RecordRepository($this->db()),

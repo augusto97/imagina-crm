@@ -41,7 +41,7 @@ final class SavedViewServiceKanbanTest extends IntegrationTestCase
         $viewsRepo = new SavedViewRepository($this->db());
 
         $this->lists  = new ListService($listRepo, $slugs, $this->schema);
-        $this->fields = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry);
+        $this->fields = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry, new \ImaginaCRM\Records\RecordRepository($this->db()));
         $this->views  = new SavedViewService($viewsRepo, $listRepo, $fieldRepo);
         $this->fieldRepo = $fieldRepo;
     }

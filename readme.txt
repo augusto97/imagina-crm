@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.5.1 =
+* Fix: en value pickers de filtros / conditions, los campos
+  `multi_select` mostraban "Sin coincidencias" porque el endpoint
+  de autocomplete los blocklistea (los valores se almacenan como
+  JSON arrays, no como strings escalares). Ahora `FieldValueInput`
+  trata `multi_select` igual que `select`: dropdown con las options
+  configuradas en el campo.
+* Fix UX: el popover de autocomplete ahora distingue 3 estados —
+  cargando, error, sin coincidencias. Antes un fallo HTTP se
+  confundía con "no hay datos". Cuando el endpoint falla muestra
+  el mensaje de error en rojo.
+* Tests: 3 nuevos casos integration cubren `distinctValues`
+  (frecuencia desc, search por substring, blocklist de tipos).
 
 = 0.5.0 =
 * Feature: autocomplete inteligente en value pickers — al editar

@@ -66,7 +66,7 @@ final class AutomationEngineIntegrationTest extends IntegrationTestCase
         $queryBuilder  = new QueryBuilder($this->db(), $slugs);
 
         $this->lists   = new ListService($listRepo, $slugs, $this->schema);
-        $this->fields  = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry);
+        $this->fields  = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry, $recordRepo);
         $this->records = new RecordService(
             $fieldRepo,
             $recordRepo,

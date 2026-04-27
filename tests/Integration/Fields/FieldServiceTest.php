@@ -44,6 +44,7 @@ final class FieldServiceTest extends IntegrationTestCase
             $slugs,
             $this->schema,
             $registry,
+            new \ImaginaCRM\Records\RecordRepository($this->db()),
         );
     }
 

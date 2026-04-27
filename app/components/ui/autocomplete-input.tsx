@@ -98,7 +98,8 @@ export function AutocompleteInput({
         }
     };
 
-    const showHelp = open && fieldId && !query.isFetching && suggestions.length === 0;
+    const showError   = open && fieldId && query.isError;
+    const showHelp    = open && fieldId && !query.isFetching && !query.isError && suggestions.length === 0;
 
     return (
         <div ref={containerRef} className={cn('imcrm-relative', className)}>
@@ -132,7 +133,14 @@ export function AutocompleteInput({
                     onOpenAutoFocus={(e) => e.preventDefault()}
                     className="imcrm-w-[var(--radix-popover-trigger-width)] imcrm-min-w-[200px] imcrm-p-0"
                 >
-                    {query.isFetching && suggestions.length === 0 ? (
+                    {showError ? (
+                        <div className="imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-destructive">
+                            {__('No se pudieron cargar las sugerencias.')}{' '}
+                            <span className="imcrm-text-muted-foreground">
+                                {query.error instanceof Error ? query.error.message : ''}
+                            </span>
+                        </div>
+                    ) : query.isFetching && suggestions.length === 0 ? (
                         <div className="imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
                             {__('Buscando…')}
                         </div>

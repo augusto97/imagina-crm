@@ -51,7 +51,7 @@ final class RecordServiceTest extends IntegrationTestCase
         $queryBuilder  = new QueryBuilder($this->db(), $this->slugs);
 
         $this->lists = new ListService($listRepo, $this->slugs, $this->schema);
-        $this->fields = new FieldService($fieldRepo, $listRepo, $this->slugs, $this->schema, $registry);
+        $this->fields = new FieldService($fieldRepo, $listRepo, $this->slugs, $this->schema, $registry, $recordRepo);
         $this->records = new RecordService(
             $fieldRepo,
             $recordRepo,
@@ -355,5 +355,62 @@ final class RecordServiceTest extends IntegrationTestCase
             $created = $this->records->create($list, $row);
             $this->assertIsArray($created, 'Failed to seed row: ' . wp_json_encode($row));
         }
+    }
+
+    public function test_distinct_values_returns_existing_text_values_with_counts(): void
+    {
+        $list = $this->createListWithFields();
+        $this->seedRows($list, [
+            ['name' => 'Acme Corp',   'amount' => 100, 'status' => 'active'],
+            ['name' => 'Acme Corp',   'amount' => 200, 'status' => 'active'],
+            ['name' => 'Globex Inc',  'amount' => 300, 'status' => 'pending'],
+            ['name' => 'Initech',     'amount' => 400, 'status' => 'active'],
+        ]);
+
+        $nameField = $this->fields->findByIdOrSlug($list->id, 'name');
+        $this->assertNotNull($nameField);
+
+        $values = $this->fields->distinctValues($list->id, $nameField->id, null, 50);
+
+        $this->assertCount(3, $values);
+        // El más frecuente primero (Acme Corp con 2 ocurrencias).
+        $this->assertSame('Acme Corp', $values[0]['value']);
+        $this->assertSame(2, $values[0]['count']);
+    }
+
+    public function test_distinct_values_filters_by_search_substring(): void
+    {
+        $list = $this->createListWithFields();
+        $this->seedRows($list, [
+            ['name' => 'Augusto',    'amount' => 1, 'status' => 'active'],
+            ['name' => 'Augustina',  'amount' => 2, 'status' => 'active'],
+            ['name' => 'Juan',       'amount' => 3, 'status' => 'active'],
+        ]);
+
+        $nameField = $this->fields->findByIdOrSlug($list->id, 'name');
+        $this->assertNotNull($nameField);
+
+        $values = $this->fields->distinctValues($list->id, $nameField->id, 'Aug', 50);
+        $this->assertCount(2, $values);
+        $this->assertEqualsCanonicalizing(
+            ['Augusto', 'Augustina'],
+            array_column($values, 'value'),
+        );
+    }
+
+    public function test_distinct_values_returns_empty_for_blocklisted_types(): void
+    {
+        $list = $this->createListWithFields();
+        $this->seedRows($list, [
+            ['name' => 'A', 'amount' => 1, 'status' => 'active'],
+            ['name' => 'B', 'amount' => 2, 'status' => 'pending'],
+        ]);
+
+        // status es type=select → blocklisted (la UI ya muestra options fijas).
+        $statusField = $this->fields->findByIdOrSlug($list->id, 'status');
+        $this->assertNotNull($statusField);
+
+        $values = $this->fields->distinctValues($list->id, $statusField->id, null, 50);
+        $this->assertSame([], $values);
     }
 }
