@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.1.3
+Stable tag: 0.1.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,19 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.1.4 =
+* Fix CRÍTICO: "Añadir filtro" del trigger y "Añadir valor" de la
+  acción update_field no hacían nada visualmente. Causa: las filas
+  con slug vacío se descartaban inmediatamente al serializar al
+  config (formato `{slug: value}` no permite keys vacías). Refactor:
+  state local en TriggerConfigEditor + UpdateFieldConfig que mantiene
+  filas vacías durante la edición y solo sincroniza al config las
+  entradas válidas.
+* (Roadmap próximo commit) Visual builder real con panel lateral
+  para configurar nodos desde el diagrama + type picker en "+" +
+  ramas if/else. La vista Diagrama actual sigue siendo solo
+  preview/reorder mientras tanto.
 
 = 0.1.3 =
 * Fix: la vista "Diagrama" de automatizaciones tiraba React error #321

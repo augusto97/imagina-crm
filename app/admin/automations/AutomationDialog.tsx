@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
 
@@ -427,19 +427,29 @@ function TriggerConfigEditor({
     onChange,
     fields,
 }: TriggerConfigEditorProps): JSX.Element {
-    const filters = useMemo(() => {
+    // State LOCAL para los rows del editor: permite filas con slug
+    // vacío (recién añadidas) durante la edición. Solo serializamos a
+    // `config.field_filters` (formato `{slug: value}`) las filas que
+    // tienen slug válido. Sin este buffer local, "Añadir filtro" parece
+    // no hacer nada porque la fila vacía se descartaba inmediatamente
+    // al guardar y el componente no re-renderizaba el array nuevo.
+    const [filterRows, setFilterRows] = useState<Array<{ slug: string; value: string }>>(() => {
         const raw = config.field_filters;
         if (!raw || typeof raw !== 'object') return [];
-        return Object.entries(raw).map(([slug, value]) => ({ slug, value }));
-    }, [config.field_filters]);
+        return Object.entries(raw as Record<string, unknown>).map(([slug, v]) => ({
+            slug,
+            value: typeof v === 'string' ? v : String(v ?? ''),
+        }));
+    });
 
     const changed = Array.isArray(config.changed_fields) ? config.changed_fields : [];
 
-    const updateFilters = (next: Array<{ slug: string; value: unknown }>): void => {
+    const commitFilters = (next: Array<{ slug: string; value: string }>): void => {
+        setFilterRows(next);
         const out: Record<string, unknown> = {};
-        for (const f of next) {
-            if (f.slug.trim() === '') continue;
-            out[f.slug.trim()] = f.value;
+        for (const r of next) {
+            if (r.slug.trim() === '') continue;
+            out[r.slug.trim()] = r.value;
         }
         onChange({ ...config, field_filters: out });
     };
@@ -448,7 +458,7 @@ function TriggerConfigEditor({
         onChange({ ...config, changed_fields: next });
     };
 
-    const addFilter = (): void => updateFilters([...filters, { slug: '', value: '' }]);
+    const addFilter = (): void => commitFilters([...filterRows, { slug: '', value: '' }]);
 
     const help = helpForTrigger(triggerType);
 
@@ -468,22 +478,22 @@ function TriggerConfigEditor({
                 <p className="imcrm-text-xs imcrm-text-muted-foreground">
                     {__('Solo dispara si el registro cumple TODOS estos pares slug = valor.')}
                 </p>
-                {filters.map((f, i) => (
+                {filterRows.map((f, i) => (
                     <FilterRow
                         key={i}
                         f={f}
                         fields={fields}
                         onChangeSlug={(slug) => {
-                            const next = [...filters];
+                            const next = [...filterRows];
                             next[i] = { slug, value: '' };
-                            updateFilters(next);
+                            commitFilters(next);
                         }}
                         onChangeValue={(value) => {
-                            const arr = [...filters];
+                            const arr = [...filterRows];
                             arr[i] = { ...arr[i]!, value };
-                            updateFilters(arr);
+                            commitFilters(arr);
                         }}
-                        onRemove={() => updateFilters(filters.filter((_, j) => j !== i))}
+                        onRemove={() => commitFilters(filterRows.filter((_, j) => j !== i))}
                     />
                 ))}
                 <Button type="button" variant="ghost" size="sm" onClick={addFilter} className="imcrm-self-start imcrm-gap-2">
@@ -893,16 +903,21 @@ function UpdateFieldConfig({
     onChange,
     fields,
 }: ActionConfigEditorProps): JSX.Element {
-    const rawValues = spec.config.values;
-    const values = useMemo<Array<{ slug: string; value: string }>>(() => {
+    // State LOCAL (mismo patrón que TriggerConfigEditor): permite filas
+    // con slug vacío durante la edición. Sin esto, "Añadir valor"
+    // parecía no hacer nada porque la fila vacía se descartaba antes
+    // de re-renderizar.
+    const [valueRows, setValueRows] = useState<Array<{ slug: string; value: string }>>(() => {
+        const rawValues = spec.config.values;
         if (!rawValues || typeof rawValues !== 'object') return [];
         return Object.entries(rawValues as Record<string, unknown>).map(([slug, v]) => ({
             slug,
             value: typeof v === 'string' ? v : String(v ?? ''),
         }));
-    }, [rawValues]);
+    });
 
-    const setValues = (next: Array<{ slug: string; value: string }>): void => {
+    const commitValues = (next: Array<{ slug: string; value: string }>): void => {
+        setValueRows(next);
         const out: Record<string, string> = {};
         for (const v of next) {
             if (v.slug.trim() === '') continue;
@@ -916,19 +931,19 @@ function UpdateFieldConfig({
             <p className="imcrm-text-xs imcrm-text-muted-foreground">
                 {__('Setea pares campo → valor en el registro que disparó el trigger. Soporta merge tags como {{slug}} o {{record.id}}.')}
             </p>
-            {values.map((v, i) => {
+            {valueRows.map((v, i) => {
                 const selectedField = fields.find((f) => f.slug === v.slug);
                 return (
                     <div key={i} className="imcrm-flex imcrm-items-center imcrm-gap-2">
                         <Select
                             value={v.slug}
                             onChange={(e) => {
-                                const next = [...values];
+                                const next = [...valueRows];
                                 // Reset value cuando cambia el campo: el valor
                                 // que tenía sentido para el field anterior
                                 // probablemente no aplica al nuevo.
                                 next[i] = { slug: e.target.value, value: '' };
-                                setValues(next);
+                                commitValues(next);
                             }}
                             aria-label={__('Campo a actualizar')}
                             className="imcrm-flex-1"
@@ -944,16 +959,16 @@ function UpdateFieldConfig({
                             field={selectedField}
                             value={v.value}
                             onChange={(next) => {
-                                const arr = [...values];
+                                const arr = [...valueRows];
                                 arr[i] = { ...arr[i]!, value: next };
-                                setValues(arr);
+                                commitValues(arr);
                             }}
                         />
                         <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => setValues(values.filter((_, j) => j !== i))}
+                            onClick={() => commitValues(valueRows.filter((_, j) => j !== i))}
                             aria-label={__('Eliminar')}
                         >
                             <Trash2 className="imcrm-h-4 imcrm-w-4" />
@@ -965,7 +980,7 @@ function UpdateFieldConfig({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setValues([...values, { slug: '', value: '' }])}
+                onClick={() => commitValues([...valueRows, { slug: '', value: '' }])}
                 className="imcrm-self-start imcrm-gap-2"
             >
                 <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
