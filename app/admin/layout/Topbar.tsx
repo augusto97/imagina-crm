@@ -1,11 +1,12 @@
 import { useLocation } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Maximize2, Minimize2, Search } from 'lucide-react';
 
 import { NotificationBell } from '@/admin/layout/NotificationBell';
 import { Button } from '@/components/ui/button';
 import { getBootData } from '@/lib/boot';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { toggleFullscreen, useFullscreen } from '@/stores/shellStore';
 
 function getRouteLabels(): Record<string, string> {
     return {
@@ -21,6 +22,7 @@ export function Topbar(): JSX.Element {
     const current = segments[0] ?? 'lists';
     const label = getRouteLabels()[current] ?? 'Imagina CRM';
     const boot = getBootData();
+    const isFullscreen = useFullscreen();
 
     return (
         <header
@@ -47,6 +49,24 @@ export function Topbar(): JSX.Element {
                     >
                         <span aria-hidden="true">⌘K</span>
                     </kbd>
+                </Button>
+
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleFullscreen}
+                    aria-label={isFullscreen ? __('Salir de pantalla completa') : __('Pantalla completa')}
+                    title={
+                        isFullscreen
+                            ? __('Salir de pantalla completa (Esc)')
+                            : __('Pantalla completa — oculta el chrome de WordPress')
+                    }
+                >
+                    {isFullscreen ? (
+                        <Minimize2 className="imcrm-h-4 imcrm-w-4" aria-hidden="true" />
+                    ) : (
+                        <Maximize2 className="imcrm-h-4 imcrm-w-4" aria-hidden="true" />
+                    )}
                 </Button>
 
                 <NotificationBell />

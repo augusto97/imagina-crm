@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,31 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.4.0 =
+* Feature: modo "Pantalla completa" — botón maximize en la topbar del
+  SPA oculta `#wpadminbar`, `#adminmenuwrap` y `#wpfooter` y monta
+  el plugin como overlay full-viewport. Persiste en localStorage.
+  Salir con el botón o tecla Esc.
+* Feature: el modal del builder de automatizaciones se ensancha a
+  ~95% del viewport cuando estás en la vista Diagrama (antes
+  ahogaba el canvas en `max-w-2xl`).
+* Feature: el visual builder ahora muestra ramas REALES para if_else
+  — el nodo abre dos columnas paralelas (then a la izq, else a la
+  der) con sus acciones nested como nodos visibles, conectadas por
+  edges con labels "Sí" / "No" coloreados (verde / amarillo).
+  Layout recursivo con cómputo de ancho por subtree → no hay
+  solapamientos a ninguna profundidad de anidamiento.
+* Refactor: selección por `path` (Array<number | 'then' | 'else'>)
+  en lugar de `index` plano — soporta editar, eliminar y configurar
+  acciones nested en cualquier branch del árbol. Helpers
+  `getActionAt` / `setActionAt` / `removeActionAt` en
+  `actionPath.ts`. Lógica de layout aislada en `visualBuilderLayout.ts`.
+* Tweak: nodos rediseñados con gradient sutil + sombra en capas
+  para if_else, label de paso con prefijo "Sí · N" / "No · N" en
+  acciones nested (ubicación visual instantánea).
+* Drag-to-reorder deshabilitado en modo Diagrama mientras evaluamos
+  un mecanismo path-aware. Para reordenar usa la vista Formulario.
 
 = 0.3.0 =
 * Feature: acción `if_else` (Si / sino) con branching real, anidable.

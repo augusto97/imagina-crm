@@ -14,7 +14,6 @@ import {
 } from '@xyflow/react';
 import {
     GitBranch,
-    GripVertical,
     Mail,
     Plus,
     Trash2,
@@ -27,9 +26,22 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import {
+    getActionAt,
+    pathKey,
+    removeActionAt,
+    setActionAt,
+    type ActionPath,
+} from '@/admin/automations/actionPath';
+import {
     ActionConfigEditor,
     TriggerConfigEditor,
 } from '@/admin/automations/AutomationDialog';
+import {
+    layoutChain,
+    NODE_GAP_Y,
+    NODE_WIDTH,
+    type ActionNodeData,
+} from '@/admin/automations/visualBuilderLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -78,20 +90,10 @@ interface TriggerNodeData extends Record<string, unknown> {
     selected: boolean;
 }
 
-interface ActionNodeData extends Record<string, unknown> {
-    index: number;
-    type: string;
-    title: string;
-    label: string;
-    selected: boolean;
-    /** Solo presente cuando type === 'if_else'. */
-    branchCounts?: { then: number; else: number };
-}
-
-type SelectedNode = { kind: 'trigger' } | { kind: 'action'; index: number } | null;
-
-const NODE_WIDTH = 280;
-const NODE_GAP_Y = 130;
+type SelectedNode =
+    | { kind: 'trigger' }
+    | { kind: 'action'; path: ActionPath }
+    | null;
 
 export function AutomationVisualBuilder(props: AutomationVisualBuilderProps): JSX.Element {
     return (
@@ -118,11 +120,50 @@ function Inner({
 
     const triggerMeta = triggers.find((t) => t.slug === triggerType);
 
-    const initialNodes = useMemo<Node[]>(
-        () => buildNodes(triggerMeta, actions, actionsCatalog, selected),
-        [triggerMeta, actions, actionsCatalog, selected],
+    const selectedKey = useMemo(
+        () => (selected?.kind === 'action' ? pathKey(selected.path) : null),
+        [selected],
     );
-    const edges = useMemo<Edge[]>(() => buildEdges(actions.length), [actions.length]);
+
+    // Layout recursivo de toda la cadena (incluye el árbol de cualquier
+    // if_else nested). Devuelve nodos con posiciones + edges con labels
+    // "Sí"/"No" en los handles del if_else.
+    const treeData = useMemo(
+        () =>
+            layoutChain(actions, 0, NODE_GAP_Y, [], {
+                catalog: actionsCatalog,
+                selectedKey,
+            }),
+        [actions, actionsCatalog, selectedKey],
+    );
+
+    const initialNodes = useMemo<Node[]>(() => {
+        const triggerNode: Node = {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: -NODE_WIDTH / 2, y: 0 },
+            draggable: false,
+            data: {
+                label: triggerMeta?.label ?? __('Trigger sin definir'),
+                event: triggerMeta?.event ?? '',
+                selected: selected?.kind === 'trigger',
+            } satisfies TriggerNodeData,
+        };
+        return [triggerNode, ...treeData.nodes];
+    }, [treeData.nodes, triggerMeta, selected]);
+
+    const edges = useMemo<Edge[]>(() => {
+        const all = [...treeData.edges];
+        if (treeData.firstNodeId !== null) {
+            all.unshift({
+                id: 'e-trigger-first',
+                source: 'trigger',
+                target: treeData.firstNodeId,
+                animated: true,
+            });
+        }
+        return all;
+    }, [treeData.edges, treeData.firstNodeId]);
 
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
 
@@ -130,38 +171,13 @@ function Inner({
         setNodes(initialNodes);
     }, [initialNodes, setNodes]);
 
-    const handleNodeDragStop = useCallback(
-        (_event: React.MouseEvent, dragged: Node) => {
-            if (dragged.type !== 'action') return;
-            const positions = nodes
-                .filter((n) => n.type === 'action')
-                .map((n) => ({
-                    index: (n.data as ActionNodeData).index,
-                    y: n.id === dragged.id ? dragged.position.y : n.position.y,
-                }))
-                .sort((a, b) => a.y - b.y);
-
-            const newOrder = positions
-                .map((p) => actions[p.index])
-                .filter((a): a is ActionSpec => a !== undefined);
-            if (newOrder.length !== actions.length) return;
-            const changed = newOrder.some((a, i) => a !== actions[i]);
-            if (changed) {
-                onActionsChange(newOrder);
-            } else {
-                setNodes(initialNodes);
-            }
-        },
-        [nodes, actions, onActionsChange, initialNodes, setNodes],
-    );
-
     const handleNodeClick = useCallback(
         (_event: React.MouseEvent, node: Node) => {
             if (node.type === 'trigger') {
                 setSelected({ kind: 'trigger' });
             } else if (node.type === 'action') {
-                const idx = (node.data as ActionNodeData).index;
-                setSelected({ kind: 'action', index: idx });
+                const path = (node.data as ActionNodeData).path;
+                setSelected({ kind: 'action', path });
             }
         },
         [],
@@ -169,34 +185,38 @@ function Inner({
 
     const handleAdd = (typeSlug: string): void => {
         onActionsChange([...actions, { type: typeSlug, config: {} }]);
-        setSelected({ kind: 'action', index: actions.length });
+        setSelected({ kind: 'action', path: [actions.length] });
         setPickerOpen(false);
     };
 
     const handleDeleteSelected = (): void => {
         if (selected?.kind === 'action') {
-            onActionsChange(actions.filter((_, j) => j !== selected.index));
+            onActionsChange(removeActionAt(actions, selected.path));
             setSelected(null);
         }
     };
 
+    const selectedAction =
+        selected?.kind === 'action' ? getActionAt(actions, selected.path) : undefined;
+
     return (
-        <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-3 lg:imcrm-grid-cols-[2fr_1fr]">
+        <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 lg:imcrm-grid-cols-[3fr_1fr] imcrm-min-h-[640px]">
             {/* Flow canvas */}
             <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-                <div className="imcrm-relative imcrm-h-[480px] imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20">
+                <div className="imcrm-relative imcrm-h-[640px] imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-muted/30 imcrm-to-muted/10 imcrm-shadow-imcrm-sm">
                     <ReactFlow
                         nodes={nodes}
                         edges={edges}
                         onNodesChange={onNodesChange}
-                        onNodeDragStop={handleNodeDragStop}
                         onNodeClick={handleNodeClick}
                         onPaneClick={() => setSelected(null)}
                         nodeTypes={NODE_TYPES}
                         nodesConnectable={false}
                         edgesFocusable={false}
+                        nodesDraggable={false}
                         fitView
-                        fitViewOptions={{ padding: 0.2 }}
+                        fitViewOptions={{ padding: 0.25 }}
+                        minZoom={0.4}
                         proOptions={{ hideAttribution: true }}
                     >
                         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
@@ -251,7 +271,7 @@ function Inner({
                 </div>
 
                 <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                    {__('Click en un nodo para configurarlo en el panel derecho. Arrastra una acción para cambiar su orden.')}
+                    {__('Click en un nodo para configurarlo en el panel derecho. Si / sino abre dos ramas con sus propias acciones.')}
                 </p>
             </div>
 
@@ -268,18 +288,19 @@ function Inner({
                         onTypeChange={onTriggerTypeChange}
                         onConfigChange={onTriggerConfigChange}
                     />
-                ) : (
+                ) : selectedAction ? (
                     <ActionEditorPanel
-                        spec={actions[selected.index]!}
+                        spec={selectedAction}
                         actionsCatalog={actionsCatalog}
                         fields={fields.data ?? []}
                         onChange={(next) => {
-                            const arr = [...actions];
-                            arr[selected.index] = next;
-                            onActionsChange(arr);
+                            if (selected?.kind !== 'action') return;
+                            onActionsChange(setActionAt(actions, selected.path, next));
                         }}
                         onDelete={handleDeleteSelected}
                     />
+                ) : (
+                    <EmptyPanel />
                 )}
             </aside>
         </div>
@@ -449,71 +470,6 @@ const NODE_TYPES = {
     action: ActionNode,
 };
 
-function buildNodes(
-    triggerMeta: TriggerMeta | undefined,
-    actions: ActionSpec[],
-    catalog: ActionMeta[],
-    selected: SelectedNode,
-): Node[] {
-    const nodes: Node[] = [];
-    nodes.push({
-        id: 'trigger',
-        type: 'trigger',
-        position: { x: 0, y: 0 },
-        draggable: false,
-        data: {
-            label: triggerMeta?.label ?? __('Trigger sin definir'),
-            event: triggerMeta?.event ?? '',
-            selected: selected?.kind === 'trigger',
-        } satisfies TriggerNodeData,
-    });
-
-    actions.forEach((action, i) => {
-        const meta = catalog.find((a) => a.slug === action.type);
-        const title = typeof action.config.title === 'string' ? action.config.title : '';
-        const branchCounts =
-            action.type === 'if_else'
-                ? {
-                      then: Array.isArray(action.config.then_actions)
-                          ? (action.config.then_actions as unknown[]).length
-                          : 0,
-                      else: Array.isArray(action.config.else_actions)
-                          ? (action.config.else_actions as unknown[]).length
-                          : 0,
-                  }
-                : undefined;
-        nodes.push({
-            id: `action-${i}`,
-            type: 'action',
-            position: { x: 0, y: (i + 1) * NODE_GAP_Y },
-            draggable: true,
-            data: {
-                index: i,
-                type: action.type,
-                title,
-                label: meta?.label ?? action.type,
-                selected: selected?.kind === 'action' && selected.index === i,
-                ...(branchCounts ? { branchCounts } : {}),
-            } satisfies ActionNodeData,
-        });
-    });
-
-    return nodes;
-}
-
-function buildEdges(actionCount: number): Edge[] {
-    const edges: Edge[] = [];
-    if (actionCount === 0) return edges;
-    edges.push({ id: 'e-trigger-0', source: 'trigger', target: 'action-0', animated: true });
-    for (let i = 0; i < actionCount - 1; i++) {
-        edges.push({
-            id: `e-${i}-${i + 1}`,
-            source: `action-${i}`,
-            target: `action-${i + 1}`,
-        });
-    }
-    return edges;
-}
 
 function TriggerNode({ data }: NodeProps): JSX.Element {
     const d = data as TriggerNodeData;
@@ -550,45 +506,107 @@ function TriggerNode({ data }: NodeProps): JSX.Element {
 
 function ActionNode({ data }: NodeProps): JSX.Element {
     const d = data as ActionNodeData;
+    const isIf = d.branchKind === 'if_else';
+    // Posición del último elemento del path: dentro de which branch vive
+    // este nodo (root si no hay branch).
+    const ownBranch = (() => {
+        for (let i = d.path.length - 1; i >= 0; i--) {
+            const seg = d.path[i];
+            if (seg === 'then' || seg === 'else') return seg;
+        }
+        return null;
+    })();
+    const stepNumber =
+        typeof d.path[d.path.length - 1] === 'number'
+            ? Number(d.path[d.path.length - 1]) + 1
+            : 1;
+
     return (
         <div
             className={cn(
-                'imcrm-rounded-lg imcrm-border-2 imcrm-bg-card imcrm-px-3 imcrm-py-2 imcrm-shadow-imcrm-sm imcrm-cursor-pointer',
+                'imcrm-rounded-xl imcrm-border-2 imcrm-px-3.5 imcrm-py-2.5 imcrm-cursor-pointer imcrm-transition-all imcrm-duration-150',
+                isIf
+                    ? 'imcrm-bg-gradient-to-br imcrm-from-primary/10 imcrm-to-primary/5 imcrm-shadow-imcrm-md'
+                    : 'imcrm-bg-card imcrm-shadow-imcrm-sm hover:imcrm-shadow-imcrm-md',
                 d.selected
                     ? 'imcrm-border-primary imcrm-ring-2 imcrm-ring-primary/30'
-                    : 'imcrm-border-border hover:imcrm-border-muted-foreground',
+                    : isIf
+                      ? 'imcrm-border-primary/50 hover:imcrm-border-primary'
+                      : 'imcrm-border-border hover:imcrm-border-muted-foreground',
             )}
             style={{ width: NODE_WIDTH }}
         >
-            <Handle type="target" position={Position.Top} className="!imcrm-bg-muted-foreground" />
+            <Handle
+                type="target"
+                position={Position.Top}
+                className="!imcrm-bg-muted-foreground !imcrm-w-2.5 !imcrm-h-2.5"
+            />
+
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                <GripVertical
-                    className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground imcrm-cursor-grab"
-                    aria-hidden
-                />
-                <span className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted imcrm-text-muted-foreground">
+                <span
+                    className={cn(
+                        'imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-full',
+                        isIf
+                            ? 'imcrm-bg-primary imcrm-text-primary-foreground'
+                            : 'imcrm-bg-muted imcrm-text-muted-foreground',
+                    )}
+                >
                     {iconForActionType(d.type)}
                 </span>
                 <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col">
-                    <span className="imcrm-text-[10px] imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
-                        {__('Acción')} {d.index + 1}
+                    <span
+                        className={cn(
+                            'imcrm-text-[10px] imcrm-uppercase imcrm-font-semibold imcrm-tracking-wide',
+                            isIf ? 'imcrm-text-primary' : 'imcrm-text-muted-foreground',
+                        )}
+                    >
+                        {ownBranch === 'then'
+                            ? `${__('Sí')} · ${stepNumber}`
+                            : ownBranch === 'else'
+                              ? `${__('No')} · ${stepNumber}`
+                              : `${__('Acción')} ${stepNumber}`}
                     </span>
                     <span className="imcrm-truncate imcrm-text-sm imcrm-font-medium">
                         {d.title || d.label}
                     </span>
                 </div>
             </div>
-            {d.branchCounts && (
-                <div className="imcrm-mt-2 imcrm-flex imcrm-gap-1 imcrm-text-[10px] imcrm-font-medium">
-                    <span className="imcrm-rounded imcrm-bg-success/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-success">
-                        {__('Si')}: {d.branchCounts.then}
-                    </span>
-                    <span className="imcrm-rounded imcrm-bg-warning/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-warning">
-                        {__('Si no')}: {d.branchCounts.else}
-                    </span>
-                </div>
+
+            {isIf ? (
+                <>
+                    {/* Dos handles de salida: then a la izq, else a la der.
+                         Los IDs los usa `layoutChain` para conectar al
+                         primer nodo de cada branch. */}
+                    <Handle
+                        type="source"
+                        position={Position.Bottom}
+                        id="then"
+                        style={{
+                            left: '25%',
+                            background: 'hsl(var(--imcrm-success))',
+                            width: 10,
+                            height: 10,
+                        }}
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Bottom}
+                        id="else"
+                        style={{
+                            left: '75%',
+                            background: 'hsl(var(--imcrm-warning))',
+                            width: 10,
+                            height: 10,
+                        }}
+                    />
+                </>
+            ) : (
+                <Handle
+                    type="source"
+                    position={Position.Bottom}
+                    className="!imcrm-bg-muted-foreground !imcrm-w-2.5 !imcrm-h-2.5"
+                />
             )}
-            <Handle type="source" position={Position.Bottom} className="!imcrm-bg-muted-foreground" />
         </div>
     );
 }

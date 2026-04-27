@@ -5,12 +5,19 @@ import { SkipLink } from '@/admin/layout/SkipLink';
 import { Topbar } from '@/admin/layout/Topbar';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { useFullscreen, useFullscreenEscapeKey } from '@/stores/shellStore';
 
 export function AdminShell(): JSX.Element {
+    const isFullscreen = useFullscreen();
+    useFullscreenEscapeKey();
+
     return (
         <div
             className={cn(
-                'imcrm-flex imcrm-min-h-[calc(100vh-32px)] imcrm-w-full imcrm-bg-background imcrm-text-foreground',
+                'imcrm-flex imcrm-w-full imcrm-bg-background imcrm-text-foreground',
+                isFullscreen
+                    ? 'imcrm-h-screen imcrm-min-h-screen'
+                    : 'imcrm-min-h-[calc(100vh-32px)]',
             )}
         >
             <SkipLink />

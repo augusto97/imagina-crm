@@ -107,6 +107,54 @@
         min-height: calc(100vh - 32px);
     }
 
+    /*
+     * Fullscreen "app mode": cuando el usuario activa el toggle, ocultamos
+     * todo el chrome de WordPress y montamos el SPA root como overlay
+     * fixed full-viewport. La clase `imcrm-fullscreen-mode` se setea en
+     * <html> desde `shellStore.ts` (antes del primer render para evitar
+     * flash). Usamos !important porque varias reglas de wp-admin tienen
+     * mayor especificidad que las nuestras.
+     */
+    html.imcrm-fullscreen-mode #wpadminbar,
+    html.imcrm-fullscreen-mode #adminmenumain,
+    html.imcrm-fullscreen-mode #adminmenuwrap,
+    html.imcrm-fullscreen-mode #adminmenuback,
+    html.imcrm-fullscreen-mode #wpfooter,
+    html.imcrm-fullscreen-mode .update-nag,
+    html.imcrm-fullscreen-mode .notice,
+    html.imcrm-fullscreen-mode #screen-meta,
+    html.imcrm-fullscreen-mode #screen-meta-links {
+        display: none !important;
+    }
+
+    html.imcrm-fullscreen-mode #wpcontent,
+    html.imcrm-fullscreen-mode #wpbody-content,
+    html.imcrm-fullscreen-mode #wpbody {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    html.imcrm-fullscreen-mode html,
+    html.imcrm-fullscreen-mode body {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 100vh !important;
+        overflow: hidden !important;
+    }
+
+    html.imcrm-fullscreen-mode #wpwrap {
+        height: 100vh !important;
+    }
+
+    html.imcrm-fullscreen-mode #imcrm-root {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 99999 !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
+        overflow: auto !important;
+    }
+
     #imcrm-root * {
         @apply imcrm-border-border;
         box-sizing: border-box;
