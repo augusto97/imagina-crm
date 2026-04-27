@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.1.2
+Stable tag: 0.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.1.3 =
+* Fix: la vista "Diagrama" de automatizaciones tiraba React error #321
+  ("Invalid hook call"). Causa: deps transitivas de @xyflow/react
+  bundleaban su propia copia de React en el chunk lazy → hooks de
+  React Flow corrían contra un React distinto del Provider del SPA.
+  Fix: vite.config con `resolve.dedupe: ['react', 'react-dom']` +
+  manualChunks que fuerza React/React-DOM al chunk compartido.
 
 = 0.1.2 =
 * Fix: el form de FieldDialog/AutomationDialog/WidgetFormDialog se
