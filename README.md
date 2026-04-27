@@ -103,6 +103,27 @@ git push origin v0.2.0
 Si necesitas reconstruir manualmente, en GitHub: **Actions → Build &
 publish release branch → Run workflow**.
 
+### Versionado
+
+La versión semver del plugin se define en 3 sitios sincronizados:
+`imagina-crm.php` (header WP + constante), `package.json` y
+`readme.txt` (Stable tag + entrada en Changelog). Bumpear cualquier
+fix con MINOR o PATCH antes de pushear a main.
+
+Cada build de release que produce `bin/build-release.sh` (y el
+workflow CI) **inyecta el commit SHA corto al final de la versión**
+en el ZIP de salida — ej. la versión `0.1.1` empaquetada en el
+commit `a1b2c3d` aparece en wp-admin → Plugins como
+`0.1.1+sha.a1b2c3d`. Eso permite:
+
+- Verificar visualmente qué build está instalado en un sitio.
+- Invalidar la caché del browser para los assets de Vite (porque
+  `wp_enqueue_script` usa la versión como query param).
+- Mantener semver "limpio" en el source (sin pollution por commit).
+
+La versión inyectada solo aplica al ZIP — el source en `main` mantiene
+la versión semver pura.
+
 ## Estructura del repo
 
 ```

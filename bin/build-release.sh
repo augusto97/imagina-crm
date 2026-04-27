@@ -63,6 +63,30 @@ for entry in "${INCLUDES[@]}"; do
     fi
 done
 
+# Inyecta el commit SHA corto en la Version: del header del plugin y
+# en la constante IMAGINA_CRM_VERSION. Así cada build distribuible
+# tiene un identificador único visible en wp-admin → Plugins (ej.
+# `0.1.1+sha.a1b2c3d`) — útil para verificar qué build está instalado
+# y para invalidar caches del enqueue de assets.
+#
+# Si no estamos en un repo git (ej. usuario corre el script desde un
+# tarball), saltamos la inyección — la versión queda como en source.
+if git rev-parse --git-dir > /dev/null 2>&1; then
+    SHORT_SHA=$(git rev-parse --short=7 HEAD 2>/dev/null || echo "")
+    if [ -n "$SHORT_SHA" ]; then
+        echo "▶ Inyectando SHA en Version del plugin: +sha.${SHORT_SHA}"
+        # `Version:` del header WP (formato comentario PHPDoc).
+        sed -i.bak -E \
+            "s/^( \* Version:[[:space:]]+)([0-9]+\.[0-9]+\.[0-9]+)/\1\2+sha.${SHORT_SHA}/" \
+            "$TARGET/imagina-crm.php"
+        # Constante IMAGINA_CRM_VERSION usada en wp_enqueue_script.
+        sed -i.bak -E \
+            "s/(define\('IMAGINA_CRM_VERSION', ')([0-9]+\.[0-9]+\.[0-9]+)('\))/\1\2+sha.${SHORT_SHA}\3/" \
+            "$TARGET/imagina-crm.php"
+        rm -f "$TARGET/imagina-crm.php.bak"
+    fi
+fi
+
 # Limpieza extra dentro de vendor: tests/docs/ejemplos de las
 # dependencias suelen sobrar y aumentan el ZIP innecesariamente.
 echo "▶ Pruning vendor/"

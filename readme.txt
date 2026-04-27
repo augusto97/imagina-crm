@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.1.1 =
+* Fix: dialogs/sheets/popovers de Radix se renderizaban transparentes.
+  Variables CSS movidas de `#imcrm-root` a `:root` para que el
+  contenido portaleado (fuera del SPA root) las vea.
+* Fix: el form de creación/edición se reseteaba en cada keystroke
+  (FieldDialog, AutomationDialog, WidgetFormDialog) — useEffect deps
+  incluían hooks de TanStack Query referencialmente inestables.
+* Fix: bundle JS no cargaba con `type="module"` — añadido filtro
+  `script_loader_tag` en AdminAssets.
+* Fix: `important: '#imcrm-root'` rompía Radix Portals — quitado del
+  tailwind.config.
+* Feature: editor de configuración por tipo de campo en FieldDialog
+  (opciones para select/multi_select, precision para number/currency,
+  max_length para text, target list para relation, default para
+  checkbox).
+* Feature: edición de campos existentes via icono Pencil en
+  FieldBuilder.
+* Feature: banner contextual en cada trigger de automatización
+  explicando cómo funciona y cómo configurarlo.
+* Build: pipeline de release vía rama `release` + workflow de CI
+  + script local `bin/build-release.sh`.
+* Build: bumped DB_VERSION a 2 + runtime upgrader que re-corre
+  installSystemTables en updates desde el WP admin.
+* Build: uninstall.php ahora purga las tablas automations,
+  automation_runs y dashboards (faltaban).
 
 = 0.1.0 =
 * Bootstrap inicial del plugin (Fase 0).
