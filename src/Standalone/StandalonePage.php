@@ -46,12 +46,69 @@ final class StandalonePage
 
     public function register(): void
     {
+        // Hook PRINCIPAL: intercept directo en init priority 0 — match
+        // por path del REQUEST_URI sin depender de rewrite rules ni
+        // permalink structure ni flush. Funciona desde la primera
+        // request post-instalación, en cualquier server (Apache/nginx),
+        // con cualquier permalink config (incluso plain).
+        add_action('init', [$this, 'maybeIntercept'], 0);
+
+        // Hook secundario: el rewrite rule sigue registrándose para
+        // que la URL `/imagina-crm/` aparezca en el rewrite cache de
+        // WP (importante para SEO bots etc., aunque robots:noindex
+        // ya bloquea). Si por alguna razón el intercept no captura
+        // (ej. otro plugin se mete antes), el rewrite + query var es
+        // la red de seguridad.
         add_action('init', [$this, 'registerRewriteRule']);
         add_filter('query_vars', [$this, 'registerQueryVar']);
         add_action('template_redirect', [$this, 'maybeRender'], 0);
-        // Flush automático en upgrades — corre después de init para
-        // que la rewrite rule ya esté registrada al hacer flush.
         add_action('wp_loaded', [$this, 'maybeFlushRewriteRules']);
+    }
+
+    /**
+     * Intercept del REQUEST_URI antes de que WP haga su parse_request.
+     * Si el path matchea nuestra URL, renderizamos y exit — saltando
+     * todo el ciclo de WP (parse → query → template). Esto significa:
+     *  - No 404 si las rewrite rules no se flushearon todavía
+     *  - No depende de permalink structure
+     *  - No conflictúa con pages/posts que tengan el mismo slug
+     *    porque corremos antes que parse_request
+     */
+    public function maybeIntercept(): void
+    {
+        if (! isset($_SERVER['REQUEST_URI'])) {
+            return;
+        }
+        $uri = (string) $_SERVER['REQUEST_URI'];
+        $path = (string) parse_url($uri, PHP_URL_PATH);
+        $path = '/' . trim($path, '/');
+
+        $expected = '/' . self::URL_PATH;
+        $isExact  = $path === $expected;
+        $isChild  = str_starts_with($path, $expected . '/');
+        if (! $isExact && ! $isChild) {
+            return;
+        }
+
+        // Skip si es una request al wp-admin o REST que happens to
+        // contener el segmento — defensivo. Las URLs admin y REST
+        // tienen su propio prefix así que esto rara vez aplica.
+        if (str_starts_with($path, '/wp-admin') || str_starts_with($path, '/wp-json')) {
+            return;
+        }
+
+        // Auth gate
+        if (! is_user_logged_in()) {
+            wp_safe_redirect(wp_login_url(self::url()));
+            exit;
+        }
+        if (! current_user_can(Plugin::ADMIN_CAPABILITY)) {
+            status_header(403);
+            wp_die(esc_html__('No tienes permiso para acceder a Imagina CRM.', 'imagina-crm'));
+        }
+
+        $this->renderPage();
+        exit;
     }
 
     public function maybeFlushRewriteRules(): void

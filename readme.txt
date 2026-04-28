@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.13.0
+Stable tag: 0.13.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.13.1 =
+* Fix: 0.13.0 servía 404 en `/imagina-crm/` para muchos sites.
+  Causa: el rewrite rule depende de un `flush_rewrite_rules()` que
+  algunos hosts (nginx mal configurado, opcache agresivo, plugins
+  de cache que cachan rules) no respetan inmediatamente.
+* Solución: intercept directo del REQUEST_URI en `init` priority 0
+  ANTES del `parse_request` de WP. Si el path matchea
+  `/imagina-crm` o un subpath, renderizamos y `exit` — sin
+  depender de rewrite rules, permalink structure ni cache de
+  options. Funciona desde la primera request, en cualquier server.
+* El rewrite rule + query var siguen registrándose como red de
+  seguridad (caso edge donde otro plugin se mete antes de
+  nuestro priority 0).
 
 = 0.13.0 =
 * Feature: el SPA ahora vive en una página standalone fuera del
