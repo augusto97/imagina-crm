@@ -6,6 +6,7 @@ namespace ImaginaCRM\Dashboards;
 use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListRepository;
+use ImaginaCRM\Records\QueryBuilder;
 use ImaginaCRM\Support\Database;
 use ImaginaCRM\Support\ValidationResult;
 
@@ -23,8 +24,11 @@ use ImaginaCRM\Support\ValidationResult;
  * con `IDENT_REGEX` de defensa en profundidad antes de envolver con
  * backticks.
  *
- * Filtros por widget se ignoran en este commit; pasarán al QueryBuilder
- * cuando los expongamos en la UI (próximo commit de polish).
+ * Filtros por widget: el config del widget puede traer un array
+ * `filters` con la misma forma que `/records?filter[...]` — el evaluador
+ * lo pasa por `QueryBuilder::compileWhereForList()` para generar un
+ * fragmento WHERE seguro y mergearlo con la lógica específica de cada
+ * tipo de widget.
  */
 final class WidgetEvaluator
 {
@@ -34,6 +38,7 @@ final class WidgetEvaluator
         private readonly Database $db,
         private readonly ListRepository $lists,
         private readonly FieldRepository $fields,
+        private readonly QueryBuilder $queryBuilder,
     ) {
     }
 
@@ -58,14 +63,23 @@ final class WidgetEvaluator
         $type   = (string) $widget['type'];
         $config = is_array($widget['config'] ?? null) ? $widget['config'] : [];
 
+        // Compilamos la cláusula WHERE de los filtros del widget UNA
+        // sola vez. Es la misma para todas las queries que cada tipo
+        // de evaluador ejecute (count, sum, group-by, etc.). Si el
+        // widget no tiene `filters`, el WHERE queda en la base de
+        // soft-delete (`WHERE deleted_at IS NULL`).
+        $rawFilters = is_array($config['filters'] ?? null) ? $config['filters'] : [];
+        $listFields = $this->fields->allForList($list->id);
+        $filterCtx  = $this->queryBuilder->compileWhereForList($list->id, $listFields, $rawFilters);
+
         return match ($type) {
-            'kpi'        => $this->evaluateKpi($list->tableSuffix, $config),
+            'kpi'        => $this->evaluateKpi($list->tableSuffix, $list->id, $config, $filterCtx),
             'chart_bar', 'chart_pie'
-                         => $this->evaluateChartBar($list->tableSuffix, $list->id, $config),
+                         => $this->evaluateChartBar($list->tableSuffix, $list->id, $config, $filterCtx),
             'chart_line', 'chart_area'
-                         => $this->evaluateChartLine($list->tableSuffix, $list->id, $config),
-            'stat_delta' => $this->evaluateStatDelta($list->tableSuffix, $list->id, $config),
-            'table'      => $this->evaluateTable($list->tableSuffix, $list->id, $config),
+                         => $this->evaluateChartLine($list->tableSuffix, $list->id, $config, $filterCtx),
+            'stat_delta' => $this->evaluateStatDelta($list->tableSuffix, $list->id, $config, $filterCtx),
+            'table'      => $this->evaluateTable($list->tableSuffix, $list->id, $config, $filterCtx),
             default      => ValidationResult::failWith('type', __('Tipo de widget no soportado.', 'imagina-crm')),
         };
     }
@@ -84,19 +98,22 @@ final class WidgetEvaluator
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param array<string, mixed>                              $config
+     * @param array{where: string, args: array<int, mixed>}     $filterCtx
      * @return array<string, mixed>|ValidationResult
      */
-    private function evaluateKpi(string $tableSuffix, array $config): array|ValidationResult
+    private function evaluateKpi(string $tableSuffix, int $listId, array $config, array $filterCtx): array|ValidationResult
     {
+        unset($listId); // declarado por consistencia de firma; no se usa aquí
         $metric = isset($config['metric']) ? (string) $config['metric'] : '';
         $table  = $this->dataTable($tableSuffix);
+        $where  = $filterCtx['where'];
+        $args   = $filterCtx['args'];
 
         if ($metric === 'count') {
-            $value = (int) $this->db->wpdb()->get_var(
-                'SELECT COUNT(*) FROM ' . $table . ' WHERE deleted_at IS NULL',
-            );
-            return ['value' => $value, 'metric' => 'count'];
+            $sql = 'SELECT COUNT(*) FROM ' . $table . ' ' . $where;
+            $prepared = $args === [] ? $sql : (string) $this->db->wpdb()->prepare($sql, $args);
+            return ['value' => (int) $this->db->wpdb()->get_var($prepared), 'metric' => 'count'];
         }
 
         if ($metric === 'sum' || $metric === 'avg') {
@@ -105,11 +122,11 @@ final class WidgetEvaluator
             if ($field === null || ! $this->validIdent($field->columnName)) {
                 return ValidationResult::failWith('metric_field_id', __('Campo de métrica inválido.', 'imagina-crm'));
             }
-            $col = '`' . $field->columnName . '`';
+            $col   = '`' . $field->columnName . '`';
             $sqlFn = $metric === 'sum' ? 'SUM' : 'AVG';
-            $raw = $this->db->wpdb()->get_var(
-                'SELECT ' . $sqlFn . '(' . $col . ') FROM ' . $table . ' WHERE deleted_at IS NULL',
-            );
+            $sql   = 'SELECT ' . $sqlFn . '(' . $col . ') FROM ' . $table . ' ' . $where;
+            $prepared = $args === [] ? $sql : (string) $this->db->wpdb()->prepare($sql, $args);
+            $raw   = $this->db->wpdb()->get_var($prepared);
             // SUM/AVG sobre una tabla vacía devuelve NULL; lo
             // normalizamos a 0 para que el frontend pueda renderizar
             // sin guards.
@@ -129,10 +146,11 @@ final class WidgetEvaluator
     ];
 
     /**
-     * @param array<string, mixed> $config
+     * @param array<string, mixed>                              $config
+     * @param array{where: string, args: array<int, mixed>}     $filterCtx
      * @return array<string, mixed>|ValidationResult
      */
-    private function evaluateChartBar(string $tableSuffix, int $listId, array $config): array|ValidationResult
+    private function evaluateChartBar(string $tableSuffix, int $listId, array $config, array $filterCtx): array|ValidationResult
     {
         $fieldId = isset($config['group_by_field_id']) ? (int) $config['group_by_field_id'] : 0;
         $field   = $this->fields->find($fieldId);
@@ -150,18 +168,26 @@ final class WidgetEvaluator
         $table = $this->dataTable($tableSuffix);
         $col   = '`' . $field->columnName . '`';
         $limit = 25; // hard cap para no devolver charts enormes con text fields
+        $where = $filterCtx['where'];
+        $args  = $filterCtx['args'];
+        $wpdb  = $this->db->wpdb();
+
+        $runQuery = function (string $sql) use ($wpdb, $args): array {
+            $prepared = $args === [] ? $sql : (string) $wpdb->prepare($sql, $args);
+            $rows = $wpdb->get_results($prepared, ARRAY_A);
+            return is_array($rows) ? $rows : [];
+        };
 
         // multi_select: la columna almacena JSON. Hacemos UNNEST en PHP
         // — fetch all distinct arrays + decode + acumular.
         if ($field->type === 'multi_select') {
-            $rows = $this->db->wpdb()->get_results(
+            $rows = $runQuery(
                 'SELECT ' . $col . ' AS bucket, COUNT(*) AS total FROM ' . $table
-                . ' WHERE deleted_at IS NULL AND ' . $col . ' IS NOT NULL'
+                . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                 . ' GROUP BY ' . $col,
-                ARRAY_A,
             );
             $counts = [];
-            foreach (is_array($rows) ? $rows : [] as $row) {
+            foreach ($rows as $row) {
                 $raw   = $row['bucket'] ?? null;
                 $total = (int) ($row['total'] ?? 0);
                 $arr   = is_string($raw) ? json_decode($raw, true) : null;
@@ -191,26 +217,24 @@ final class WidgetEvaluator
         // sea legible. Si en algún momento exponemos granularidad day/week
         // como config, pivoteamos el formato aquí.
         if ($field->type === 'date' || $field->type === 'datetime') {
-            $rows = $this->db->wpdb()->get_results(
+            $rows = $runQuery(
                 'SELECT DATE_FORMAT(' . $col . ", '%Y-%m') AS bucket, COUNT(*) AS total"
                 . ' FROM ' . $table
-                . ' WHERE deleted_at IS NULL AND ' . $col . ' IS NOT NULL'
+                . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                 . ' GROUP BY bucket ORDER BY bucket DESC LIMIT ' . $limit,
-                ARRAY_A,
             );
             return $this->bucketsAsData($rows);
         }
 
         // checkbox: 0/1. Mapeamos a labels reconocibles.
         if ($field->type === 'checkbox') {
-            $rows = $this->db->wpdb()->get_results(
+            $rows = $runQuery(
                 'SELECT ' . $col . ' AS bucket, COUNT(*) AS total FROM ' . $table
-                . ' WHERE deleted_at IS NULL'
+                . ' ' . $where
                 . ' GROUP BY ' . $col,
-                ARRAY_A,
             );
             $data = [];
-            foreach (is_array($rows) ? $rows : [] as $row) {
+            foreach ($rows as $row) {
                 $v = $row['bucket'] ?? null;
                 $label = $v === '1' || $v === 1 ? __('Sí', 'imagina-crm')
                     : ($v === '0' || $v === 0 ? __('No', 'imagina-crm') : __('(sin valor)', 'imagina-crm'));
@@ -220,14 +244,12 @@ final class WidgetEvaluator
         }
 
         // text / email / url / select: top N distintos por frecuencia.
-        $rows = $this->db->wpdb()->get_results(
+        $rows = $runQuery(
             'SELECT ' . $col . ' AS bucket, COUNT(*) AS total FROM ' . $table
-            . ' WHERE deleted_at IS NULL'
+            . ' ' . $where
             . ' GROUP BY ' . $col
             . ' ORDER BY total DESC, bucket ASC LIMIT ' . $limit,
-            ARRAY_A,
         );
-        $rows = is_array($rows) ? $rows : [];
 
         $labelByValue = $field->type === 'select' ? $this->labelMapForSelect($field) : [];
         $data = [];
@@ -265,10 +287,11 @@ final class WidgetEvaluator
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param array<string, mixed>                              $config
+     * @param array{where: string, args: array<int, mixed>}     $filterCtx
      * @return array<string, mixed>|ValidationResult
      */
-    private function evaluateChartLine(string $tableSuffix, int $listId, array $config): array|ValidationResult
+    private function evaluateChartLine(string $tableSuffix, int $listId, array $config, array $filterCtx): array|ValidationResult
     {
         $fieldId = isset($config['date_field_id']) ? (int) $config['date_field_id'] : 0;
         $field   = $this->fields->find($fieldId);
@@ -283,20 +306,18 @@ final class WidgetEvaluator
             return ValidationResult::failWith('date_field_id', __('Columna de fecha inválida.', 'imagina-crm'));
         }
 
-        $col = '`' . $field->columnName . '`';
-        // Agregamos por mes (YYYY-MM). Día sería más granular pero
-        // para charts mensuales/trimestrales típicos esto es lo útil.
-        // Si más adelante exponemos granularidad como config, pivoteamos
-        // entre %Y-%m / %Y-%m-%d.
-        $rows = $this->db->wpdb()->get_results(
-            'SELECT DATE_FORMAT(' . $col . ", '%Y-%m') AS bucket, COUNT(*) AS total"
-            . ' FROM ' . $this->dataTable($tableSuffix)
-            . ' WHERE deleted_at IS NULL AND ' . $col . ' IS NOT NULL'
-            . ' GROUP BY bucket ORDER BY bucket ASC',
-            ARRAY_A,
-        );
-        $rows = is_array($rows) ? $rows : [];
-        $data = [];
+        $col   = '`' . $field->columnName . '`';
+        $where = $filterCtx['where'];
+        $args  = $filterCtx['args'];
+        $wpdb  = $this->db->wpdb();
+        $sql   = 'SELECT DATE_FORMAT(' . $col . ", '%Y-%m') AS bucket, COUNT(*) AS total"
+               . ' FROM ' . $this->dataTable($tableSuffix)
+               . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
+               . ' GROUP BY bucket ORDER BY bucket ASC';
+        $prepared = $args === [] ? $sql : (string) $wpdb->prepare($sql, $args);
+        $rows     = $wpdb->get_results($prepared, ARRAY_A);
+        $rows     = is_array($rows) ? $rows : [];
+        $data     = [];
         foreach ($rows as $row) {
             $bucket = $row['bucket'] ?? null;
             if ($bucket === null) {
@@ -319,10 +340,11 @@ final class WidgetEvaluator
      *
      * Devuelve `{value, previous, delta_pct, period_days, metric}`.
      *
-     * @param array<string, mixed> $config
+     * @param array<string, mixed>                              $config
+     * @param array{where: string, args: array<int, mixed>}     $filterCtx
      * @return array<string, mixed>|ValidationResult
      */
-    private function evaluateStatDelta(string $tableSuffix, int $listId, array $config): array|ValidationResult
+    private function evaluateStatDelta(string $tableSuffix, int $listId, array $config, array $filterCtx): array|ValidationResult
     {
         $metric = isset($config['metric']) ? (string) $config['metric'] : 'count';
         if (! in_array($metric, ['count', 'sum', 'avg'], true)) {
@@ -360,21 +382,28 @@ final class WidgetEvaluator
         $table   = $this->dataTable($tableSuffix);
         $dateCol = '`' . $dateField->columnName . '`';
         $wpdb    = $this->db->wpdb();
+        $where   = $filterCtx['where'];
+        $whereArgs = $filterCtx['args'];
 
         // Período actual: [now - N días, now]. Período previo:
-        // [now - 2N días, now - N días).
-        $sql = $wpdb->prepare(
-            'SELECT'
+        // [now - 2N días, now - N días). Las dos subqueries comparten
+        // el WHERE de los filtros del widget — los args se duplican
+        // porque cada subquery los consume independientemente.
+        $sql = 'SELECT'
             . ' (SELECT ' . $sqlFn . '(' . $metricCol . ') FROM ' . $table
-                . ' WHERE deleted_at IS NULL AND ' . $dateCol . ' >= DATE_SUB(NOW(), INTERVAL %d DAY)) AS curr,'
+                . ' ' . $where . ' AND ' . $dateCol . ' >= DATE_SUB(NOW(), INTERVAL %d DAY)) AS curr,'
             . ' (SELECT ' . $sqlFn . '(' . $metricCol . ') FROM ' . $table
-                . ' WHERE deleted_at IS NULL AND ' . $dateCol . ' >= DATE_SUB(NOW(), INTERVAL %d DAY)'
-                . ' AND ' . $dateCol . ' < DATE_SUB(NOW(), INTERVAL %d DAY)) AS prev',
-            $periodDays,
-            $periodDays * 2,
-            $periodDays,
+                . ' ' . $where . ' AND ' . $dateCol . ' >= DATE_SUB(NOW(), INTERVAL %d DAY)'
+                . ' AND ' . $dateCol . ' < DATE_SUB(NOW(), INTERVAL %d DAY)) AS prev';
+
+        $args = array_merge(
+            $whereArgs,            // primera subquery
+            [$periodDays],
+            $whereArgs,            // segunda subquery
+            [$periodDays * 2, $periodDays],
         );
-        $row = $wpdb->get_row($sql, ARRAY_A);
+        $prepared = (string) $wpdb->prepare($sql, $args);
+        $row      = $wpdb->get_row($prepared, ARRAY_A);
 
         $curr = is_array($row) ? ($row['curr'] ?? 0) : 0;
         $prev = is_array($row) ? ($row['prev'] ?? 0) : 0;
@@ -406,10 +435,11 @@ final class WidgetEvaluator
      *
      * Devuelve `{rows: [{id, fields:[{label, value}]}], columns: [{label, type}]}`.
      *
-     * @param array<string, mixed> $config
+     * @param array<string, mixed>                              $config
+     * @param array{where: string, args: array<int, mixed>}     $filterCtx
      * @return array<string, mixed>
      */
-    private function evaluateTable(string $tableSuffix, int $listId, array $config): array
+    private function evaluateTable(string $tableSuffix, int $listId, array $config, array $filterCtx): array
     {
         $limit   = max(1, min(50, (int) ($config['limit'] ?? 10)));
         $sortDir = (string) ($config['sort_dir'] ?? 'desc');
@@ -465,15 +495,16 @@ final class WidgetEvaluator
         }
         $colsSql = implode(', ', $cols);
 
-        $sql = $this->db->wpdb()->prepare(
-            'SELECT ' . $colsSql . ' FROM ' . $this->dataTable($tableSuffix)
-            . ' WHERE deleted_at IS NULL'
-            . ' ORDER BY `' . $sortCol . '` ' . $sortDir
-            . ' LIMIT %d',
-            $limit,
-        );
-        $rows = $this->db->wpdb()->get_results($sql, ARRAY_A);
-        $rows = is_array($rows) ? $rows : [];
+        $where     = $filterCtx['where'];
+        $whereArgs = $filterCtx['args'];
+        $sql = 'SELECT ' . $colsSql . ' FROM ' . $this->dataTable($tableSuffix)
+             . ' ' . $where
+             . ' ORDER BY `' . $sortCol . '` ' . $sortDir
+             . ' LIMIT %d';
+        $args     = array_merge($whereArgs, [$limit]);
+        $prepared = (string) $this->db->wpdb()->prepare($sql, $args);
+        $rows     = $this->db->wpdb()->get_results($prepared, ARRAY_A);
+        $rows     = is_array($rows) ? $rows : [];
 
         $columns = array_map(
             static fn (FieldEntity $f): array => [
