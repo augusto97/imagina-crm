@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { ExternalLink, LogOut, Maximize2, Minimize2, Search, Settings } from 'lucide-react';
+import { ExternalLink, LogOut, Maximize2, Minimize2, Settings } from 'lucide-react';
 
 import { NotificationBell } from '@/admin/layout/NotificationBell';
 import { Button } from '@/components/ui/button';
@@ -32,23 +32,6 @@ export function Topbar(): JSX.Element {
             </div>
 
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled
-                    title={__('Buscador global — próximamente')}
-                    className="imcrm-gap-2 imcrm-min-w-[200px] imcrm-justify-start imcrm-text-muted-foreground imcrm-font-normal"
-                >
-                    <Search className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden="true" />
-                    <span className="imcrm-flex-1 imcrm-text-left">{__('Buscar…')}</span>
-                    <kbd
-                        className="imcrm-ml-auto imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-mono imcrm-text-muted-foreground"
-                        aria-label={__('atajo Comando K')}
-                    >
-                        <span aria-hidden="true">⌘K</span>
-                    </kbd>
-                </Button>
-
                 <NotificationBell />
 
                 <Button

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.12.0
+Stable tag: 0.12.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,13 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.12.1 =
+* Cleanup: removido el botón "Buscar… ⌘K" del Topbar. Era un
+  stub disabled mientras pensábamos construir un command palette
+  global; el usuario decidió que no lo necesita por ahora. Si en
+  el futuro hace falta, se reintroduce. Mantra: nada de
+  funcionalidades de sobra que no se vayan a usar.
 
 = 0.12.0 =
 * Feature: widgets del dashboard ahora son drag + resize libre
