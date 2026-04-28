@@ -2,6 +2,11 @@ import { useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import {
+    ColorPicker,
+    OPTION_COLORS,
+    type OptionColor,
+} from '@/components/ui/color-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -59,6 +64,7 @@ interface SubProps {
 interface OptionRow {
     value: string;
     label: string;
+    color: OptionColor | null;
 }
 
 function OptionsEditor({ config, onChange }: SubProps): JSX.Element {
@@ -66,37 +72,50 @@ function OptionsEditor({ config, onChange }: SubProps): JSX.Element {
         const raw = config.options;
         if (!Array.isArray(raw)) return [];
         return raw
-            .filter((o): o is { value?: unknown; label?: unknown } =>
+            .filter((o): o is { value?: unknown; label?: unknown; color?: unknown } =>
                 typeof o === 'object' && o !== null,
             )
             .map((o) => ({
                 value: typeof o.value === 'string' ? o.value : String(o.value ?? ''),
                 label: typeof o.label === 'string' ? o.label : String(o.label ?? ''),
+                color: typeof o.color === 'string' && OPTION_COLORS.includes(o.color as OptionColor)
+                    ? (o.color as OptionColor)
+                    : null,
             }));
     }, [config.options]);
 
     const setOptions = (next: OptionRow[]): void => {
-        onChange({ ...config, options: next });
+        // Persistimos `color` solo cuando es no-null para no inflar
+        // el JSON con valores vacíos y no romper opciones legacy.
+        onChange({
+            ...config,
+            options: next.map((o) => ({
+                value: o.value,
+                label: o.label,
+                ...(o.color ? { color: o.color } : {}),
+            })),
+        });
     };
 
-    const addRow = (): void => setOptions([...options, { value: '', label: '' }]);
+    const addRow = (): void => setOptions([...options, { value: '', label: '', color: null }]);
 
     return (
-        <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
-            <legend className="imcrm-px-1 imcrm-text-xs imcrm-font-medium imcrm-uppercase imcrm-text-muted-foreground">
+        <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-4 imcrm-shadow-imcrm-sm">
+            <legend className="imcrm-px-1.5 imcrm-text-[10px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.08em] imcrm-text-muted-foreground">
                 {__('Opciones')}
             </legend>
-            <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                {__('Cada opción tiene un valor (interno, snake_case) y un label (visible al usuario).')}
+            <p className="imcrm-text-[12px] imcrm-leading-relaxed imcrm-text-muted-foreground">
+                {__('Cada opción tiene un valor (interno, snake_case), un label visible y un color opcional para diferenciarla en chips.')}
             </p>
 
             {options.length === 0 ? (
-                <p className="imcrm-text-xs imcrm-text-warning">
+                <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-warning/40 imcrm-bg-warning/5 imcrm-px-3 imcrm-py-3 imcrm-text-[12px] imcrm-text-warning">
                     {__('Añade al menos una opción para que el campo sea usable.')}
-                </p>
+                </div>
             ) : (
-                <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <li className="imcrm-grid imcrm-grid-cols-[1fr_1fr_auto] imcrm-gap-2 imcrm-text-[10px] imcrm-uppercase imcrm-text-muted-foreground">
+                <ul className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                    <li className="imcrm-grid imcrm-grid-cols-[2.25rem_1fr_1fr_2.25rem] imcrm-gap-2 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-tracking-[0.08em] imcrm-text-muted-foreground">
+                        <span>{__('Color')}</span>
                         <span>{__('Valor')}</span>
                         <span>{__('Label')}</span>
                         <span aria-hidden />
@@ -104,8 +123,16 @@ function OptionsEditor({ config, onChange }: SubProps): JSX.Element {
                     {options.map((opt, i) => (
                         <li
                             key={i}
-                            className="imcrm-grid imcrm-grid-cols-[1fr_1fr_auto] imcrm-gap-2"
+                            className="imcrm-grid imcrm-grid-cols-[2.25rem_1fr_1fr_2.25rem] imcrm-items-center imcrm-gap-2"
                         >
+                            <ColorPicker
+                                value={opt.color}
+                                onChange={(color) => {
+                                    const next = [...options];
+                                    next[i] = { ...next[i]!, color };
+                                    setOptions(next);
+                                }}
+                            />
                             <Input
                                 value={opt.value}
                                 onChange={(e) => {
@@ -140,7 +167,7 @@ function OptionsEditor({ config, onChange }: SubProps): JSX.Element {
 
             <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={addRow}
                 className="imcrm-self-start imcrm-gap-2"

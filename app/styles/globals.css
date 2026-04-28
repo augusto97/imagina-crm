@@ -47,6 +47,24 @@
         --imcrm-tone-amber: 38 92% 50%;
         --imcrm-tone-slate: 215 16% 47%;
 
+        /* Paleta curada para chips de opciones (select / multi_select).
+         * 12 colores estilo ClickUp / Linear — saturados pero no fuertes,
+         * cubren el rango sin chocar con el primary cyan de la marca.
+         * El usuario elige uno por opción desde el ColorPicker; el chip
+         * usa la versión soft (bg/10 + text-color + border/20). */
+        --imcrm-opt-gray:    220 9% 46%;
+        --imcrm-opt-rose:    346 77% 60%;
+        --imcrm-opt-orange:  25 95% 53%;
+        --imcrm-opt-amber:   38 92% 50%;
+        --imcrm-opt-yellow:  48 96% 53%;
+        --imcrm-opt-lime:    84 81% 44%;
+        --imcrm-opt-green:   142 71% 45%;
+        --imcrm-opt-teal:    173 80% 40%;
+        --imcrm-opt-cyan:    188 95% 43%;
+        --imcrm-opt-blue:    217 91% 60%;
+        --imcrm-opt-violet:  262 83% 58%;
+        --imcrm-opt-pink:    330 81% 60%;
+
         /* Secondary y muted prácticamente iguales — slate frío muy
          * leve, no el gris cálido genérico de los SaaS templates. */
         --imcrm-secondary: 220 14% 97%;

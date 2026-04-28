@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { GripVertical } from 'lucide-react';
 
 import { renderCellValue } from '@/admin/records/renderCellValue';
+import { colorVar, type OptionColor } from '@/components/ui/color-picker';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -170,7 +171,11 @@ export function KanbanView({
                             <div className="imcrm-flex imcrm-min-w-0 imcrm-items-center imcrm-gap-2">
                                 <span
                                     className="imcrm-h-2.5 imcrm-w-2.5 imcrm-shrink-0 imcrm-rounded-full"
-                                    style={{ backgroundColor: col.color ?? 'hsl(var(--imcrm-muted-foreground))' }}
+                                    style={{
+                                        backgroundColor:
+                                            colorVar(col.color as OptionColor | undefined) ??
+                                            'hsl(var(--imcrm-muted-foreground))',
+                                    }}
                                     aria-hidden
                                 />
                                 <h3 className="imcrm-truncate imcrm-text-xs imcrm-font-bold imcrm-uppercase imcrm-tracking-wider imcrm-text-foreground">
@@ -261,7 +266,10 @@ function KanbanCard({
                 <span
                     aria-hidden
                     className="imcrm-absolute imcrm-left-0 imcrm-top-0 imcrm-h-full imcrm-w-1"
-                    style={{ backgroundColor: columnColor }}
+                    style={{
+                        backgroundColor:
+                            colorVar(columnColor as OptionColor) ?? columnColor,
+                    }}
                 />
             )}
 

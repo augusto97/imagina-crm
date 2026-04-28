@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.8.3
+Stable tag: 0.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.9.0 =
+* Feature: colores manuales para opciones de select / multi_select
+  (ClickUp-style). En el editor de campo (FieldDialog) cada opción
+  ahora tiene una columna "Color" con un ColorPicker compacto que
+  abre un Popover con paleta curada de 12 swatches:
+    gris · rosa · naranja · ámbar · amarillo · lima · verde · teal
+    · cyan · azul · violeta · magenta
+  + opción "Sin color" para volver a neutral.
+  · El color se guarda como nombre estable (ej. "cyan") en
+    `config.options[i].color`. Nada de hex/rgb crudos — los
+    nombres se resuelven a HSL via CSS vars `--imcrm-opt-{name}`,
+    así heredan dark mode y son centralmente editables.
+  · Los chips renderizados en TableView (select / multi_select)
+    ahora usan el color elegido: bg al 14% + border al 32% +
+    text-color sólido (variante "soft" Linear/GitHub style) +
+    dot del color a la izquierda.
+  · KanbanView resuelve el color via `colorVar()`: el dot del
+    column header y el border accent del card lo heredan
+    automáticamente. Sin código duplicado.
+* Polish del OptionsEditor:
+  · Card style consistente (rounded-xl + shadow-sm + bg-card),
+    no más bg-muted plano
+  · Empty state con border dashed warning + bg warning/5
+  · Headers de columnas con tracking + uppercase semibold
+  · Botón "Añadir opción" pasa a outline (más afordance)
 
 = 0.8.3 =
 * Polish del Formulario de automatizaciones — partes que quedaban
