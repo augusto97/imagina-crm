@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.12.4
+Stable tag: 0.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.13.0 =
+* Feature: el SPA ahora vive en una página standalone fuera del
+  chrome de wp-admin. URL pública: `/imagina-crm/` (con pretty
+  permalinks) o `/?imcrm_standalone=1` (con plain permalinks).
+  Razones (todas reales, no cosméticas):
+  · CERO bleed de estilos de wp-admin → los bugs tipo "pastilla
+    gris UA" o "underline en links" no pueden volver. La página
+    incluye su propio reset CSS minimal (subset de Tailwind
+    preflight) inline.
+  · First paint significativamente más rápido — sin jQuery, sin
+    admin bar, sin `admin_head` de plugins terceros, sin estilos
+    base de wp-admin.
+  · El "fullscreen mode" deja de ser un overlay z-index hack.
+* El menú lateral de wp-admin SIGUE existiendo como entry point
+  familiar — pero el callback ya no monta el SPA inline; redirige
+  a la URL standalone. Bookmarks viejos a
+  `admin.php?page=imagina-crm` también redirigen, sin sorpresas
+  de estilos rotos.
+* Auth sin cambios — cookies de WP + nonce REST. No autenticado
+  → redirect a wp-login con `redirect_to` apuntando de vuelta.
+  Sin capability → 403.
+* Rewrite rules con auto-flush via versión: bumpeás
+  `StandalonePage::REWRITE_VERSION` cuando cambien las rules y
+  `maybeFlushRewriteRules` (en `wp_loaded`) detecta el bump y
+  refresca. Cubre el caso "el usuario actualiza el plugin sin
+  re-activar".
 
 = 0.12.4 =
 * Fix CRÍTICO frontend: TODOS los filtros estaban rotos a nivel

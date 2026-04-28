@@ -5,6 +5,7 @@ namespace ImaginaCRM;
 
 use ImaginaCRM\Admin\AdminAssets;
 use ImaginaCRM\Admin\AdminMenu;
+use ImaginaCRM\Standalone\StandalonePage;
 use ImaginaCRM\Automations\ActionRegistry;
 use ImaginaCRM\Automations\Actions\CallWebhookAction;
 use ImaginaCRM\Automations\Actions\IfElseAction;
@@ -550,8 +551,9 @@ final class Plugin
 
     private function registerAdmin(): void
     {
-        $assets = $this->container->get(AdminAssets::class);
-        $menu   = $this->container->get(AdminMenu::class);
+        $assets     = $this->container->get(AdminAssets::class);
+        $menu       = $this->container->get(AdminMenu::class);
+        $standalone = $this->container->get(StandalonePage::class);
 
         if ($assets instanceof AdminAssets) {
             $assets->register();
@@ -559,6 +561,14 @@ final class Plugin
 
         if ($menu instanceof AdminMenu) {
             $menu->register();
+        }
+
+        // La página standalone vive fuera de wp-admin (URL pública
+        // `/imagina-crm/`). Se registra siempre — el rewrite rule + el
+        // hook `template_redirect` solo activan cuando el request va
+        // a esa URL, así que no afecta wp-admin ni el frontend tema.
+        if ($standalone instanceof StandalonePage) {
+            $standalone->register();
         }
     }
 
