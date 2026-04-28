@@ -223,30 +223,30 @@ export function AutomationDialog({
                     )}
 
                     <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-5">
-                        <FieldGroup error={fieldErrors.name}>
-                            <Label htmlFor="auto-name">{__('Nombre')}</Label>
-                            <Input
-                                id="auto-name"
-                                required
-                                value={state.name}
-                                onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
-                            />
-                        </FieldGroup>
-
-                        <FieldGroup>
-                            <Label htmlFor="auto-desc">{__('Descripción (opcional)')}</Label>
-                            <Textarea
-                                id="auto-desc"
-                                rows={2}
-                                value={state.description}
-                                onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
-                            />
-                        </FieldGroup>
-
                         <ViewSwitcher view={view} onChange={setView} />
 
                         {view === 'form' ? (
                             <>
+                                <FieldGroup error={fieldErrors.name}>
+                                    <Label htmlFor="auto-name">{__('Nombre')}</Label>
+                                    <Input
+                                        id="auto-name"
+                                        required
+                                        value={state.name}
+                                        onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
+                                    />
+                                </FieldGroup>
+
+                                <FieldGroup>
+                                    <Label htmlFor="auto-desc">{__('Descripción (opcional)')}</Label>
+                                    <Textarea
+                                        id="auto-desc"
+                                        rows={2}
+                                        value={state.description}
+                                        onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
+                                    />
+                                </FieldGroup>
+
                                 <FieldGroup error={fieldErrors.trigger_type}>
                                     <Label htmlFor="auto-trigger">{__('Trigger')}</Label>
                                     <Select
@@ -290,39 +290,64 @@ export function AutomationDialog({
                                 />
                             </>
                         ) : (
-                            <ErrorBoundary
-                                label={__('No se pudo cargar el diagrama. Usa la vista Formulario por ahora.')}
-                                onReset={() => setView('form')}
-                            >
-                                <Suspense
-                                    fallback={
-                                        <div className="imcrm-flex imcrm-h-[480px] imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-text-sm imcrm-text-muted-foreground">
-                                            <Loader2 className="imcrm-mr-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-                                            {__('Cargando diagrama…')}
-                                        </div>
-                                    }
+                            // En modo Diagrama dedicamos TODO el espacio del modal
+                            // al canvas + side panel. Nombre/Descripción son
+                            // accesibles desde la vista Formulario; mostrar el
+                            // nombre actual como header sutil para contexto.
+                            <>
+                                <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2">
+                                    <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col">
+                                        <span className="imcrm-text-[10px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.08em] imcrm-text-muted-foreground">
+                                            {__('Editando')}
+                                        </span>
+                                        <span className="imcrm-truncate imcrm-text-sm imcrm-font-semibold">
+                                            {state.name.trim() === '' ? __('(sin nombre)') : state.name}
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setView('form')}
+                                    >
+                                        {__('Editar metadatos')}
+                                    </Button>
+                                </div>
+
+                                <ErrorBoundary
+                                    label={__('No se pudo cargar el diagrama. Usa la vista Formulario por ahora.')}
+                                    onReset={() => setView('form')}
                                 >
-                                    <AutomationVisualBuilder
-                                        listId={listId}
-                                        triggerType={state.triggerType}
-                                        triggerConfig={state.triggerConfig}
-                                        onTriggerTypeChange={(next) =>
-                                            setState((s) => ({
-                                                ...s,
-                                                triggerType: next,
-                                                triggerConfig: {},
-                                            }))
+                                    <Suspense
+                                        fallback={
+                                            <div className="imcrm-flex imcrm-h-[480px] imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-text-sm imcrm-text-muted-foreground">
+                                                <Loader2 className="imcrm-mr-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+                                                {__('Cargando diagrama…')}
+                                            </div>
                                         }
-                                        onTriggerConfigChange={(triggerConfig) =>
-                                            setState((s) => ({ ...s, triggerConfig }))
-                                        }
-                                        triggers={triggers}
-                                        actions={state.actions}
-                                        actionsCatalog={actions}
-                                        onActionsChange={(next) => setState((s) => ({ ...s, actions: next }))}
-                                    />
-                                </Suspense>
-                            </ErrorBoundary>
+                                    >
+                                        <AutomationVisualBuilder
+                                            listId={listId}
+                                            triggerType={state.triggerType}
+                                            triggerConfig={state.triggerConfig}
+                                            onTriggerTypeChange={(next) =>
+                                                setState((s) => ({
+                                                    ...s,
+                                                    triggerType: next,
+                                                    triggerConfig: {},
+                                                }))
+                                            }
+                                            onTriggerConfigChange={(triggerConfig) =>
+                                                setState((s) => ({ ...s, triggerConfig }))
+                                            }
+                                            triggers={triggers}
+                                            actions={state.actions}
+                                            actionsCatalog={actions}
+                                            onActionsChange={(next) => setState((s) => ({ ...s, actions: next }))}
+                                        />
+                                    </Suspense>
+                                </ErrorBoundary>
+                            </>
                         )}
 
                         <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
@@ -364,7 +389,7 @@ function ViewSwitcher({
 }): JSX.Element {
     return (
         <div
-            className="imcrm-inline-flex imcrm-self-start imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-0.5 imcrm-text-xs"
+            className="imcrm-inline-flex imcrm-self-start imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-1 imcrm-shadow-imcrm-sm"
             role="tablist"
             aria-label={__('Vista del editor')}
         >
@@ -374,10 +399,10 @@ function ViewSwitcher({
                 aria-selected={view === 'form'}
                 onClick={() => onChange('form')}
                 className={cn(
-                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-transition-colors',
+                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-px-3 imcrm-py-1.5 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors',
                     view === 'form'
-                        ? 'imcrm-bg-primary imcrm-text-primary-foreground'
-                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent',
+                        ? 'imcrm-bg-primary imcrm-text-primary-foreground imcrm-shadow-imcrm-sm'
+                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground',
                 )}
             >
                 <LayoutList className="imcrm-h-3.5 imcrm-w-3.5" />
@@ -389,10 +414,10 @@ function ViewSwitcher({
                 aria-selected={view === 'visual'}
                 onClick={() => onChange('visual')}
                 className={cn(
-                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-transition-colors',
+                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-px-3 imcrm-py-1.5 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors',
                     view === 'visual'
-                        ? 'imcrm-bg-primary imcrm-text-primary-foreground'
-                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent',
+                        ? 'imcrm-bg-primary imcrm-text-primary-foreground imcrm-shadow-imcrm-sm'
+                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground',
                 )}
             >
                 <Workflow className="imcrm-h-3.5 imcrm-w-3.5" />

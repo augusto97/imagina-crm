@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.8.1
+Stable tag: 0.8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,27 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.8.2 =
+* Fix layout AutomationDialog en modo Diagrama: los campos
+  Nombre, Descripción y Trigger consumían ~250px verticales del
+  modal — el canvas quedaba apretado abajo. Ahora en modo
+  Diagrama se muestran SOLO las tabs + un header sutil
+  ("Editando: <nombre>" + botón "Editar metadatos") + el canvas
+  full-height + el footer. Para editar nombre/descripción el
+  usuario alterna a Formulario via tabs o el botón "Editar
+  metadatos".
+* Polish ViewSwitcher (tabs Formulario / Diagrama):
+  · rounded-lg (no rounded-md) + shadow-imcrm-sm en el container
+  · Active tab con shadow propia (efecto pill elevado)
+  · Padding mayor (px-3 py-1.5) — antes era px-2.5 py-1
+  · Hover state explícito text-foreground en tabs inactivas
+* Polish EmptyPanel del side-panel del visual builder: antes era
+  un texto centrado pequeño con mucho espacio vacío. Ahora tiene:
+  · Card con border dashed + bg canvas + icon-tile primary
+  · Título + descripción explicativa
+  · Bullet list con tips de uso (cómo añadir acciones, cómo
+    funcionan if_else branches, cómo reordenar)
 
 = 0.8.1 =
 * Fix CRÍTICO visual: TODOS los `<button>` no estilados explícitamente

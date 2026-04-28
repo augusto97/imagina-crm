@@ -311,12 +311,31 @@ function Inner({
 
 function EmptyPanel(): JSX.Element {
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-2 imcrm-py-12 imcrm-text-center">
-            <Workflow className="imcrm-h-6 imcrm-w-6 imcrm-text-muted-foreground" />
-            <p className="imcrm-text-sm imcrm-font-medium">{__('Selecciona un nodo')}</p>
-            <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                {__('Click en el trigger o en una acción para editarla.')}
-            </p>
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-4 imcrm-p-2">
+            <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-canvas imcrm-px-4 imcrm-py-6 imcrm-text-center">
+                <span className="imcrm-flex imcrm-h-10 imcrm-w-10 imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-bg-primary/10 imcrm-text-primary">
+                    <Workflow className="imcrm-h-5 imcrm-w-5" />
+                </span>
+                <p className="imcrm-text-sm imcrm-font-semibold">{__('Selecciona un nodo')}</p>
+                <p className="imcrm-text-xs imcrm-text-muted-foreground imcrm-leading-relaxed">
+                    {__('Click en el trigger o en una acción del diagrama para editar su configuración aquí.')}
+                </p>
+            </div>
+
+            <ul className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-text-[12px] imcrm-text-muted-foreground">
+                <li className="imcrm-flex imcrm-items-start imcrm-gap-2">
+                    <span className="imcrm-mt-1.5 imcrm-h-1 imcrm-w-1 imcrm-shrink-0 imcrm-rounded-full imcrm-bg-primary" />
+                    <span>{__('Usa el botón "Añadir acción" para sumar pasos al flujo.')}</span>
+                </li>
+                <li className="imcrm-flex imcrm-items-start imcrm-gap-2">
+                    <span className="imcrm-mt-1.5 imcrm-h-1 imcrm-w-1 imcrm-shrink-0 imcrm-rounded-full imcrm-bg-primary" />
+                    <span>{__('Las acciones "Si / sino" abren dos ramas con sus propias acciones nested.')}</span>
+                </li>
+                <li className="imcrm-flex imcrm-items-start imcrm-gap-2">
+                    <span className="imcrm-mt-1.5 imcrm-h-1 imcrm-w-1 imcrm-shrink-0 imcrm-rounded-full imcrm-bg-primary" />
+                    <span>{__('Para reordenar acciones, cambia a la vista Formulario.')}</span>
+                </li>
+            </ul>
         </div>
     );
 }
