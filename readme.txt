@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.11.0
+Stable tag: 0.12.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.12.0 =
+* Feature: widgets del dashboard ahora son drag + resize libre
+  con persistencia, basado en `react-grid-layout`. El usuario
+  puede:
+    · Arrastrar cualquier widget para reordenar
+    · Resizear desde la esquina inferior-derecha (handle visible
+      al hover)
+    · El nuevo layout (x/y/w/h) se persiste automáticamente al
+      soltar via PATCH /dashboards/{id}
+  Grid de 12 columnas a `lg`, responsive a 8/4/2 en breakpoints
+  más chicos (md/xs/xxs). rowHeight 80px + margin 16px.
+* Performance: react-grid-layout (~50KB gzipped) se carga lazy
+  en su propio chunk — solo paga el costo el usuario que abre
+  un dashboard, no el resto.
+* Persistencia inteligente: `onLayoutChange` dispara también
+  en mount inicial; comparamos antes de salvar para evitar
+  PATCHs redundantes al abrir un dashboard.
+* Botones de editar/eliminar widget tienen `imcrm-no-drag`
+  para que el click no sea capturado como drag.
 
 = 0.11.0 =
 * Feature: 4 nuevos tipos de widget para Dashboards.

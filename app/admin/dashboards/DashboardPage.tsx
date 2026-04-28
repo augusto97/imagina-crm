@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 
@@ -8,6 +8,13 @@ import { LineChartWidget } from '@/admin/dashboards/widgets/LineChartWidget';
 import { PieChartWidget } from '@/admin/dashboards/widgets/PieChartWidget';
 import { StatDeltaWidget } from '@/admin/dashboards/widgets/StatDeltaWidget';
 import { TableWidget } from '@/admin/dashboards/widgets/TableWidget';
+
+// react-grid-layout es ~50KB gzipped — solo lo necesitamos en la
+// vista de un dashboard concreto. Lazy-load para no inflar el main
+// bundle de listas.
+const DashboardGrid = lazy(() =>
+    import('@/admin/dashboards/DashboardGrid').then((m) => ({ default: m.DashboardGrid })),
+);
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,6 +73,37 @@ export function DashboardPage(): JSX.Element {
             if (err instanceof ApiError || err instanceof Error) {
                 window.alert(err.message);
             }
+        }
+    };
+
+    /**
+     * Persist el nuevo layout (x/y/w/h) cuando el usuario suelta de
+     * arrastrar o resizear un widget. react-grid-layout dispara
+     * `onLayoutChange` también en el mount inicial, por lo que
+     * comparamos contra los layouts actuales y solo guardamos si hay
+     * cambio real — evita un PATCH al abrir cada dashboard.
+     */
+    const handleLayoutChange = async (
+        layouts: Array<{ id: string; x: number; y: number; w: number; h: number }>,
+    ): Promise<void> => {
+        if (!dashboard.data) return;
+        const map = new Map(layouts.map((l) => [l.id, l]));
+        let changed = false;
+        const widgets = dashboard.data.widgets.map((w) => {
+            const next = map.get(w.id);
+            if (!next) return w;
+            const cur = w.layout ?? { x: 0, y: 0, w: 4, h: 3 };
+            if (cur.x === next.x && cur.y === next.y && cur.w === next.w && cur.h === next.h) {
+                return w;
+            }
+            changed = true;
+            return { ...w, layout: { x: next.x, y: next.y, w: next.w, h: next.h } };
+        });
+        if (!changed) return;
+        try {
+            await update.mutateAsync({ widgets });
+        } catch (err) {
+            if (err instanceof Error) window.alert(err.message);
         }
     };
 
@@ -156,37 +194,50 @@ export function DashboardPage(): JSX.Element {
             {d.widgets.length === 0 ? (
                 <EmptyState onAdd={handleAddWidget} />
             ) : (
-                <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 sm:imcrm-grid-cols-2 lg:imcrm-grid-cols-3">
-                    {d.widgets.map((widget) => (
-                        <article
-                            key={widget.id}
-                            className={cn(
-                                'imcrm-group imcrm-relative imcrm-flex imcrm-min-h-[200px] imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-card imcrm-to-card/95 imcrm-p-5 imcrm-shadow-imcrm-sm imcrm-transition-all imcrm-duration-200',
-                                'hover:imcrm-shadow-imcrm-md hover:imcrm--translate-y-0.5 hover:imcrm-border-primary/20',
-                            )}
-                        >
-                            <div className="imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-flex imcrm-gap-1 imcrm-opacity-0 imcrm-transition-opacity group-hover:imcrm-opacity-100">
-                                <button
-                                    type="button"
-                                    onClick={() => handleEditWidget(widget)}
-                                    className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground"
-                                    aria-label={__('Editar widget')}
-                                >
-                                    <Pencil className="imcrm-h-3.5 imcrm-w-3.5" />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => void handleDeleteWidget(widget.id)}
-                                    className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
-                                    aria-label={__('Eliminar widget')}
-                                >
-                                    <Trash2 className="imcrm-h-3.5 imcrm-w-3.5" />
-                                </button>
-                            </div>
-                            <WidgetRenderer dashboardId={id} widget={widget} />
-                        </article>
-                    ))}
-                </div>
+                <Suspense
+                    fallback={
+                        <div className="imcrm-flex imcrm-h-32 imcrm-items-center imcrm-justify-center imcrm-text-sm imcrm-text-muted-foreground">
+                            <Loader2 className="imcrm-mr-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+                            {__('Cargando dashboard…')}
+                        </div>
+                    }
+                >
+                    <DashboardGrid
+                        widgets={d.widgets}
+                        onLayoutChange={(layouts) => void handleLayoutChange(layouts)}
+                    >
+                        {(widget) => (
+                            <article
+                                className={cn(
+                                    'imcrm-group imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-card imcrm-to-card/95 imcrm-p-5 imcrm-shadow-imcrm-sm imcrm-transition-shadow imcrm-duration-200',
+                                    'hover:imcrm-shadow-imcrm-md hover:imcrm-border-primary/20',
+                                )}
+                            >
+                                <div className="imcrm-no-drag imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-gap-1 imcrm-opacity-0 imcrm-transition-opacity group-hover:imcrm-opacity-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleEditWidget(widget)}
+                                        className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground"
+                                        aria-label={__('Editar widget')}
+                                    >
+                                        <Pencil className="imcrm-h-3.5 imcrm-w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleDeleteWidget(widget.id)}
+                                        className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                                        aria-label={__('Eliminar widget')}
+                                    >
+                                        <Trash2 className="imcrm-h-3.5 imcrm-w-3.5" />
+                                    </button>
+                                </div>
+                                <div className="imcrm-no-drag imcrm-flex imcrm-h-full imcrm-min-h-0 imcrm-flex-col">
+                                    <WidgetRenderer dashboardId={id} widget={widget} />
+                                </div>
+                            </article>
+                        )}
+                    </DashboardGrid>
+                </Suspense>
             )}
 
             <WidgetFormDialog
