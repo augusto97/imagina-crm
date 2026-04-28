@@ -5,8 +5,9 @@ import {
     useReactTable,
     type ColumnDef,
 } from '@tanstack/react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, KeyRound } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, KeyRound } from 'lucide-react';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
@@ -132,15 +133,15 @@ export function TableView({
 
     return (
         <div
-            className="imcrm-overflow-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card"
+            className="imcrm-overflow-auto imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm"
             role="region"
             aria-label={__('Tabla de registros')}
         >
             <table className="imcrm-w-full imcrm-text-sm" aria-label={__('Registros de la lista')}>
-                <thead className="imcrm-bg-muted/50">
+                <thead className="imcrm-sticky imcrm-top-0 imcrm-z-10 imcrm-bg-gradient-to-b imcrm-from-muted/60 imcrm-to-muted/40 imcrm-backdrop-blur">
                     {table.getHeaderGroups().map((hg) => (
-                        <tr key={hg.id}>
-                            <th scope="col" className="imcrm-w-10 imcrm-px-3 imcrm-py-2">
+                        <tr key={hg.id} className="imcrm-border-b imcrm-border-border">
+                            <th scope="col" className="imcrm-w-10 imcrm-px-3 imcrm-py-3">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -169,7 +170,7 @@ export function TableView({
                                         key={h.id}
                                         scope="col"
                                         aria-sort={fieldId !== null ? ariaSort : undefined}
-                                        className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2 imcrm-text-left imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-wide"
+                                        className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-3 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
                                     >
                                         {fieldId !== null ? (
                                             <button
@@ -201,9 +202,14 @@ export function TableView({
                         <tr>
                             <td
                                 colSpan={columns.length + 1}
-                                className="imcrm-px-4 imcrm-py-12 imcrm-text-center imcrm-text-sm imcrm-text-muted-foreground"
+                                className="imcrm-px-4 imcrm-py-8"
                             >
-                                {__('No hay registros que coincidan.')}
+                                <EmptyState
+                                    icon={Inbox}
+                                    title={__('No hay registros')}
+                                    description={__('Esta lista todavía no tiene registros que coincidan con los filtros actuales.')}
+                                    variant="bare"
+                                />
                             </td>
                         </tr>
                     ) : (
@@ -213,14 +219,14 @@ export function TableView({
                                 <tr
                                     key={row.id}
                                     className={cn(
-                                        'imcrm-border-t imcrm-border-border imcrm-transition-colors',
+                                        'imcrm-border-t imcrm-border-border/50 imcrm-transition-colors imcrm-duration-100',
                                         isSelected
                                             ? 'imcrm-bg-primary/5'
-                                            : 'hover:imcrm-bg-accent/30',
+                                            : 'hover:imcrm-bg-accent/40',
                                     )}
                                 >
                                     <td
-                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-1.5 imcrm-align-top"
+                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle"
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <input
@@ -242,8 +248,8 @@ export function TableView({
                                             <td
                                                 key={cell.id}
                                                 className={cn(
-                                                    'imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-1.5 imcrm-align-top',
-                                                    isOpenerCell && onRowClick && 'imcrm-cursor-pointer',
+                                                    'imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
+                                                    isOpenerCell && onRowClick && 'imcrm-cursor-pointer imcrm-font-medium',
                                                 )}
                                                 onClick={
                                                     isOpenerCell && onRowClick

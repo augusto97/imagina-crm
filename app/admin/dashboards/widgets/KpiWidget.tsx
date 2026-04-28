@@ -17,36 +17,37 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
     const data = useWidgetData(dashboardId, widget.id);
 
     return (
-        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-justify-between">
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
             <header className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
-                <h3 className="imcrm-text-xs imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                <h3 className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
                     {widget.title || __('KPI')}
                 </h3>
             </header>
 
-            <div className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center">
+            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-end imcrm-gap-1">
                 {data.isLoading ? (
-                    <Loader2 className="imcrm-h-5 imcrm-w-5 imcrm-animate-spin imcrm-text-muted-foreground" />
+                    <Loader2 className="imcrm-h-6 imcrm-w-6 imcrm-animate-spin imcrm-text-muted-foreground" />
                 ) : data.isError ? (
                     <span
-                        className="imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-text-xs imcrm-text-destructive"
+                        className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-sm imcrm-text-destructive"
                         title={(data.error as Error).message}
                     >
                         <TriangleAlert className="imcrm-h-4 imcrm-w-4" />
-                        {__('Error')}
+                        {__('Error al cargar')}
                     </span>
                 ) : data.data && 'value' in data.data ? (
-                    <span className="imcrm-text-3xl imcrm-font-semibold imcrm-tabular-nums imcrm-text-foreground">
-                        {formatValue(data.data.value, data.data.metric)}
-                    </span>
+                    <>
+                        <span className="imcrm-text-4xl imcrm-font-bold imcrm-tabular-nums imcrm-leading-none imcrm-text-foreground">
+                            {formatValue(data.data.value, data.data.metric)}
+                        </span>
+                        {widget.config.metric && (
+                            <span className="imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground">
+                                {labelForMetric(widget.config.metric)}
+                            </span>
+                        )}
+                    </>
                 ) : null}
             </div>
-
-            {widget.config.metric && (
-                <footer className="imcrm-text-[10px] imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
-                    {labelForMetric(widget.config.metric)}
-                </footer>
-            )}
         </div>
     );
 }

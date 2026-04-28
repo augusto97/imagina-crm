@@ -4,6 +4,7 @@ import { AlertCircle, BarChart3, Plus, Users } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
     Card,
     CardContent,
@@ -91,7 +92,7 @@ export function DashboardsIndexPage(): JSX.Element {
                     ))}
                 </div>
             ) : (
-                <EmptyState onCreate={() => setCreateOpen(true)} />
+                <DashboardsEmpty onCreate={() => setCreateOpen(true)} />
             )}
 
             <DashboardCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
@@ -112,20 +113,18 @@ function SkeletonGrid(): JSX.Element {
     );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }): JSX.Element {
+function DashboardsEmpty({ onCreate }: { onCreate: () => void }): JSX.Element {
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-p-12 imcrm-text-center">
-            <span className="imcrm-flex imcrm-h-12 imcrm-w-12 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted imcrm-text-muted-foreground">
-                <BarChart3 className="imcrm-h-6 imcrm-w-6" />
-            </span>
-            <h2 className="imcrm-text-base imcrm-font-medium">{__('Aún no hay dashboards')}</h2>
-            <p className="imcrm-max-w-md imcrm-text-sm imcrm-text-muted-foreground">
-                {__('Crea un dashboard con KPIs y gráficos sobre cualquiera de tus listas.')}
-            </p>
-            <Button onClick={onCreate} className="imcrm-mt-2 imcrm-gap-2">
-                <Plus className="imcrm-h-4 imcrm-w-4" />
-                {__('Crear dashboard')}
-            </Button>
-        </div>
+        <EmptyState
+            icon={BarChart3}
+            title={__('Aún no hay dashboards')}
+            description={__('Crea un dashboard con KPIs y gráficos sobre cualquiera de tus listas.')}
+            action={
+                <Button onClick={onCreate} className="imcrm-gap-2">
+                    <Plus className="imcrm-h-4 imcrm-w-4" />
+                    {__('Crear dashboard')}
+                </Button>
+            }
+        />
     );
 }

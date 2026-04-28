@@ -99,9 +99,24 @@ const config: Config = {
                 tight: '-0.01em',
             },
             boxShadow: {
-                'imcrm-sm': '0 1px 2px 0 rgb(0 0 0 / 0.04)',
-                'imcrm-md': '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
-                'imcrm-lg': '0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06)',
+                // Sombras en capas (estilo Linear / Vercel) — un blur
+                // suave amplio + un edge nítido cerca del elemento dan
+                // depth sin "halo gris". Aumentamos la opacidad
+                // ligeramente respecto a la versión anterior porque
+                // 0.04 era demasiado plano sobre fondos claros.
+                'imcrm-sm': '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 1px 0 rgb(15 23 42 / 0.02)',
+                'imcrm-md': '0 4px 6px -2px rgb(15 23 42 / 0.05), 0 2px 4px -2px rgb(15 23 42 / 0.04)',
+                'imcrm-lg': '0 12px 24px -8px rgb(15 23 42 / 0.10), 0 6px 12px -4px rgb(15 23 42 / 0.06)',
+                'imcrm-xl': '0 24px 48px -12px rgb(15 23 42 / 0.18), 0 12px 24px -6px rgb(15 23 42 / 0.10)',
+                // Inner shadow para inputs / wells.
+                'imcrm-inset': 'inset 0 1px 2px 0 rgb(15 23 42 / 0.05)',
+            },
+            transitionDuration: {
+                '150': '150ms',
+                '200': '200ms',
+            },
+            transitionTimingFunction: {
+                'imcrm-out': 'cubic-bezier(0.16, 1, 0.3, 1)',
             },
             keyframes: {
                 'imcrm-fade-in': {
@@ -112,10 +127,15 @@ const config: Config = {
                     from: { transform: 'translateX(100%)' },
                     to: { transform: 'translateX(0)' },
                 },
+                'imcrm-scale-in': {
+                    from: { opacity: '0', transform: 'scale(0.96)' },
+                    to: { opacity: '1', transform: 'scale(1)' },
+                },
             },
             animation: {
                 'imcrm-fade-in': 'imcrm-fade-in 150ms ease-out',
-                'imcrm-slide-in-right': 'imcrm-slide-in-right 200ms ease-out',
+                'imcrm-slide-in-right': 'imcrm-slide-in-right 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+                'imcrm-scale-in': 'imcrm-scale-in 150ms cubic-bezier(0.16, 1, 0.3, 1)',
             },
         },
     },

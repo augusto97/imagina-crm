@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.5.1
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,39 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.6.0 =
+* Visual: pass de polish en superficies clave.
+  · Kanban cards rediseñadas — antes mostraban `slug: value` raw
+    estilo `var_dump`. Ahora cada campo se renderiza tipo-aware
+    via renderCellValue (chips para select/multi_select, dates
+    formateadas, currency con miles, etc.) con label uppercase
+    + tracking en lugar del slug. Border accent izquierdo
+    coloreado según la columna del kanban. Hover con
+    translate-y y sombra incrementada.
+  · Kanban columnas con header divider, count chip flotante,
+    drop zone de columna vacía mostrando "Arrastra una card
+    aquí" con border dashed.
+  · TableView con header sticky + gradient + tracking-wider,
+    rows con padding vertical mayor, transición de hover más
+    rápida (100ms). Empty state ahora usa el componente
+    compartido con ilustración + descripción.
+  · Dashboard widget cards: gradient sutil de card-to-card/95,
+    hover con translate-y + border primary/20 + sombra md,
+    rounded-xl + min-h 200px. KpiWidget rediseñado con número
+    4xl bold y label de métrica debajo del valor (no en footer
+    separado).
+* Componente compartido `<EmptyState>` (icon + title + description
+  + CTA opcional). Aplicado en ListsIndexPage, DashboardsIndexPage,
+  AutomationsPage, TableView. Reemplaza 4 implementaciones
+  inline-and-similar con una versión polished que tiene icon
+  con halo blur + gradient card.
+* Tokens de diseño:
+  · Sombras en capas (sm/md/lg/xl) estilo Linear/Vercel — un
+    edge nítido cerca + blur amplio = depth sin halo gris.
+  · Nueva animación `imcrm-scale-in` (cubic-bezier easing) para
+    futuros mounts de modal/popover.
+  · Easing `imcrm-out` exposed.
 
 = 0.5.1 =
 * Fix: en value pickers de filtros / conditions, los campos

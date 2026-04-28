@@ -153,12 +153,13 @@ export function DashboardPage(): JSX.Element {
             {d.widgets.length === 0 ? (
                 <EmptyState onAdd={handleAddWidget} />
             ) : (
-                <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-3 sm:imcrm-grid-cols-2 lg:imcrm-grid-cols-3">
+                <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 sm:imcrm-grid-cols-2 lg:imcrm-grid-cols-3">
                     {d.widgets.map((widget) => (
                         <article
                             key={widget.id}
                             className={cn(
-                                'imcrm-group imcrm-relative imcrm-flex imcrm-min-h-[180px] imcrm-flex-col imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-4',
+                                'imcrm-group imcrm-relative imcrm-flex imcrm-min-h-[200px] imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-card imcrm-to-card/95 imcrm-p-5 imcrm-shadow-imcrm-sm imcrm-transition-all imcrm-duration-200',
+                                'hover:imcrm-shadow-imcrm-md hover:imcrm--translate-y-0.5 hover:imcrm-border-primary/20',
                             )}
                         >
                             <div className="imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-flex imcrm-gap-1 imcrm-opacity-0 imcrm-transition-opacity group-hover:imcrm-opacity-100">

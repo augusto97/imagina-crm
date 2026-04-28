@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { GripVertical } from 'lucide-react';
 
+import { renderCellValue } from '@/admin/records/renderCellValue';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -149,10 +150,10 @@ export function KanbanView({
                     <div
                         key={col.key}
                         className={cn(
-                            'imcrm-flex imcrm-w-72 imcrm-shrink-0 imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-bg-muted/30 imcrm-p-2 imcrm-transition-colors',
+                            'imcrm-flex imcrm-w-80 imcrm-shrink-0 imcrm-flex-col imcrm-rounded-xl imcrm-border imcrm-bg-muted/30 imcrm-transition-all imcrm-duration-150',
                             isTarget
-                                ? 'imcrm-border-primary imcrm-bg-primary/5'
-                                : 'imcrm-border-border',
+                                ? 'imcrm-border-primary/60 imcrm-bg-primary/5 imcrm-ring-2 imcrm-ring-primary/20'
+                                : 'imcrm-border-border/60',
                         )}
                         onDragOver={(e) => {
                             if (draggingId !== null) {
@@ -165,29 +166,27 @@ export function KanbanView({
                         }}
                         onDrop={() => void handleDrop(col.key)}
                     >
-                        <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-px-2 imcrm-py-1">
-                            <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                                {col.color && (
-                                    <span
-                                        className="imcrm-h-2 imcrm-w-2 imcrm-rounded-full"
-                                        style={{ backgroundColor: col.color }}
-                                        aria-hidden
-                                    />
-                                )}
-                                <h3 className="imcrm-text-xs imcrm-font-semibold imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                        <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2 imcrm-border-b imcrm-border-border/40 imcrm-px-3 imcrm-py-2.5">
+                            <div className="imcrm-flex imcrm-min-w-0 imcrm-items-center imcrm-gap-2">
+                                <span
+                                    className="imcrm-h-2.5 imcrm-w-2.5 imcrm-shrink-0 imcrm-rounded-full"
+                                    style={{ backgroundColor: col.color ?? 'hsl(var(--imcrm-muted-foreground))' }}
+                                    aria-hidden
+                                />
+                                <h3 className="imcrm-truncate imcrm-text-xs imcrm-font-bold imcrm-uppercase imcrm-tracking-wider imcrm-text-foreground">
                                     {col.label}
                                 </h3>
+                                <span className="imcrm-shrink-0 imcrm-rounded-full imcrm-bg-card imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-shadow-imcrm-sm">
+                                    {colRecords.length}
+                                </span>
                             </div>
-                            <span className="imcrm-rounded imcrm-bg-card imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-medium imcrm-text-muted-foreground">
-                                {colRecords.length}
-                            </span>
                         </header>
 
-                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                        <div className="imcrm-flex imcrm-min-h-[80px] imcrm-flex-col imcrm-gap-2 imcrm-p-2">
                             {colRecords.length === 0 ? (
-                                <p className="imcrm-px-2 imcrm-py-4 imcrm-text-center imcrm-text-xs imcrm-text-muted-foreground">
-                                    {__('Vacía')}
-                                </p>
+                                <div className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-border-2 imcrm-border-dashed imcrm-border-border/50 imcrm-py-8 imcrm-text-center imcrm-text-xs imcrm-text-muted-foreground/70">
+                                    {__('Arrastra una card aquí')}
+                                </div>
                             ) : (
                                 colRecords.map((record) => (
                                     <KanbanCard
@@ -195,6 +194,7 @@ export function KanbanView({
                                         record={record}
                                         titleField={titleField}
                                         metaFields={metaFields}
+                                        columnColor={col.color}
                                         isDragging={draggingId === record.id}
                                         onDragStart={() => setDraggingId(record.id)}
                                         onDragEnd={() => {
@@ -218,6 +218,7 @@ interface KanbanCardProps {
     record: RecordEntity;
     titleField?: FieldEntity;
     metaFields: FieldEntity[];
+    columnColor?: string;
     isDragging: boolean;
     onDragStart: () => void;
     onDragEnd: () => void;
@@ -228,6 +229,7 @@ function KanbanCard({
     record,
     titleField,
     metaFields,
+    columnColor,
     isDragging,
     onDragStart,
     onDragEnd,
@@ -250,31 +252,51 @@ function KanbanCard({
             onDragEnd={onDragEnd}
             onClick={onClick}
             className={cn(
-                'imcrm-cursor-pointer imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3 imcrm-text-sm imcrm-shadow-imcrm-sm imcrm-transition-shadow hover:imcrm-shadow-imcrm-md',
-                isDragging && 'imcrm-opacity-50',
+                'imcrm-group imcrm-relative imcrm-cursor-pointer imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-transition-all imcrm-duration-150',
+                'hover:imcrm-shadow-imcrm-md hover:imcrm--translate-y-0.5 hover:imcrm-border-primary/40',
+                isDragging && 'imcrm-opacity-50 imcrm-rotate-1 imcrm-shadow-imcrm-lg',
             )}
         >
-            <div className="imcrm-flex imcrm-items-start imcrm-gap-2">
-                <GripVertical
-                    className="imcrm-mt-0.5 imcrm-h-3.5 imcrm-w-3.5 imcrm-shrink-0 imcrm-text-muted-foreground"
+            {columnColor !== undefined && (
+                <span
                     aria-hidden
+                    className="imcrm-absolute imcrm-left-0 imcrm-top-0 imcrm-h-full imcrm-w-1"
+                    style={{ backgroundColor: columnColor }}
                 />
-                <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
-                    <p className="imcrm-truncate imcrm-font-medium imcrm-text-foreground">{String(title)}</p>
-                    {metaFields.map((field) => {
-                        const v = record.fields[field.slug];
-                        if (v === undefined || v === null || v === '') return null;
-                        return (
-                            <p
-                                key={field.id}
-                                className="imcrm-truncate imcrm-text-xs imcrm-text-muted-foreground"
-                            >
-                                <span className="imcrm-font-mono imcrm-text-[10px]">{field.slug}:</span>{' '}
-                                {renderMeta(v)}
-                            </p>
-                        );
-                    })}
+            )}
+
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-p-3 imcrm-pl-3.5">
+                <div className="imcrm-flex imcrm-items-start imcrm-gap-2">
+                    <GripVertical
+                        className="imcrm-mt-0.5 imcrm-h-3.5 imcrm-w-3.5 imcrm-shrink-0 imcrm-text-muted-foreground/50 imcrm-opacity-0 imcrm-transition-opacity group-hover:imcrm-opacity-100"
+                        aria-hidden
+                    />
+                    <h4 className="imcrm-line-clamp-2 imcrm-flex-1 imcrm-text-sm imcrm-font-semibold imcrm-leading-snug imcrm-text-foreground">
+                        {String(title)}
+                    </h4>
                 </div>
+
+                {metaFields.length > 0 && (
+                    <dl className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                        {metaFields.map((field) => {
+                            const v = record.fields[field.slug];
+                            if (v === undefined || v === null || v === '') return null;
+                            return (
+                                <div
+                                    key={field.id}
+                                    className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs"
+                                >
+                                    <dt className="imcrm-shrink-0 imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground/70">
+                                        {field.label}
+                                    </dt>
+                                    <dd className="imcrm-min-w-0 imcrm-flex-1 imcrm-truncate imcrm-text-foreground">
+                                        {renderCellValue(field, v)}
+                                    </dd>
+                                </div>
+                            );
+                        })}
+                    </dl>
+                )}
             </div>
         </article>
     );
@@ -303,7 +325,3 @@ function pickMetaFields(
         .slice(0, 3);
 }
 
-function renderMeta(v: unknown): string {
-    if (typeof v === 'object') return JSON.stringify(v);
-    return String(v);
-}

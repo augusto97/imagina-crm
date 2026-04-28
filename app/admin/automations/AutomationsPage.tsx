@@ -14,6 +14,7 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
     useActionCatalog,
     useAutomations,
@@ -150,7 +151,7 @@ export function AutomationsPage(): JSX.Element {
                     ))}
                 </ul>
             ) : (
-                <EmptyState onCreate={handleNew} />
+                <AutomationsEmpty onCreate={handleNew} />
             )}
 
             {dialogOpen && list.data && triggers.data && actions.data && (
@@ -290,23 +291,19 @@ function AutomationRow({
     );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }): JSX.Element {
+function AutomationsEmpty({ onCreate }: { onCreate: () => void }): JSX.Element {
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-p-12 imcrm-text-center">
-            <span className="imcrm-flex imcrm-h-12 imcrm-w-12 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted imcrm-text-muted-foreground">
-                <Zap className="imcrm-h-6 imcrm-w-6" />
-            </span>
-            <h2 className="imcrm-text-base imcrm-font-medium">
-                {__('Aún no hay automatizaciones')}
-            </h2>
-            <p className="imcrm-max-w-md imcrm-text-sm imcrm-text-muted-foreground">
-                {__('Crea reglas que reaccionen a cambios en tus registros: actualizar campos, llamar webhooks, etc.')}
-            </p>
-            <Button onClick={onCreate} className="imcrm-mt-2 imcrm-gap-2">
-                <Plus className="imcrm-h-4 imcrm-w-4" />
-                {__('Nueva automatización')}
-            </Button>
-        </div>
+        <EmptyState
+            icon={Zap}
+            title={__('Aún no hay automatizaciones')}
+            description={__('Crea reglas que reaccionen a cambios en tus registros: actualizar campos, llamar webhooks, etc.')}
+            action={
+                <Button onClick={onCreate} className="imcrm-gap-2">
+                    <Plus className="imcrm-h-4 imcrm-w-4" />
+                    {__('Nueva automatización')}
+                </Button>
+            }
+        />
     );
 }
 
