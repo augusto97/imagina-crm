@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.9.0
+Stable tag: 0.9.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,28 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.9.1 =
+* Fix CRÍTICO del reset de botones: el reset de UA defaults para
+  buttons / selects / checkboxes que se introdujo en 0.8.1 estaba
+  scopeado solo a `#imcrm-root`. Pero los Radix Portals
+  (Dialog.Content, PopoverContent, DropdownMenu, etc.) renderean
+  fuera del root, en `<body>` directamente. Resultado: dentro de
+  modals como AutomationDialog los botones seguían heredando el
+  chrome UA (gray gradient + 3D border + inset shadow) — esa
+  "pastilla gris horrible" que se veía en cada celda y botón
+  pequeño.
+  · Selector ampliado: `#imcrm-root button, [class*='imcrm-'] button`
+    — cubre tanto el SPA root como cualquier descendiente de
+    elementos con clases imcrm-* (incluye los Portals de Radix
+    que siempre tienen imcrm-* propias).
+  · Mismo treatment para selects nativos y checkboxes.
+* Fix: links nativos `<a>` heredaban el `text-decoration: underline`
+  del browser, lo que daba subrayados feos en links que no eran
+  variant="link" (ej. "Editado 27/04/2026" en cards). Ahora los
+  links sin clases explícitas se renderean sin decoración. La
+  variante `link` del Button component sigue mostrando underline
+  on-hover explícito.
 
 = 0.9.0 =
 * Feature: colores manuales para opciones de select / multi_select

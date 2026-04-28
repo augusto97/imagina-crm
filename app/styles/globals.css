@@ -228,22 +228,28 @@
         box-sizing: border-box;
     }
 
-    #imcrm-root button,
     #imcrm-root [role='button'] {
         cursor: pointer;
     }
 
     /*
-     * Reset de UA defaults en botones / inputs / selects dentro del SPA.
-     * Necesario porque `corePlugins.preflight: false` (no podemos meter
-     * el reset global de Tailwind sin chocar con wp-admin). Sin esto,
-     * cada <button> sin clases de Button component se ve como una
-     * "pastilla gris" — el bg/border/shadow default del navegador.
+     * Reset de UA defaults para botones / inputs / selects / links
+     * dentro del SPA (incluido lo que renderiza Radix Portal en <body>).
      *
-     * Las primitivas estilizadas (Button, Input, Select) sobreescriben
-     * estas reglas con sus propias clases imcrm-bg-* / imcrm-border-*.
+     * Scope: `#imcrm-root` (raíz del SPA) + cualquier descendiente de
+     * elementos con clases `imcrm-*`. Esto último cubre los Portales
+     * de Radix (Dialog.Content, PopoverContent, etc.) que renderizan
+     * fuera del root pero siempre con clases imcrm-* propias.
+     *
+     * Sin este reset los botones nativos heredan el chrome de UA
+     * (gray gradient bg + 3D border + inset shadow) y se ven como
+     * "pastillas grises horribles" — el bug que el usuario reportó.
+     *
+     * Las primitivas estilizadas (Button, Input, Select de shadcn)
+     * sobreescriben con sus propias clases imcrm-bg-* / imcrm-border-*.
      */
-    #imcrm-root button {
+    #imcrm-root button,
+    [class*='imcrm-'] button {
         background-color: transparent;
         border: 0;
         padding: 0;
@@ -252,11 +258,22 @@
         font: inherit;
         line-height: inherit;
         text-align: inherit;
+        cursor: pointer;
+    }
+
+    /* Links: por default text-decoration none + color inherit. La
+     * variante `link` del Button component re-aplica underline-on-hover
+     * explícito. Otros <a> se estilan en sus call sites. */
+    #imcrm-root a,
+    [class*='imcrm-'] a {
+        text-decoration: none;
+        color: inherit;
     }
 
     /* Para selects nativos (no Radix Select), removemos también la
      * apariencia gris-pastilla del UA en Safari/Chrome. */
-    #imcrm-root select {
+    #imcrm-root select,
+    [class*='imcrm-'] select {
         appearance: none;
         -webkit-appearance: none;
         -moz-appearance: none;
@@ -267,7 +284,8 @@
         padding-right: 1.75rem !important;
     }
 
-    #imcrm-root input[type='checkbox'] {
+    #imcrm-root input[type='checkbox'],
+    [class*='imcrm-'] input[type='checkbox'] {
         accent-color: hsl(var(--imcrm-primary));
     }
 
