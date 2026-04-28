@@ -28,6 +28,10 @@ interface GroupedTableViewProps {
     selectedIds: number[];
     onSelectionChange: (ids: number[]) => void;
     onRowClick?: (record: RecordEntity) => void;
+    /** Visibilidad por column id. `false` = oculta. Compartida con
+     * `TableView` para que el ColumnsMenu funcione igual en ambos
+     * modos. */
+    columnVisibility: Record<string, boolean>;
 }
 
 /**
@@ -53,6 +57,7 @@ export function GroupedTableView({
     selectedIds,
     onSelectionChange,
     onRowClick,
+    columnVisibility,
 }: GroupedTableViewProps): JSX.Element {
     const filterParam = useMemo(() => buildFilterParam(filters), [filters]);
 
@@ -73,7 +78,10 @@ export function GroupedTableView({
         });
     };
 
-    const visibleColumns = useMemo(() => buildColumns(fields), [fields]);
+    const visibleColumns = useMemo(
+        () => buildColumns(fields).filter((c) => columnVisibility[c.id] !== false),
+        [fields, columnVisibility],
+    );
 
     if (groups.isLoading) {
         return (

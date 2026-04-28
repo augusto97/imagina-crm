@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.15.0
+Stable tag: 0.15.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.15.1 =
+* Fix: la vista agrupada (introducida en 0.15.0) no respetaba la
+  configuración de columnas ocultas — siempre mostraba todas. La
+  causa era que `GroupedTableView` no recibía el state
+  `columnVisibility` y construía sus columnas desde cero. Ahora
+  filtra por el mismo flag que `TableView`, así el ColumnsMenu se
+  comporta idéntico en modo plano y agrupado.
 
 = 0.15.0 =
 * Nueva feature: agrupación ClickUp/Airtable-style en la vista de
