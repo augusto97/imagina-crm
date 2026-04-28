@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.8.1 =
+* Fix CRÍTICO visual: TODOS los `<button>` no estilados explícitamente
+  se veían como "pastillas grises horribles" (las celdas de la
+  TableView, los íconos de acción, etc.). Causa raíz: nuestro
+  `tailwind.config.ts` tiene `corePlugins.preflight: false`
+  (necesario para no romper estilos de wp-admin), entonces los
+  defaults del navegador para `<button>` (gray bg + 3D shadow)
+  se aplicaban a cualquier botón sin clases imcrm-bg-* /
+  imcrm-border-*.
+  Fix: reset targeted en `globals.css` para `#imcrm-root button`
+  → `background: transparent; border: 0; padding: 0; etc.` Las
+  primitivas estilizadas (Button, Input, Select) sobreescriben
+  con sus propias clases.
+* Fix: `<select>` nativos también tenían el chrome UA pesado
+  (gris-3D en Safari/Chrome). Reset con `appearance: none` +
+  ícono SVG inline de chevron a la derecha. El componente Select
+  de shadcn ya tenía bg-card encima — esto da el remate consistente.
+* Fix: checkboxes ahora usan `accent-color: primary` para que
+  el tick herede el cyan de la marca, no el azul-Windows default.
 
 = 0.8.0 =
 * Visual: identidad alineada con la app de admin de Imagina La Web

@@ -215,6 +215,44 @@
         cursor: pointer;
     }
 
+    /*
+     * Reset de UA defaults en botones / inputs / selects dentro del SPA.
+     * Necesario porque `corePlugins.preflight: false` (no podemos meter
+     * el reset global de Tailwind sin chocar con wp-admin). Sin esto,
+     * cada <button> sin clases de Button component se ve como una
+     * "pastilla gris" — el bg/border/shadow default del navegador.
+     *
+     * Las primitivas estilizadas (Button, Input, Select) sobreescriben
+     * estas reglas con sus propias clases imcrm-bg-* / imcrm-border-*.
+     */
+    #imcrm-root button {
+        background-color: transparent;
+        border: 0;
+        padding: 0;
+        margin: 0;
+        color: inherit;
+        font: inherit;
+        line-height: inherit;
+        text-align: inherit;
+    }
+
+    /* Para selects nativos (no Radix Select), removemos también la
+     * apariencia gris-pastilla del UA en Safari/Chrome. */
+    #imcrm-root select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-color: transparent;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.5rem center;
+        padding-right: 1.75rem !important;
+    }
+
+    #imcrm-root input[type='checkbox'] {
+        accent-color: hsl(var(--imcrm-primary));
+    }
+
     #imcrm-root :focus-visible {
         @apply imcrm-outline-none imcrm-ring-2 imcrm-ring-ring imcrm-ring-offset-2 imcrm-ring-offset-background;
     }
