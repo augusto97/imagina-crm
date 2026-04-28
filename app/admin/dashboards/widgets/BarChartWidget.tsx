@@ -23,7 +23,7 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
     return (
         <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
             <header>
-                <h3 className="imcrm-text-xs imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                <h3 className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
                     {widget.title || __('Distribución')}
                 </h3>
             </header>

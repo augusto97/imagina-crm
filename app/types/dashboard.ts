@@ -1,4 +1,11 @@
-export type WidgetType = 'kpi' | 'chart_bar' | 'chart_line';
+export type WidgetType =
+    | 'kpi'
+    | 'chart_bar'
+    | 'chart_pie'
+    | 'chart_line'
+    | 'chart_area'
+    | 'stat_delta'
+    | 'table';
 
 export type KpiMetric = 'count' | 'sum' | 'avg';
 
@@ -56,4 +63,17 @@ export interface UpdateDashboardInput {
 
 export type WidgetData =
     | { value: number; metric: KpiMetric }
-    | { data: Array<{ label: string; value: number }> };
+    | { data: Array<{ label: string; value: number }> }
+    | {
+          /** stat_delta */
+          value: number;
+          previous: number;
+          delta_pct: number | null;
+          period_days: number;
+          metric: KpiMetric;
+      }
+    | {
+          /** table */
+          columns: Array<{ label: string; slug: string; type: string }>;
+          rows: Array<{ id: number; fields: Record<string, unknown> }>;
+      };

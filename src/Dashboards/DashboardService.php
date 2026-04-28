@@ -28,10 +28,24 @@ use ImaginaCRM\Support\ValidationResult;
  */
 final class DashboardService
 {
-    public const ALLOWED_WIDGET_TYPES = ['kpi', 'chart_bar', 'chart_line'];
+    public const ALLOWED_WIDGET_TYPES = [
+        'kpi',
+        'chart_bar', 'chart_pie',
+        'chart_line', 'chart_area',
+        'stat_delta',
+        'table',
+    ];
     public const ALLOWED_KPI_METRICS  = ['count', 'sum', 'avg'];
     public const NUMERIC_FIELD_TYPES  = ['number', 'currency'];
     public const DATE_FIELD_TYPES     = ['date', 'datetime'];
+
+    /** Tipos permitidos como dimensión de chart_bar / chart_pie. */
+    public const GROUPABLE_FIELD_TYPES = [
+        'select', 'multi_select',
+        'text', 'email', 'url',
+        'date', 'datetime',
+        'checkbox',
+    ];
 
     public function __construct(
         private readonly DashboardRepository $repo,
@@ -242,18 +256,22 @@ final class DashboardService
             }
         }
 
-        if ($type === 'chart_bar') {
+        if ($type === 'chart_bar' || $type === 'chart_pie') {
             $fieldId = isset($config['group_by_field_id']) ? (int) $config['group_by_field_id'] : 0;
             if ($fieldId <= 0) {
-                return __('El gráfico de barras requiere un campo de agrupación.', 'imagina-crm');
+                return __('El gráfico requiere un campo de agrupación.', 'imagina-crm');
             }
             $field = $this->fields->find($fieldId);
-            if ($field === null || $field->listId !== $listId || $field->type !== 'select') {
-                return __('El campo de agrupación debe ser tipo select de la misma lista.', 'imagina-crm');
+            if (
+                $field === null
+                || $field->listId !== $listId
+                || ! in_array($field->type, self::GROUPABLE_FIELD_TYPES, true)
+            ) {
+                return __('El campo de agrupación debe ser de un tipo agrupable (select, multi_select, text, email, url, date, datetime o checkbox) de la misma lista.', 'imagina-crm');
             }
         }
 
-        if ($type === 'chart_line') {
+        if ($type === 'chart_line' || $type === 'chart_area') {
             $fieldId = isset($config['date_field_id']) ? (int) $config['date_field_id'] : 0;
             if ($fieldId <= 0) {
                 return __('El gráfico de línea requiere un campo de fecha.', 'imagina-crm');
@@ -261,6 +279,46 @@ final class DashboardService
             $field = $this->fields->find($fieldId);
             if ($field === null || $field->listId !== $listId || ! in_array($field->type, self::DATE_FIELD_TYPES, true)) {
                 return __('El campo de fecha debe ser tipo date o datetime de la misma lista.', 'imagina-crm');
+            }
+        }
+
+        if ($type === 'stat_delta') {
+            $metric = (string) ($config['metric'] ?? 'count');
+            if (! in_array($metric, self::ALLOWED_KPI_METRICS, true)) {
+                return __('La métrica debe ser count, sum o avg.', 'imagina-crm');
+            }
+            if (in_array($metric, ['sum', 'avg'], true)) {
+                $mfId = (int) ($config['metric_field_id'] ?? 0);
+                $mf   = $mfId > 0 ? $this->fields->find($mfId) : null;
+                if (
+                    $mf === null
+                    || $mf->listId !== $listId
+                    || ! in_array($mf->type, self::NUMERIC_FIELD_TYPES, true)
+                ) {
+                    return __('Sum/Avg requieren un campo numérico de la misma lista.', 'imagina-crm');
+                }
+            }
+            $dfId = (int) ($config['date_field_id'] ?? 0);
+            $df   = $dfId > 0 ? $this->fields->find($dfId) : null;
+            if (
+                $df === null
+                || $df->listId !== $listId
+                || ! in_array($df->type, self::DATE_FIELD_TYPES, true)
+            ) {
+                return __('El campo de fecha del comparador es requerido y debe ser date o datetime.', 'imagina-crm');
+            }
+        }
+
+        if ($type === 'table') {
+            // No requerimos sort/visible; el evaluator cae a defaults
+            // razonables. Pero si se proveen, validamos que pertenezcan
+            // a la lista.
+            $sortFieldId = (int) ($config['sort_field_id'] ?? 0);
+            if ($sortFieldId > 0) {
+                $sf = $this->fields->find($sortFieldId);
+                if ($sf === null || $sf->listId !== $listId) {
+                    return __('El campo de ordenamiento de la tabla no pertenece a la lista.', 'imagina-crm');
+                }
             }
         }
 

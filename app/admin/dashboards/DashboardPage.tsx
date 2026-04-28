@@ -5,6 +5,9 @@ import { ArrowLeft, BarChart3, Loader2, Pencil, Plus, Trash2 } from 'lucide-reac
 import { BarChartWidget } from '@/admin/dashboards/widgets/BarChartWidget';
 import { KpiWidget } from '@/admin/dashboards/widgets/KpiWidget';
 import { LineChartWidget } from '@/admin/dashboards/widgets/LineChartWidget';
+import { PieChartWidget } from '@/admin/dashboards/widgets/PieChartWidget';
+import { StatDeltaWidget } from '@/admin/dashboards/widgets/StatDeltaWidget';
+import { TableWidget } from '@/admin/dashboards/widgets/TableWidget';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -203,13 +206,23 @@ function WidgetRenderer({
     dashboardId: number;
     widget: WidgetSpec;
 }): JSX.Element {
-    if (widget.type === 'kpi') {
-        return <KpiWidget dashboardId={dashboardId} widget={widget} />;
+    switch (widget.type) {
+        case 'kpi':
+            return <KpiWidget dashboardId={dashboardId} widget={widget} />;
+        case 'chart_bar':
+            return <BarChartWidget dashboardId={dashboardId} widget={widget} />;
+        case 'chart_pie':
+            return <PieChartWidget dashboardId={dashboardId} widget={widget} />;
+        case 'chart_area':
+            return <LineChartWidget dashboardId={dashboardId} widget={widget} area />;
+        case 'stat_delta':
+            return <StatDeltaWidget dashboardId={dashboardId} widget={widget} />;
+        case 'table':
+            return <TableWidget dashboardId={dashboardId} widget={widget} />;
+        case 'chart_line':
+        default:
+            return <LineChartWidget dashboardId={dashboardId} widget={widget} />;
     }
-    if (widget.type === 'chart_bar') {
-        return <BarChartWidget dashboardId={dashboardId} widget={widget} />;
-    }
-    return <LineChartWidget dashboardId={dashboardId} widget={widget} />;
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }): JSX.Element {

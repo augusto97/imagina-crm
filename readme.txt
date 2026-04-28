@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.10.0
+Stable tag: 0.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,35 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.11.0 =
+* Feature: 4 nuevos tipos de widget para Dashboards.
+  · `chart_pie` (gráfico de torta / donut): SVG vanilla con
+    arcos coloreados por la paleta tone-* + leyenda lateral.
+    Misma data shape que chart_bar.
+  · `chart_area` (línea con fill): variant del line chart con
+    gradient bajo la curva.
+  · `stat_delta` (KPI con comparación vs período anterior): big
+    number + chip verde/rojo con flecha + delta % + valor
+    previo. Configurable: métrica, campo numérico (sum/avg),
+    campo de fecha, período (7/14/30/90/180 días).
+  · `table` (tabla top N): top N registros ordenados por un
+    campo del usuario, con columnas configurables (multi-select
+    de fields).
+* Feature: campo de agrupación de chart_bar / chart_pie ahora
+  acepta más tipos:
+    select · multi_select · text · email · url · date · datetime · checkbox
+  Antes solo aceptaba `select`. multi_select hace UNNEST en PHP
+  para contar valores individuales del array. date/datetime
+  agrupa por mes (YYYY-MM). text/email/url toma top 25 distintos
+  por frecuencia. checkbox mapea a "Sí" / "No".
+* WidgetFormDialog rediseñado:
+  · Type selector con los 7 tipos
+  · FieldPicker reutilizable para todos los tipos
+  · Sub-forms específicos para stat_delta y table
+  · Modal scrollable hasta 90vh para configs largas
+* Backend ALLOWED_WIDGET_TYPES extended; validación per-tipo
+  refinada en DashboardService.
 
 = 0.10.0 =
 * Feature: TableView con columnas redimensionables y ocultables
