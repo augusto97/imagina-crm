@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,41 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.7.0 =
+* Visual: refundición del design system (Linear / Vercel /
+  Cloudflare style). Mismo stack — Tailwind CSS 3 + shadcn/ui
+  + Radix primitives + cva — pero con tokens y composiciones
+  más refinados.
+  · Palette: foreground `224 71% 4%` (navy profundo, no negro
+    puro). Border `220 14% 93%` hairline (no `91%` gris pesado).
+    Primary `243 75% 59%` violet refinado. Sidebar bg off-white
+    `220 17% 98%`.
+  · `<Button>`: variantes con sombra inset interna (top white
+    highlight) + sombra exterior tonal. `active:scale-[0.98]`
+    feedback global. `outline` ahora es card+border+shadow-sm
+    (botón "default" estilo Linear). Heights y radius
+    consistentes (h-9 + rounded-lg).
+  · `<Input>` y `<Select>`: focus ring de 4px del primary/15
+    (no offset), border primary en focus, shadow-inset interno,
+    rounded-lg. Hover suave del border cuando no enfocado.
+  · `<Badge>`: variantes "soft" — bg al 10% + border al 20-25%
+    + text al color sólido (estilo Linear/GitHub). Variante
+    `solid` opcional para fills llamativos. Soporta `dot` prop.
+  · Shadows en capas (sm/md/lg/xl + inset) inspiradas en Linear:
+    edge nítido + blur amplio = depth sin halo gris. Animation
+    `imcrm-scale-in` + easing `imcrm-out` (cubic-bezier).
+  · Sidebar redesign: secciones con labels en small-caps gris
+    `tracking-[0.08em]`, items con icon coloreado en hover,
+    item activo con bg primary/10 + text primary, bullets en
+    sub-listas. Brand con gradient en el logo cuadrado.
+  · Topbar: bg con backdrop-blur, breadcrumb refinado,
+    avatar en círculo con ring + gradient fallback, divider
+    vertical entre toolbar y user, search button "minimum
+    width" para anchor consistente.
+  · ListsIndexPage rediseñada como proof: header con
+    border-bottom, cards con icon-tile coloreado + arrow
+    affordance + footer con slug code chip + fecha.
 
 = 0.6.0 =
 * Visual: pass de polish en superficies clave.

@@ -15,48 +15,64 @@
      * variables de WordPress admin ni de otros plugins.
      */
     :root {
+        /* Background, foreground — texturas neutras frías estilo
+         * Linear/Vercel. Foreground es navy profundo (no negro puro)
+         * para que sienta más cuidado, menos "browser default". */
         --imcrm-background: 0 0% 100%;
-        --imcrm-foreground: 224 12% 12%;
+        --imcrm-foreground: 224 71% 4%;
 
+        /* Card sin bg distinto al body en superficies grandes (estilo
+         * Vercel/Cloudflare); hairline border es lo único que separa.
+         * Sólo sombramos cuando hay elevación real (popovers, dialogs). */
         --imcrm-card: 0 0% 100%;
-        --imcrm-card-foreground: 224 12% 12%;
+        --imcrm-card-foreground: 224 71% 4%;
 
         --imcrm-popover: 0 0% 100%;
-        --imcrm-popover-foreground: 224 12% 12%;
+        --imcrm-popover-foreground: 224 71% 4%;
 
-        --imcrm-primary: 234 89% 60%;
+        /* Primary refinado — un violet/indigo más cool que el azul
+         * "Bootstrap default". Inspirado en Linear (243 75% 59%). */
+        --imcrm-primary: 243 75% 59%;
         --imcrm-primary-foreground: 0 0% 100%;
 
-        --imcrm-secondary: 220 14% 96%;
-        --imcrm-secondary-foreground: 224 12% 18%;
+        /* Secondary y muted prácticamente iguales — slate frío muy
+         * leve, no el gris cálido genérico de los SaaS templates. */
+        --imcrm-secondary: 220 14% 97%;
+        --imcrm-secondary-foreground: 224 71% 4%;
 
-        --imcrm-muted: 220 14% 96%;
-        --imcrm-muted-foreground: 220 9% 46%;
+        --imcrm-muted: 220 14% 97%;
+        --imcrm-muted-foreground: 220 9% 42%;
 
-        --imcrm-accent: 220 14% 94%;
-        --imcrm-accent-foreground: 224 12% 12%;
+        --imcrm-accent: 220 14% 95%;
+        --imcrm-accent-foreground: 224 71% 4%;
 
         --imcrm-destructive: 0 72% 51%;
         --imcrm-destructive-foreground: 0 0% 100%;
 
-        --imcrm-success: 152 65% 38%;
+        --imcrm-success: 152 60% 36%;
         --imcrm-success-foreground: 0 0% 100%;
 
-        --imcrm-warning: 38 92% 50%;
+        --imcrm-warning: 32 95% 44%;
         --imcrm-warning-foreground: 0 0% 100%;
 
-        --imcrm-info: 211 96% 49%;
+        --imcrm-info: 217 91% 50%;
         --imcrm-info-foreground: 0 0% 100%;
 
-        --imcrm-border: 220 13% 91%;
-        --imcrm-input: 220 13% 91%;
-        --imcrm-ring: 234 89% 60%;
+        /* Border hairline más sutil que el default — 220 13% 91% se
+         * veía gris pesado. 220 14% 94% es casi invisible pero
+         * suficiente para definir el edge. */
+        --imcrm-border: 220 14% 93%;
+        --imcrm-input: 220 14% 90%;
+        --imcrm-ring: 243 75% 59%;
 
-        --imcrm-sidebar: 224 14% 99%;
-        --imcrm-sidebar-foreground: 224 12% 18%;
-        --imcrm-sidebar-border: 220 13% 91%;
-        --imcrm-sidebar-accent: 220 14% 96%;
-        --imcrm-sidebar-accent-foreground: 234 89% 60%;
+        /* Sidebar: bg ligeramente off-white para que se distinga del
+         * canvas principal sin ser una franja oscura. Item activo
+         * usa primary muy suave. */
+        --imcrm-sidebar: 220 17% 98%;
+        --imcrm-sidebar-foreground: 224 12% 28%;
+        --imcrm-sidebar-border: 220 14% 93%;
+        --imcrm-sidebar-accent: 220 14% 95%;
+        --imcrm-sidebar-accent-foreground: 243 75% 59%;
     }
 
     #imcrm-root[data-imcrm-theme='dark'],
