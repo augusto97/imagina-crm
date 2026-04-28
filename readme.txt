@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.14.0
+Stable tag: 0.14.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,22 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.14.1 =
+* Fix: hover artifact ("halo" gris pegado al botón) que aparecía
+  en TODOS los buttons al pasar el mouse. Causa raíz: el reset de
+  Tailwind preflight inyectado en el shell standalone usaba
+  `-webkit-appearance: button`, que en algunos navegadores
+  reactiva chrome del UA (border raster, padding propio,
+  outline al focus) y se mezclaba con los hover bg de Tailwind
+  produciendo el efecto "pastilla". Cambio a `appearance: none` +
+  `-webkit-appearance: none`, `border-radius: 0` y
+  `outline: none` en focus default. El focus accesible lo maneja
+  `focus-visible` del propio componente.
+* Refinamiento: focus ring del `<Button>` ahora es flush (sin
+  `ring-offset`). El offset positivo creaba un halo despegado
+  del borde que se confundía con un estado "seleccionado pegado"
+  cuando aparecía en hover+focus simultáneo.
 
 = 0.14.0 =
 * Refactor visual de buttons + cleanup de workarounds que ya no

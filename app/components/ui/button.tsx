@@ -8,10 +8,12 @@ const buttonVariants = cva(
     [
         // Base: layout + tipografía + transición
         'imcrm-inline-flex imcrm-items-center imcrm-justify-center imcrm-gap-2',
-        'imcrm-whitespace-nowrap imcrm-font-medium imcrm-tracking-tight',
+        'imcrm-whitespace-nowrap imcrm-font-medium imcrm-tracking-tight imcrm-select-none',
         'imcrm-transition-colors imcrm-duration-150',
-        // Focus ring refinado
-        'focus-visible:imcrm-outline-none focus-visible:imcrm-ring-2 focus-visible:imcrm-ring-ring focus-visible:imcrm-ring-offset-2 focus-visible:imcrm-ring-offset-background',
+        // Focus ring: ring DENTRO del button (offset negativo) — flush
+        // con el borde, sin gap visible. El halo con offset positivo
+        // se confundía con un "estado seleccionado pegado".
+        'focus-visible:imcrm-outline-none focus-visible:imcrm-ring-2 focus-visible:imcrm-ring-primary/40',
         // Disabled
         'disabled:imcrm-pointer-events-none disabled:imcrm-opacity-50',
     ].join(' '),
