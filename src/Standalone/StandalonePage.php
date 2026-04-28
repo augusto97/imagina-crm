@@ -290,12 +290,22 @@ button, input, optgroup, select, textarea {
     padding: 0;
 }
 button, select { text-transform: none; }
+/*
+ * STRIP COMPLETO de chrome UA en buttons. Tailwind preflight default
+ * usa `-webkit-appearance: button` que MANTIENE el rendering nativo
+ * (incluyendo hover gradient sutil que Safari/Chrome agregan). Para
+ * un look totalmente custom usamos `appearance: none`. El cursor
+ * pointer sigue siendo nuestro.
+ */
 button, input:where([type='button'], [type='reset'], [type='submit']) {
-    -webkit-appearance: button;
+    appearance: none;
+    -webkit-appearance: none;
     background-color: transparent;
     background-image: none;
+    border-radius: 0;
 }
 button, [role='button'] { cursor: pointer; }
+button:focus, [role='button']:focus { outline: none; }
 :-moz-focusring { outline: auto; }
 :-moz-ui-invalid { box-shadow: none; }
 progress { vertical-align: baseline; }
