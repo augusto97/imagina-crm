@@ -2,6 +2,12 @@ export type SavedViewType = 'table' | 'kanban' | 'calendar';
 
 export interface SavedViewConfig {
     visible_fields?: number[];
+    /** Column ids ocultos (Excel-style hide). Usa el `id` de la
+     * columna TanStack Table — para campos dinámicos es el slug del
+     * field, para columnas fijas es 'id' / 'updated_at' / etc. */
+    hidden_columns?: string[];
+    /** Anchura por columna en px. Persistida cuando el usuario hace
+     * drag del resizer. Excel-style. */
     column_widths?: Record<string, number>;
     filters?: Array<{ field_id: number; op: string; value: unknown }>;
     sort?: Array<{ field_id: number; dir: 'asc' | 'desc' }>;

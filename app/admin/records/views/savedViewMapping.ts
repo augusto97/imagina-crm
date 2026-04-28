@@ -24,6 +24,15 @@ export function stateToViewConfig(state: RecordsState): SavedViewConfig {
     if (state.search.trim() !== '') {
         config.search = state.search.trim();
     }
+    const hidden = Object.entries(state.columnVisibility)
+        .filter(([, v]) => v === false)
+        .map(([k]) => k);
+    if (hidden.length > 0) {
+        config.hidden_columns = hidden;
+    }
+    if (Object.keys(state.columnSizing).length > 0) {
+        config.column_widths = state.columnSizing;
+    }
     return config;
 }
 
@@ -45,12 +54,19 @@ export function viewConfigToState(config: SavedViewConfig, perPage: number): Rec
         dir: s.dir,
     }));
 
+    const columnVisibility: Record<string, boolean> = {};
+    for (const id of config.hidden_columns ?? []) {
+        columnVisibility[id] = false;
+    }
+
     return {
         page: 1,
         perPage,
         filters,
         sort,
         search: config.search ?? '',
+        columnVisibility,
+        columnSizing: config.column_widths ?? {},
     };
 }
 

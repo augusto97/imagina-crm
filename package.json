@@ -1,7 +1,7 @@
 {
     "name": "imagina-crm",
     "private": true,
-    "version": "0.9.2",
+    "version": "0.10.0",
     "description": "Imagina CRM — admin SPA bundle.",
     "type": "module",
     "scripts": {

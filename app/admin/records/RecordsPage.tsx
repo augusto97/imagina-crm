@@ -26,6 +26,7 @@ import {
 } from './recordsState';
 import { CalendarView } from './views/CalendarView';
 import { KanbanView } from './views/KanbanView';
+import { ColumnsMenu } from './views/ColumnsMenu';
 import { TableView } from './views/TableView';
 import { SaveViewDialog } from './views/SaveViewDialog';
 import { ViewsTabs } from './views/ViewsTabs';
@@ -258,6 +259,13 @@ export function RecordsPage(): JSX.Element {
                                 filters={state.filters}
                                 onFiltersChange={setFilters}
                             />
+                            <ColumnsMenu
+                                fields={fields.data}
+                                visibility={state.columnVisibility}
+                                onChange={(next) =>
+                                    setState((s) => ({ ...s, columnVisibility: next }))
+                                }
+                            />
                         </div>
                         {records.isFetching && !records.isLoading && (
                             <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin imcrm-text-muted-foreground" />
@@ -302,6 +310,14 @@ export function RecordsPage(): JSX.Element {
                             selectedIds={selectedIds}
                             onSelectionChange={setSelectedIds}
                             onRowClick={(record) => setDrawerRecordId(record.id)}
+                            columnVisibility={state.columnVisibility}
+                            onColumnVisibilityChange={(next) =>
+                                setState((s) => ({ ...s, columnVisibility: next }))
+                            }
+                            columnSizing={state.columnSizing}
+                            onColumnSizingChange={(next) =>
+                                setState((s) => ({ ...s, columnSizing: next }))
+                            }
                         />
                     )}
 

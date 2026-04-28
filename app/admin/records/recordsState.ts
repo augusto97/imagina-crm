@@ -18,6 +18,12 @@ export interface RecordsState {
     filters: ActiveFilter[];
     sort: ActiveSort[];
     search: string;
+    /** Visibilidad por column id (TanStack Table convention). `false`
+     * = oculta. Si la key no existe, la columna está visible. */
+    columnVisibility: Record<string, boolean>;
+    /** Anchura por column id en px (resizing). Si la key no existe,
+     * usa el `size` default de la columna. */
+    columnSizing: Record<string, number>;
 }
 
 export const DEFAULT_PER_PAGE = 50;
@@ -28,6 +34,8 @@ export const INITIAL_STATE: RecordsState = {
     filters: [],
     sort: [],
     search: '',
+    columnVisibility: {},
+    columnSizing: {},
 };
 
 /**

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.9.2
+Stable tag: 0.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,23 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.10.0 =
+* Feature: TableView con columnas redimensionables y ocultables
+  estilo Excel.
+  · Drag del borde derecho del header para resizear (handle
+    cyan al hover, sólido al activar). minSize/maxSize razonables
+    por tipo de campo (checkbox 90px, currency 120px, datetime
+    170px, etc.).
+  · Botón "Columnas" al lado de "Filtrar" abre un dropdown con
+    checkboxes para mostrar/ocultar cualquier columna (incluido
+    ID y Actualizado). Badge con contador de columnas ocultas.
+  · Estado persistido en SavedView config:
+      - `column_widths`: Record<columnId, px>
+      - `hidden_columns`: string[] de columnIds ocultos
+    Cada vista guarda su layout independiente.
+  · `tableLayout: fixed` + `width: getCenterTotalSize()` para que
+    las anchuras configuradas se respeten exactamente.
 
 = 0.9.2 =
 * Fix hover gris en botones: el variant `ghost` del Button component

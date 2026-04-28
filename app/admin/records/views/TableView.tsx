@@ -4,6 +4,8 @@ import {
     getCoreRowModel,
     useReactTable,
     type ColumnDef,
+    type ColumnSizingState,
+    type VisibilityState,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, KeyRound } from 'lucide-react';
 
@@ -26,6 +28,12 @@ interface TableViewProps {
     selectedIds: number[];
     onSelectionChange: (ids: number[]) => void;
     onRowClick?: (record: RecordEntity) => void;
+    /** Estado de visibilidad de columnas (Excel-style). */
+    columnVisibility: VisibilityState;
+    onColumnVisibilityChange: (next: VisibilityState) => void;
+    /** Anchuras de columnas en px (resizable). */
+    columnSizing: ColumnSizingState;
+    onColumnSizingChange: (next: ColumnSizingState) => void;
 }
 
 /**
@@ -47,6 +55,10 @@ export function TableView({
     selectedIds,
     onSelectionChange,
     onRowClick,
+    columnVisibility,
+    onColumnVisibilityChange,
+    columnSizing,
+    onColumnSizingChange,
 }: TableViewProps): JSX.Element {
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -90,6 +102,9 @@ export function TableView({
                         value={ctx.getValue()}
                     />
                 ),
+                size: defaultSizeForType(field.type),
+                minSize: 80,
+                maxSize: 800,
                 meta: { fieldId: field.id, primary: field.is_primary },
             }));
 
@@ -103,6 +118,9 @@ export function TableView({
                         #{String(ctx.getValue())}
                     </span>
                 ),
+                size: 70,
+                minSize: 60,
+                maxSize: 120,
                 meta: { fieldId: null },
             },
             ...dynamic,
@@ -120,6 +138,9 @@ export function TableView({
                         </span>
                     );
                 },
+                size: 170,
+                minSize: 130,
+                maxSize: 260,
                 meta: { fieldId: null },
             },
         ];
@@ -129,6 +150,19 @@ export function TableView({
         data: records,
         columns,
         getCoreRowModel: getCoreRowModel(),
+        columnResizeMode: 'onChange',
+        state: {
+            columnVisibility,
+            columnSizing,
+        },
+        onColumnVisibilityChange: (updater) => {
+            const next = typeof updater === 'function' ? updater(columnVisibility) : updater;
+            onColumnVisibilityChange(next);
+        },
+        onColumnSizingChange: (updater) => {
+            const next = typeof updater === 'function' ? updater(columnSizing) : updater;
+            onColumnSizingChange(next);
+        },
     });
 
     return (
@@ -137,7 +171,11 @@ export function TableView({
             role="region"
             aria-label={__('Tabla de registros')}
         >
-            <table className="imcrm-w-full imcrm-text-sm" aria-label={__('Registros de la lista')}>
+            <table
+                className="imcrm-w-full imcrm-text-sm"
+                style={{ tableLayout: 'fixed', width: table.getCenterTotalSize() }}
+                aria-label={__('Registros de la lista')}
+            >
                 <thead className="imcrm-sticky imcrm-top-0 imcrm-z-10 imcrm-bg-gradient-to-b imcrm-from-muted/60 imcrm-to-muted/40 imcrm-backdrop-blur">
                     {table.getHeaderGroups().map((hg) => (
                         <tr key={hg.id} className="imcrm-border-b imcrm-border-border">
@@ -170,7 +208,8 @@ export function TableView({
                                         key={h.id}
                                         scope="col"
                                         aria-sort={fieldId !== null ? ariaSort : undefined}
-                                        className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-3 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
+                                        style={{ width: h.getSize() }}
+                                        className="imcrm-relative imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-3 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
                                     >
                                         {fieldId !== null ? (
                                             <button
@@ -190,6 +229,23 @@ export function TableView({
                                             </button>
                                         ) : h.isPlaceholder ? null : (
                                             flexRender(h.column.columnDef.header, h.getContext())
+                                        )}
+                                        {/* Resize handle estilo Excel:
+                                             barra fina al borde derecho del
+                                             <th>; mousedown inicia el drag
+                                             vía TanStack onMouseDown handler. */}
+                                        {h.column.getCanResize() && (
+                                            <div
+                                                onMouseDown={h.getResizeHandler()}
+                                                onTouchStart={h.getResizeHandler()}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className={cn(
+                                                    'imcrm-absolute imcrm-right-0 imcrm-top-0 imcrm-h-full imcrm-w-1 imcrm-cursor-col-resize imcrm-select-none imcrm-touch-none',
+                                                    'imcrm-bg-transparent hover:imcrm-bg-primary/40',
+                                                    h.column.getIsResizing() && 'imcrm-bg-primary',
+                                                )}
+                                                aria-hidden
+                                            />
                                         )}
                                     </th>
                                 );
@@ -269,6 +325,35 @@ export function TableView({
             </table>
         </div>
     );
+}
+
+/**
+ * Anchura inicial razonable según el tipo del campo. El usuario puede
+ * resizear manualmente; estas son solo defaults antes del primer drag.
+ */
+function defaultSizeForType(type: string): number {
+    switch (type) {
+        case 'checkbox':
+            return 90;
+        case 'number':
+        case 'currency':
+            return 120;
+        case 'date':
+            return 130;
+        case 'datetime':
+            return 170;
+        case 'select':
+            return 140;
+        case 'multi_select':
+            return 200;
+        case 'email':
+        case 'url':
+            return 220;
+        case 'long_text':
+            return 280;
+        default:
+            return 180;
+    }
 }
 
 function SortIndicator({
