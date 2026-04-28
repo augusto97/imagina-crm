@@ -1,0 +1,48 @@
+{
+  "_main-LDBBxV2y.js": {
+    "file": "assets/main-LDBBxV2y.js",
+    "name": "main"
+  },
+  "app/admin/automations/AutomationVisualBuilder.tsx": {
+    "file": "assets/AutomationVisualBuilder-CuGEYzHT.js",
+    "name": "AutomationVisualBuilder",
+    "src": "app/admin/automations/AutomationVisualBuilder.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_main-LDBBxV2y.js",
+      "app/main.tsx"
+    ],
+    "css": [
+      "assets/AutomationVisualBuilder-BZV40eAE.css"
+    ]
+  },
+  "app/admin/dashboards/DashboardGrid.tsx": {
+    "file": "assets/DashboardGrid-BXBNT64w.js",
+    "name": "DashboardGrid",
+    "src": "app/admin/dashboards/DashboardGrid.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_main-LDBBxV2y.js",
+      "app/main.tsx"
+    ],
+    "css": [
+      "assets/DashboardGrid-DULRuONn.css"
+    ]
+  },
+  "app/main.tsx": {
+    "file": "assets/main-BLzq5ENY.js",
+    "name": "main",
+    "src": "app/main.tsx",
+    "isEntry": true,
+    "imports": [
+      "_main-LDBBxV2y.js"
+    ],
+    "dynamicImports": [
+      "app/admin/automations/AutomationVisualBuilder.tsx",
+      "app/admin/dashboards/DashboardGrid.tsx"
+    ],
+    "css": [
+      "assets/main-BF3ZVB8T.css"
+    ]
+  }
+}
