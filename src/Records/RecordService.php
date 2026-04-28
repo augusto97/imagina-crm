@@ -93,6 +93,105 @@ final class RecordService
     }
 
     /**
+     * Lista de grupos (buckets) para un campo agrupable, respetando
+     * filters/search igual que `list()`. Cada bucket trae `value` (lo
+     * que el frontend usa luego para filtrar al expandir) y `count`.
+     *
+     * @param array<string, mixed> $filters
+     *
+     * @return array{
+     *     data: array<int, array{value: mixed, count: int}>,
+     *     meta: array{
+     *         group_by_field_id: int,
+     *         group_by_slug: string,
+     *         group_by_type: string,
+     *         total_groups: int,
+     *         total_records: int
+     *     }
+     * }|ValidationResult
+     */
+    public function groups(
+        ListEntity $list,
+        int $groupByFieldId,
+        array $filters,
+        ?string $search,
+    ): array|ValidationResult {
+        $listFields = $this->fields->allForList($list->id);
+
+        $groupBy = null;
+        foreach ($listFields as $f) {
+            if ($f->id === $groupByFieldId) {
+                $groupBy = $f;
+                break;
+            }
+        }
+
+        if ($groupBy === null) {
+            return ValidationResult::failWith(
+                'group_by',
+                __('El campo de agrupación no existe en esta lista.', 'imagina-crm')
+            );
+        }
+
+        if (! in_array($groupBy->type, QueryBuilder::GROUPABLE_TYPES, true)) {
+            return ValidationResult::failWith(
+                'group_by',
+                __('Este tipo de campo no soporta agrupación.', 'imagina-crm')
+            );
+        }
+
+        // Reusamos `normalize` solo para sanitizar filters/search; las
+        // dimensiones de paginación/sort/projection no aplican a la
+        // query de groups.
+        $params = $this->queryBuilder->normalize(
+            $list->id,
+            $listFields,
+            $filters,
+            [],
+            [],
+            $search,
+            1,
+            1,
+            includeDeleted: false,
+        );
+
+        if ($params instanceof ValidationResult) {
+            return $params;
+        }
+
+        $compiled = $this->queryBuilder->buildGroupQuery(
+            $list->tableSuffix,
+            $listFields,
+            $groupBy,
+            $params,
+        );
+        $rows = $this->records->executeSelect($compiled['sql'], $compiled['args']);
+
+        $groups = [];
+        $total  = 0;
+        foreach ($rows as $row) {
+            $count = (int) ($row['group_count'] ?? 0);
+            $value = $row['group_value'] ?? null;
+            $total += $count;
+            $groups[] = [
+                'value' => $value,
+                'count' => $count,
+            ];
+        }
+
+        return [
+            'data' => $groups,
+            'meta' => [
+                'group_by_field_id' => $groupBy->id,
+                'group_by_slug'     => $groupBy->slug,
+                'group_by_type'     => $groupBy->type,
+                'total_groups'      => count($groups),
+                'total_records'     => $total,
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function find(ListEntity $list, int $recordId): ?array

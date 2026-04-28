@@ -146,6 +146,22 @@ final class RecordRepository
         ];
     }
 
+    /**
+     * Ejecuta un SELECT simple (sin COUNT separado). Usado por el
+     * endpoint de groups donde el resultado ya ES la agregación.
+     *
+     * @param array<int, mixed> $args
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function executeSelect(string $sql, array $args): array
+    {
+        $wpdb     = $this->db->wpdb();
+        $prepared = $args === [] ? $sql : (string) $wpdb->prepare($sql, $args);
+        $rows     = $wpdb->get_results($prepared, ARRAY_A);
+        return is_array($rows) ? $rows : [];
+    }
+
     private function qualifiedTable(string $tableSuffix): string
     {
         return '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';

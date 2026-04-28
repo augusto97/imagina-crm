@@ -50,6 +50,12 @@ final class RecordsController extends AbstractController
             'permission_callback' => [$this, 'checkAdminPermissions'],
         ]);
 
+        register_rest_route($this->namespace, '/' . $base . '/groups', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [$this, 'getGroups'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+        ]);
+
         register_rest_route($this->namespace, '/' . $base . '/(?P<id>\d+)', [
             [
                 'methods'             => WP_REST_Server::READABLE,
@@ -156,6 +162,44 @@ final class RecordsController extends AbstractController
             return $this->validationError($result);
         }
         return new WP_REST_Response(['data' => ['id' => $id, 'purged' => $purge]]);
+    }
+
+    /**
+     * GET /lists/{list}/records/groups?group_by=<field_id>&filter=...&search=...
+     *
+     * Devuelve buckets agregados para alimentar la vista de tabla con
+     * grouping (toolbar "Agrupar por"). Cada bucket trae el valor del
+     * grupo y el count. La expansión lazy de cada grupo reutiliza el
+     * endpoint normal `/records` pasando el filtro `eq` correspondiente.
+     */
+    public function getGroups(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
+        if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+
+        $groupBy = (int) $request->get_param('group_by');
+        if ($groupBy <= 0) {
+            return new WP_Error(
+                'imcrm_bad_group_by',
+                __('Falta el parámetro group_by con el id del campo.', 'imagina-crm'),
+                ['status' => 400]
+            );
+        }
+
+        $filters = $request->get_param('filter');
+        $filters = is_array($filters) ? $filters : [];
+
+        $search = $request->get_param('search');
+        $search = is_string($search) ? $search : null;
+
+        $result = $this->service->groups($list, $groupBy, $filters, $search);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+
+        return new WP_REST_Response($result);
     }
 
     public function bulk(WP_REST_Request $request): WP_REST_Response|WP_Error

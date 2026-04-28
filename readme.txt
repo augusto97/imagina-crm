@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.14.2
+Stable tag: 0.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,30 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.15.0 =
+* Nueva feature: agrupación ClickUp/Airtable-style en la vista de
+  tabla. Toolbar tiene un nuevo selector "Agrupar por" que lista los
+  campos agrupables (select, multi_select, user, checkbox, date,
+  datetime). Al elegir uno, la tabla se reorganiza por buckets (cada
+  uno con su count) y los registros se cargan lazy al expandir el
+  grupo — evita traer 5k filas para sólo expandir uno con 30. Cuando
+  hay filtros activos los buckets reflejan SOLO esos.
+* Backend: nuevo endpoint `GET /imagina-crm/v1/lists/{list}/records/groups`
+  que devuelve `{value, count}` por bucket respetando filters/search.
+  Implementado vía un nuevo `QueryBuilder::buildGroupQuery()` que
+  para tipos escalares hace `GROUP BY` directo y para `multi_select`
+  hace UNNEST con `JSON_TABLE` (MySQL 8.0+ — requisito del plugin)
+  para que un record con `["a","b"]` cuente para ambos buckets.
+  Bucket "(Sin valor)" siempre va al final.
+* La elección de agrupación se persiste por SavedView en
+  `config.group_by_field_id` (mismo campo que ya usaba kanban; el
+  `view.type` discrimina contexto). Vista guardada con grouping
+  recuerda la elección al volver.
+* Tests: nuevos casos en `QueryBuilderTest` (4) e
+  `RecordServiceTest` (3) cubriendo buckets escalares, multi_select
+  unnest, ordering del null bucket, y rejection de tipos no
+  agrupables.
 
 = 0.14.2 =
 * Fix CRÍTICO: el reset scopeado en `globals.css` con selectores
