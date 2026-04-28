@@ -360,10 +360,10 @@ export function AutomationDialog({
                             {__('Activa al guardar')}
                         </label>
 
-                        <footer className="imcrm-flex imcrm-justify-end imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-4">
+                        <footer className="imcrm-flex imcrm-justify-end imcrm-gap-3 imcrm-border-t imcrm-border-border imcrm-pt-5">
                             <Button
                                 type="button"
-                                variant="ghost"
+                                variant="outline"
                                 onClick={() => onOpenChange(false)}
                                 disabled={isPending}
                             >
@@ -390,7 +390,7 @@ function ViewSwitcher({
 }): JSX.Element {
     return (
         <div
-            className="imcrm-inline-flex imcrm-self-start imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-1 imcrm-shadow-imcrm-sm"
+            className="imcrm-inline-flex imcrm-self-start imcrm-gap-1 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-canvas imcrm-p-1"
             role="tablist"
             aria-label={__('Vista del editor')}
         >
@@ -400,10 +400,10 @@ function ViewSwitcher({
                 aria-selected={view === 'form'}
                 onClick={() => onChange('form')}
                 className={cn(
-                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-px-3 imcrm-py-1.5 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors',
+                    'imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-px-3.5 imcrm-py-1.5 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors',
                     view === 'form'
-                        ? 'imcrm-bg-primary imcrm-text-primary-foreground imcrm-shadow-imcrm-sm'
-                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground',
+                        ? 'imcrm-bg-card imcrm-text-foreground imcrm-shadow-imcrm-sm'
+                        : 'imcrm-text-muted-foreground hover:imcrm-text-foreground',
                 )}
             >
                 <LayoutList className="imcrm-h-3.5 imcrm-w-3.5" />
@@ -415,10 +415,10 @@ function ViewSwitcher({
                 aria-selected={view === 'visual'}
                 onClick={() => onChange('visual')}
                 className={cn(
-                    'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-px-3 imcrm-py-1.5 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors',
+                    'imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-px-3.5 imcrm-py-1.5 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors',
                     view === 'visual'
-                        ? 'imcrm-bg-primary imcrm-text-primary-foreground imcrm-shadow-imcrm-sm'
-                        : 'imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground',
+                        ? 'imcrm-bg-card imcrm-text-foreground imcrm-shadow-imcrm-sm'
+                        : 'imcrm-text-muted-foreground hover:imcrm-text-foreground',
                 )}
             >
                 <Workflow className="imcrm-h-3.5 imcrm-w-3.5" />

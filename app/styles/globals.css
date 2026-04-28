@@ -233,20 +233,24 @@
     }
 
     /*
-     * Reset de UA defaults para botones / inputs / selects / links
-     * dentro del SPA (incluido lo que renderiza Radix Portal en <body>).
+     * Reset de UA defaults para botones / inputs / selects / links.
      *
-     * Scope: `#imcrm-root` (raíz del SPA) + cualquier descendiente de
-     * elementos con clases `imcrm-*`. Esto último cubre los Portales
-     * de Radix (Dialog.Content, PopoverContent, etc.) que renderizan
-     * fuera del root pero siempre con clases imcrm-* propias.
+     * Desde 0.13.0 el SPA vive en una página standalone con su propio
+     * reset CSS inline — preflight de Tailwind ya hace el trabajo.
+     * PERO mantenemos un reset scopeado a `[class*='imcrm-']` y
+     * `#imcrm-root` por dos razones:
+     *   1. Compatibilidad backward — si en el futuro alguien embebe
+     *      el SPA en wp-admin o en un theme de WP, los UA defaults
+     *      no rompen nuestros componentes shadcn.
+     *   2. Defensa en profundidad: aún en standalone, este reset
+     *      cubre el caso edge donde Radix renderiza un Portal afuera
+     *      del flujo normal con classes imcrm-* (selects custom, etc).
      *
-     * Sin este reset los botones nativos heredan el chrome de UA
-     * (gray gradient bg + 3D border + inset shadow) y se ven como
-     * "pastillas grises horribles" — el bug que el usuario reportó.
-     *
-     * Las primitivas estilizadas (Button, Input, Select de shadcn)
-     * sobreescriben con sus propias clases imcrm-bg-* / imcrm-border-*.
+     * NOTA: ya no resetiamos `:hover`/`:focus`/`:active` — esos
+     * estados son responsabilidad de las primitivas (Button, Input,
+     * etc.) via clases hover:imcrm-bg-*. El reset hacky de
+     * `:where(...:hover) {bg: transparent}` que tenía 0.9.x se
+     * removió, las primitivas ahora confían en el preflight base.
      */
     #imcrm-root button,
     [class*='imcrm-'] button {
@@ -259,21 +263,6 @@
         line-height: inherit;
         text-align: inherit;
         cursor: pointer;
-    }
-
-    /* Reset hover / focus / active a transparent SOLO cuando no haya
-     * regla más específica encima (ej. nuestras `hover:imcrm-bg-*`
-     * en Button component sobreescriben esto). Usamos `:where()` para
-     * mantener la especificidad en 0,0,0 — cualquier clase wins. */
-    :where(#imcrm-root button:hover,
-           [class*='imcrm-'] button:hover,
-           #imcrm-root button:focus,
-           [class*='imcrm-'] button:focus,
-           #imcrm-root button:active,
-           [class*='imcrm-'] button:active) {
-        background-color: transparent;
-        outline: none;
-        box-shadow: none;
     }
 
     /* Links: por default text-decoration none + color inherit. La

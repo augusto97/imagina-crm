@@ -7,63 +7,66 @@ import { cn } from '@/lib/utils';
 const buttonVariants = cva(
     [
         // Base: layout + tipografía + transición
-        'imcrm-relative imcrm-inline-flex imcrm-items-center imcrm-justify-center imcrm-gap-1.5',
+        'imcrm-inline-flex imcrm-items-center imcrm-justify-center imcrm-gap-2',
         'imcrm-whitespace-nowrap imcrm-font-medium imcrm-tracking-tight',
-        'imcrm-transition-all imcrm-duration-150',
+        'imcrm-transition-colors imcrm-duration-150',
         // Focus ring refinado
         'focus-visible:imcrm-outline-none focus-visible:imcrm-ring-2 focus-visible:imcrm-ring-ring focus-visible:imcrm-ring-offset-2 focus-visible:imcrm-ring-offset-background',
         // Disabled
         'disabled:imcrm-pointer-events-none disabled:imcrm-opacity-50',
-        // Active feedback global
-        'active:imcrm-scale-[0.98]',
     ].join(' '),
     {
         variants: {
             variant: {
-                /* Primary: solid con sombra muy sutil y un highlight
-                 * blanco interno (inset top) para sentir profundidad.
-                 * Hover oscurece levemente; active scale ya viene de base. */
+                /* Primary: solid color, sin shadow innecesaria. Hover
+                 * oscurece levemente. Diseño moderno-flat estilo
+                 * Vercel/Linear admin — el color hace el trabajo, no
+                 * necesita "depth" via shadows. */
                 default: [
                     'imcrm-bg-primary imcrm-text-primary-foreground',
-                    'imcrm-shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_0_rgb(15_23_42/0.08)]',
-                    'hover:imcrm-bg-primary/90 hover:imcrm-shadow-imcrm-sm',
+                    'hover:imcrm-bg-primary/90',
                 ].join(' '),
 
-                /* Secondary: lo que en Linear/Vercel es el botón "default" —
-                 * white + hairline border + hover bg muy leve. Es el más
-                 * usado para acciones no-primarias. */
+                /* Outline: el botón "default" estilo Vercel — white +
+                 * hairline border. Sin shadow exterior. Hover apenas
+                 * tinta el bg, el border se oscurece. */
                 outline: [
                     'imcrm-bg-card imcrm-text-foreground imcrm-border imcrm-border-border',
-                    'imcrm-shadow-imcrm-sm',
                     'hover:imcrm-bg-canvas hover:imcrm-border-input',
                 ].join(' '),
 
-                /* Secondary: gris muy suave para acciones paralelas. */
+                /* Secondary: gris suave para acciones paralelas. Sin
+                 * border, hover ligero darken. */
                 secondary: [
                     'imcrm-bg-secondary imcrm-text-secondary-foreground',
                     'hover:imcrm-bg-muted',
                 ].join(' '),
 
-                /* Destructive */
+                /* Destructive: solid red, sin shadow. */
                 destructive: [
                     'imcrm-bg-destructive imcrm-text-destructive-foreground',
-                    'imcrm-shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_0_rgb(15_23_42/0.08)]',
-                    'hover:imcrm-bg-destructive/90 hover:imcrm-shadow-imcrm-sm',
+                    'hover:imcrm-bg-destructive/90',
                 ].join(' '),
 
-                /* Ghost: sin chrome. Hover usa primary tint muy leve
-                 * (4%) — más on-brand que el gris-genérico que nos
-                 * recordaba "pastilla pesada". */
+                /* Ghost: sin chrome, sólo hover sutil con tint del
+                 * foreground. No genera "pastilla" pegajosa porque
+                 * la opacidad es muy baja (4%). */
                 ghost: [
                     'imcrm-text-foreground/80',
-                    'hover:imcrm-bg-foreground/5 hover:imcrm-text-foreground',
+                    'hover:imcrm-bg-foreground/[0.04] hover:imcrm-text-foreground',
                 ].join(' '),
 
-                /* Link */
-                link: 'imcrm-text-primary imcrm-underline-offset-4 hover:imcrm-underline',
+                /* Link: solo color primary + underline on hover. */
+                link: [
+                    'imcrm-text-primary imcrm-underline-offset-4',
+                    'hover:imcrm-underline',
+                ].join(' '),
             },
             size: {
-                default: 'imcrm-h-9 imcrm-rounded-lg imcrm-px-3.5 imcrm-text-sm',
+                /* Densidad estándar moderna: h-9 con padding horizontal
+                 * generoso (px-4) para que los buttons respiren. Antes
+                 * usaba px-3.5 que sentía cramped. */
+                default: 'imcrm-h-9 imcrm-rounded-lg imcrm-px-4 imcrm-text-sm',
                 sm: 'imcrm-h-8 imcrm-rounded-md imcrm-px-3 imcrm-text-[13px]',
                 lg: 'imcrm-h-10 imcrm-rounded-lg imcrm-px-5 imcrm-text-sm',
                 icon: 'imcrm-h-9 imcrm-w-9 imcrm-rounded-lg',

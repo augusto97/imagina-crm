@@ -228,29 +228,29 @@ function Inner({
                     {/* Floating + button con type picker */}
                     <div className="imcrm-absolute imcrm-bottom-3 imcrm-right-3 imcrm-z-10">
                         {pickerOpen && (
-                            <div className="imcrm-absolute imcrm-bottom-12 imcrm-right-0 imcrm-min-w-[220px] imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-lg">
-                                <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-border-b imcrm-border-border imcrm-px-3 imcrm-py-2">
-                                    <span className="imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground">
+                            <div className="imcrm-absolute imcrm-bottom-12 imcrm-right-0 imcrm-min-w-[260px] imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-lg">
+                                <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-border-b imcrm-border-border imcrm-px-3.5 imcrm-py-2.5">
+                                    <span className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
                                         {__('Tipo de acción')}
                                     </span>
                                     <button
                                         type="button"
                                         onClick={() => setPickerOpen(false)}
-                                        className="imcrm-text-muted-foreground hover:imcrm-text-foreground"
+                                        className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-foreground/[0.04] hover:imcrm-text-foreground"
                                         aria-label={__('Cerrar')}
                                     >
                                         <X className="imcrm-h-3.5 imcrm-w-3.5" />
                                     </button>
                                 </header>
-                                <ul className="imcrm-flex imcrm-flex-col imcrm-py-1">
+                                <ul className="imcrm-flex imcrm-flex-col imcrm-p-1.5">
                                     {actionsCatalog.map((a) => (
                                         <li key={a.slug}>
                                             <button
                                                 type="button"
                                                 onClick={() => handleAdd(a.slug)}
-                                                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-px-3 imcrm-py-1.5 imcrm-text-sm imcrm-text-left hover:imcrm-bg-accent"
+                                                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2.5 imcrm-rounded-md imcrm-px-2.5 imcrm-py-2 imcrm-text-[13px] imcrm-text-left hover:imcrm-bg-accent"
                                             >
-                                                <span className="imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-text-muted-foreground">
+                                                <span className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-bg-muted imcrm-text-muted-foreground">
                                                     {iconForActionType(a.slug)}
                                                 </span>
                                                 {a.label}

@@ -54,7 +54,7 @@ export function Topbar(): JSX.Element {
 
                 <a
                     href={boot.adminUrl || '/wp-admin'}
-                    className="imcrm-ml-1 imcrm-inline-flex imcrm-h-9 imcrm-items-center imcrm-gap-1.5 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-text-[13px] imcrm-font-medium imcrm-text-foreground imcrm-shadow-imcrm-sm imcrm-transition-colors hover:imcrm-bg-accent"
+                    className="imcrm-ml-1 imcrm-inline-flex imcrm-h-9 imcrm-items-center imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-4 imcrm-text-[13px] imcrm-font-medium imcrm-text-foreground imcrm-transition-colors hover:imcrm-bg-canvas hover:imcrm-border-input"
                 >
                     <ExternalLink className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
                     {__('Ver WP')}

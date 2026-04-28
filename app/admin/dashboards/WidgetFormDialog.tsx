@@ -280,7 +280,7 @@ export function WidgetFormDialog({
                             />
                         )}
 
-                        <div className="imcrm-flex imcrm-justify-end imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-4">
+                        <div className="imcrm-flex imcrm-justify-end imcrm-gap-3 imcrm-border-t imcrm-border-border imcrm-pt-5">
                             <Dialog.Close asChild>
                                 <Button type="button" variant="outline">
                                     {__('Cancelar')}

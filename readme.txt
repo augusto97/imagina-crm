@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.13.2
+Stable tag: 0.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.14.0 =
+* Refactor visual de buttons + cleanup de workarounds que ya no
+  hacen falta ahora que el SPA vive standalone (sin chrome de WP):
+  · `<Button>` rediseñado: padding generoso (px-4 default vs
+    px-3.5), gap-2 entre icon+text (vs 1.5), sin sombras inset
+    raras en primary/destructive (color sólido hace el trabajo),
+    sin `active:scale-[0.98]` global (sentía gimmicky), hover
+    states más sutiles. Todas las variantes recalibradas.
+  · `globals.css`: removido el reset hacky de `:where(...:hover)
+    {bg: transparent}` que servía para domar UA defaults filtrados
+    desde wp-admin. Ya no aplica — la página standalone tiene
+    Tailwind preflight inline propio. El reset basal de `<button>`
+    se mantiene como defensa en profundidad.
+* Fix: tabs Formulario / Diagrama del builder de automatizaciones
+  estaban PEGADOS uno encima del otro (el inactivo no tenía bg).
+  Ahora el container es bg-canvas, los tabs van dentro con gap-1
+  y el activo tiene bg-card + shadow — separación visual real.
+* Fix: footer Cancelar/Guardar de los dialogs estaban pegados.
+  gap-2 → gap-3 + padding-top mayor. "Cancelar" pasa de variant
+  ghost a outline para tener afordance visible (botón blanco
+  con border + hover bg) — antes parecía solo un texto suelto.
+* Fix: dropdown "Tipo de acción" del visual builder con padding
+  apretado en sus items. Reescrito con padding mayor (px-2.5
+  py-2), icon-tile con bg-muted en cada item, header con
+  tracking uppercase consistente. min-width 260px (antes 220px).
 
 = 0.13.2 =
 * Fix CRÍTICO: 0.13.1 todavía servía 404 en `/imagina-crm/` porque
