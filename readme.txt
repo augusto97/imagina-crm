@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.12.3
+Stable tag: 0.12.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,23 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.12.4 =
+* Fix CRÍTICO frontend: TODOS los filtros estaban rotos a nivel
+  de URL — la función `buildUrl` en `app/lib/api.ts` solo
+  serializaba UN nivel de anidamiento. Para filtros (que son
+  `filter[field_5][eq]=value`, dos niveles), el segundo nivel
+  `{eq: 'value'}` terminaba como `String(obj)` =
+  `"[object Object]"`, lo que rompía silenciosamente cualquier
+  filtro: text, select, multi_select, todos.
+  Por eso aunque arreglamos el SQL del backend en 0.12.3, los
+  tests integration (que llaman al service directo, no via
+  REST) pasaban — pero la UI no enviaba bien el query string.
+  Fix: `appendParam` recursivo soporta cualquier profundidad.
+* Lección anotada: cuando el backend tests pasan pero el bug
+  persiste, mirar el wire format completo (URL → server). Tests
+  integration de PHP son necesarios pero no suficientes; falta
+  un test E2E que cubra la cadena completa.
 
 = 0.12.3 =
 * Fix CRÍTICO: el filtro multi_select de 0.12.2 todavía fallaba

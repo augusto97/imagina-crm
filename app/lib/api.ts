@@ -48,17 +48,7 @@ function buildUrl(path: string, query?: Record<string, unknown>): string {
 
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
-        if (value === undefined || value === null) continue;
-
-        if (typeof value === 'object' && !Array.isArray(value)) {
-            // filter[slug][op] style.
-            for (const [innerKey, innerValue] of Object.entries(value as Record<string, unknown>)) {
-                if (innerValue === undefined || innerValue === null) continue;
-                params.append(`${key}[${innerKey}]`, serializeParam(innerValue));
-            }
-        } else {
-            params.append(key, serializeParam(value));
-        }
+        appendParam(params, key, value);
     }
 
     const qs = params.toString();
@@ -73,6 +63,28 @@ function serializeParam(value: unknown): string {
     if (typeof value === 'boolean') return value ? '1' : '0';
     if (Array.isArray(value)) return value.map(String).join(',');
     return String(value);
+}
+
+/**
+ * Serializa recursivamente cada par key/value al estilo PHP/WP-REST,
+ * soportando anidamiento arbitrario:
+ *   { filter: { field_5: { eq: 'won' } } } → filter[field_5][eq]=won
+ *
+ * Antes esta función solo manejaba UN nivel — el segundo nivel
+ * (`{eq: 'won'}`) terminaba como `String(obj)` = `"[object Object]"`,
+ * lo que rompía TODOS los filtros silenciosamente.
+ */
+function appendParam(params: URLSearchParams, key: string, value: unknown): void {
+    if (value === undefined || value === null) return;
+
+    if (typeof value === 'object' && !Array.isArray(value)) {
+        for (const [innerKey, innerValue] of Object.entries(value as Record<string, unknown>)) {
+            appendParam(params, `${key}[${innerKey}]`, innerValue);
+        }
+        return;
+    }
+
+    params.append(key, serializeParam(value));
 }
 
 function parseSlugRename(header: string | null): SlugRenamedHint | undefined {
