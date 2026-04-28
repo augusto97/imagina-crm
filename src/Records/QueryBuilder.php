@@ -43,6 +43,11 @@ final class QueryBuilder
     /** @var array<int, string> Tipos que no admiten WHERE en la columna física. */
     private const NON_FILTERABLE_TYPES = ['relation'];
 
+    /** @var array<int, string> Tipos que admiten GROUP BY (toolbar "Agrupar por"). */
+    public const GROUPABLE_TYPES = [
+        'select', 'multi_select', 'user', 'checkbox', 'date', 'datetime',
+    ];
+
     /** @var array<int, string> */
     private const BASE_COLUMNS = ['id', 'created_by', 'created_at', 'updated_at', 'deleted_at'];
 
@@ -187,6 +192,88 @@ final class QueryBuilder
             'count_sql'  => $countSql,
             'count_args' => $whereArgs,
         ];
+    }
+
+    /**
+     * Compila SELECT (group_value, count) GROUP BY <group_field>, respetando
+     * los mismos filtros / search / soft-deletes que `buildSelect`. Usado
+     * por el endpoint `/records/groups` (toolbar "Agrupar por" estilo
+     * ClickUp/Airtable).
+     *
+     * Para tipos escalares (select/user/checkbox/date/datetime) hace un
+     * GROUP BY directo sobre la columna física.
+     *
+     * Para `multi_select` (columna JSON array) hace UNNEST con
+     * `JSON_TABLE` (MySQL 8.0+, requisito del plugin) — cada valor del
+     * array genera su propia fila en el resultado, así un record con
+     * `["wpml","crocoblock"]` cuenta para ambos buckets. Los records
+     * con array vacío o NULL agrupan en una fila con `value = NULL`.
+     *
+     * Orden: count DESC, value ASC. Los grupos sin valor (NULL/'')
+     * siempre van al final independiente del count, porque "(Sin valor)"
+     * es ruido visual cuando se mezcla con grupos reales.
+     *
+     * @param array<int, FieldEntity> $fields  Campos vivos de la lista (mismos que se pasan a buildSelect).
+     *
+     * @return array{sql:string, args:array<int, mixed>}
+     */
+    public function buildGroupQuery(
+        string $tableSuffix,
+        array $fields,
+        FieldEntity $groupByField,
+        QueryParams $params,
+    ): array {
+        $table     = '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';
+        $columnSet = $this->columnsByName($fields);
+
+        [$where, $args] = $this->buildWhere($params, $columnSet);
+        $whereSql       = $where !== '' ? $where : 'WHERE 1=1';
+
+        $col = '`' . esc_sql($groupByField->columnName) . '`';
+
+        if ($groupByField->type === 'multi_select') {
+            // Bucket 1: valores reales unnesteados con JSON_TABLE.
+            // Filtramos NULL/[] aquí porque JSON_TABLE no produciría
+            // filas para arrays vacíos pero queremos ser explícitos.
+            $unnestSql = "SELECT j.value AS group_value, COUNT(*) AS group_count "
+                       . "FROM {$table} "
+                       . "JOIN JSON_TABLE("
+                       .   "IFNULL({$col}, JSON_ARRAY()), "
+                       .   "'$[*]' COLUMNS (value VARCHAR(255) PATH '$')"
+                       . ") AS j "
+                       . $whereSql
+                       . " AND {$col} IS NOT NULL AND {$col} <> '[]' "
+                       . " GROUP BY j.value ";
+
+            // Bucket 2: registros sin valor (un único grupo NULL).
+            $nullSql = "SELECT NULL AS group_value, COUNT(*) AS group_count "
+                     . "FROM {$table} "
+                     . $whereSql
+                     . " AND ({$col} IS NULL OR {$col} = '[]') "
+                     . " HAVING group_count > 0 ";
+
+            // Cada subquery usa el mismo set de args en el mismo orden.
+            $finalSql = "SELECT g.group_value, g.group_count FROM ("
+                      . "({$unnestSql}) UNION ALL ({$nullSql})"
+                      . ") AS g "
+                      . " ORDER BY (g.group_value IS NULL) ASC, g.group_count DESC, g.group_value ASC";
+
+            return [
+                'sql'  => $finalSql,
+                'args' => array_merge($args, $args),
+            ];
+        }
+
+        // Tipos escalares: GROUP BY directo. Tratamos '' como NULL para
+        // evitar dos buckets redundantes (string vacío y NULL).
+        $valueExpr = "NULLIF({$col}, '')";
+        $sql       = "SELECT {$valueExpr} AS group_value, COUNT(*) AS group_count "
+                   . "FROM {$table} "
+                   . $whereSql
+                   . " GROUP BY {$valueExpr} "
+                   . " ORDER BY (group_value IS NULL) ASC, group_count DESC, group_value ASC";
+
+        return ['sql' => $sql, 'args' => $args];
     }
 
     /**

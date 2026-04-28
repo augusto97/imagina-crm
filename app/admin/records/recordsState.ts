@@ -24,6 +24,9 @@ export interface RecordsState {
     /** Anchura por column id en px (resizing). Si la key no existe,
      * usa el `size` default de la columna. */
     columnSizing: Record<string, number>;
+    /** Field id por el que se agrupa la table view (ClickUp-style).
+     * `null` = vista plana. */
+    groupByFieldId: number | null;
 }
 
 export const DEFAULT_PER_PAGE = 50;
@@ -36,6 +39,7 @@ export const INITIAL_STATE: RecordsState = {
     search: '',
     columnVisibility: {},
     columnSizing: {},
+    groupByFieldId: null,
 };
 
 /**

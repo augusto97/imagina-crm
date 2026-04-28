@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
-import { useRecords } from '@/hooks/useRecords';
+import { useRecord, useRecords } from '@/hooks/useRecords';
 import { useSavedViews } from '@/hooks/useSavedViews';
 import { __, sprintf } from '@/lib/i18n';
 import type { RecordEntity } from '@/types/record';
@@ -27,6 +27,8 @@ import {
 import { CalendarView } from './views/CalendarView';
 import { KanbanView } from './views/KanbanView';
 import { ColumnsMenu } from './views/ColumnsMenu';
+import { GroupSelector } from './views/GroupSelector';
+import { GroupedTableView } from './views/GroupedTableView';
 import { TableView } from './views/TableView';
 import { SaveViewDialog } from './views/SaveViewDialog';
 import { ViewsTabs } from './views/ViewsTabs';
@@ -119,10 +121,19 @@ export function RecordsPage(): JSX.Element {
         }));
     };
 
-    const drawerRecord: RecordEntity | null =
+    // En vista plana el record vive en `records.data`. En vista agrupada
+    // ese flat list está vacío (cada grupo tiene su propia query) — caemos
+    // a un fetch directo por id como fallback.
+    const flatDrawerRecord =
         drawerRecordId !== null
             ? records.data?.data.find((r) => r.id === drawerRecordId) ?? null
             : null;
+    const fallbackRecord = useRecord(
+        list.data?.id,
+        flatDrawerRecord === null && drawerRecordId !== null ? drawerRecordId : undefined,
+    );
+    const drawerRecord: RecordEntity | null =
+        flatDrawerRecord ?? (fallbackRecord.data ?? null);
 
     const activeView = activeViewId !== null
         ? views.data?.find((v) => v.id === activeViewId) ?? null
@@ -130,6 +141,11 @@ export function RecordsPage(): JSX.Element {
     const isKanban = activeView?.type === 'kanban';
     const isCalendar = activeView?.type === 'calendar';
     const isAlternativeView = isKanban || isCalendar;
+    const isTableGrouped = !isAlternativeView && state.groupByFieldId !== null;
+    const tableGroupByField =
+        isTableGrouped && fields.data
+            ? fields.data.find((f) => f.id === state.groupByFieldId)
+            : undefined;
     // Para vistas no-tabla, "dirty" no se compara con filters/sort.
     const isDirty = isAlternativeView
         ? false
@@ -266,6 +282,19 @@ export function RecordsPage(): JSX.Element {
                                     setState((s) => ({ ...s, columnVisibility: next }))
                                 }
                             />
+                            {!isAlternativeView && (
+                                <GroupSelector
+                                    fields={fields.data}
+                                    value={state.groupByFieldId}
+                                    onChange={(next) =>
+                                        setState((s) => ({
+                                            ...s,
+                                            groupByFieldId: next,
+                                            page: 1,
+                                        }))
+                                    }
+                                />
+                            )}
                         </div>
                         {records.isFetching && !records.isLoading && (
                             <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin imcrm-text-muted-foreground" />
@@ -300,6 +329,17 @@ export function RecordsPage(): JSX.Element {
                             dateField={dateField}
                             onCardClick={(record) => setDrawerRecordId(record.id)}
                         />
+                    ) : isTableGrouped && tableGroupByField ? (
+                        <GroupedTableView
+                            listId={list.data.id}
+                            fields={fields.data}
+                            groupByField={tableGroupByField}
+                            filters={state.filters}
+                            search={state.search}
+                            selectedIds={selectedIds}
+                            onSelectionChange={setSelectedIds}
+                            onRowClick={(record) => setDrawerRecordId(record.id)}
+                        />
                     ) : (
                         <TableView
                             listId={list.data.id}
@@ -321,7 +361,9 @@ export function RecordsPage(): JSX.Element {
                         />
                     )}
 
-                    {meta && !isAlternativeView && <Pagination meta={meta} onPageChange={setPage} />}
+                    {meta && !isAlternativeView && !isTableGrouped && (
+                        <Pagination meta={meta} onPageChange={setPage} />
+                    )}
 
                     <BulkActionsToolbar
                         listId={list.data.id}

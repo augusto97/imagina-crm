@@ -33,6 +33,9 @@ export function stateToViewConfig(state: RecordsState): SavedViewConfig {
     if (Object.keys(state.columnSizing).length > 0) {
         config.column_widths = state.columnSizing;
     }
+    if (state.groupByFieldId !== null) {
+        config.group_by_field_id = state.groupByFieldId;
+    }
     return config;
 }
 
@@ -67,6 +70,7 @@ export function viewConfigToState(config: SavedViewConfig, perPage: number): Rec
         search: config.search ?? '',
         columnVisibility,
         columnSizing: config.column_widths ?? {},
+        groupByFieldId: config.group_by_field_id ?? null,
     };
 }
 
@@ -91,6 +95,9 @@ function stripPaginationOnlyKeys(config: SavedViewConfig): SavedViewConfig {
     }
     if (config.column_widths && Object.keys(config.column_widths).length > 0) {
         out.column_widths = config.column_widths;
+    }
+    if (config.group_by_field_id !== undefined) {
+        out.group_by_field_id = config.group_by_field_id;
     }
     return out;
 }

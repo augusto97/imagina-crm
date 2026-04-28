@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Tests\Integration\Records;
 
+use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\FieldTypeRegistry;
@@ -514,5 +515,115 @@ final class RecordServiceTest extends IntegrationTestCase
         );
         $names = array_map(static fn (array $r) => $r['fields']['name'], $result['data']);
         $this->assertEqualsCanonicalizing(['Cliente A', 'Cliente B'], $names);
+    }
+
+    public function test_groups_for_select_field_returns_buckets_with_counts(): void
+    {
+        $list = $this->lists->create(['name' => 'Tickets']);
+        $this->assertIsObject($list);
+        /** @var ListEntity $list */
+
+        $name = $this->fields->create($list->id, [
+            'label' => 'Asunto',
+            'slug'  => 'subject',
+            'type'  => 'text',
+            'is_required' => true,
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $name);
+
+        $statusField = $this->fields->create($list->id, [
+            'label' => 'Estado',
+            'slug'  => 'status',
+            'type'  => 'select',
+            'config' => [
+                'options' => [
+                    ['value' => 'open',   'label' => 'Abierto'],
+                    ['value' => 'closed', 'label' => 'Cerrado'],
+                ],
+            ],
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $statusField);
+        /** @var FieldEntity $statusField */
+
+        $this->seedRows($list, [
+            ['subject' => 'A', 'status' => 'open'],
+            ['subject' => 'B', 'status' => 'open'],
+            ['subject' => 'C', 'status' => 'closed'],
+            ['subject' => 'D', 'status' => null],
+        ]);
+
+        $result = $this->records->groups($list, $statusField->id, [], null);
+        $this->assertIsArray($result);
+        $this->assertSame($statusField->id, $result['meta']['group_by_field_id']);
+        $this->assertSame('select', $result['meta']['group_by_type']);
+        $this->assertSame(4, $result['meta']['total_records']);
+
+        // Tres buckets: open(2), closed(1), null(1). Orden por count desc;
+        // null va al final por la regla `(group_value IS NULL) ASC`.
+        $values = array_map(static fn (array $b) => $b['value'], $result['data']);
+        $counts = array_map(static fn (array $b) => $b['count'], $result['data']);
+        $this->assertSame(['open', 'closed', null], $values);
+        $this->assertSame([2, 1, 1], $counts);
+    }
+
+    public function test_groups_rejects_non_groupable_field_type(): void
+    {
+        $list = $this->lists->create(['name' => 'Tickets2']);
+        $this->assertIsObject($list);
+        /** @var ListEntity $list */
+
+        $name = $this->fields->create($list->id, [
+            'label' => 'Texto',
+            'slug'  => 'subject',
+            'type'  => 'text',
+            'is_required' => true,
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $name);
+        /** @var FieldEntity $name */
+
+        $result = $this->records->groups($list, $name->id, [], null);
+        $this->assertInstanceOf(ValidationResult::class, $result);
+        $this->assertFalse($result->isValid());
+    }
+
+    public function test_groups_for_multi_select_unnests_array_values(): void
+    {
+        $list = $this->lists->create(['name' => 'Plugins2']);
+        $this->assertIsObject($list);
+        /** @var ListEntity $list */
+
+        $this->fields->create($list->id, [
+            'label' => 'Nombre', 'slug'  => 'name', 'type'  => 'text',
+            'is_required' => true,
+        ]);
+        $tags = $this->fields->create($list->id, [
+            'label' => 'Tags', 'slug' => 'tags', 'type' => 'multi_select',
+            'config' => ['options' => [
+                ['value' => 'a'], ['value' => 'b'], ['value' => 'c'],
+            ]],
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $tags);
+        /** @var FieldEntity $tags */
+
+        // 1 con [a,b], 1 con [b,c], 1 con [a], 1 con [].
+        // Buckets esperados: a=2, b=2, c=1, null=1.
+        $this->seedRows($list, [
+            ['name' => 'r1', 'tags' => ['a', 'b']],
+            ['name' => 'r2', 'tags' => ['b', 'c']],
+            ['name' => 'r3', 'tags' => ['a']],
+            ['name' => 'r4', 'tags' => []],
+        ]);
+
+        $result = $this->records->groups($list, $tags->id, [], null);
+        $this->assertIsArray($result);
+
+        $byValue = [];
+        foreach ($result['data'] as $bucket) {
+            $byValue[$bucket['value'] ?? '__null__'] = $bucket['count'];
+        }
+        $this->assertSame(2, $byValue['a'] ?? 0);
+        $this->assertSame(2, $byValue['b'] ?? 0);
+        $this->assertSame(1, $byValue['c'] ?? 0);
+        $this->assertSame(1, $byValue['__null__'] ?? 0);
     }
 }

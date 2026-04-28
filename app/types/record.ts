@@ -42,3 +42,41 @@ export interface RecordsQuery {
     fields?: string;
     filter?: Record<string, Partial<Record<FilterOperator, unknown>> | unknown>;
 }
+
+/**
+ * Bucket de la respuesta del endpoint `/records/groups`.
+ *
+ * `value` es lo que el frontend usa para filtrar al expandir el grupo
+ * (un eq simple para tipos escalares, un contains para multi_select).
+ * `null` representa el grupo "(Sin valor)".
+ */
+export interface RecordGroupBucket {
+    value: string | null;
+    count: number;
+}
+
+export interface RecordGroupsResponse {
+    data: RecordGroupBucket[];
+    meta: {
+        group_by_field_id: number;
+        group_by_slug: string;
+        group_by_type: string;
+        total_groups: number;
+        total_records: number;
+    };
+}
+
+export const GROUPABLE_FIELD_TYPES = [
+    'select',
+    'multi_select',
+    'user',
+    'checkbox',
+    'date',
+    'datetime',
+] as const;
+
+export type GroupableFieldType = (typeof GROUPABLE_FIELD_TYPES)[number];
+
+export function isGroupableType(type: string): type is GroupableFieldType {
+    return (GROUPABLE_FIELD_TYPES as readonly string[]).includes(type);
+}

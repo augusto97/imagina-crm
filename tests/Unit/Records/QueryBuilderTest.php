@@ -241,6 +241,78 @@ final class QueryBuilderTest extends TestCase
         $this->assertStringNotContainsString('`col_status`', $compiled['sql']);
     }
 
+    public function test_buildGroupQuery_scalar_field_uses_group_by_with_nullif(): void
+    {
+        $fields = $this->sampleFields();
+        $statusField = $fields[2]; // 'status' (select)
+        $params = $this->qb->normalize(
+            1, $fields, [], [], [], null, 1, 50, false,
+        );
+        $this->assertInstanceOf(QueryParams::class, $params);
+
+        $compiled = $this->qb->buildGroupQuery('clients', $fields, $statusField, $params);
+
+        // Trata '' como NULL para no producir buckets duplicados.
+        $this->assertStringContainsString("NULLIF(`col_status`, '')", $compiled['sql']);
+        $this->assertStringContainsString('GROUP BY', $compiled['sql']);
+        $this->assertStringContainsString('group_count DESC', $compiled['sql']);
+        // Excluye soft-deleted.
+        $this->assertStringContainsString('deleted_at IS NULL', $compiled['sql']);
+    }
+
+    public function test_buildGroupQuery_multi_select_uses_json_table_unnest(): void
+    {
+        $fields = [
+            new FieldEntity(
+                id: 1, listId: 1, slug: 'tags', columnName: 'col_tags',
+                label: 'Tags', type: 'multi_select', config: ['options' => []],
+                isRequired: false, isUnique: false, isPrimary: false,
+                position: 0, createdAt: '', updatedAt: '', deletedAt: null,
+            ),
+        ];
+        $params = $this->qb->normalize(1, $fields, [], [], [], null, 1, 50, false);
+        $this->assertInstanceOf(QueryParams::class, $params);
+
+        $compiled = $this->qb->buildGroupQuery('clients', $fields, $fields[0], $params);
+
+        $this->assertStringContainsString('JSON_TABLE', $compiled['sql']);
+        // Bucket NULL: registros con array vacío o columna NULL.
+        $this->assertStringContainsString("`col_tags` IS NULL OR `col_tags` = '[]'", $compiled['sql']);
+        // UNION ALL combinando ambos buckets.
+        $this->assertStringContainsString('UNION ALL', $compiled['sql']);
+    }
+
+    public function test_buildGroupQuery_respects_active_filters(): void
+    {
+        $fields = $this->sampleFields();
+        $statusField = $fields[2];
+        // Filtramos por amount > 100; los buckets reflejan solo esos.
+        $params = $this->qb->normalize(
+            1, $fields, ['amount' => ['gt' => 100]], [], [], null, 1, 50, false,
+        );
+        $this->assertInstanceOf(QueryParams::class, $params);
+
+        $compiled = $this->qb->buildGroupQuery('clients', $fields, $statusField, $params);
+
+        $this->assertStringContainsString('`col_amount` >', $compiled['sql']);
+        // El placeholder ya está embebido por buildWhere.
+        $this->assertNotEmpty($compiled['args']);
+    }
+
+    public function test_buildGroupQuery_orders_null_bucket_last(): void
+    {
+        $fields = $this->sampleFields();
+        $statusField = $fields[2];
+        $params = $this->qb->normalize(1, $fields, [], [], [], null, 1, 50, false);
+        $this->assertInstanceOf(QueryParams::class, $params);
+
+        $compiled = $this->qb->buildGroupQuery('clients', $fields, $statusField, $params);
+
+        // El ORDER BY incluye `(group_value IS NULL) ASC` para empujar
+        // el bucket "(Sin valor)" al final independiente del count.
+        $this->assertStringContainsString('group_value IS NULL', $compiled['sql']);
+    }
+
     /**
      * @return array<int, FieldEntity>
      */

@@ -12,7 +12,11 @@ export interface SavedViewConfig {
     filters?: Array<{ field_id: number; op: string; value: unknown }>;
     sort?: Array<{ field_id: number; dir: 'asc' | 'desc' }>;
     search?: string;
-    /** Sólo para vistas tipo `kanban`: id del campo `select` que define columnas. */
+    /**
+     * - Vistas `kanban`: id del campo `select` que define columnas (requerido).
+     * - Vistas `table`: id del campo de agrupación ClickUp-style (opcional;
+     *   tipos válidos: select, multi_select, user, checkbox, date, datetime).
+     */
     group_by_field_id?: number;
     /** Sólo para vistas tipo `calendar`: id del campo `date`/`datetime` que ubica cada record. */
     date_field_id?: number;

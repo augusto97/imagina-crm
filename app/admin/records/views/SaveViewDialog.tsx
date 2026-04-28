@@ -284,6 +284,18 @@ function describeConfig(config: SavedViewConfig): string {
             ),
         );
     }
+    if (config.group_by_field_id) {
+        parts.push(__('agrupación activa'));
+    }
+    if (config.hidden_columns && config.hidden_columns.length > 0) {
+        parts.push(
+            sprintf(
+                /* translators: %d hidden columns */
+                _n('%d columna oculta', '%d columnas ocultas', config.hidden_columns.length),
+                config.hidden_columns.length,
+            ),
+        );
+    }
     if (parts.length === 0) return __('sin configuración (vista vacía).');
     return parts.join(', ') + '.';
 }
