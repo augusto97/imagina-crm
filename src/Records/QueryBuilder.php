@@ -276,6 +276,16 @@ final class QueryBuilder
         }
 
         $col   = '`' . esc_sql($column) . '`';
+
+        // multi_select: la columna almacena JSON arrays
+        // (ej. ["elementor_pro","crocoblock"]). Comparar con `=`
+        // nunca matchearía una opción individual. Usamos
+        // JSON_CONTAINS para eq/neq/contains y JSON_OVERLAPS para
+        // in/nin. Esto es lo que el usuario espera al filtrar.
+        if ($field !== null && $field->type === 'multi_select') {
+            return $this->compileMultiSelectFilter($col, $operator, $value);
+        }
+
         $place = $field !== null ? $this->placeholder($field) : '%s';
         $cast  = $field !== null
             ? $this->castFilter($field, $value)
@@ -296,6 +306,75 @@ final class QueryBuilder
             'is_null'     => ['sql' => "{$col} IS NULL", 'args' => []],
             'is_not_null' => ['sql' => "{$col} IS NOT NULL", 'args' => []],
         };
+    }
+
+    /**
+     * Filtros sobre columnas multi_select (JSON arrays). Mapeo:
+     *  - eq / contains  → JSON_CONTAINS(col, JSON_QUOTE(value))
+     *  - neq            → NOT JSON_CONTAINS(...)
+     *  - in             → JSON_OVERLAPS(col, JSON_ARRAY(v1, v2, ...))
+     *  - nin            → NOT JSON_OVERLAPS(...)
+     *  - is_null / is_not_null → mismas
+     *  - starts_with / ends_with → no aplica, retorna null
+     *
+     * @return array{sql:string, args:array<int,mixed>}|null
+     */
+    private function compileMultiSelectFilter(string $col, string $operator, mixed $value): ?array
+    {
+        if ($operator === 'is_null') {
+            // multi_select se considera null si la columna es NULL O si
+            // contiene un array vacío []. Ambos casos son "sin valor"
+            // desde la perspectiva del usuario.
+            return [
+                'sql'  => "({$col} IS NULL OR {$col} = '[]')",
+                'args' => [],
+            ];
+        }
+        if ($operator === 'is_not_null') {
+            return [
+                'sql'  => "({$col} IS NOT NULL AND {$col} <> '[]')",
+                'args' => [],
+            ];
+        }
+
+        if ($operator === 'eq' || $operator === 'contains' || $operator === 'neq') {
+            $needle = is_scalar($value) ? (string) $value : '';
+            if ($needle === '') {
+                return null;
+            }
+            $negate = $operator === 'neq';
+            // JSON_QUOTE(?) → "valor" con escapes JSON. JSON_CONTAINS
+            // verifica membership en el array.
+            return [
+                'sql'  => ($negate ? 'NOT ' : '')
+                       . "JSON_CONTAINS({$col}, JSON_QUOTE(%s))",
+                'args' => [$needle],
+            ];
+        }
+
+        if ($operator === 'in' || $operator === 'nin') {
+            $values = is_array($value) ? $value : [$value];
+            $values = array_values(array_filter(
+                array_map(static fn ($v) => is_scalar($v) ? (string) $v : '', $values),
+                static fn (string $v): bool => $v !== '',
+            ));
+            if ($values === []) {
+                return null;
+            }
+            $negate = $operator === 'nin';
+            $placeholders = array_fill(0, count($values), 'JSON_QUOTE(%s)');
+            return [
+                'sql'  => ($negate ? 'NOT ' : '')
+                       . "JSON_OVERLAPS({$col}, JSON_ARRAY(" . implode(', ', $placeholders) . '))',
+                'args' => $values,
+            ];
+        }
+
+        // gt/gte/lt/lte/starts_with/ends_with no tienen semántica
+        // útil para multi_select. Devolvemos null para que el
+        // QueryBuilder skipee este filtro (mejor que un ERROR del
+        // usuario por uno mal armado).
+        return null;
     }
 
     /**

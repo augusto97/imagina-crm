@@ -141,15 +141,35 @@ export function ViewsTabs({
                 );
             })}
 
-            <button
-                type="button"
-                onClick={onAskCreateView}
-                title={__('Guardar estado actual como vista')}
-                className="imcrm-ml-1 imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground"
-                aria-label={__('Crear vista nueva')}
-            >
-                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-            </button>
+            {/*
+              Mostramos un botón labeled "Guardar como vista" cuando el
+              usuario está en el tab "Todos" (sin vista activa) — así
+              entiende que sus filtros/columnas pueden persistirse. En
+              vistas guardadas usamos el "+" compacto para "duplicar /
+              guardar como nueva".
+            */}
+            {activeView === null ? (
+                <button
+                    type="button"
+                    onClick={onAskCreateView}
+                    title={__('Guardar filtros, ordenamiento y columnas como una vista nombrada')}
+                    className="imcrm-ml-1 imcrm-inline-flex imcrm-h-7 imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-primary/40 imcrm-bg-primary/5 imcrm-px-2.5 imcrm-text-[12px] imcrm-font-medium imcrm-text-primary hover:imcrm-bg-primary/10"
+                    aria-label={__('Guardar como vista')}
+                >
+                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                    {__('Guardar como vista')}
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    onClick={onAskCreateView}
+                    title={__('Guardar estado actual como nueva vista')}
+                    className="imcrm-ml-1 imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground"
+                    aria-label={__('Crear vista nueva')}
+                >
+                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                </button>
+            )}
 
             {isDirty && activeView !== null && (
                 <div className="imcrm-ml-auto imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-pl-3">

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.12.1
+Stable tag: 0.12.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,36 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.12.2 =
+* Fix CRÍTICO: filtros sobre campos `multi_select` no matcheaban
+  ningún registro. Causa: la columna almacena JSON arrays
+  (`["elementor_pro","crocoblock"]`), pero el QueryBuilder usaba
+  `col = 'elementor_pro'` que nunca matchea contra el JSON
+  serializado. Fix: special-case en `compileFilter` para
+  multi_select:
+    · eq / contains  → `JSON_CONTAINS(col, JSON_QUOTE(value))`
+    · neq            → `NOT JSON_CONTAINS(...)`
+    · in             → `JSON_OVERLAPS(col, JSON_ARRAY(v1, v2, ...))`
+    · nin            → `NOT JSON_OVERLAPS(...)`
+    · is_null        → `(col IS NULL OR col = '[]')`
+    · is_not_null    → `(col IS NOT NULL AND col <> '[]')`
+* Fix: las vistas guardadas NO detectaban cambios cuando el
+  usuario solo modificaba `hidden_columns` o `column_widths`
+  (ocultar/resizear columnas). `stripPaginationOnlyKeys` no las
+  incluía → `hasChangesVsView` devolvía false y los botones
+  "Guardar cambios" / "Descartar" no aparecían. Ahora estas
+  keys cuentan como diff válido.
+* UX: cuando el usuario está en el tab "Todos" (sin vista
+  activa), el botón para crear vista ahora es labeled
+  "Guardar como vista" con border primary y bg suave en lugar
+  de un ícono "+" diminuto. Hace mucho más obvio el flujo:
+    1. Aplica filtros / oculta columnas / ordena
+    2. Click "+ Guardar como vista" → nombre → enter
+    3. Aparece como tab → al recargar persiste
+
+  En vistas ya guardadas, el "+" compacto sigue ofreciendo
+  "duplicar como nueva".
 
 = 0.12.1 =
 * Cleanup: removido el botón "Buscar… ⌘K" del Topbar. Era un

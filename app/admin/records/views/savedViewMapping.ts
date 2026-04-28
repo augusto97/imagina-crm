@@ -86,5 +86,11 @@ function stripPaginationOnlyKeys(config: SavedViewConfig): SavedViewConfig {
     if (config.filters && config.filters.length > 0) out.filters = config.filters;
     if (config.sort && config.sort.length > 0) out.sort = config.sort;
     if (config.search && config.search.trim() !== '') out.search = config.search.trim();
+    if (config.hidden_columns && config.hidden_columns.length > 0) {
+        out.hidden_columns = config.hidden_columns;
+    }
+    if (config.column_widths && Object.keys(config.column_widths).length > 0) {
+        out.column_widths = config.column_widths;
+    }
     return out;
 }
