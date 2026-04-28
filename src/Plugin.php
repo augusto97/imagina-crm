@@ -542,6 +542,15 @@ final class Plugin
             );
         }
 
+        // StandalonePage hookea init/template_redirect — fire en
+        // requests frontend (NO admin). Tiene que registrarse SIEMPRE,
+        // fuera del if(is_admin()), porque la URL `/imagina-crm/` es
+        // una request del frontend, no del wp-admin.
+        $standalone = $this->container->get(StandalonePage::class);
+        if ($standalone instanceof StandalonePage) {
+            $standalone->register();
+        }
+
         if (is_admin()) {
             $this->registerAdmin();
         }
@@ -551,9 +560,8 @@ final class Plugin
 
     private function registerAdmin(): void
     {
-        $assets     = $this->container->get(AdminAssets::class);
-        $menu       = $this->container->get(AdminMenu::class);
-        $standalone = $this->container->get(StandalonePage::class);
+        $assets = $this->container->get(AdminAssets::class);
+        $menu   = $this->container->get(AdminMenu::class);
 
         if ($assets instanceof AdminAssets) {
             $assets->register();
@@ -561,14 +569,6 @@ final class Plugin
 
         if ($menu instanceof AdminMenu) {
             $menu->register();
-        }
-
-        // La página standalone vive fuera de wp-admin (URL pública
-        // `/imagina-crm/`). Se registra siempre — el rewrite rule + el
-        // hook `template_redirect` solo activan cuando el request va
-        // a esa URL, así que no afecta wp-admin ni el frontend tema.
-        if ($standalone instanceof StandalonePage) {
-            $standalone->register();
         }
     }
 

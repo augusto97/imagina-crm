@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.13.1
+Stable tag: 0.13.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,19 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.13.2 =
+* Fix CRÍTICO: 0.13.1 todavía servía 404 en `/imagina-crm/` porque
+  yo registraba `StandalonePage::register()` dentro del bloque
+  `if (is_admin()) { ... }` en `Plugin::register()`. Pero
+  `/imagina-crm/` es una request del FRONTEND — `is_admin()`
+  devuelve `false` ahí — entonces los hooks de StandalonePage
+  nunca se enganchaban y WordPress hacía su 404 normal.
+* Solución: mover `StandalonePage->register()` afuera del
+  if(is_admin()), antes del check. Ahora se registra en cualquier
+  request (admin O frontend). Los hooks internos
+  (`init`/`template_redirect`) ya filtran por URL así que el
+  costo en requests no-CRM es trivial (un strpos del REQUEST_URI).
 
 = 0.13.1 =
 * Fix: 0.13.0 servía 404 en `/imagina-crm/` para muchos sites.
