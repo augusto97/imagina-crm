@@ -344,10 +344,13 @@ final class QueryBuilder
             }
             $negate = $operator === 'neq';
             // JSON_QUOTE(?) → "valor" con escapes JSON. JSON_CONTAINS
-            // verifica membership en el array.
+            // verifica membership en el array. Para `neq` también
+            // incluimos NULL: un registro sin valor "no contiene"
+            // ningún ítem específico desde la perspectiva del usuario.
             return [
-                'sql'  => ($negate ? 'NOT ' : '')
-                       . "JSON_CONTAINS({$col}, JSON_QUOTE(%s))",
+                'sql'  => $negate
+                    ? "({$col} IS NULL OR NOT JSON_CONTAINS({$col}, JSON_QUOTE(%s)))"
+                    : "JSON_CONTAINS({$col}, JSON_QUOTE(%s))",
                 'args' => [$needle],
             ];
         }
@@ -362,10 +365,15 @@ final class QueryBuilder
                 return null;
             }
             $negate = $operator === 'nin';
-            $placeholders = array_fill(0, count($values), 'JSON_QUOTE(%s)');
+            // JSON_ARRAY(?, ?, ?) construye un array JSON literal a
+            // partir de strings PHP — auto-quotea cada uno (no usar
+            // JSON_QUOTE adentro o se duplica el quoting).
+            $placeholders = array_fill(0, count($values), '%s');
+            $body = "JSON_OVERLAPS({$col}, JSON_ARRAY(" . implode(', ', $placeholders) . '))';
             return [
-                'sql'  => ($negate ? 'NOT ' : '')
-                       . "JSON_OVERLAPS({$col}, JSON_ARRAY(" . implode(', ', $placeholders) . '))',
+                'sql'  => $negate
+                    ? "({$col} IS NULL OR NOT {$body})"
+                    : $body,
                 'args' => $values,
             ];
         }

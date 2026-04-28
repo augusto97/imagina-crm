@@ -413,4 +413,106 @@ final class RecordServiceTest extends IntegrationTestCase
         $values = $this->fields->distinctValues($list->id, $statusField->id, null, 50);
         $this->assertSame([], $values);
     }
+
+    public function test_filter_multi_select_eq_uses_json_contains(): void
+    {
+        $list = $this->lists->create(['name' => 'Plugins']);
+        $this->assertIsObject($list);
+        /** @var ListEntity $list */
+
+        $r = $this->fields->create($list->id, [
+            'label' => 'Nombre',
+            'slug'  => 'name',
+            'type'  => 'text',
+            'is_required' => true,
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $r);
+
+        $r = $this->fields->create($list->id, [
+            'label' => 'Plugins comprados',
+            'slug'  => 'plugins',
+            'type'  => 'multi_select',
+            'config' => [
+                'options' => [
+                    ['value' => 'crocoblock', 'label' => 'Crocoblock'],
+                    ['value' => 'elementor_pro', 'label' => 'Elementor Pro'],
+                    ['value' => 'rankmath', 'label' => 'Rank Math'],
+                ],
+            ],
+        ]);
+        $this->assertNotInstanceOf(ValidationResult::class, $r);
+
+        $this->seedRows($list, [
+            ['name' => 'Cliente A', 'plugins' => ['crocoblock', 'elementor_pro']],
+            ['name' => 'Cliente B', 'plugins' => ['rankmath']],
+            ['name' => 'Cliente C', 'plugins' => ['crocoblock']],
+            ['name' => 'Cliente D', 'plugins' => []],
+        ]);
+
+        // eq: contiene crocoblock
+        $result = $this->records->list(
+            $list,
+            ['plugins' => ['eq' => 'crocoblock']],
+            [],
+            [],
+            null,
+            1,
+            50,
+        );
+        $this->assertIsArray($result);
+        $names = array_map(static fn (array $r) => $r['fields']['name'], $result['data']);
+        $this->assertEqualsCanonicalizing(['Cliente A', 'Cliente C'], $names);
+
+        // contains funciona igual que eq para multi_select
+        $result = $this->records->list(
+            $list,
+            ['plugins' => ['contains' => 'rankmath']],
+            [],
+            [],
+            null,
+            1,
+            50,
+        );
+        $names = array_map(static fn (array $r) => $r['fields']['name'], $result['data']);
+        $this->assertSame(['Cliente B'], $names);
+
+        // neq: NO contiene crocoblock
+        $result = $this->records->list(
+            $list,
+            ['plugins' => ['neq' => 'crocoblock']],
+            [],
+            [],
+            null,
+            1,
+            50,
+        );
+        $names = array_map(static fn (array $r) => $r['fields']['name'], $result['data']);
+        $this->assertEqualsCanonicalizing(['Cliente B', 'Cliente D'], $names);
+
+        // is_null: array vacío o NULL
+        $result = $this->records->list(
+            $list,
+            ['plugins' => ['is_null' => true]],
+            [],
+            [],
+            null,
+            1,
+            50,
+        );
+        $names = array_map(static fn (array $r) => $r['fields']['name'], $result['data']);
+        $this->assertSame(['Cliente D'], $names);
+
+        // in: contiene cualquiera de varios
+        $result = $this->records->list(
+            $list,
+            ['plugins' => ['in' => ['rankmath', 'elementor_pro']]],
+            [],
+            [],
+            null,
+            1,
+            50,
+        );
+        $names = array_map(static fn (array $r) => $r['fields']['name'], $result['data']);
+        $this->assertEqualsCanonicalizing(['Cliente A', 'Cliente B'], $names);
+    }
 }

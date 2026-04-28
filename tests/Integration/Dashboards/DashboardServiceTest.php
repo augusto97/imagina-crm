@@ -37,8 +37,9 @@ final class DashboardServiceTest extends IntegrationTestCase
         parent::setUp();
         $registry  = new FieldTypeRegistry();
         $slugs     = new SlugManager($this->db());
-        $listRepo  = new ListRepository($this->db());
-        $fieldRepo = new FieldRepository($this->db());
+        $listRepo   = new ListRepository($this->db());
+        $fieldRepo  = new FieldRepository($this->db());
+        $recordRepo = new \ImaginaCRM\Records\RecordRepository($this->db());
         $this->repo = new DashboardRepository($this->db());
 
         $this->lists      = new ListService($listRepo, $slugs, $this->schema);

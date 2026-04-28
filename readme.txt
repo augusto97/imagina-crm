@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.12.2
+Stable tag: 0.12.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.12.3 =
+* Fix CRÍTICO: el filtro multi_select de 0.12.2 todavía fallaba
+  por dos bugs en mi propia implementación (no me percaté
+  porque no tenía MariaDB local; ahora SÍ corro tests integration
+  contra MariaDB real y los 86 pasan).
+  · `JSON_OVERLAPS` para el operador `in` se le pasaba
+    `JSON_QUOTE(%s)` adentro — pero `JSON_ARRAY` ya auto-quotea
+    los strings PHP. Resultado: doble-quoted (`["\"x\""]`)
+    que jamás matcheaba. Fix: solo `%s`, dejar que JSON_ARRAY
+    quotee.
+  · `neq` y `nin` no incluían los registros con columna NULL.
+    En multi_select el array vacío se serializa como NULL
+    (no como `'[]'`), entonces "no contiene crocoblock" no
+    devolvía a Cliente D que tiene plugins=[]. Fix:
+    `(col IS NULL OR NOT JSON_CONTAINS(...))` en neq/nin.
+* Test: nueva integration suite cubre eq, neq, contains, in,
+  is_null sobre multi_select. Corre contra MariaDB real.
 
 = 0.12.2 =
 * Fix CRÍTICO: filtros sobre campos `multi_select` no matcheaban
