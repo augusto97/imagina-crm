@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.14.1
+Stable tag: 0.14.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.14.2 =
+* Fix CRÍTICO: el reset scopeado en `globals.css` con selectores
+  como `#imcrm-root button` (especificidad 101) y
+  `[class*='imcrm-'] button` (especificidad 11) estaba pisando
+  TODAS las utilities de Tailwind (`.imcrm-bg-primary` = 10) en
+  los buttons del SPA. Causa raíz: Vite/PostCSS aplana
+  `@layer base` al compilar, así que la cascada queda regida
+  por especificidad pura — no por orden de layers como uno
+  asumiría. Síntoma: todos los buttons mostraban un "halo"
+  gris/transparente en hover, los hover bg nunca se aplicaban.
+* Cleanup: removido el reset scopeado entero (button/a/select
+  básicos). Ahora el SPA standalone hereda el reset inline de
+  `StandalonePage::inlineReset()` con selectores type-only
+  (especificidad 1) que NO compiten con utilities. Lo único
+  que queda en `globals.css` son tres reglas envueltas en
+  `:where()` (especificidad 0): border-color default,
+  appearance reset para `<select>` nativo (que mantiene chevron
+  custom), y accent-color para checkboxes.
+* Removido el `@apply imcrm-ring-2 imcrm-ring-offset-2` global
+  en `:focus-visible` que generaba el halo despegado del borde
+  en cualquier elemento enfocado. Cada primitiva (Button, Input,
+  Select) define su propio focus ring.
 
 = 0.14.1 =
 * Fix: hover artifact ("halo" gris pegado al botón) que aparecía
