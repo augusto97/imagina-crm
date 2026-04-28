@@ -1,9 +1,10 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
+import { ChevronRight, LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AutocompleteInput } from '@/components/ui/autocomplete-input';
+import { Badge } from '@/components/ui/badge';
 
 /**
  * Context para exponer el `listId` actual a componentes profundos
@@ -512,13 +513,13 @@ export function TriggerConfigEditor({
     const help = helpForTrigger(triggerType);
 
     return (
-        <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
-            <legend className="imcrm-px-1 imcrm-text-xs imcrm-font-medium imcrm-uppercase imcrm-text-muted-foreground">
+        <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-4 imcrm-shadow-imcrm-sm">
+            <legend className="imcrm-px-1.5 imcrm-text-[10px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.08em] imcrm-text-muted-foreground">
                 {__('Configuración del trigger')}
             </legend>
 
             {help !== '' && (
-                <p className="imcrm-rounded-md imcrm-border imcrm-border-info/30 imcrm-bg-info/10 imcrm-p-2 imcrm-text-xs imcrm-text-foreground">
+                <p className="imcrm-rounded-lg imcrm-border imcrm-border-info/20 imcrm-bg-info/5 imcrm-p-3 imcrm-text-[12px] imcrm-leading-relaxed imcrm-text-foreground">
                     {help}
                 </p>
             )}
@@ -788,9 +789,10 @@ function DueDateConfig({
                 </div>
             )}
 
-            <details className="imcrm-mt-1 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-px-2 imcrm-py-1">
-                <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-text-muted-foreground">
-                    {__('Avanzado: ventana de tolerancia')}
+            <details className="imcrm-group imcrm-mt-1 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-canvas imcrm-px-3 imcrm-py-2 [&[open]]:imcrm-bg-card [&[open]]:imcrm-shadow-imcrm-sm">
+                <summary className="imcrm-flex imcrm-cursor-pointer imcrm-list-none imcrm-items-center imcrm-gap-2 imcrm-text-[12px] imcrm-font-medium imcrm-text-foreground/80 [&::-webkit-details-marker]:imcrm-hidden">
+                    <ChevronRight className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground imcrm-transition-transform imcrm-duration-150 group-open:imcrm-rotate-90" />
+                    <span>{__('Avanzado: ventana de tolerancia')}</span>
                 </summary>
                 <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-1">
                     <Label className="imcrm-text-xs imcrm-text-muted-foreground">
@@ -840,27 +842,27 @@ function ActionsEditor({
     };
 
     return (
-        <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
-            <legend className="imcrm-px-1 imcrm-text-xs imcrm-font-medium imcrm-uppercase imcrm-text-muted-foreground">
+        <fieldset className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <legend className="imcrm-text-[10px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.08em] imcrm-text-muted-foreground">
                 {__('Acciones')}
             </legend>
 
             {error && <p className="imcrm-text-xs imcrm-text-destructive">{error}</p>}
 
             {value.length === 0 ? (
-                <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                <p className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-canvas imcrm-px-3 imcrm-py-4 imcrm-text-center imcrm-text-xs imcrm-text-muted-foreground">
                     {__('Aún no hay acciones. Añade al menos una.')}
                 </p>
             ) : (
-                <ol ref={listRef} className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <ol ref={listRef} className="imcrm-flex imcrm-flex-col imcrm-gap-2.5">
                     {value.map((spec, i) => (
                         <li
                             key={i}
                             data-action-index={i}
-                            className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3"
+                            className="imcrm-flex imcrm-flex-col imcrm-gap-2.5 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3.5 imcrm-shadow-imcrm-sm"
                         >
                             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                                <span className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-primary/10 imcrm-text-xs imcrm-font-semibold imcrm-text-primary">
+                                <span className="imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-bg-primary/10 imcrm-text-[11px] imcrm-font-bold imcrm-text-primary imcrm-ring-1 imcrm-ring-primary/15">
                                     {i + 1}
                                 </span>
                                 <Select
@@ -1010,12 +1012,12 @@ function IfElseConfig({
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             {/* Condición que decide which branch ejecuta */}
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2.5 imcrm-rounded-xl imcrm-border imcrm-border-primary/20 imcrm-bg-primary/5 imcrm-p-3.5">
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                    <span className="imcrm-rounded imcrm-bg-primary/10 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-text-primary">
+                    <Badge variant="default" dot>
                         {__('Si')}
-                    </span>
-                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                    </Badge>
+                    <p className="imcrm-text-[12px] imcrm-text-muted-foreground">
                         {__('Todos estos pares campo = valor matchean el registro.')}
                     </p>
                 </div>
@@ -1027,12 +1029,12 @@ function IfElseConfig({
             </div>
 
             {/* Branch THEN */}
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-success/40 imcrm-bg-success/5 imcrm-p-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2.5 imcrm-rounded-xl imcrm-border imcrm-border-success/25 imcrm-bg-success/5 imcrm-p-3.5">
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                    <span className="imcrm-rounded imcrm-bg-success/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-text-success">
+                    <Badge variant="success" dot>
                         {__('Entonces')}
-                    </span>
-                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                    </Badge>
+                    <p className="imcrm-text-[12px] imcrm-text-muted-foreground">
                         {__('Acciones que se ejecutan si la condición es verdadera.')}
                     </p>
                 </div>
@@ -1045,12 +1047,12 @@ function IfElseConfig({
             </div>
 
             {/* Branch ELSE */}
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-warning/40 imcrm-bg-warning/5 imcrm-p-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2.5 imcrm-rounded-xl imcrm-border imcrm-border-warning/30 imcrm-bg-warning/5 imcrm-p-3.5">
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                    <span className="imcrm-rounded imcrm-bg-warning/20 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-text-warning">
+                    <Badge variant="warning" dot>
                         {__('Si no')}
-                    </span>
-                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                    </Badge>
+                    <p className="imcrm-text-[12px] imcrm-text-muted-foreground">
                         {__('Acciones que se ejecutan si la condición es falsa.')}
                     </p>
                 </div>
@@ -1174,19 +1176,20 @@ function ActionConditionEditor({
 
     return (
         <details
-            className="imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2"
+            className="imcrm-group imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-canvas imcrm-px-3 imcrm-py-2.5 [&[open]]:imcrm-bg-card [&[open]]:imcrm-shadow-imcrm-sm"
             open={hasRows}
         >
-            <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground">
-                {__('Condición de ejecución (opcional)')}
+            <summary className="imcrm-flex imcrm-cursor-pointer imcrm-list-none imcrm-items-center imcrm-gap-2 imcrm-text-[12px] imcrm-font-medium imcrm-text-foreground/80 [&::-webkit-details-marker]:imcrm-hidden">
+                <ChevronRight className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground imcrm-transition-transform imcrm-duration-150 group-open:imcrm-rotate-90" />
+                <span>{__('Condición de ejecución (opcional)')}</span>
                 {hasRows && (
-                    <span className="imcrm-ml-2 imcrm-rounded-full imcrm-bg-primary/10 imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-text-primary">
+                    <Badge variant="default" className="imcrm-ml-auto">
                         {rows.length}
-                    </span>
+                    </Badge>
                 )}
             </summary>
-            <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-2">
-                <p className="imcrm-text-xs imcrm-text-muted-foreground">
+            <div className="imcrm-mt-3 imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <p className="imcrm-text-[12px] imcrm-leading-relaxed imcrm-text-muted-foreground">
                     {__('Esta acción solo se ejecuta si TODOS los pares campo = valor matchean el registro. Vacío = ejecutar siempre.')}
                 </p>
                 {rows.map((r, i) => (
@@ -1581,9 +1584,10 @@ function SendEmailConfig({
                 {__('Enviar como HTML')}
             </label>
 
-            <details className="imcrm-mt-1 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2">
-                <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-text-muted-foreground">
-                    {__('Avanzado: From, Cc, Bcc')}
+            <details className="imcrm-group imcrm-mt-1 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-canvas imcrm-px-3 imcrm-py-2 [&[open]]:imcrm-bg-card [&[open]]:imcrm-shadow-imcrm-sm">
+                <summary className="imcrm-flex imcrm-cursor-pointer imcrm-list-none imcrm-items-center imcrm-gap-2 imcrm-text-[12px] imcrm-font-medium imcrm-text-foreground/80 [&::-webkit-details-marker]:imcrm-hidden">
+                    <ChevronRight className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground imcrm-transition-transform imcrm-duration-150 group-open:imcrm-rotate-90" />
+                    <span>{__('Avanzado: From, Cc, Bcc')}</span>
                 </summary>
                 <div className="imcrm-mt-2 imcrm-flex imcrm-flex-col imcrm-gap-2">
                     <div className="imcrm-flex imcrm-gap-2">

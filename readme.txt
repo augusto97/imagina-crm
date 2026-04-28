@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.8.2
+Stable tag: 0.8.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,31 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.8.3 =
+* Polish del Formulario de automatizaciones — partes que quedaban
+  con apariencia "browser default":
+  · Cards de cada acción: rounded-xl + shadow-imcrm-sm + padding
+    incrementado (3.5). Antes era rounded-md plano que se mezclaba
+    con el bg del modal.
+  · Número de posición de cada acción: pasó de circle h-6 w-6 sutil
+    a square rounded-lg h-7 w-7 con bg primary/10 + ring primary/15
+    — más legible y con afordance visual real.
+  · Estado vacío "Aún no hay acciones" ahora con border dashed + bg
+    canvas + texto centrado (estilo dropzone).
+  · TriggerConfigEditor fieldset: pasó de bg-muted/20 a bg-card +
+    rounded-xl + shadow-imcrm-sm. Banner de help con border-info/20
+    y padding mayor.
+  · IfElseConfig branches (Si / Entonces / Si no) usan ahora el
+    componente <Badge> con dot prop — pills con bg/border/text
+    tonales consistentes en lugar de spans inline custom.
+  · Disclosure widgets (<details> "Condición de ejecución",
+    "Avanzado: tolerancia", "Avanzado: From, Cc, Bcc"):
+      - Chevron lucide-react que rota 90° al abrir
+      - Fondo bg-canvas cerrado, bg-card + shadow-sm cuando abierto
+      - Padding mayor + tipografía text-foreground/80 (no
+        muted-foreground)
+      - Badge con count para condiciones aplicadas
 
 = 0.8.2 =
 * Fix layout AutomationDialog en modo Diagrama: los campos
