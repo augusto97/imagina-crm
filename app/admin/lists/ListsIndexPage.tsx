@@ -1,9 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Database, Plus, AlertCircle } from 'lucide-react';
+import {
+    AlertCircle,
+    ArrowRight,
+    Calendar,
+    Database,
+    FileStack,
+    Plus,
+    Sparkles,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { StatTile } from '@/components/ui/stat-tile';
 import { useLists } from '@/hooks/useLists';
 import { __, sprintf } from '@/lib/i18n';
 import { ListCreateDialog } from '@/admin/lists/ListCreateDialog';
@@ -12,16 +21,30 @@ export function ListsIndexPage(): JSX.Element {
     const lists = useLists();
     const [dialogOpen, setDialogOpen] = useState(false);
 
+    const stats = useMemo(() => {
+        const all = lists.data ?? [];
+        const last7d = all.filter((l) => {
+            const d = new Date(l.updated_at + 'Z').getTime();
+            return Date.now() - d < 7 * 24 * 60 * 60 * 1000;
+        }).length;
+        const withDescription = all.filter((l) => l.description && l.description.trim() !== '').length;
+        return {
+            total: all.length,
+            last7d,
+            withDescription,
+        };
+    }, [lists.data]);
+
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-8">
-            {/* Page header — Vercel-style: título grande, subtítulo gris y CTA primario a la derecha */}
-            <header className="imcrm-flex imcrm-items-end imcrm-justify-between imcrm-gap-4 imcrm-border-b imcrm-border-border imcrm-pb-5">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-6">
+            {/* Page header */}
+            <header className="imcrm-flex imcrm-items-end imcrm-justify-between imcrm-gap-4">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
                     <h1 className="imcrm-text-[28px] imcrm-font-semibold imcrm-leading-none imcrm-tracking-tight imcrm-text-foreground">
                         {__('Listas')}
                     </h1>
                     <p className="imcrm-text-[13px] imcrm-text-muted-foreground">
-                        {__('Cada lista es un contenedor de registros con campos y vistas configurables.')}
+                        {__('Click en una lista para abrirla. Cada una es un contenedor de registros con campos y vistas configurables.')}
                     </p>
                 </div>
                 <Button className="imcrm-gap-1.5" onClick={() => setDialogOpen(true)}>
@@ -29,6 +52,38 @@ export function ListsIndexPage(): JSX.Element {
                     {__('Nueva lista')}
                 </Button>
             </header>
+
+            {/* StatTiles */}
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3 md:imcrm-grid-cols-4">
+                <StatTile
+                    icon={FileStack}
+                    label={__('Total')}
+                    value={stats.total}
+                    tone="cyan"
+                    active
+                />
+                <StatTile
+                    icon={Calendar}
+                    label={__('Últimos 7 días')}
+                    value={stats.last7d}
+                    tone="mint"
+                    hint={stats.last7d === 1 ? __('1 lista actualizada') : sprintf(__('%d listas actualizadas'), stats.last7d)}
+                />
+                <StatTile
+                    icon={Sparkles}
+                    label={__('Documentadas')}
+                    value={stats.withDescription}
+                    tone="violet"
+                    hint={__('Con descripción')}
+                />
+                <StatTile
+                    icon={Database}
+                    label={__('Slug ocupados')}
+                    value={stats.total}
+                    tone="slate"
+                    hint={__('1 slug por lista')}
+                />
+            </div>
 
             {lists.isError && (
                 <div className="imcrm-flex imcrm-items-start imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-destructive/30 imcrm-bg-destructive/5 imcrm-p-3.5 imcrm-text-sm imcrm-text-destructive">

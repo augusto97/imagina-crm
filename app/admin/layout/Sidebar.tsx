@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
     BarChart3,
+    ChevronsLeft,
+    ChevronsRight,
     Database,
     Loader2,
     Settings,
@@ -12,50 +15,67 @@ import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 /**
- * Sidebar refinada estilo Linear/Vercel: bg off-white, label de
- * sección en small-caps gris, items con hover bg sutil y active con
- * pill primary muy suave (no saturado).
+ * Sidebar. Inspirada en la app interna de Imagina La Web (audit):
+ *  - Header con marca circular en gradient cyan + nombre de la app
+ *  - Secciones con label small-caps gray
+ *  - Items con icono a la izquierda, hover bg sutil, active text-primary
+ *  - Footer con botón "Colapsar"
+ *  - Cuando `collapsed`, sólo se muestran iconos
  */
 export function Sidebar(): JSX.Element {
     const lists = useLists();
+    const [collapsed, setCollapsed] = useState(false);
 
     return (
         <aside
             className={cn(
-                'imcrm-flex imcrm-w-64 imcrm-shrink-0 imcrm-flex-col imcrm-border-r imcrm-border-sidebar-border imcrm-bg-sidebar imcrm-text-sidebar-foreground',
+                'imcrm-flex imcrm-shrink-0 imcrm-flex-col imcrm-border-r imcrm-border-sidebar-border imcrm-bg-sidebar imcrm-text-sidebar-foreground imcrm-transition-[width] imcrm-duration-200',
+                collapsed ? 'imcrm-w-[64px]' : 'imcrm-w-[240px]',
             )}
         >
             {/* Brand */}
-            <div className="imcrm-flex imcrm-h-14 imcrm-shrink-0 imcrm-items-center imcrm-gap-2.5 imcrm-px-4">
-                <span className="imcrm-flex imcrm-h-8 imcrm-w-8 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-bg-gradient-to-br imcrm-from-primary imcrm-to-primary/80 imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">
-                    <Sparkles className="imcrm-h-4 imcrm-w-4" />
-                </span>
-                <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-leading-tight">
-                    <span className="imcrm-truncate imcrm-text-sm imcrm-font-semibold imcrm-text-foreground">
-                        Imagina CRM
+            <div
+                className={cn(
+                    'imcrm-flex imcrm-h-16 imcrm-shrink-0 imcrm-items-center imcrm-border-b imcrm-border-sidebar-border imcrm-px-4',
+                    collapsed && 'imcrm-justify-center imcrm-px-0',
+                )}
+            >
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2.5">
+                    <span
+                        className="imcrm-relative imcrm-flex imcrm-h-9 imcrm-w-9 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-text-white imcrm-shadow-imcrm-sm"
+                        style={{
+                            background:
+                                'radial-gradient(circle at 30% 30%, hsl(186 95% 55%), hsl(186 95% 35%) 70%, hsl(217 91% 40%))',
+                        }}
+                    >
+                        <Sparkles className="imcrm-h-4 imcrm-w-4" />
                     </span>
-                    <span className="imcrm-truncate imcrm-text-[11px] imcrm-text-muted-foreground">
-                        {__('Listas y registros')}
-                    </span>
+                    {!collapsed && (
+                        <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-leading-tight">
+                            <span className="imcrm-truncate imcrm-text-[13px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-foreground">
+                                Imagina CRM
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Nav */}
             <nav
                 aria-label={__('Navegación principal')}
-                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-5 imcrm-overflow-y-auto imcrm-px-3 imcrm-pb-4"
+                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-5 imcrm-overflow-y-auto imcrm-px-3 imcrm-py-4"
             >
-                <Section label={__('Workspace')}>
-                    <NavItem to="/lists" end icon={Database}>
+                <Section label={__('General')} hideLabel={collapsed}>
+                    <NavItem to="/lists" end icon={Database} collapsed={collapsed}>
                         {__('Listas')}
                     </NavItem>
-                    <NavItem to="/dashboards" icon={BarChart3}>
+                    <NavItem to="/dashboards" icon={BarChart3} collapsed={collapsed}>
                         {__('Dashboards')}
                     </NavItem>
                 </Section>
 
-                {lists.data && lists.data.length > 0 && (
-                    <Section label={__('Tus listas')}>
+                {!collapsed && lists.data && lists.data.length > 0 && (
+                    <Section label={__('Tus listas')} hideLabel={false}>
                         <ul className="imcrm-flex imcrm-flex-col imcrm-gap-0.5">
                             {lists.data.map((list) => (
                                 <li key={list.id}>
@@ -66,7 +86,7 @@ export function Sidebar(): JSX.Element {
                                                 'imcrm-flex imcrm-items-center imcrm-gap-2.5 imcrm-rounded-md imcrm-px-2.5 imcrm-py-1.5 imcrm-text-[13px] imcrm-transition-colors imcrm-duration-100',
                                                 isActive
                                                     ? 'imcrm-bg-primary/10 imcrm-font-medium imcrm-text-primary'
-                                                    : 'imcrm-text-sidebar-foreground/80 hover:imcrm-bg-sidebar-accent hover:imcrm-text-foreground',
+                                                    : 'imcrm-text-sidebar-foreground/75 hover:imcrm-bg-sidebar-accent hover:imcrm-text-foreground',
                                             )
                                         }
                                     >
@@ -82,22 +102,41 @@ export function Sidebar(): JSX.Element {
                     </Section>
                 )}
 
-                {lists.isLoading && (
+                {lists.isLoading && !collapsed && (
                     <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
                         <Loader2 className="imcrm-h-3 imcrm-w-3 imcrm-animate-spin" />
                         {__('Cargando listas…')}
                     </div>
                 )}
 
-                <Section label={__('Sistema')}>
-                    <NavItem to="/settings" icon={Settings}>
+                <Section label={__('Configuración')} hideLabel={collapsed}>
+                    <NavItem to="/settings" icon={Settings} collapsed={collapsed}>
                         {__('Ajustes')}
                     </NavItem>
                 </Section>
             </nav>
 
-            <div className="imcrm-border-t imcrm-border-sidebar-border imcrm-px-4 imcrm-py-3 imcrm-text-[11px] imcrm-font-mono imcrm-text-muted-foreground">
-                v{window.IMAGINA_CRM_BOOT?.version ?? '0.0.0'}
+            {/* Footer: collapse toggle */}
+            <div className="imcrm-border-t imcrm-border-sidebar-border imcrm-px-3 imcrm-py-2">
+                <button
+                    type="button"
+                    onClick={() => setCollapsed((c) => !c)}
+                    className={cn(
+                        'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-px-2.5 imcrm-py-1.5 imcrm-text-[12px] imcrm-text-muted-foreground imcrm-transition-colors hover:imcrm-bg-sidebar-accent hover:imcrm-text-foreground',
+                        collapsed && 'imcrm-justify-center',
+                    )}
+                    aria-label={collapsed ? __('Expandir') : __('Colapsar')}
+                    title={collapsed ? __('Expandir') : __('Colapsar')}
+                >
+                    {collapsed ? (
+                        <ChevronsRight className="imcrm-h-4 imcrm-w-4" />
+                    ) : (
+                        <>
+                            <ChevronsLeft className="imcrm-h-4 imcrm-w-4" />
+                            <span>{__('Colapsar')}</span>
+                        </>
+                    )}
+                </button>
             </div>
         </aside>
     );
@@ -105,16 +144,20 @@ export function Sidebar(): JSX.Element {
 
 function Section({
     label,
+    hideLabel,
     children,
 }: {
     label: string;
+    hideLabel: boolean;
     children: React.ReactNode;
 }): JSX.Element {
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
-            <h3 className="imcrm-px-2.5 imcrm-pt-2 imcrm-pb-1 imcrm-text-[10px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.08em] imcrm-text-muted-foreground/70">
-                {label}
-            </h3>
+            {!hideLabel && (
+                <h3 className="imcrm-px-2.5 imcrm-pb-1 imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-tracking-[0.1em] imcrm-text-muted-foreground/70">
+                    {label}
+                </h3>
+            )}
             <div className="imcrm-flex imcrm-flex-col imcrm-gap-0.5">{children}</div>
         </div>
     );
@@ -125,16 +168,19 @@ interface NavItemProps {
     icon: React.ComponentType<{ className?: string }>;
     children: React.ReactNode;
     end?: boolean;
+    collapsed?: boolean;
 }
 
-function NavItem({ to, icon: Icon, children, end }: NavItemProps): JSX.Element {
+function NavItem({ to, icon: Icon, children, end, collapsed }: NavItemProps): JSX.Element {
     return (
         <NavLink
             to={to}
             end={end}
+            title={collapsed ? (typeof children === 'string' ? children : undefined) : undefined}
             className={({ isActive }) =>
                 cn(
                     'imcrm-flex imcrm-items-center imcrm-gap-2.5 imcrm-rounded-md imcrm-px-2.5 imcrm-py-2 imcrm-text-[13px] imcrm-font-medium imcrm-transition-colors imcrm-duration-100',
+                    collapsed && 'imcrm-justify-center imcrm-px-0',
                     isActive
                         ? 'imcrm-bg-primary/10 imcrm-text-primary'
                         : 'imcrm-text-sidebar-foreground hover:imcrm-bg-sidebar-accent hover:imcrm-text-foreground',
@@ -149,7 +195,7 @@ function NavItem({ to, icon: Icon, children, end }: NavItemProps): JSX.Element {
                             isActive ? 'imcrm-text-primary' : 'imcrm-text-muted-foreground',
                         )}
                     />
-                    <span className="imcrm-truncate">{children}</span>
+                    {!collapsed && <span className="imcrm-truncate">{children}</span>}
                 </>
             )}
         </NavLink>

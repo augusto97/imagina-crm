@@ -74,6 +74,16 @@ const config: Config = {
                     accent: 'hsl(var(--imcrm-sidebar-accent))',
                     'accent-foreground': 'hsl(var(--imcrm-sidebar-accent-foreground))',
                 },
+                canvas: 'hsl(var(--imcrm-canvas))',
+                tone: {
+                    cyan: 'hsl(var(--imcrm-tone-cyan))',
+                    mint: 'hsl(var(--imcrm-tone-mint))',
+                    rose: 'hsl(var(--imcrm-tone-rose))',
+                    blue: 'hsl(var(--imcrm-tone-blue))',
+                    violet: 'hsl(var(--imcrm-tone-violet))',
+                    amber: 'hsl(var(--imcrm-tone-amber))',
+                    slate: 'hsl(var(--imcrm-tone-slate))',
+                },
             },
             borderRadius: {
                 sm: '4px',

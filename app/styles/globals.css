@@ -30,10 +30,22 @@
         --imcrm-popover: 0 0% 100%;
         --imcrm-popover-foreground: 224 71% 4%;
 
-        /* Primary refinado — un violet/indigo más cool que el azul
-         * "Bootstrap default". Inspirado en Linear (243 75% 59%). */
-        --imcrm-primary: 243 75% 59%;
+        /* Primary cyan — alineado con la identidad de Imagina La Web /
+         * la app de audit. Cyan-500ish (186 95% 42%) — saturado, claro,
+         * visualmente distintivo. NO usar indigo / violet aquí: rompe
+         * la identidad visual del producto. */
+        --imcrm-primary: 186 95% 42%;
         --imcrm-primary-foreground: 0 0% 100%;
+
+        /* Tones para los StatTiles — cada uno tiene su icon-square
+         * coloreado con tone-50/tone-600 (bg muy suave + icon sólido). */
+        --imcrm-tone-cyan: 186 95% 42%;
+        --imcrm-tone-mint: 158 64% 42%;
+        --imcrm-tone-rose: 0 84% 60%;
+        --imcrm-tone-blue: 217 91% 50%;
+        --imcrm-tone-violet: 262 83% 58%;
+        --imcrm-tone-amber: 38 92% 50%;
+        --imcrm-tone-slate: 215 16% 47%;
 
         /* Secondary y muted prácticamente iguales — slate frío muy
          * leve, no el gris cálido genérico de los SaaS templates. */
@@ -63,7 +75,7 @@
          * suficiente para definir el edge. */
         --imcrm-border: 220 14% 93%;
         --imcrm-input: 220 14% 90%;
-        --imcrm-ring: 243 75% 59%;
+        --imcrm-ring: 186 95% 42%;
 
         /* Sidebar: bg ligeramente off-white para que se distinga del
          * canvas principal sin ser una franja oscura. Item activo
@@ -72,7 +84,12 @@
         --imcrm-sidebar-foreground: 224 12% 28%;
         --imcrm-sidebar-border: 220 14% 93%;
         --imcrm-sidebar-accent: 220 14% 95%;
-        --imcrm-sidebar-accent-foreground: 243 75% 59%;
+        --imcrm-sidebar-accent-foreground: 186 95% 42%;
+
+        /* Background del canvas principal (área a la derecha del sidebar).
+         * Un gris muy suave (slate-50ish) para que las cards en blanco
+         * tengan contraste sin ser "white-on-white". */
+        --imcrm-canvas: 220 17% 97%;
     }
 
     #imcrm-root[data-imcrm-theme='dark'],

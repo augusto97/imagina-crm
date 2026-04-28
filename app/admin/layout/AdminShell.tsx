@@ -14,7 +14,7 @@ export function AdminShell(): JSX.Element {
     return (
         <div
             className={cn(
-                'imcrm-flex imcrm-w-full imcrm-bg-background imcrm-text-foreground',
+                'imcrm-flex imcrm-w-full imcrm-bg-canvas imcrm-text-foreground',
                 isFullscreen
                     ? 'imcrm-h-screen imcrm-min-h-screen'
                     : 'imcrm-min-h-[calc(100vh-32px)]',

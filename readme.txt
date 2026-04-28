@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.7.0
+Stable tag: 0.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,39 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.8.0 =
+* Visual: identidad alineada con la app de admin de Imagina La Web
+  (audit.imagina.cloud). Tu feedback "no se ve profesional como
+  esa otra app" fue concreto: la identidad visual del producto
+  debe ser cyan, no violet, y tiene patrones específicos
+  (StatTiles, sidebar collapsable, topbar simple).
+  · Primary cyan (`186 95% 42%`) reemplaza el violet `243 75% 59%`
+    de 0.7.0. Ring, sidebar-active y todos los acentos heredan.
+  · Nueva primitiva `<StatTile>` — KPI tile estilo audit:
+    icon-square tonal (cyan/mint/rose/blue/violet/amber/slate),
+    label small-caps gris, número 28px tabular-nums,
+    hint opcional. Variante `active` con border primary +
+    ring shadow.
+  · 7 tones nuevos en tailwind config (`tone-cyan`, `tone-mint`,
+    etc.) para usar libremente con `bg-tone-X/10` `text-tone-X`.
+  · Background del canvas ahora es `canvas` (slate-50ish, no
+    pure white) — las cards en blanco tienen contraste real.
+* Sidebar rediseñada (igual a la app de audit):
+  · Logo circular con gradient cyan radial (igual que el de
+    "IMAGINA LA WEB" en la app)
+  · Secciones con label uppercase tracking ancho
+  · Ícono cyan en items activos + bg primary/10 sutil
+  · Botón "Colapsar" al pie con animación de width
+  · En modo collapsed muestra solo iconos centrados
+* Topbar rediseñada:
+  · Workspace name a la izquierda (no breadcrumb)
+  · Buscador con kbd ⌘K
+  · Botón "Ver WP" con border + icon (link al wp-admin)
+  · Settings + Logout iconos a la derecha (matching audit app)
+  · Sin avatar pill — el username está al lado izquierdo
+* ListsIndexPage con barra de StatTiles arriba (Total / Últimos
+  7 días / Documentadas / Slug ocupados). Match estilo audit.
 
 = 0.7.0 =
 * Visual: refundición del design system (Linear / Vercel /
