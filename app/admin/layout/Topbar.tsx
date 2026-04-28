@@ -31,10 +31,12 @@ export function Topbar(): JSX.Element {
                 </h2>
             </div>
 
-            <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+            <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
                 <Button
                     variant="outline"
                     size="sm"
+                    disabled
+                    title={__('Buscador global — próximamente')}
                     className="imcrm-gap-2 imcrm-min-w-[200px] imcrm-justify-start imcrm-text-muted-foreground imcrm-font-normal"
                 >
                     <Search className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden="true" />

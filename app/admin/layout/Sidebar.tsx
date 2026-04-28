@@ -10,6 +10,7 @@ import {
     Sparkles,
 } from 'lucide-react';
 
+import { useDashboards } from '@/hooks/useDashboards';
 import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
  */
 export function Sidebar(): JSX.Element {
     const lists = useLists();
+    const dashboards = useDashboards();
     const [collapsed, setCollapsed] = useState(false);
 
     return (
@@ -102,10 +104,38 @@ export function Sidebar(): JSX.Element {
                     </Section>
                 )}
 
-                {lists.isLoading && !collapsed && (
+                {!collapsed && dashboards.data && dashboards.data.length > 0 && (
+                    <Section label={__('Tus dashboards')} hideLabel={false}>
+                        <ul className="imcrm-flex imcrm-flex-col imcrm-gap-0.5">
+                            {dashboards.data.map((d) => (
+                                <li key={d.id}>
+                                    <NavLink
+                                        to={`/dashboards/${d.id}`}
+                                        className={({ isActive }) =>
+                                            cn(
+                                                'imcrm-flex imcrm-items-center imcrm-gap-2.5 imcrm-rounded-md imcrm-px-2.5 imcrm-py-1.5 imcrm-text-[13px] imcrm-transition-colors imcrm-duration-100',
+                                                isActive
+                                                    ? 'imcrm-bg-primary/10 imcrm-font-medium imcrm-text-primary'
+                                                    : 'imcrm-text-sidebar-foreground/75 hover:imcrm-bg-sidebar-accent hover:imcrm-text-foreground',
+                                            )
+                                        }
+                                    >
+                                        <span
+                                            aria-hidden
+                                            className="imcrm-h-1.5 imcrm-w-1.5 imcrm-shrink-0 imcrm-rounded-full imcrm-bg-current imcrm-opacity-50"
+                                        />
+                                        <span className="imcrm-truncate">{d.name}</span>
+                                    </NavLink>
+                                </li>
+                            ))}
+                        </ul>
+                    </Section>
+                )}
+
+                {(lists.isLoading || dashboards.isLoading) && !collapsed && (
                     <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-muted-foreground">
                         <Loader2 className="imcrm-h-3 imcrm-w-3 imcrm-animate-spin" />
-                        {__('Cargando listas…')}
+                        {__('Cargando…')}
                     </div>
                 )}
 

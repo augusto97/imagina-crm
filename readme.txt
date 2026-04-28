@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.9.1
+Stable tag: 0.9.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.9.2 =
+* Fix hover gris en botones: el variant `ghost` del Button component
+  usaba `hover:bg-accent` (gris slate-95), lo que daba la sensación
+  de "pastilla gris pegajosa" en hover. Ahora usa `bg-foreground/5`
+  (4% black tint) — más sutil y on-brand. Mismo treatment para
+  outline (hover:bg-canvas) y secondary (hover:bg-muted).
+* Fix UA chrome lingering en hover/focus/active de buttons sin
+  estilo explícito: nuevo reset con `:where()` para forzar
+  `background-color: transparent; outline: none; box-shadow: none`
+  en estos estados con specificity 0,0,0 — cualquier hover:imcrm-*
+  de nuestras primitivas wins.
+* Fix gap de la toolbar topbar: `gap-1` → `gap-2`, así los
+  botones (search, fullscreen, notif bell, "Ver WP", settings,
+  logout) respiran y no se ven pegados.
+* Sidebar: nueva sección "Tus dashboards" (mismo patrón que
+  "Tus listas") con bullets y active state primary/10. Aparece
+  solo si tenés dashboards creados. Skeleton de loading
+  unificado bajo "Cargando…".
+* Topbar search button: deshabilitado explícitamente con tooltip
+  "Buscador global — próximamente" mientras construimos el
+  command palette (Cmd+K). Antes era un botón sin onClick que
+  parecía roto.
 
 = 0.9.1 =
 * Fix CRÍTICO del reset de botones: el reset de UA defaults para

@@ -35,14 +35,13 @@ const buttonVariants = cva(
                 outline: [
                     'imcrm-bg-card imcrm-text-foreground imcrm-border imcrm-border-border',
                     'imcrm-shadow-imcrm-sm',
-                    'hover:imcrm-bg-accent hover:imcrm-border-input',
+                    'hover:imcrm-bg-canvas hover:imcrm-border-input',
                 ].join(' '),
 
-                /* Secondary: gris suave, sin border. Para acciones
-                 * paralelas dentro de un grupo. */
+                /* Secondary: gris muy suave para acciones paralelas. */
                 secondary: [
                     'imcrm-bg-secondary imcrm-text-secondary-foreground',
-                    'hover:imcrm-bg-accent',
+                    'hover:imcrm-bg-muted',
                 ].join(' '),
 
                 /* Destructive */
@@ -52,11 +51,12 @@ const buttonVariants = cva(
                     'hover:imcrm-bg-destructive/90 hover:imcrm-shadow-imcrm-sm',
                 ].join(' '),
 
-                /* Ghost: sin chrome, sólo hover. Para íconos y acciones
-                 * sutiles dentro de cards / toolbars. */
+                /* Ghost: sin chrome. Hover usa primary tint muy leve
+                 * (4%) — más on-brand que el gris-genérico que nos
+                 * recordaba "pastilla pesada". */
                 ghost: [
                     'imcrm-text-foreground/80',
-                    'hover:imcrm-bg-accent hover:imcrm-text-foreground',
+                    'hover:imcrm-bg-foreground/5 hover:imcrm-text-foreground',
                 ].join(' '),
 
                 /* Link */

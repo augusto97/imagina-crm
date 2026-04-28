@@ -261,6 +261,21 @@
         cursor: pointer;
     }
 
+    /* Reset hover / focus / active a transparent SOLO cuando no haya
+     * regla más específica encima (ej. nuestras `hover:imcrm-bg-*`
+     * en Button component sobreescriben esto). Usamos `:where()` para
+     * mantener la especificidad en 0,0,0 — cualquier clase wins. */
+    :where(#imcrm-root button:hover,
+           [class*='imcrm-'] button:hover,
+           #imcrm-root button:focus,
+           [class*='imcrm-'] button:focus,
+           #imcrm-root button:active,
+           [class*='imcrm-'] button:active) {
+        background-color: transparent;
+        outline: none;
+        box-shadow: none;
+    }
+
     /* Links: por default text-decoration none + color inherit. La
      * variante `link` del Button component re-aplica underline-on-hover
      * explícito. Otros <a> se estilan en sus call sites. */
