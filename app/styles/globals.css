@@ -223,78 +223,47 @@
         z-index: 1000000 !important;
     }
 
-    #imcrm-root * {
-        @apply imcrm-border-border;
-        box-sizing: border-box;
-    }
-
-    #imcrm-root [role='button'] {
-        cursor: pointer;
-    }
-
     /*
-     * Reset de UA defaults para botones / inputs / selects / links.
+     * Reset minimal scopeado.
      *
-     * Desde 0.13.0 el SPA vive en una página standalone con su propio
-     * reset CSS inline — preflight de Tailwind ya hace el trabajo.
-     * PERO mantenemos un reset scopeado a `[class*='imcrm-']` y
-     * `#imcrm-root` por dos razones:
-     *   1. Compatibilidad backward — si en el futuro alguien embebe
-     *      el SPA en wp-admin o en un theme de WP, los UA defaults
-     *      no rompen nuestros componentes shadcn.
-     *   2. Defensa en profundidad: aún en standalone, este reset
-     *      cubre el caso edge donde Radix renderiza un Portal afuera
-     *      del flujo normal con classes imcrm-* (selects custom, etc).
+     * El SPA vive standalone en /imagina-crm/ con su propio reset CSS
+     * inline (`StandalonePage::inlineReset()`) que aplica selectores
+     * type-only (especificidad 1) sobre `button`, `a`, `select`, etc.
+     * Eso ya cubre TODOS los UA defaults sin pisar las utilities de
+     * Tailwind.
      *
-     * NOTA: ya no resetiamos `:hover`/`:focus`/`:active` — esos
-     * estados son responsabilidad de las primitivas (Button, Input,
-     * etc.) via clases hover:imcrm-bg-*. El reset hacky de
-     * `:where(...:hover) {bg: transparent}` que tenía 0.9.x se
-     * removió, las primitivas ahora confían en el preflight base.
+     * Lo único que dejamos aquí es el border-color default: las
+     * utilities `imcrm-border` setean border-width pero no color, y
+     * sin un default global el browser usa `currentColor` (rojo en
+     * algunos casos). Lo ponemos con `:where()` para especificidad 0.
+     *
+     * Tampoco seteamos un focus-visible global — cada primitiva
+     * (Button, Input, Select, etc.) define su propio ring con
+     * especificidad de utility (10), y el UA outline default es
+     * suficiente para cualquier elemento sin estilo custom.
      */
-    #imcrm-root button,
-    [class*='imcrm-'] button {
-        background-color: transparent;
-        border: 0;
-        padding: 0;
-        margin: 0;
-        color: inherit;
-        font: inherit;
-        line-height: inherit;
-        text-align: inherit;
-        cursor: pointer;
+    :where(#imcrm-root, [class*='imcrm-']) *,
+    :where(#imcrm-root, [class*='imcrm-']) *::before,
+    :where(#imcrm-root, [class*='imcrm-']) *::after {
+        border-color: hsl(var(--imcrm-border));
     }
 
-    /* Links: por default text-decoration none + color inherit. La
-     * variante `link` del Button component re-aplica underline-on-hover
-     * explícito. Otros <a> se estilan en sus call sites. */
-    #imcrm-root a,
-    [class*='imcrm-'] a {
-        text-decoration: none;
-        color: inherit;
-    }
-
-    /* Para selects nativos (no Radix Select), removemos también la
-     * apariencia gris-pastilla del UA en Safari/Chrome. */
-    #imcrm-root select,
-    [class*='imcrm-'] select {
+    /* Native <select>: el reset standalone no toca su `appearance`,
+     * así que la flecha UA quedaría visible junto al chevron del
+     * componente. Lo quitamos acá con `:where()` para no romper la
+     * cascada de utilities (especificidad 0). */
+    :where(#imcrm-root, [class*='imcrm-']) select {
         appearance: none;
         -webkit-appearance: none;
         -moz-appearance: none;
-        background-color: transparent;
         background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 0.5rem center;
-        padding-right: 1.75rem !important;
+        padding-right: 1.75rem;
     }
 
-    #imcrm-root input[type='checkbox'],
-    [class*='imcrm-'] input[type='checkbox'] {
+    :where(#imcrm-root, [class*='imcrm-']) input[type='checkbox'] {
         accent-color: hsl(var(--imcrm-primary));
-    }
-
-    #imcrm-root :focus-visible {
-        @apply imcrm-outline-none imcrm-ring-2 imcrm-ring-ring imcrm-ring-offset-2 imcrm-ring-offset-background;
     }
 
     /*
@@ -303,9 +272,9 @@
      * visual de hover/focus). Cumple WCAG 2.3.3 (Animation from Interactions).
      */
     @media (prefers-reduced-motion: reduce) {
-        #imcrm-root *,
-        #imcrm-root *::before,
-        #imcrm-root *::after {
+        :where(#imcrm-root) *,
+        :where(#imcrm-root) *::before,
+        :where(#imcrm-root) *::after {
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
@@ -318,11 +287,11 @@
      * visibles en elementos interactivos y mantiene textos legibles.
      */
     @media (forced-colors: active) {
-        #imcrm-root button,
-        #imcrm-root [role='button'],
-        #imcrm-root input,
-        #imcrm-root select,
-        #imcrm-root textarea {
+        :where(#imcrm-root) button,
+        :where(#imcrm-root) [role='button'],
+        :where(#imcrm-root) input,
+        :where(#imcrm-root) select,
+        :where(#imcrm-root) textarea {
             border: 1px solid CanvasText;
         }
     }
