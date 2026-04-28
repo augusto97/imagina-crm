@@ -22,6 +22,15 @@ export function FiltersBar({ listId, fields, filters, onFiltersChange }: Filters
         onFiltersChange([...filters, filter]);
     };
 
+    const addManyFilters = (next: ActiveFilter[]): void => {
+        // Los presets de rango de fecha generan un par gte+lte sobre el
+        // mismo field. Si ya había filtros previos sobre ese field con
+        // los mismos operadores, los reemplazamos para no acumular.
+        const replaceFieldOps = new Set(next.map((f) => `${f.field_id}:${f.op}`));
+        const kept = filters.filter((f) => !replaceFieldOps.has(`${f.field_id}:${f.op}`));
+        onFiltersChange([...kept, ...next]);
+    };
+
     const updateFilter = (index: number, filter: ActiveFilter): void => {
         const next = [...filters];
         next[index] = filter;
@@ -34,7 +43,13 @@ export function FiltersBar({ listId, fields, filters, onFiltersChange }: Filters
 
     return (
         <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2">
-            <FilterPopover listId={listId} fields={fields} initial={null} onApply={addFilter}>
+            <FilterPopover
+                listId={listId}
+                fields={fields}
+                initial={null}
+                onApply={addFilter}
+                onApplyMany={addManyFilters}
+            >
                 <Button variant="outline" size="sm" className="imcrm-gap-1.5">
                     <Filter className="imcrm-h-3.5 imcrm-w-3.5" />
                     {filters.length === 0 ? __('Filtrar') : __('Añadir filtro')}

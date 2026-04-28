@@ -55,7 +55,7 @@ final class WidgetEvaluatorTest extends IntegrationTestCase
         $this->fields     = new FieldService($fieldRepo, $listRepo, $slugs, $this->schema, $registry, new \ImaginaCRM\Records\RecordRepository($this->db()));
         $this->records    = new RecordService($fieldRepo, $recordRepo, $relationsRepo, $validator, $queryBuilder);
         $this->dashboards = new DashboardService($dashboardRepo, $listRepo, $fieldRepo);
-        $this->evaluator  = new WidgetEvaluator($this->db(), $listRepo, $fieldRepo);
+        $this->evaluator  = new WidgetEvaluator($this->db(), $listRepo, $fieldRepo, $queryBuilder);
     }
 
     public function test_kpi_count_returns_active_records_count(): void
@@ -182,6 +182,87 @@ final class WidgetEvaluatorTest extends IntegrationTestCase
         }
         $this->assertSame(2, $byMonth['2026-04']);
         $this->assertSame(1, $byMonth['2026-05']);
+    }
+
+    public function test_kpi_count_respects_widget_filters(): void
+    {
+        [$list] = $this->seedRecords();
+
+        // Sólo registros con status = 'lead' (2 de 3).
+        $dashboard = $this->makeDashboard($list, [[
+            'type' => 'kpi',
+            'list_id' => $list->id,
+            'config' => [
+                'metric'  => 'count',
+                'filters' => ['status' => ['eq' => 'lead']],
+            ],
+            'id' => 'k_filtered',
+        ]]);
+
+        $result = $this->evaluator->evaluate($dashboard, 'k_filtered');
+        $this->assertIsArray($result);
+        $this->assertSame(2, $result['value']);
+    }
+
+    public function test_kpi_sum_respects_widget_filters(): void
+    {
+        [$list] = $this->seedRecords();
+
+        // amount sumado sólo de los `lead`: 100 + 200 = 300.
+        $dashboard = $this->makeDashboard($list, [[
+            'type' => 'kpi',
+            'list_id' => $list->id,
+            'config' => [
+                'metric'          => 'sum',
+                'metric_field_id' => $this->amountId($list),
+                'filters'         => ['status' => ['eq' => 'lead']],
+            ],
+            'id' => 'k_sum_filtered',
+        ]]);
+
+        $result = $this->evaluator->evaluate($dashboard, 'k_sum_filtered');
+        $this->assertIsArray($result);
+        $this->assertEqualsWithDelta(300.0, (float) $result['value'], 0.0001);
+    }
+
+    public function test_chart_bar_respects_widget_filters(): void
+    {
+        [$list] = $this->seedRecords();
+
+        // Filtramos amount > 75 (deja A=100, B=200; descarta C=50). Group
+        // by status → solo 'lead' aparece con 2.
+        $dashboard = $this->makeDashboard($list, [[
+            'type' => 'chart_bar',
+            'list_id' => $list->id,
+            'config' => [
+                'group_by_field_id' => $this->statusId($list),
+                'filters'           => ['amount' => ['gt' => 75]],
+            ],
+            'id' => 'cb_filtered',
+        ]]);
+
+        $result = $this->evaluator->evaluate($dashboard, 'cb_filtered');
+        $this->assertIsArray($result);
+        $byLabel = [];
+        foreach ($result['data'] as $bucket) {
+            $byLabel[$bucket['label']] = $bucket['value'];
+        }
+        $this->assertSame(2, $byLabel['Lead'] ?? 0);
+        $this->assertArrayNotHasKey('Ganada', $byLabel);
+    }
+
+    private function amountId(ListEntity $list): int
+    {
+        $field = $this->fields->findByIdOrSlug($list->id, 'amount');
+        $this->assertNotNull($field);
+        return $field->id;
+    }
+
+    private function statusId(ListEntity $list): int
+    {
+        $field = $this->fields->findByIdOrSlug($list->id, 'status');
+        $this->assertNotNull($field);
+        return $field->id;
     }
 
     public function test_unknown_widget_id_returns_validation_error(): void

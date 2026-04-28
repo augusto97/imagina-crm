@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
@@ -11,6 +11,10 @@ import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { KpiMetric, WidgetSpec, WidgetType } from '@/types/dashboard';
+import type { FilterOperator } from '@/types/record';
+
+import { FiltersBar } from '@/admin/records/FiltersBar';
+import type { ActiveFilter } from '@/admin/records/recordsState';
 
 interface WidgetFormDialogProps {
     initial: WidgetSpec | null;
@@ -46,8 +50,19 @@ export function WidgetFormDialog({
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const [tableLimit, setTableLimit] = useState<number>(10);
     const [visibleFieldIds, setVisibleFieldIds] = useState<number[]>([]);
+    const [filters, setFilters] = useState<ActiveFilter[]>([]);
 
     const fields = useFields(listId === 0 ? undefined : listId);
+
+    // Si cambia la lista (excepto en mount/edit), los filtros referenciaban
+    // campos de la lista anterior y ya no aplican — los reseteamos.
+    const previousListIdRef = useRef<number>(listId);
+    useEffect(() => {
+        if (previousListIdRef.current !== listId && previousListIdRef.current !== 0) {
+            setFilters([]);
+        }
+        previousListIdRef.current = listId;
+    }, [listId]);
     const numericFields = useMemo(
         () => (fields.data ?? []).filter((f) => f.type === 'number' || f.type === 'currency'),
         [fields.data],
@@ -84,6 +99,7 @@ export function WidgetFormDialog({
                     ? (initial.config.visible_field_ids as number[])
                     : [],
             );
+            setFilters(decodeFilters(initial.config.filters));
         } else {
             setTitle('');
             setType('kpi');
@@ -97,6 +113,7 @@ export function WidgetFormDialog({
             setSortDir('desc');
             setTableLimit(10);
             setVisibleFieldIds([]);
+            setFilters([]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, initial?.id]);
@@ -118,6 +135,7 @@ export function WidgetFormDialog({
                 sortDir,
                 tableLimit,
                 visibleFieldIds,
+                filters,
             }),
             layout: initial?.layout ?? { x: 0, y: 0, w: 4, h: 3 },
         };
@@ -220,6 +238,23 @@ export function WidgetFormDialog({
                                 </Select>
                             </div>
                         </div>
+
+                        {listId > 0 && fields.data && fields.data.length > 0 && (
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+                                <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                                    {__('Filtros')}
+                                </Label>
+                                <FiltersBar
+                                    listId={listId}
+                                    fields={fields.data}
+                                    filters={filters}
+                                    onFiltersChange={setFilters}
+                                />
+                                <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                                    {__('Restringen los datos del widget. Para campos de fecha hay rangos rápidos como "este mes" o "últimos 30 días".')}
+                                </p>
+                            </div>
+                        )}
 
                         {type === 'kpi' && (
                             <KpiConfig
@@ -566,22 +601,31 @@ function buildConfig(
         sortDir: 'asc' | 'desc';
         tableLimit: number;
         visibleFieldIds: number[];
+        filters: ActiveFilter[];
     },
 ): WidgetSpec['config'] {
+    const base = (): WidgetSpec['config'] => {
+        const filters = encodeFilters(state.filters);
+        return filters !== undefined ? { filters } : {};
+    };
+
     if (type === 'kpi') {
+        const c = base();
+        c.metric = state.metric;
         if (state.metric === 'sum' || state.metric === 'avg') {
-            return { metric: state.metric, metric_field_id: state.metricFieldId };
+            c.metric_field_id = state.metricFieldId;
         }
-        return { metric: state.metric };
+        return c;
     }
     if (type === 'chart_bar' || type === 'chart_pie') {
-        return { group_by_field_id: state.groupByFieldId };
+        return { ...base(), group_by_field_id: state.groupByFieldId };
     }
     if (type === 'chart_line' || type === 'chart_area') {
-        return { date_field_id: state.dateFieldId };
+        return { ...base(), date_field_id: state.dateFieldId };
     }
     if (type === 'stat_delta') {
         const c: WidgetSpec['config'] = {
+            ...base(),
             metric: state.metric,
             date_field_id: state.dateFieldId,
             period_days: state.periodDays,
@@ -593,6 +637,7 @@ function buildConfig(
     }
     if (type === 'table') {
         const c: WidgetSpec['config'] = {
+            ...base(),
             limit: state.tableLimit,
             sort_dir: state.sortDir,
             visible_field_ids: state.visibleFieldIds,
@@ -602,7 +647,44 @@ function buildConfig(
         }
         return c;
     }
-    return {};
+    return base();
+}
+
+/**
+ * Convierte `ActiveFilter[]` (state UI) → la forma que espera el
+ * backend (`{ field_<id>: { op: value } }`). Misma lógica que
+ * `buildRecordsQuery` en `recordsState.ts` — duplicada acá para no
+ * acoplar el dialog al state shape de records.
+ */
+function encodeFilters(filters: ActiveFilter[]): Record<string, Record<string, unknown>> | undefined {
+    if (filters.length === 0) return undefined;
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const f of filters) {
+        const key = `field_${f.field_id}`;
+        const existing = out[key] ?? {};
+        existing[f.op] = f.value;
+        out[key] = existing;
+    }
+    return out;
+}
+
+/**
+ * Inverso: backend shape → `ActiveFilter[]`. Aceptamos formas
+ * defensivamente porque vienen de JSON guardado (pueden ser legacy).
+ */
+function decodeFilters(raw: unknown): ActiveFilter[] {
+    if (raw === null || raw === undefined || typeof raw !== 'object') return [];
+    const out: ActiveFilter[] = [];
+    for (const [key, opMap] of Object.entries(raw as Record<string, unknown>)) {
+        if (!key.startsWith('field_')) continue;
+        const fieldId = Number(key.slice(6));
+        if (!Number.isFinite(fieldId) || fieldId <= 0) continue;
+        if (typeof opMap !== 'object' || opMap === null) continue;
+        for (const [op, value] of Object.entries(opMap as Record<string, unknown>)) {
+            out.push({ field_id: fieldId, op: op as FilterOperator, value });
+        }
+    }
+    return out;
 }
 
 function generateWidgetId(): string {

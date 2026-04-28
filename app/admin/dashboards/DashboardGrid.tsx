@@ -1,34 +1,35 @@
-import { Responsive, WidthProvider, type Layout, type LayoutItem } from 'react-grid-layout/legacy';
+import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
+import type { Layout, LayoutItem } from 'react-grid-layout';
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 import type { WidgetSpec } from '@/types/dashboard';
 
-// react-grid-layout v2 movió WidthProvider al subpath /legacy. La API
-// principal ahora es hooks-based (useContainerWidth) pero el HOC sigue
-// siendo más simple para nuestro caso. Evita un wrapper adicional.
-const ResponsiveGrid = WidthProvider(Responsive);
+// `WidthProvider` mide el contenedor y le pasa `width` al grid.
+// Antes usábamos `Responsive` con breakpoints lg/md/sm/xs/xxs y
+// distintos `cols` por breakpoint — eso recompactaba los widgets al
+// achicar la ventana y disparaba `onLayoutChange` con el layout mobile,
+// que terminaba persistido como canónico (¡pérdida de la posición
+// real!). La UI del plugin es desktop-only (CLAUDE.md §17, ≥1024px),
+// así que un grid no-responsive de 12 columnas fijas es lo correcto.
+const SizedGrid = WidthProvider(GridLayout);
 
-/**
- * Grid resizable + drag-and-drop para los widgets del Dashboard,
- * basado en `react-grid-layout`. Persistir la posición/tamaño de
- * cada widget cuando el usuario suelta (`onLayoutChange`) → vuelve
- * al backend via la mutation del Dashboard.
- *
- * Layout por widget: `{i, x, y, w, h}` donde `i = widget.id`. El grid
- * tiene 12 columnas (cols.lg=12). Cada celda tiene rowHeight 80px
- * + margen 16px.
- *
- * Lazy-loaded desde DashboardPage para no inflar el bundle principal
- * con react-grid-layout (~50KB gzipped).
- */
 interface DashboardGridProps {
     widgets: WidgetSpec[];
     onLayoutChange: (layouts: Array<{ id: string; x: number; y: number; w: number; h: number }>) => void;
     children: (widget: WidgetSpec) => React.ReactNode;
 }
 
+/**
+ * Grid resizable + drag-and-drop para los widgets del Dashboard.
+ *
+ * Persistencia: SOLO en `onDragStop` y `onResizeStop` — ambos disparan
+ * únicamente cuando el usuario suelta el drag/resize manual. Antes
+ * usábamos `onLayoutChange` que también dispara en mount inicial y en
+ * cada paso del drag → causaba PATCHes espurios y, peor aún, persistía
+ * el layout reorganizado por el responsive en breakpoints angostos.
+ */
 export function DashboardGrid({
     widgets,
     onLayoutChange,
@@ -46,27 +47,34 @@ export function DashboardGrid({
         minH: 2,
     }));
 
+    const handleStop = (next: Layout): void => {
+        onLayoutChange(
+            next.map((l) => ({ id: l.i, x: l.x, y: l.y, w: l.w, h: l.h })),
+        );
+    };
+
     return (
-        <ResponsiveGrid
+        <SizedGrid
             className="imcrm-layout"
-            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 12, sm: 8, xs: 4, xxs: 2 }}
-            layouts={{ lg: layout, md: layout, sm: layout, xs: layout, xxs: layout }}
+            cols={12}
+            layout={layout}
             rowHeight={80}
             margin={[16, 16]}
             containerPadding={[0, 0]}
             isDraggable
             isResizable
+            // `compactType="vertical"` deja que RGL apile widgets cuando
+            // hay huecos verticales, pero NO los reordena horizontalmente
+            // como `Responsive` con cols pequeños hacía. La posición x
+            // que el usuario eligió se respeta.
+            compactType="vertical"
             draggableCancel=".imcrm-no-drag"
-            onLayoutChange={(next: Layout) => {
-                onLayoutChange(
-                    next.map((l) => ({ id: l.i, x: l.x, y: l.y, w: l.w, h: l.h })),
-                );
-            }}
+            onDragStop={handleStop}
+            onResizeStop={handleStop}
         >
             {widgets.map((w) => (
                 <div key={w.id}>{children(w)}</div>
             ))}
-        </ResponsiveGrid>
+        </SizedGrid>
     );
 }

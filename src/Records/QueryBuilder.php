@@ -195,6 +195,51 @@ final class QueryBuilder
     }
 
     /**
+     * Compila la cláusula WHERE para una lista a partir de raw filters
+     * (con la misma forma que `/records?filter[...]`). Reusa el pipeline
+     * `normalize` + `buildWhere`. Útil para callers que NO necesitan
+     * ejecutar un SELECT completo (ej. `WidgetEvaluator`) — sólo quieren
+     * el "WHERE deleted_at IS NULL AND ..." con sus placeholders y args
+     * para mergear con su propia query.
+     *
+     * Si los filtros no validan (ej. más del cap), devuelve `[where:
+     * 'WHERE deleted_at IS NULL', args: []]` — fail-open silencioso para
+     * no romper widgets si el usuario configura algo inválido.
+     *
+     * @param array<int, FieldEntity>     $fields
+     * @param array<string, mixed>        $rawFilters
+     *
+     * @return array{where: string, args: array<int, mixed>}
+     */
+    public function compileWhereForList(
+        int $listId,
+        array $fields,
+        array $rawFilters,
+        ?string $search = null,
+    ): array {
+        $params = $this->normalize(
+            $listId,
+            $fields,
+            $rawFilters,
+            [],
+            [],
+            $search,
+            1,
+            1,
+            includeDeleted: false,
+        );
+        if ($params instanceof ValidationResult) {
+            return ['where' => 'WHERE deleted_at IS NULL', 'args' => []];
+        }
+        $columnSet = $this->columnsByName($fields);
+        [$where, $args] = $this->buildWhere($params, $columnSet);
+        return [
+            'where' => $where !== '' ? $where : 'WHERE 1=1',
+            'args'  => $args,
+        ];
+    }
+
+    /**
      * Compila SELECT (group_value, count) GROUP BY <group_field>, respetando
      * los mismos filtros / search / soft-deletes que `buildSelect`. Usado
      * por el endpoint `/records/groups` (toolbar "Agrupar por" estilo

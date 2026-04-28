@@ -26,6 +26,15 @@ export interface WidgetSpec {
         metric_field_id?: number;
         group_by_field_id?: number;
         date_field_id?: number;
+        /**
+         * Filtros opcionales aplicados al widget. Misma forma que
+         * `RecordsQuery['filter']`:
+         *   { 'field_42': { eq: 'foo' }, 'field_15': { gte: '2026-01-01' } }
+         * El backend (`WidgetEvaluator`) los pasa por
+         * `QueryBuilder::compileWhereForList` y los respeta en todas
+         * las queries que ejecuta el widget.
+         */
+        filters?: Record<string, Record<string, unknown>>;
         [key: string]: unknown;
     };
     layout: WidgetLayout;

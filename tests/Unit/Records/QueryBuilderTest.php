@@ -241,6 +241,35 @@ final class QueryBuilderTest extends TestCase
         $this->assertStringNotContainsString('`col_status`', $compiled['sql']);
     }
 
+    public function test_compileWhereForList_returns_where_with_args_for_known_filters(): void
+    {
+        $fields = $this->sampleFields();
+        $compiled = $this->qb->compileWhereForList(
+            listId: 1,
+            fields: $fields,
+            rawFilters: ['status' => ['eq' => 'active'], 'amount' => ['gte' => 100]],
+        );
+
+        $this->assertStringStartsWith('WHERE deleted_at IS NULL', $compiled['where']);
+        $this->assertStringContainsString('`col_status`', $compiled['where']);
+        $this->assertStringContainsString('`col_amount`', $compiled['where']);
+        $this->assertCount(2, $compiled['args']);
+    }
+
+    public function test_compileWhereForList_falls_open_when_filters_invalid(): void
+    {
+        // Más filtros que el cap → normalize devuelve ValidationResult.
+        // Esperamos un WHERE base (no falla) para no romper widgets.
+        $rawFilters = [
+            'amount' => ['gte' => 1, 'lte' => 99, 'neq' => 0, 'gt' => -5, 'lt' => 1000],
+            'name'   => ['contains' => 'a'],
+        ];
+        $compiled = $this->qb->compileWhereForList(1, $this->sampleFields(), $rawFilters);
+
+        $this->assertSame('WHERE deleted_at IS NULL', $compiled['where']);
+        $this->assertSame([], $compiled['args']);
+    }
+
     public function test_buildGroupQuery_scalar_field_uses_group_by_with_nullif(): void
     {
         $fields = $this->sampleFields();

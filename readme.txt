@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.15.1
+Stable tag: 0.16.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,37 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.16.0 =
+* Fix CRÍTICO del Dashboard: los widgets se reorganizaban a una sola
+  columna al achicar la ventana del navegador y ESA posición se
+  persistía como canónica — pérdida de la disposición real del
+  usuario. Causa: `DashboardGrid` usaba `Responsive` con breakpoints
+  lg/md/sm/xs/xxs (12/12/8/4/2 cols), que recompacta el layout para
+  caber en cada breakpoint, y nuestro `onLayoutChange` guardaba el
+  layout reorganizado. Cambio a `GridLayout` (no responsive) de 12
+  columnas fijas — la UI del plugin es desktop-only (CLAUDE.md §17,
+  ≥1024px). Persistencia ahora SOLO vía `onDragStop`/`onResizeStop`,
+  que solo se disparan en interacciones del usuario.
+* Nueva feature: rangos de fecha rápidos en filtros. El popover de
+  filtro de campos `date`/`datetime` ahora muestra una fila de
+  presets — Hoy, Ayer, Esta semana, Semana pasada, Este mes,
+  Mes pasado, Últimos 7/15/30 días, Este año, Año pasado,
+  Personalizado. Click → genera un par `gte`+`lte` automáticamente.
+  Cálculo en local del navegador, así "Esta semana" abarca el lunes
+  00:00 al domingo 23:59 del usuario.
+* Nueva feature: filtros arbitrarios en widgets de Dashboard. El
+  `WidgetFormDialog` expone una sección "Filtros" que reusa la misma
+  `<FiltersBar>` de las listas — cualquier campo, cualquier operador,
+  más los presets de fecha. El widget guarda los filtros en
+  `config.filters` y `WidgetEvaluator` los aplica a TODAS sus queries
+  internas (count, sum/avg, group-by, line, stat_delta, table) vía un
+  nuevo `QueryBuilder::compileWhereForList()` que reusa el mismo
+  pipeline `normalize`+`buildWhere` del endpoint `/records`.
+* Tests: 3 nuevos integration tests en `WidgetEvaluatorTest`
+  (kpi.count + kpi.sum + chart_bar respetando filtros) + 2 unit
+  tests en `QueryBuilderTest` (compileWhereForList con filtros
+  válidos y fail-open con filtros inválidos).
 
 = 0.15.1 =
 * Fix: la vista agrupada (introducida en 0.15.0) no respetaba la

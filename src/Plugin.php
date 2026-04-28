@@ -311,6 +311,7 @@ final class Plugin
                 $c->get(Database::class),
                 $c->get(\ImaginaCRM\Lists\ListRepository::class),
                 $c->get(FieldRepository::class),
+                $c->get(QueryBuilder::class),
             );
         });
 
