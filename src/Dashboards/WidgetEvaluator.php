@@ -72,8 +72,14 @@ final class WidgetEvaluator
         // Forma nueva (ClickUp-style): `config.filter_tree` con AND/OR
         // y grupos anidados. Si está presente, tiene prioridad sobre
         // `filters` (forma legacy plana).
+        //
+        // Adicionalmente, si el widget tiene un `period` (atajo de
+        // rango relativo dedicado), lo envolvemos en un grupo AND
+        // junto al filter_tree antes de compilar — así una sola
+        // pasada produce el WHERE final con período + filtros.
         $listFields = $this->fields->allForList($list->id);
         $tree       = $config['filter_tree'] ?? null;
+        $tree       = $this->mergePeriodIntoTree($config['period'] ?? null, $tree);
         if (is_array($tree) && ($tree['type'] ?? '') === 'group') {
             $filterCtx = $this->queryBuilder->compileTreeWhereForList(
                 $list->id,
@@ -577,6 +583,71 @@ final class WidgetEvaluator
     private function validIdent(string $ident): bool
     {
         return (bool) preg_match(self::IDENT_REGEX, $ident);
+    }
+
+    /**
+     * Si el widget definió un `period` (atajo dedicado de rango
+     * relativo), devuelve un nuevo árbol de filtros que combina la
+     * condición del período con el árbol existente bajo un grupo AND.
+     * Si no hay período, devuelve el árbol original sin tocar.
+     *
+     * El período se persiste como `{field_id, preset}` (no como
+     * fechas) — acá lo convertimos a una condición `between_relative`
+     * que `QueryBuilder::compileFilter` resuelve contra `wp_timezone()`
+     * en cada query. Eso garantiza que "este mes" se recalcule cada
+     * vez que se carga el dashboard.
+     *
+     * @param mixed $period
+     * @param array<string, mixed>|null $tree
+     * @return array<string, mixed>|null
+     */
+    private function mergePeriodIntoTree(mixed $period, ?array $tree): ?array
+    {
+        if (! is_array($period)) {
+            return $tree;
+        }
+        $fieldId = isset($period['field_id']) ? (int) $period['field_id'] : 0;
+        $preset  = isset($period['preset']) ? (string) $period['preset'] : '';
+        if ($fieldId <= 0 || $preset === '') {
+            return $tree;
+        }
+
+        $periodCondition = [
+            'type'     => 'condition',
+            'field_id' => $fieldId,
+            'op'       => 'between_relative',
+            'value'    => $preset,
+        ];
+
+        // Si no hay árbol previo, el grupo wrapper basta.
+        if (! is_array($tree) || ($tree['type'] ?? '') !== 'group') {
+            return [
+                'type'     => 'group',
+                'logic'    => 'and',
+                'children' => [$periodCondition],
+            ];
+        }
+
+        // Caso común: el filter_tree ya es AND raíz. Insertamos la
+        // condición como primer hijo (más visible al inspeccionar SQL
+        // logs) sin crear un grupo wrapper innecesario.
+        $logic = strtolower((string) ($tree['logic'] ?? 'and'));
+        if ($logic === 'and') {
+            $children = isset($tree['children']) && is_array($tree['children']) ? $tree['children'] : [];
+            return [
+                'type'     => 'group',
+                'logic'    => 'and',
+                'children' => array_merge([$periodCondition], $children),
+            ];
+        }
+
+        // El root es OR — envolvemos para que el período se aplique
+        // SIEMPRE (period AND (existing OR tree)).
+        return [
+            'type'     => 'group',
+            'logic'    => 'and',
+            'children' => [$periodCondition, $tree],
+        ];
     }
 
     /**

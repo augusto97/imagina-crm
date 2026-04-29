@@ -25,6 +25,27 @@ export interface WidgetLayout {
  */
 export type ChartTimeBucket = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
+/**
+ * Período del widget — atajo dedicado para limitar los datos a un
+ * rango relativo (este mes, últimos 7 días, este año…) sin pasar
+ * por el panel de filtros. El backend (`WidgetEvaluator`) lo
+ * inyecta como una condición `between_relative` adicional en el
+ * filter tree cada vez que se evalúa el widget. UX equivalente
+ * al "Período" del eje X de los charts de ClickUp.
+ *
+ * Si está ausente o `null`, el widget no aplica restricción
+ * temporal (consume el filter_tree tal cual).
+ */
+export interface WidgetPeriod {
+    /** ID del campo date/datetime contra el que se aplica el rango. */
+    field_id: number;
+    /**
+     * Slug del preset relativo (`this_month`, `last_7_days`, …, ver
+     * `app/admin/records/dateRangePresets.ts`).
+     */
+    preset: string;
+}
+
 export interface WidgetSpec {
     id: string;
     type: WidgetType;
@@ -35,6 +56,8 @@ export interface WidgetSpec {
         metric_field_id?: number;
         group_by_field_id?: number;
         date_field_id?: number;
+        /** Atajo de período relativo, ver `WidgetPeriod`. */
+        period?: WidgetPeriod | null;
         /** Granularidad temporal para charts con eje de fecha. Default: month. */
         time_bucket?: ChartTimeBucket;
         /** Mostrar línea de promedio horizontal (bar/line/area). */

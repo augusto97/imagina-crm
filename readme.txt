@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.24.1
+Stable tag: 0.25.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,25 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.25.0 =
+* Nuevo: **Período del widget** — atajo dedicado en el editor de
+  widgets para limitar los datos a un rango relativo (Hoy, Esta
+  semana, Este mes, Últimos 7/15/30 días, Este año, Año pasado…)
+  sin pasar por el panel de filtros. UX equivalente al "Período"
+  del eje X de los charts de ClickUp: dos selects compactos
+  arriba del bloque de filtros (campo de fecha + rango), opt-in
+  por widget.
+
+  Persistencia: `config.period = { field_id, preset }`. El backend
+  (`WidgetEvaluator::mergePeriodIntoTree`) inyecta una condición
+  `between_relative` en el filter_tree antes de compilar la query
+  — los datos se recalculan en cada carga, "este mes" siempre
+  apunta al mes actual sin que el usuario tenga que tocar fechas.
+
+  Disponible para todos los tipos de widget (kpi, kpi delta,
+  charts, table) cuando la lista tiene al menos un campo
+  date/datetime.
 
 = 0.24.1 =
 * Fix: los botones de "Rangos rápidos" (Hoy / Ayer / Este mes / etc.)

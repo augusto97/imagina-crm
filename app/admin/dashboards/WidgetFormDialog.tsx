@@ -13,9 +13,14 @@ import { cn } from '@/lib/utils';
 import type {
     ChartTimeBucket,
     KpiMetric,
+    WidgetPeriod,
     WidgetSpec,
     WidgetType,
 } from '@/types/dashboard';
+import {
+    DATE_RANGE_PRESETS,
+    type DateRangePresetId,
+} from '@/admin/records/dateRangePresets';
 import type { FilterTree } from '@/types/record';
 
 import { FiltersPanel } from '@/admin/records/FiltersPanel';
@@ -62,6 +67,8 @@ export function WidgetFormDialog({
     const [showDataLabels, setShowDataLabels] = useState<boolean>(false);
     const [showLegend, setShowLegend] = useState<boolean>(false);
     const [timeBucket, setTimeBucket] = useState<ChartTimeBucket>('month');
+    const [periodFieldId, setPeriodFieldId] = useState<number>(0);
+    const [periodPreset, setPeriodPreset] = useState<DateRangePresetId | ''>('');
     const [filterTree, setFilterTree] = useState<FilterTree>({
         type: 'group',
         logic: 'and',
@@ -76,6 +83,11 @@ export function WidgetFormDialog({
     useEffect(() => {
         if (previousListIdRef.current !== listId && previousListIdRef.current !== 0) {
             setFilterTree({ type: 'group', logic: 'and', children: [] });
+            // El field_id del período referenciaba un campo de la
+            // lista anterior — invalidamos para que el usuario lo
+            // re-seleccione si lo quiere mantener.
+            setPeriodFieldId(0);
+            setPeriodPreset('');
         }
         previousListIdRef.current = listId;
     }, [listId]);
@@ -123,6 +135,14 @@ export function WidgetFormDialog({
                     ? initial.config.time_bucket
                     : 'month',
             );
+            const period = initial.config.period;
+            if (period && typeof period === 'object' && period.field_id > 0) {
+                setPeriodFieldId(period.field_id);
+                setPeriodPreset(period.preset as DateRangePresetId);
+            } else {
+                setPeriodFieldId(0);
+                setPeriodPreset('');
+            }
             setFilterTree(decodeWidgetFilters(initial.config));
         } else {
             setTitle('');
@@ -141,6 +161,8 @@ export function WidgetFormDialog({
             setShowDataLabels(false);
             setShowLegend(false);
             setTimeBucket('month');
+            setPeriodFieldId(0);
+            setPeriodPreset('');
             setFilterTree({ type: 'group', logic: 'and', children: [] });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,6 +190,10 @@ export function WidgetFormDialog({
                 showDataLabels,
                 showLegend,
                 timeBucket,
+                period:
+                    periodFieldId > 0 && periodPreset !== ''
+                        ? { field_id: periodFieldId, preset: periodPreset }
+                        : null,
             }),
             layout: initial?.layout ?? { x: 0, y: 0, w: 4, h: 3 },
         };
@@ -270,6 +296,16 @@ export function WidgetFormDialog({
                                 </Select>
                             </div>
                         </div>
+
+                        {listId > 0 && dateFields.length > 0 && (
+                            <PeriodPicker
+                                fields={dateFields}
+                                fieldId={periodFieldId}
+                                preset={periodPreset}
+                                onFieldChange={setPeriodFieldId}
+                                onPresetChange={setPeriodPreset}
+                            />
+                        )}
 
                         {listId > 0 && fields.data && fields.data.length > 0 && (
                             <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
@@ -626,6 +662,84 @@ interface FieldPickerProps {
     emptyHint: string;
 }
 
+interface PeriodPickerProps {
+    fields: Array<{ id: number; label: string }>;
+    fieldId: number;
+    preset: DateRangePresetId | '';
+    onFieldChange: (id: number) => void;
+    onPresetChange: (id: DateRangePresetId | '') => void;
+}
+
+/**
+ * Atajo dedicado para limitar el widget a un rango temporal relativo
+ * (este mes / últimos 7 días / este año / etc.) sin abrir el panel
+ * de filtros. Estilo ClickUp: dos selects compactos arriba del bloque
+ * de filtros, opt-in por widget.
+ *
+ * Si el usuario activa un preset y elige el campo, el backend
+ * (`WidgetEvaluator`) inyecta automáticamente la condición
+ * `between_relative` cuando ejecuta la query — los datos se
+ * recalculan en cada carga sin tocar fechas.
+ */
+function PeriodPicker({
+    fields,
+    fieldId,
+    preset,
+    onFieldChange,
+    onPresetChange,
+}: PeriodPickerProps): JSX.Element {
+    const presets = DATE_RANGE_PRESETS.filter((p) => p.id !== 'custom');
+    const enabled = fieldId > 0 && preset !== '';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+            <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2">
+                <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                    {__('Período')}
+                </Label>
+                {enabled && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onFieldChange(0);
+                            onPresetChange('');
+                        }}
+                        className="imcrm-text-[10px] imcrm-text-muted-foreground hover:imcrm-text-destructive"
+                    >
+                        {__('Quitar')}
+                    </button>
+                )}
+            </div>
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
+                <Select
+                    value={fieldId}
+                    onChange={(e) => onFieldChange(Number(e.target.value))}
+                >
+                    <option value={0}>{__('— Campo de fecha —')}</option>
+                    {fields.map((f) => (
+                        <option key={f.id} value={f.id}>
+                            {f.label}
+                        </option>
+                    ))}
+                </Select>
+                <Select
+                    value={preset}
+                    onChange={(e) => onPresetChange(e.target.value as DateRangePresetId | '')}
+                >
+                    <option value="">{__('— Rango —')}</option>
+                    {presets.map((p) => (
+                        <option key={p.id} value={p.id}>
+                            {p.label}
+                        </option>
+                    ))}
+                </Select>
+            </div>
+            <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                {__('Limita el widget a un rango relativo. Se recalcula en cada carga del dashboard — "este mes" será siempre el mes actual.')}
+            </p>
+        </div>
+    );
+}
+
 interface TimeBucketPickerProps {
     value: ChartTimeBucket;
     onChange: (next: ChartTimeBucket) => void;
@@ -767,10 +881,14 @@ function buildConfig(
         showDataLabels: boolean;
         showLegend: boolean;
         timeBucket: ChartTimeBucket;
+        period: WidgetPeriod | null;
     },
 ): WidgetSpec['config'] {
     const base = (): WidgetSpec['config'] => {
         const c: WidgetSpec['config'] = {};
+        if (state.period !== null) {
+            c.period = state.period;
+        }
         if (state.filterTree.children.length > 0) {
             // Para árboles AND-planos persistimos también la forma
             // legacy `filters` (espejo) para que builds anteriores
