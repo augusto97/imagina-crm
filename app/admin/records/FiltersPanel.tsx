@@ -59,20 +59,23 @@ export function FiltersPanel({
 
             {open && (
                 <div
-                    className="imcrm-absolute imcrm-right-0 imcrm-top-full imcrm-z-40 imcrm-mt-2 imcrm-w-[760px] imcrm-max-w-[92vw] imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-4 imcrm-shadow-imcrm-lg"
+                    className="imcrm-absolute imcrm-right-0 imcrm-top-full imcrm-z-40 imcrm-mt-2 imcrm-w-[760px] imcrm-max-w-[92vw] imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-4 imcrm-text-foreground imcrm-shadow-imcrm-lg"
                     role="dialog"
                     aria-label={__('Panel de filtros')}
                 >
-                    <div className="imcrm-mb-3 imcrm-flex imcrm-items-center imcrm-justify-between">
-                        <div className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
-                            <h3 className="imcrm-text-sm imcrm-font-semibold">{__('Filtros')}</h3>
-                            <Info
-                                className="imcrm-h-3 imcrm-w-3 imcrm-text-muted-foreground"
-                                aria-label={__(
+                    <div className="imcrm-mb-3 imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3">
+                        <h3 className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-sm imcrm-font-semibold imcrm-text-foreground">
+                            <Filter className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" />
+                            {__('Filtros')}
+                            <span
+                                className="imcrm-cursor-help imcrm-text-muted-foreground"
+                                title={__(
                                     'Combina filtros con Y / O. Usa "Agregar filtro anidado" para grupos.',
                                 )}
-                            />
-                        </div>
+                            >
+                                <Info className="imcrm-h-3 imcrm-w-3" />
+                            </span>
+                        </h3>
                         <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
                             {listId !== undefined && (
                                 <SavedFiltersDropdown

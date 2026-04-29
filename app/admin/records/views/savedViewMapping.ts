@@ -62,9 +62,16 @@ export function stateToViewConfig(state: RecordsState): SavedViewConfig {
  * AND plano automáticamente — backward compatibility.
  */
 export function viewConfigToState(config: SavedViewConfig, perPage: number): RecordsState {
-    let filterTree: FilterTree;
-    if (config.filter_tree && typeof config.filter_tree === 'object') {
-        filterTree = config.filter_tree as FilterTree;
+    let filterTree: FilterTree = { type: 'group', logic: 'and', children: [] };
+    const rawTree = config.filter_tree;
+    if (
+        rawTree !== null &&
+        typeof rawTree === 'object' &&
+        !Array.isArray(rawTree) &&
+        (rawTree as { type?: unknown }).type === 'group' &&
+        Array.isArray((rawTree as { children?: unknown }).children)
+    ) {
+        filterTree = rawTree as FilterTree;
     } else if (config.filters && config.filters.length > 0) {
         const legacy: ActiveFilter[] = config.filters.map((f) => ({
             field_id: f.field_id,
@@ -72,8 +79,6 @@ export function viewConfigToState(config: SavedViewConfig, perPage: number): Rec
             value: f.value,
         }));
         filterTree = treeFromActiveFilters(legacy);
-    } else {
-        filterTree = { type: 'group', logic: 'and', children: [] };
     }
 
     const sort: ActiveSort[] = (config.sort ?? []).map((s) => ({

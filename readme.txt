@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.18.0
+Stable tag: 0.18.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.18.1 =
+* Fix: el panel de filtros (introducido en 0.17.0) se veía vacío al
+  abrirlo cuando no había filtros aún — solo mostraba "Filtros
+  guardados" + X. La causa: en estado vacío `FilterGroupView` solo
+  renderizaba un botón pequeño "Agregar filtro" con margen-left que
+  podía no ser visible según el viewport, dejando el panel sin un
+  CTA claro. Ahora el estado vacío muestra una card centrada con
+  ícono de filtro, mensaje "Sin filtros activos" y botón
+  "Agregar filtro" prominente como CTA principal.
+* Refinamiento del header del panel: "Filtros" + ícono se renderean
+  como un único `<h3>` con clases de color explícitas (no se podía
+  ocultar por especificidad CSS heredada). Saved-filters dropdown
+  + close button quedan a la derecha.
+* Defensiva: `viewConfigToState` ahora valida que `config.filter_tree`
+  sea un objeto con `type === 'group'` y `children` array antes de
+  aceptarlo. Saved Views con filter_tree malformado caen al árbol
+  vacío en vez de romper toda la página.
 
 = 0.18.0 =
 * Picker visual de variables ClickUp-style en automatizaciones. Los
