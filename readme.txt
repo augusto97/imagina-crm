@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.23.0
+Stable tag: 0.23.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.23.1 =
+* Fix: en `WidgetFormDialog` (Paneles → Editar widget) el panel de
+  filtros se mostraba vía Popover de 720px y se desbordaba del
+  diálogo en pantallas angostas — el usuario veía el primer
+  filtro a la derecha del modal y no podía interactuar con los
+  inputs cortados. Ahora se renderiza inline dentro del form
+  (modo `inline` nuevo en `FiltersPanel`), igual que ClickUp en
+  el sidebar de configuración del widget. Se amplía el ancho del
+  diálogo a `max-w-2xl` para que las condiciones encajen sin
+  truncarse.
 
 = 0.23.0 =
 * Nuevo tipo de campo: **Calculado** (`computed`). Deriva su valor

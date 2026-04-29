@@ -20,26 +20,84 @@ interface FiltersPanelProps {
     fields: FieldEntity[];
     tree: FilterTree;
     onChange: (next: FilterTree) => void;
+    /**
+     * Si `true`, renderiza el árbol de filtros incrustado en el flujo
+     * normal (sin botón trigger ni popover). Útil dentro de diálogos
+     * angostos como `WidgetFormDialog`, donde el popover de 720px se
+     * desbordaba del viewport (ClickUp lo resuelve igual: panel
+     * inline en el form lateral del widget).
+     */
+    inline?: boolean;
 }
 
 /**
  * Panel inline ClickUp-style.
  *
- * Renderizado vía Radix `Popover` para que el motor de posicionamiento
- * (collision detection + auto-flip) garantice que el panel queda
- * dentro del viewport, sin meterse bajo la sidebar o cortarse a la
- * derecha. Antes lo hacíamos con `position: absolute; right: 0` sobre
- * el wrapper del botón — eso ignora completamente el viewport y deja
- * el panel cortado en layouts angostos.
+ * Por defecto se renderiza vía Radix `Popover` (collision detection
+ * + auto-flip) para que el panel quede dentro del viewport en la
+ * vista de Records. Cuando se usa dentro de un diálogo angosto (ver
+ * `inline`), se incrusta directo en el form sin trigger.
  */
 export function FiltersPanel({
     listId,
     fields,
     tree,
     onChange,
+    inline = false,
 }: FiltersPanelProps): JSX.Element {
     const [open, setOpen] = useState(false);
     const count = isEmptyTree(tree) ? 0 : countConditions(tree);
+
+    if (inline) {
+        return (
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-text-foreground">
+                <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3">
+                    <h3 className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-sm imcrm-font-semibold imcrm-text-foreground">
+                        <Filter className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" />
+                        {__('Filtros')}
+                        <span
+                            className="imcrm-cursor-help imcrm-text-muted-foreground"
+                            title={__(
+                                'Combina filtros con Y / O. Usa "Agregar filtro anidado" para grupos.',
+                            )}
+                        >
+                            <Info className="imcrm-h-3 imcrm-w-3" />
+                        </span>
+                    </h3>
+                    {listId !== undefined && (
+                        <SavedFiltersDropdown
+                            listId={listId}
+                            currentTree={tree}
+                            onApply={onChange}
+                        />
+                    )}
+                </div>
+
+                <FilterGroupView
+                    root={tree}
+                    path={[]}
+                    fields={fields}
+                    listId={listId}
+                    onRootChange={onChange}
+                />
+
+                {!isEmptyTree(tree) && (
+                    <div className="imcrm-flex imcrm-justify-end imcrm-border-t imcrm-border-border imcrm-pt-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                                onChange({ type: 'group', logic: 'and', children: [] })
+                            }
+                            className="imcrm-text-destructive hover:imcrm-bg-destructive/10"
+                        >
+                            {__('Borrar todo')}
+                        </Button>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>

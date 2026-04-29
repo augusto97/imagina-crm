@@ -177,7 +177,7 @@ export function WidgetFormDialog({
                 />
                 <Dialog.Content
                     className={cn(
-                        'imcrm-fixed imcrm-left-1/2 imcrm-top-1/2 imcrm-z-50 imcrm-w-full imcrm-max-w-lg',
+                        'imcrm-fixed imcrm-left-1/2 imcrm-top-1/2 imcrm-z-50 imcrm-w-full imcrm-max-w-2xl',
                         'imcrm--translate-x-1/2 imcrm--translate-y-1/2',
                         'imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6 imcrm-shadow-imcrm-lg',
                         'imcrm-max-h-[90vh] imcrm-overflow-y-auto',
@@ -247,15 +247,13 @@ export function WidgetFormDialog({
                         </div>
 
                         {listId > 0 && fields.data && fields.data.length > 0 && (
-                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
-                                <Label className="imcrm-text-xs imcrm-text-muted-foreground">
-                                    {__('Filtros')}
-                                </Label>
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
                                 <FiltersPanel
                                     listId={listId}
                                     fields={fields.data}
                                     tree={filterTree}
                                     onChange={setFilterTree}
+                                    inline
                                 />
                                 <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
                                     {__('Restringen los datos del widget. Soportan AND/OR y grupos anidados; para fechas hay rangos rápidos como "este mes".')}
