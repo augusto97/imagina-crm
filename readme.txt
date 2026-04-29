@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.22.2
+Stable tag: 0.22.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.22.3 =
+* Fix semántico de "Días después de…" matchea ClickUp:
+  · Label cambió a "[N] día(s) tras la finalización" (ClickUp
+    real). Antes decía "Cada [N] días" — ambiguo.
+  · Backend: cuando esta frecuencia dispara, la fecha siguiente
+    se calcula desde `now()` (momento del trigger), no desde la
+    fecha actual del campo. Es la diferencia entre "se mueve 5
+    días desde HOY que se completó" vs "se mueve 5 días desde
+    la fecha original" — ClickUp hace lo primero.
+  · Al elegir esta frecuencia, el trigger se fuerza a "Cuando
+    cambia el estado" — la "finalización" implica un evento de
+    estado, no un cron. El usuario configura qué estado cuenta
+    como "finalizado" en los selects de abajo.
 
 = 0.22.2 =
 * Fix UX: el input numérico al lado de "Frecuencia" en el panel

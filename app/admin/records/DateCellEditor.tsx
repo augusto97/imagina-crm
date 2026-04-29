@@ -457,13 +457,23 @@ function RecurrencePanel({
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-bg-canvas imcrm-p-3">
             {/* Frecuencia. El input de "interval" solo aparece para
-                `days_after` (donde N es obligatorio: "cada 5 días").
-                Para diaria/semanal/mensual/anual asumimos N=1 — coincide
-                con la UX simple de ClickUp ("Mensual" significa "cada
-                mes" sin pedir un número). */}
+                `days_after` (donde N es obligatorio). Para diaria/
+                semanal/mensual/anual asumimos N=1 — coincide con la
+                UX simple de ClickUp ("Mensual" significa "cada mes"
+                sin pedir un número). */}
             <Select
                 value={frequency}
-                onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
+                onChange={(e) => {
+                    const next = e.target.value as RecurrenceFrequency;
+                    setFrequency(next);
+                    // `days_after` solo tiene sentido con trigger
+                    // `status_change` ("tras la finalización"). Al
+                    // elegirlo forzamos el trigger; al salir, lo
+                    // dejamos como estaba.
+                    if (next === 'days_after') {
+                        setTriggerType('status_change');
+                    }
+                }}
                 aria-label={__('Frecuencia')}
                 className="imcrm-h-8"
             >
@@ -476,19 +486,18 @@ function RecurrencePanel({
 
             {frequency === 'days_after' && (
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                    <span className="imcrm-text-xs imcrm-text-muted-foreground">
-                        {__('Cada')}
-                    </span>
                     <Input
                         type="number"
                         min={1}
                         value={interval}
                         onChange={(e) => setIntervalN(Math.max(1, Number(e.target.value) || 1))}
-                        aria-label={__('Cada N días')}
+                        aria-label={__('Días tras la finalización')}
                         className="imcrm-h-8 imcrm-w-20"
                     />
                     <span className="imcrm-text-xs imcrm-text-muted-foreground">
-                        {__('días')}
+                        {interval === 1
+                            ? __('día tras la finalización')
+                            : __('días tras la finalización')}
                     </span>
                 </div>
             )}
@@ -781,14 +790,16 @@ function advance(d: Date, rec: Recurrence): Date | null {
     const next = new Date(d);
     switch (rec.frequency) {
         case 'daily':
-        case 'days_after':
             next.setDate(next.getDate() + rec.interval_n);
             return next;
+        case 'days_after':
+            // No previewable: el seed real depende de cuándo dispara
+            // el trigger ("now() + N días"), no de la fecha actual.
+            return null;
         case 'weekly':
             next.setDate(next.getDate() + rec.interval_n * 7);
             return next;
         case 'monthly':
-            // Aproximación same_day. Para otros patrones no resaltamos.
             if (rec.monthly_pattern && rec.monthly_pattern !== 'same_day') return null;
             next.setMonth(next.getMonth() + rec.interval_n);
             return next;

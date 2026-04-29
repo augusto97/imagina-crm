@@ -169,7 +169,19 @@ final class RecurrenceService
             return;
         }
 
-        $nextDate = DateRoller::nextOccurrence($currentValue, $rec);
+        // Para `days_after` ("N días tras la finalización") el seed es
+        // el momento del trigger (now), no la fecha actual del campo.
+        // Para datetime preservamos la hora real; para date solo el
+        // YYYY-MM-DD. Las demás frecuencias usan `currentValue` como
+        // siempre.
+        $seed = $currentValue;
+        if ($rec->frequency === RecurrenceEntity::FREQ_DAYS_AFTER) {
+            $now    = current_time('mysql', true);
+            $hasTime = str_contains($currentValue, ' ') || str_contains($currentValue, 'T');
+            $seed   = $hasTime ? $now : substr($now, 0, 10);
+        }
+
+        $nextDate = DateRoller::nextOccurrence($seed, $rec);
 
         // Si pasó repeat_until, no disparar más.
         if ($rec->repeatUntil !== null && $nextDate > $rec->repeatUntil) {
