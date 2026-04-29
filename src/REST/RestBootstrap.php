@@ -27,6 +27,7 @@ final class RestBootstrap
         CommentsController::class,
         ActivityController::class,
         DashboardsController::class,
+        RecurrencesController::class,
     ];
 
     public function __construct(private readonly Container $container)

@@ -217,6 +217,35 @@ final class Plugin
             );
         });
 
+        // Recurrencias ClickUp-style sobre campos date/datetime.
+        // Schema versión 4 trae `wp_imcrm_recurrences`. El runner se
+        // engancha en `init` (más abajo en register()) para escuchar
+        // record_updated y el tick horario de Action Scheduler.
+        $this->container->bind(\ImaginaCRM\Recurrences\RecurrenceRepository::class, static function (Container $c): \ImaginaCRM\Recurrences\RecurrenceRepository {
+            return new \ImaginaCRM\Recurrences\RecurrenceRepository($c->get(Database::class));
+        });
+        $this->container->bind(\ImaginaCRM\Recurrences\RecurrenceService::class, static function (Container $c): \ImaginaCRM\Recurrences\RecurrenceService {
+            return new \ImaginaCRM\Recurrences\RecurrenceService(
+                $c->get(\ImaginaCRM\Recurrences\RecurrenceRepository::class),
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Records\RecordService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\Recurrences\RecurrenceRunner::class, static function (Container $c): \ImaginaCRM\Recurrences\RecurrenceRunner {
+            return new \ImaginaCRM\Recurrences\RecurrenceRunner(
+                $c->get(\ImaginaCRM\Recurrences\RecurrenceService::class),
+                $c->get(\ImaginaCRM\Recurrences\RecurrenceRepository::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\RecurrencesController::class, static function (Container $c): \ImaginaCRM\REST\RecurrencesController {
+            return new \ImaginaCRM\REST\RecurrencesController(
+                $c->get(\ImaginaCRM\Recurrences\RecurrenceService::class),
+                $c->get(\ImaginaCRM\Recurrences\RecurrenceRepository::class),
+                $c->get(\ImaginaCRM\Lists\ListService::class),
+            );
+        });
+
         // Licensing + Updater.
         $this->container->bind(LicenseHttpClient::class, static function (): LicenseHttpClient {
             return new LicenseHttpClient();
@@ -437,6 +466,16 @@ final class Plugin
                 10,
                 0,
             );
+        }
+
+        // Recurrencias por record. El runner se engancha a:
+        //  - `imagina_crm/record_updated`: detecta transiciones de
+        //    estado para los triggers `status_change`.
+        //  - `ScheduledRunner::HOOK_TICK`: en cada tick horario,
+        //    barre las recurrencias `schedule` cuya fecha ya pasó.
+        $recurrenceRunner = $this->container->get(\ImaginaCRM\Recurrences\RecurrenceRunner::class);
+        if ($recurrenceRunner instanceof \ImaginaCRM\Recurrences\RecurrenceRunner) {
+            $recurrenceRunner->register();
         }
 
         // Activity log: el logger se suscribe a los eventos de dominio

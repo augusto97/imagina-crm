@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
 import { extractFieldOptions } from './fieldOptions';
+import { RecurrenceButton } from './RecurrenceButton';
 import { renderCellValue } from './renderCellValue';
 
 interface EditableCellProps {
@@ -84,20 +85,30 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
     };
 
     if (!editing) {
+        const isDateField = field.type === 'date' || field.type === 'datetime';
         return (
-            <button
-                type="button"
-                onDoubleClick={startEdit}
-                disabled={!canEdit}
-                className={cn(
-                    'imcrm-w-full imcrm-text-left imcrm-min-h-[1.5rem]',
-                    canEdit && 'hover:imcrm-bg-accent/40 imcrm-rounded imcrm--mx-1 imcrm-px-1',
-                    !canEdit && 'imcrm-cursor-default',
+            <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                <button
+                    type="button"
+                    onDoubleClick={startEdit}
+                    disabled={!canEdit}
+                    className={cn(
+                        'imcrm-flex-1 imcrm-text-left imcrm-min-h-[1.5rem]',
+                        canEdit && 'hover:imcrm-bg-accent/40 imcrm-rounded imcrm--mx-1 imcrm-px-1',
+                        !canEdit && 'imcrm-cursor-default',
+                    )}
+                    title={canEdit ? __('Doble click para editar') : __('No editable inline')}
+                >
+                    {renderCellValue(field, value)}
+                </button>
+                {isDateField && value !== null && value !== undefined && value !== '' && (
+                    <RecurrenceButton
+                        listId={listId}
+                        recordId={recordId}
+                        field={field}
+                    />
                 )}
-                title={canEdit ? __('Doble click para editar') : __('No editable inline')}
-            >
-                {renderCellValue(field, value)}
-            </button>
+            </div>
         );
     }
 

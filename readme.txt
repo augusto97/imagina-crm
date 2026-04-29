@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.20.0
+Stable tag: 0.21.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,43 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.21.0 =
+* Nueva feature: recurrencias por celda (ClickUp-style) sobre
+  campos `date`/`datetime`. Click en el icono ↻ que aparece junto
+  a una celda de fecha abre un popover con todo el config:
+  · Frecuencia: diariamente / semanal / mensual / anual / cada N
+    días.
+  · Patrón mensual: mismo día / mismo día de la semana (ej. "2do
+    jueves") / primer día / último día. Edge cases manejados:
+    31 enero → 28/29 feb según bisiesto, "5to jueves" cae al
+    último disponible cuando no existe.
+  · Trigger: "según un cronograma" (Action Scheduler tick horario
+    detecta que la fecha pasó) o "cuando cambia el estado a un
+    valor" (hook de record_updated dispara al detectar la
+    transición).
+  · Acción: actualizar este registro avanzando la fecha, o clonar
+    creando un registro nuevo con la nueva fecha. Opcional:
+    "Actualizar estado a:" — resetea otro campo de estado al
+    valor target al rodar (útil para "marca como Pendiente cuando
+    el ciclo se reinicia").
+  · "Repetir hasta": fecha tope opcional. Vacío = indefinido.
+* Schema: bumpeado a v4 con nueva tabla `wp_imcrm_recurrences`.
+  El upgrade silencioso del runtime aplica `dbDelta`
+  automáticamente al cargar el plugin.
+* Backend: `DateRoller` puro para cálculo de la siguiente fecha
+  (12 unit tests cubren casos como Feb29 → Feb28 en años
+  no-bisiestos, last_day respetando 28/30/31, weekday-of-month
+  con N inexistente). `RecurrenceRunner` se engancha a
+  `imagina_crm/record_updated` (status_change) y
+  `ScheduledRunner::HOOK_TICK` (schedule).
+* REST: `GET / POST / DELETE
+  /imagina-crm/v1/lists/{list}/records/{id}/recurrences`. Upsert
+  por `(record_id, date_field_id)` — UNIQUE constraint a nivel BD.
+* UI: icono ↻ aparece junto a cada celda con valor de fecha. En
+  verde si tiene recurrencia activa; en gris suave si no. El
+  popover usa Radix con collision-detection para no cortarse
+  contra los bordes.
 
 = 0.20.0 =
 * Fix visual del if/else: el "tercer hilo" central que iba paralelo
