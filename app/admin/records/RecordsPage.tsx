@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, Search, Settings, Zap } from 'lucide-react';
+import { ArrowLeft, FileUp, Loader2, Plus, Search, Settings, Zap } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,9 @@ import type { RecordEntity } from '@/types/record';
 import type { SavedViewEntity } from '@/types/view';
 
 import { BulkActionsToolbar } from './BulkActionsToolbar';
+import { ExportButton } from './ExportButton';
 import { FiltersPanel } from './FiltersPanel';
+import { ImportDialog } from './ImportDialog';
 import { Pagination } from './Pagination';
 import { RecordCreateDialog } from './RecordCreateDialog';
 import { RecordDetailDrawer } from './RecordDetailDrawer';
@@ -63,6 +65,7 @@ export function RecordsPage(): JSX.Element {
     }, [state, activeViewId, views.data]);
     const records = useRecords(list.data?.id, query);
     const [createOpen, setCreateOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [saveViewOpen, setSaveViewOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [drawerRecordId, setDrawerRecordId] = useState<number | null>(null);
@@ -221,6 +224,20 @@ export function RecordsPage(): JSX.Element {
                         </Link>
                     </Button>
                     <Button
+                        variant="outline"
+                        onClick={() => setImportOpen(true)}
+                        disabled={!fields.data || fields.data.length === 0}
+                        className="imcrm-gap-2"
+                    >
+                        <FileUp className="imcrm-h-4 imcrm-w-4" />
+                        {__('Importar')}
+                    </Button>
+                    <ExportButton
+                        listSlug={list.data.slug}
+                        filterTree={state.filterTree}
+                        disabled={!fields.data || fields.data.length === 0}
+                    />
+                    <Button
                         onClick={() => setCreateOpen(true)}
                         disabled={!fields.data || fields.data.length === 0}
                         className="imcrm-gap-2"
@@ -376,6 +393,13 @@ export function RecordsPage(): JSX.Element {
                         fields={fields.data}
                         open={createOpen}
                         onOpenChange={setCreateOpen}
+                    />
+
+                    <ImportDialog
+                        listId={list.data.id}
+                        listSlug={list.data.slug}
+                        open={importOpen}
+                        onOpenChange={setImportOpen}
                     />
 
                     <RecordDetailDrawer

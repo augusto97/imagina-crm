@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.25.0
+Stable tag: 0.26.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,46 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.0 =
+* **Importador CSV** para registros. Botón "Importar" en la toolbar
+  de la lista — acepta exports de ClickUp, Airtable, Excel
+  ("Guardar como CSV"), Google Sheets. Flujo en tres pasos:
+   1. Upload — subes el archivo (FileReader, in-memory, no upload
+      binario).
+   2. Map — el backend devuelve cabeceras + muestra de 20 filas +
+      sugerencia de mapping `columna_csv → field_slug` basada en
+      match difuso (`similar_text` ≥ 60%) contra label/slug de cada
+      campo. El usuario ajusta o ignora columnas con un select.
+   3. Run — bulk insert vía `RecordService::create` (mismas
+      validaciones que la creación manual). Resumen final con
+      `imported / skipped / errors[]` y detalle por fila.
+  Detección automática de delimiter (`,` / `;` / tab),
+  encoding (UTF-8 con fallback Windows-1252 para Excel ES) y BOM.
+  Coerciones por tipo: multi_select acepta "tag1, tag2" o
+  "tag1; tag2"; checkbox acepta sí/no/1/0/x; números limpian
+  separadores de miles ES (1.234,56) y US (1,234.56); fechas
+  aceptan ISO, DD/MM/YYYY (Excel ES) y MM/DD/YYYY (ClickUp US)
+  con heurística por valor del primer grupo.
+  Hard cap de 5 000 filas por run (truncated flag en la response
+  para que el usuario sepa que debe re-ejecutar con el resto).
+  Campos `relation` y `computed` se excluyen del importer.
+* **Exportador CSV**. Botón "Exportar" en la toolbar — descarga la
+  vista actual respetando los filtros activos (`filter_tree`)
+  como un `<list-slug>-YYYYMMDD-HHMMSS.csv`. BOM UTF-8 al inicio
+  para que Excel reconozca encoding al abrir directamente.
+  multi_select se serializa como CSV separado por coma; checkbox
+  como 0/1; el resto como string. Hard cap de 50 000 filas; para
+  listas más grandes el usuario filtra antes.
+* Endpoints REST nuevos:
+   - `POST /imagina-crm/v1/lists/{list}/import/preview`
+   - `POST /imagina-crm/v1/lists/{list}/import/run`
+   - `GET  /imagina-crm/v1/lists/{list}/export?filter_tree=…&fields=…`
+* CsvParser shared entre import + export — robusto contra celdas
+  multi-línea quoted, comillas escapadas (`""`), separadores
+  detectados automáticamente. 14 unit tests cubren BOM, encoding
+  Latin-1 → UTF-8, multi-línea quoted, escape de comillas dobles,
+  detección automática de delimiter, round-trip build → parse.
 
 = 0.25.0 =
 * Nuevo: **Período del widget** — atajo dedicado en el editor de

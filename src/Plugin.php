@@ -371,6 +371,32 @@ final class Plugin
                 $c->get(AutomationEngine::class),
             );
         });
+
+        // Import / export CSV (Fase 6).
+        $this->container->bind(\ImaginaCRM\Imports\ImportService::class, static function (Container $c): \ImaginaCRM\Imports\ImportService {
+            return new \ImaginaCRM\Imports\ImportService(
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Records\RecordService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\Exports\CsvExporter::class, static function (Container $c): \ImaginaCRM\Exports\CsvExporter {
+            return new \ImaginaCRM\Exports\CsvExporter(
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Records\RecordService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\ImportController::class, static function (Container $c): \ImaginaCRM\REST\ImportController {
+            return new \ImaginaCRM\REST\ImportController(
+                $c->get(\ImaginaCRM\Imports\ImportService::class),
+                $c->get(\ImaginaCRM\Lists\ListService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\ExportController::class, static function (Container $c): \ImaginaCRM\REST\ExportController {
+            return new \ImaginaCRM\REST\ExportController(
+                $c->get(\ImaginaCRM\Exports\CsvExporter::class),
+                $c->get(\ImaginaCRM\Lists\ListService::class),
+            );
+        });
     }
 
     private function register(): void
