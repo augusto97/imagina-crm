@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.18.2
+Stable tag: 0.19.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.19.0 =
+* Visual Builder de automatizaciones: slots de inserción "+" entre
+  cada par de nodos y al final de cada rama (root, Sí, No). Click
+  en un slot abre el type-picker e inserta la acción exactamente
+  ahí — antes solo se podía agregar al final del flujo lineal,
+  ignorando ramas. Ahora el usuario puede:
+  · Insertar una acción AL INICIO del flujo (slot 0).
+  · Insertar entre dos acciones existentes.
+  · Insertar dentro de la rama Sí del condicional, en cualquier
+    posición.
+  · Insertar dentro de la rama No del condicional, en cualquier
+    posición.
+  · Anidar más condicionales dentro de las ramas.
+* Removidos los handles draggable visibles en los nodos de
+  acción/trigger — antes mostraban un puntito de "arrastra para
+  conectar" que parecía interactivo pero no hacía nada (el grafo
+  no soporta conexiones libres porque la estructura es un árbol
+  de actions, no un DAG). Ahora son invisibles, solo sirven
+  internamente como anchor de los edges. El cursor de drag ya
+  no engaña al usuario.
+* El FAB "Añadir acción" se renombró a "Añadir al final" para
+  diferenciarlo de los slots inline. Sigue funcionando igual:
+  appendea al final de la chain raíz.
+* Texto explicativo bajo el canvas actualizado: "Click en un slot
+  '+' entre nodos para insertar una acción ahí. Las ramas Sí/No
+  del condicional tienen sus propios slots."
 
 = 0.18.2 =
 * Fix: el panel de filtros se cortaba contra la sidebar en algunos

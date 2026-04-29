@@ -3,6 +3,7 @@ import type { Edge, Node } from '@xyflow/react';
 import {
     elseOf,
     pathKey,
+    slotKey,
     thenOf,
     type ActionPath,
 } from '@/admin/automations/actionPath';
@@ -17,10 +18,18 @@ import type { ActionMeta, ActionSpec } from '@/types/automation';
  * Diseñado para acompañar `AutomationVisualBuilder.tsx`. Los nodos
  * resultantes usan `path` (ActionPath) como identidad — ver
  * `actionPath.ts`.
+ *
+ * Slots de inserción: entre cada par de acciones consecutivas y al
+ * final de cada chain (root, then-branch, else-branch) emitimos un
+ * nodo `slot` con un path que indica DÓNDE insertar al hacer click.
+ * Esto permite armar el flujo libre (no forzado a apilar al final
+ * del array de root como antes).
  */
 
 export const NODE_WIDTH = 280;
-export const NODE_GAP_Y = 140;
+export const NODE_GAP_Y = 120;
+export const SLOT_HEIGHT = 24;
+export const SLOT_AFTER = 8; // gap entre el slot y la siguiente acción
 export const BRANCH_GAP_X = 80;
 
 export interface ActionNodeData extends Record<string, unknown> {
@@ -31,6 +40,11 @@ export interface ActionNodeData extends Record<string, unknown> {
     selected: boolean;
     branchKind: 'normal' | 'if_else';
     depth: number;
+}
+
+export interface SlotNodeData extends Record<string, unknown> {
+    /** Path al slot (donde se insertará la nueva acción al click). */
+    insertPath: ActionPath;
 }
 
 /** Ancho (px) que ocupa este subtree en el canvas. */
@@ -79,7 +93,40 @@ export function layoutChain(
     let firstNodeId: string | null = null;
     let curY = startY;
 
+    /**
+     * Emite un slot de inserción. `slotIdx` es la posición dentro de
+     * esta chain (0 = antes del primer action, actions.length = al
+     * final). Conecta el slot al nodo previo con una edge "fantasma"
+     * y deja el slot id como prevId para que la próxima acción
+     * conecte desde el slot.
+     */
+    const emitSlot = (slotIdx: number): void => {
+        const slotPath: ActionPath = [...parentPath, slotIdx];
+        const id = slotKey(slotPath);
+        nodes.push({
+            id,
+            type: 'slot',
+            position: { x: centerX - 16, y: curY },
+            draggable: false,
+            selectable: false,
+            data: { insertPath: slotPath } satisfies SlotNodeData,
+        });
+        firstNodeId ??= id;
+        if (prevId !== null) {
+            edges.push({
+                id: `e-${prevId}-${id}`,
+                source: prevId,
+                target: id,
+                style: { strokeDasharray: '4 4', opacity: 0.6 },
+            });
+        }
+        prevId = id;
+        curY += SLOT_HEIGHT + SLOT_AFTER;
+    };
+
     for (let i = 0; i < actions.length; i++) {
+        emitSlot(i);
+
         const action = actions[i]!;
         const path: ActionPath = [...parentPath, i];
         const id = `action-${pathKey(path)}`;
@@ -208,6 +255,11 @@ export function layoutChain(
             curY += NODE_GAP_Y;
         }
     }
+
+    // Slot final (al término de la chain — para appender). También
+    // cubre el caso de chain vacía: si actions.length === 0, este
+    // slot es el único nodo emitido y firstNodeId apunta a él.
+    emitSlot(actions.length);
 
     return { nodes, edges, firstNodeId, endY: curY };
 }

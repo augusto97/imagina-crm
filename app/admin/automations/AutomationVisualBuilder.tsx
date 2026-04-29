@@ -27,6 +27,7 @@ import '@xyflow/react/dist/style.css';
 
 import {
     getActionAt,
+    insertActionAt,
     pathKey,
     removeActionAt,
     setActionAt,
@@ -41,6 +42,7 @@ import {
     NODE_GAP_Y,
     NODE_WIDTH,
     type ActionNodeData,
+    type SlotNodeData,
 } from '@/admin/automations/visualBuilderLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -117,6 +119,13 @@ function Inner({
     const fields = useFields(listId);
     const [selected, setSelected] = useState<SelectedNode>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
+    /**
+     * Path donde se insertará la nueva acción al elegir un tipo en el
+     * picker. Cuando es null, se appendea al final del root (legacy
+     * "Añadir acción" del FAB). Cuando viene de un slot click, lleva
+     * el path EXACTO del slot.
+     */
+    const [insertPath, setInsertPath] = useState<ActionPath | null>(null);
 
     const triggerMeta = triggers.find((t) => t.slug === triggerType);
 
@@ -178,14 +187,30 @@ function Inner({
             } else if (node.type === 'action') {
                 const path = (node.data as ActionNodeData).path;
                 setSelected({ kind: 'action', path });
+            } else if (node.type === 'slot') {
+                // Click en un slot: abre el picker apuntando a ese slot.
+                const slotPath = (node.data as SlotNodeData).insertPath;
+                setInsertPath(slotPath);
+                setPickerOpen(true);
             }
         },
         [],
     );
 
     const handleAdd = (typeSlug: string): void => {
-        onActionsChange([...actions, { type: typeSlug, config: {} }]);
-        setSelected({ kind: 'action', path: [actions.length] });
+        const newAction: ActionSpec = { type: typeSlug, config: {} };
+        if (insertPath !== null) {
+            // Insert quirúrgico en el slot elegido. El path del nuevo
+            // nodo es justo `insertPath` (que es la posición del slot
+            // = índice de inserción en su chain).
+            onActionsChange(insertActionAt(actions, insertPath, newAction));
+            setSelected({ kind: 'action', path: insertPath });
+        } else {
+            // Fallback (FAB "Añadir acción"): append al final del root.
+            onActionsChange([...actions, newAction]);
+            setSelected({ kind: 'action', path: [actions.length] });
+        }
+        setInsertPath(null);
         setPickerOpen(false);
     };
 
@@ -231,11 +256,16 @@ function Inner({
                             <div className="imcrm-absolute imcrm-bottom-12 imcrm-right-0 imcrm-min-w-[260px] imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-lg">
                                 <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-border-b imcrm-border-border imcrm-px-3.5 imcrm-py-2.5">
                                     <span className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
-                                        {__('Tipo de acción')}
+                                        {insertPath !== null
+                                            ? __('Insertar acción aquí')
+                                            : __('Tipo de acción')}
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => setPickerOpen(false)}
+                                        onClick={() => {
+                                            setPickerOpen(false);
+                                            setInsertPath(null);
+                                        }}
                                         className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-foreground/[0.04] hover:imcrm-text-foreground"
                                         aria-label={__('Cerrar')}
                                     >
@@ -262,18 +292,21 @@ function Inner({
                         )}
                         <Button
                             type="button"
-                            onClick={() => setPickerOpen((p) => !p)}
+                            onClick={() => {
+                                setInsertPath(null);
+                                setPickerOpen((p) => !p);
+                            }}
                             disabled={actionsCatalog.length === 0}
                             className="imcrm-gap-2 imcrm-shadow-imcrm-md"
                         >
                             <Plus className="imcrm-h-4 imcrm-w-4" />
-                            {__('Añadir acción')}
+                            {__('Añadir al final')}
                         </Button>
                     </div>
                 </div>
 
                 <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                    {__('Click en un nodo para configurarlo en el panel derecho. Si / sino abre dos ramas con sus propias acciones.')}
+                    {__('Click en un nodo para configurarlo. Click en un slot "+" entre nodos para insertar una acción ahí. Las ramas Sí/No del condicional tienen sus propios slots.')}
                 </p>
             </div>
 
@@ -489,7 +522,43 @@ function ActionEditorPanel({
 const NODE_TYPES = {
     trigger: TriggerNode,
     action: ActionNode,
+    slot: SlotNode,
 };
+
+/**
+ * Slot de inserción entre dos nodos (o al final de una chain). Click
+ * abre el picker con `insertPath = node.data.insertPath`. Visualmente:
+ * un círculo dashed pequeño con "+", que en hover se rellena en
+ * primary — afordance clara de "puedes agregar algo aquí".
+ */
+function SlotNode({ data }: NodeProps): JSX.Element {
+    void data; // path se lee desde el node.data en handleNodeClick.
+    return (
+        <div
+            className={cn(
+                'imcrm-flex imcrm-h-6 imcrm-w-8 imcrm-cursor-pointer imcrm-items-center imcrm-justify-center imcrm-rounded-full',
+                'imcrm-border imcrm-border-dashed imcrm-border-muted-foreground/40 imcrm-bg-card/80 imcrm-text-muted-foreground',
+                'hover:imcrm-border-primary hover:imcrm-bg-primary hover:imcrm-text-primary-foreground',
+                'imcrm-transition-colors imcrm-duration-150',
+            )}
+            title={__('Insertar acción aquí')}
+        >
+            <Handle
+                type="target"
+                position={Position.Top}
+                className="!imcrm-h-1 !imcrm-w-1 !imcrm-bg-transparent !imcrm-border-0"
+                isConnectable={false}
+            />
+            <Plus className="imcrm-h-3 imcrm-w-3" />
+            <Handle
+                type="source"
+                position={Position.Bottom}
+                className="!imcrm-h-1 !imcrm-w-1 !imcrm-bg-transparent !imcrm-border-0"
+                isConnectable={false}
+            />
+        </div>
+    );
+}
 
 
 function TriggerNode({ data }: NodeProps): JSX.Element {
@@ -520,7 +589,12 @@ function TriggerNode({ data }: NodeProps): JSX.Element {
                     {d.event}
                 </code>
             )}
-            <Handle type="source" position={Position.Bottom} className="!imcrm-bg-primary" />
+            <Handle
+                type="source"
+                position={Position.Bottom}
+                isConnectable={false}
+                className="!imcrm-h-1 !imcrm-w-1 !imcrm-bg-transparent !imcrm-border-0"
+            />
         </div>
     );
 }
@@ -560,7 +634,8 @@ function ActionNode({ data }: NodeProps): JSX.Element {
             <Handle
                 type="target"
                 position={Position.Top}
-                className="!imcrm-bg-muted-foreground !imcrm-w-2.5 !imcrm-h-2.5"
+                isConnectable={false}
+                className="!imcrm-h-1 !imcrm-w-1 !imcrm-bg-transparent !imcrm-border-0"
             />
 
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
@@ -602,22 +677,26 @@ function ActionNode({ data }: NodeProps): JSX.Element {
                         type="source"
                         position={Position.Bottom}
                         id="then"
+                        isConnectable={false}
                         style={{
                             left: '25%',
-                            background: 'hsl(var(--imcrm-success))',
-                            width: 10,
-                            height: 10,
+                            background: 'transparent',
+                            width: 4,
+                            height: 4,
+                            border: 0,
                         }}
                     />
                     <Handle
                         type="source"
                         position={Position.Bottom}
                         id="else"
+                        isConnectable={false}
                         style={{
                             left: '75%',
-                            background: 'hsl(var(--imcrm-warning))',
-                            width: 10,
-                            height: 10,
+                            background: 'transparent',
+                            width: 4,
+                            height: 4,
+                            border: 0,
                         }}
                     />
                 </>
@@ -625,7 +704,8 @@ function ActionNode({ data }: NodeProps): JSX.Element {
                 <Handle
                     type="source"
                     position={Position.Bottom}
-                    className="!imcrm-bg-muted-foreground !imcrm-w-2.5 !imcrm-h-2.5"
+                    isConnectable={false}
+                    className="!imcrm-h-1 !imcrm-w-1 !imcrm-bg-transparent !imcrm-border-0"
                 />
             )}
         </div>

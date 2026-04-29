@@ -105,3 +105,61 @@ export function removeActionAt(
     };
     return next;
 }
+
+/**
+ * Inserta `value` en el slot apuntado por `path`. El path identifica
+ * un "slot" entre acciones de una chain (igual shape que `ActionPath`):
+ *   - `[i]`              → slot i del root (antes del action i; si
+ *                            i === actions.length, al final).
+ *   - `[i, 'then', j]`   → slot j del then-branch del action i.
+ *   - `[i, 'else', j]`   → idem, else-branch.
+ *
+ * El visual builder emite estos slots como nodos `slot-*` (uno antes
+ * de cada acción + uno al final de cada chain). Click en el slot abre
+ * el type-picker; al elegir un tipo, llamamos a `insertActionAt` con
+ * el path del slot.
+ */
+export function insertActionAt(
+    actions: ActionSpec[],
+    path: ActionPath,
+    value: ActionSpec,
+): ActionSpec[] {
+    if (path.length === 0) {
+        // Path vacío no es un slot válido — fallback: prepend.
+        return [value, ...actions];
+    }
+    const [head, ...rest] = path;
+    if (typeof head !== 'number') return actions;
+
+    if (rest.length === 0) {
+        // Insert at index `head` en la chain actual. Si head >=
+        // actions.length, splice añade al final igualmente.
+        const next = [...actions];
+        next.splice(head, 0, value);
+        return next;
+    }
+
+    const [branch, ...rest2] = rest;
+    if (branch !== 'then' && branch !== 'else') return actions;
+    const here = actions[head];
+    if (!here) return actions;
+    const branchKey = branch === 'then' ? 'then_actions' : 'else_actions';
+    const branchActions = branch === 'then' ? thenOf(here) : elseOf(here);
+    const next = [...actions];
+    next[head] = {
+        ...here,
+        config: {
+            ...here.config,
+            [branchKey]: insertActionAt(branchActions, rest2, value),
+        },
+    };
+    return next;
+}
+
+/**
+ * Llave string estable para slots. Distinta de `pathKey` para evitar
+ * colisiones con un nodo de acción que tenga ese mismo path.
+ */
+export function slotKey(path: ActionPath): string {
+    return path.length === 0 ? 'slot-root' : 'slot-' + path.join('.');
+}
