@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
 import { extractFieldOptions } from './fieldOptions';
-import { RecurrenceButton } from './RecurrenceButton';
+import { DateCellEditor } from './DateCellEditor';
 import { renderCellValue } from './renderCellValue';
 
 interface EditableCellProps {
@@ -86,29 +86,45 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
 
     if (!editing) {
         const isDateField = field.type === 'date' || field.type === 'datetime';
-        return (
-            <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
-                <button
-                    type="button"
-                    onDoubleClick={startEdit}
-                    disabled={!canEdit}
-                    className={cn(
-                        'imcrm-flex-1 imcrm-text-left imcrm-min-h-[1.5rem]',
-                        canEdit && 'hover:imcrm-bg-accent/40 imcrm-rounded imcrm--mx-1 imcrm-px-1',
-                        !canEdit && 'imcrm-cursor-default',
-                    )}
-                    title={canEdit ? __('Doble click para editar') : __('No editable inline')}
+
+        // Para fechas usamos el `<DateCellEditor>` (calendario visual +
+        // recurrencia ClickUp-style) en lugar del input nativo. Click
+        // simple abre el picker; las mutaciones se confirman vía
+        // `commit(next)` que reusa el optimistic update existente.
+        if (isDateField && canEdit) {
+            return (
+                <DateCellEditor
+                    listId={listId}
+                    recordId={recordId}
+                    field={field}
+                    value={typeof value === 'string' ? value : null}
+                    onCommit={(next) => void commit(next)}
                 >
-                    {renderCellValue(field, value)}
-                </button>
-                {isDateField && value !== null && value !== undefined && value !== '' && (
-                    <RecurrenceButton
-                        listId={listId}
-                        recordId={recordId}
-                        field={field}
-                    />
+                    <button
+                        type="button"
+                        className="imcrm-w-full imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40"
+                        title={__('Editar fecha y recurrencia')}
+                    >
+                        {renderCellValue(field, value)}
+                    </button>
+                </DateCellEditor>
+            );
+        }
+
+        return (
+            <button
+                type="button"
+                onDoubleClick={startEdit}
+                disabled={!canEdit}
+                className={cn(
+                    'imcrm-w-full imcrm-text-left imcrm-min-h-[1.5rem]',
+                    canEdit && 'hover:imcrm-bg-accent/40 imcrm-rounded imcrm--mx-1 imcrm-px-1',
+                    !canEdit && 'imcrm-cursor-default',
                 )}
-            </div>
+                title={canEdit ? __('Doble click para editar') : __('No editable inline')}
+            >
+                {renderCellValue(field, value)}
+            </button>
         );
     }
 

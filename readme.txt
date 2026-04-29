@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.21.1
+Stable tag: 0.22.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.22.0 =
+* DateCellEditor: editor de fecha estilo ClickUp con calendario
+  visual + atajos rápidos + recurrencia integrada en un solo
+  popover. Reemplaza el viejo `<Input type="date">` y el icono ↻
+  separado:
+  · Click en una celda de fecha abre el popover.
+  · Columna izquierda con atajos rápidos: Hoy, Mañana, Este fin
+    de semana, Próxima semana, Próximo fin de semana, 2 semanas,
+    4 semanas + "Limpiar fecha" cuando hay valor.
+  · Calendario completo (react-day-picker v9) a la derecha — el
+    usuario ve el mes, navega con flechas, y elige el día con un
+    click.
+  · Para datetime: input de hora debajo del calendario.
+  · Sección colapsable "Hacer recurrente" debajo: si la celda ya
+    tiene una recurrencia, el toggle se abre solo y muestra un
+    resumen ("Cada mes · al cambiar estado"). Si no, está cerrada
+    por default.
+  · Las próximas 5 ocurrencias de la recurrencia se resaltan en el
+    calendario con un punto verde — el usuario ve gráficamente
+    cuándo va a rodar.
+* Tema custom de react-day-picker en `globals.css` para matchear
+  los design tokens (primary color, foreground, accent), tipografía
+  Inter, y radius consistente con el resto de la app.
+* Removido el `RecurrenceButton` separado de 0.21.0 — todo el flujo
+  vive ahora en el editor unificado.
 
 = 0.21.1 =
 * Fix global de overflow en popovers/dropdowns flotantes: cuando el

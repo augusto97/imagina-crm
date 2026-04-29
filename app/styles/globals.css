@@ -296,3 +296,69 @@
         }
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * react-day-picker — overrides para matchear nuestro tema.
+ * Lo importamos via su CSS por defecto en `DateCellEditor.tsx`
+ * (`react-day-picker/style.css`). Acá ajustamos colores, tipografía
+ * y el highlight de "próximas ocurrencias" del modificador
+ * `recurrence` que pasa el componente.
+ * ─────────────────────────────────────────────────────────────── */
+.imcrm-rdp-imagina {
+    --rdp-accent-color: hsl(var(--imcrm-primary));
+    --rdp-accent-background-color: hsl(var(--imcrm-primary) / 0.1);
+    --rdp-day_button-height: 32px;
+    --rdp-day_button-width: 32px;
+    --rdp-day-height: 36px;
+    --rdp-day-width: 36px;
+    font-family: inherit;
+    font-size: 13px;
+    margin: 0;
+}
+
+.imcrm-rdp-imagina .rdp-caption_label {
+    font-weight: 600;
+    color: hsl(var(--imcrm-foreground));
+}
+
+.imcrm-rdp-imagina .rdp-weekday {
+    color: hsl(var(--imcrm-muted-foreground));
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: lowercase;
+}
+
+.imcrm-rdp-imagina .rdp-day_button {
+    border-radius: 6px;
+}
+
+.imcrm-rdp-imagina .rdp-day_button:hover {
+    background: hsl(var(--imcrm-accent));
+}
+
+/* Día seleccionado: fondo primary sólido. */
+.imcrm-rdp-imagina .rdp-selected .rdp-day_button {
+    background: hsl(var(--imcrm-primary));
+    color: hsl(var(--imcrm-primary-foreground));
+}
+
+/* Próximas ocurrencias de una recurrencia: punto pequeño debajo. */
+.imcrm-rdp-imagina .imcrm-rdp-recurrence:not(.rdp-selected) .rdp-day_button {
+    position: relative;
+}
+.imcrm-rdp-imagina .imcrm-rdp-recurrence:not(.rdp-selected) .rdp-day_button::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: hsl(var(--imcrm-success));
+}
+
+/* Hoy: borde sutil. */
+.imcrm-rdp-imagina .rdp-today:not(.rdp-selected) .rdp-day_button {
+    box-shadow: inset 0 0 0 1px hsl(var(--imcrm-primary) / 0.4);
+}
