@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.24.0
+Stable tag: 0.24.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.24.1 =
+* Fix: los botones de "Rangos rápidos" (Hoy / Ayer / Este mes / etc.)
+  debajo de los filtros de fecha seguían creando DOS condiciones
+  con fechas fijas (gte=YYYY-MM-DD + lte=YYYY-MM-DD), aunque 0.24.0
+  ya soportaba rangos relativos dinámicos. Ahora cada click crea UNA
+  sola condición `between_relative` con el slug del preset
+  (`this_month`, etc.) — el rango se resuelve en cada query, no se
+  congela al click. Eso elimina dos bugs reportados:
+   - Después de clickear "Este mes" aparecía un segundo filtro de
+     fecha "abajo" sin que el usuario lo hubiera creado.
+   - Aunque uno guardara el dashboard con un rango "este mes", al
+     volver al día siguiente seguían las fechas fijas del momento
+     en que se hizo click.
+  Las condiciones de **automatizaciones** mantienen el comportamiento
+  anterior (gte+lte fijo) — ahí el momento del trigger ES el momento
+  de la evaluación, así que no hay diferencia entre fijo y dinámico.
+* Fix: charts (line, area, pie) tenían altura fija (`h-24`, `h-40`)
+  y se veían minúsculos cuando el usuario agrandaba el widget en la
+  grilla del dashboard. Ahora el SVG ocupa toda la altura disponible
+  vía `flex-1` + `aspect-square` (pie) / `preserveAspectRatio="none"`
+  (line/area). Líneas con `vector-effect="non-scaling-stroke"` para
+  que el grosor del trazo no se distorsione al estirar.
 
 = 0.24.0 =
 * **Filtros con rango relativo dinámico** (`between_relative`).

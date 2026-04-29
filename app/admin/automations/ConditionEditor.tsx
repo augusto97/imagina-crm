@@ -9,6 +9,10 @@ import type { FieldEntity } from '@/types/field';
 import type { FilterOperator } from '@/types/record';
 
 import { DateRangePresetButtons } from '@/admin/records/DateRangePresetButtons';
+import {
+    computePresetRange,
+    type DateRangePresetId,
+} from '@/admin/records/dateRangePresets';
 import { FilterValueInput } from '@/admin/records/FilterValueInput';
 import { isNullaryOperator, operatorsForType } from '@/admin/records/operators';
 
@@ -112,17 +116,30 @@ export function ConditionEditor({
         commit([...rows, { slug: '', op: 'eq', value: '' }]);
     };
 
-    /** Inserta gte+lte para un date preset, reemplazando el row idx. */
-    const applyDateRange = (idx: number, slug: string, from: string, to: string): void => {
+    /**
+     * Inserta gte+lte (fechas fijas) para un preset, reemplazando el
+     * row idx. Las automatizaciones evalúan condiciones contra un
+     * snapshot del registro en el momento del trigger, así que tener
+     * un rango "este mes" dinámico no aplica acá — el momento de la
+     * evaluación ES el momento del trigger.
+     */
+    const applyDateRange = (
+        idx: number,
+        slug: string,
+        fieldType: 'date' | 'datetime',
+        preset: DateRangePresetId,
+    ): void => {
+        const range = computePresetRange(preset, fieldType, new Date());
+        if (range === null) return;
         const next = [...rows];
         next.splice(idx, 1, {
             slug,
             op: 'gte',
-            value: from,
+            value: range.from,
         }, {
             slug,
             op: 'lte',
-            value: to,
+            value: range.to,
         });
         commit(next);
     };
@@ -223,8 +240,14 @@ export function ConditionEditor({
 
                         {isDate && field && (
                             <DateRangePresetButtons
-                                fieldType={field.type as 'date' | 'datetime'}
-                                onPick={(from, to) => applyDateRange(i, field.slug, from, to)}
+                                onPick={(preset) =>
+                                    applyDateRange(
+                                        i,
+                                        field.slug,
+                                        field.type as 'date' | 'datetime',
+                                        preset,
+                                    )
+                                }
                             />
                         )}
                     </div>

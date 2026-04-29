@@ -15,6 +15,10 @@ interface LineChartWidgetProps {
  * Line / area chart minimalista con SVG vanilla. El backend agrupa por
  * la granularidad del config (`time_bucket`); cada punto es un bucket.
  *
+ * El SVG usa `preserveAspectRatio="none"` y ocupa toda la altura del
+ * widget — antes era altura fija (h-24 = 96px) y se veía minúsculo
+ * cuando el usuario agrandaba el widget en la grilla.
+ *
  * Toggles del widget:
  *  - `show_average_line` → línea horizontal punteada con valor del
  *                          promedio
@@ -27,19 +31,21 @@ export function LineChartWidget({ dashboardId, widget, area }: LineChartWidgetPr
     const showLabels = Boolean(widget.config.show_data_labels);
 
     return (
-        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
-            <header>
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-min-h-0">
+            <header className="imcrm-shrink-0">
                 <h3 className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
                     {widget.title || __('Tendencia mensual')}
                 </h3>
             </header>
 
-            <div className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center">
+            <div className="imcrm-flex imcrm-flex-1 imcrm-items-stretch imcrm-justify-center imcrm-min-h-0">
                 {data.isLoading ? (
-                    <Loader2 className="imcrm-h-5 imcrm-w-5 imcrm-animate-spin imcrm-text-muted-foreground" />
+                    <div className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center">
+                        <Loader2 className="imcrm-h-5 imcrm-w-5 imcrm-animate-spin imcrm-text-muted-foreground" />
+                    </div>
                 ) : data.isError ? (
                     <div
-                        className="imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-text-xs imcrm-text-destructive"
+                        className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center imcrm-gap-1 imcrm-text-xs imcrm-text-destructive"
                         title={(data.error as Error).message}
                     >
                         <TriangleAlert className="imcrm-h-4 imcrm-w-4" />
@@ -53,7 +59,7 @@ export function LineChartWidget({ dashboardId, widget, area }: LineChartWidgetPr
                         showLabels={showLabels}
                     />
                 ) : (
-                    <p className="imcrm-text-xs imcrm-text-muted-foreground">{__('Sin datos.')}</p>
+                    <p className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center imcrm-text-xs imcrm-text-muted-foreground">{__('Sin datos.')}</p>
                 )}
             </div>
         </div>
@@ -99,15 +105,16 @@ function SparkLine({
             : '';
 
     return (
-        <div className="imcrm-flex imcrm-w-full imcrm-flex-col imcrm-gap-1">
+        <div className="imcrm-flex imcrm-w-full imcrm-flex-col imcrm-gap-1 imcrm-min-h-0">
             {showAvg && (
-                <div className="imcrm-flex imcrm-justify-end imcrm-text-[10px] imcrm-text-muted-foreground">
+                <div className="imcrm-flex imcrm-shrink-0 imcrm-justify-end imcrm-text-[10px] imcrm-text-muted-foreground">
                     {__('Promedio')}: <span className="imcrm-ml-1 imcrm-font-medium imcrm-text-foreground">{avg.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                 </div>
             )}
             <svg
                 viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-                className="imcrm-w-full imcrm-h-24"
+                preserveAspectRatio="none"
+                className="imcrm-w-full imcrm-flex-1 imcrm-min-h-0"
                 role="img"
                 aria-label="Tendencia mensual"
             >
@@ -128,6 +135,7 @@ function SparkLine({
                         strokeWidth="1"
                         strokeDasharray="3 3"
                         opacity="0.7"
+                        vectorEffect="non-scaling-stroke"
                     />
                 )}
                 <polyline
@@ -138,6 +146,7 @@ function SparkLine({
                     className="imcrm-text-primary"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
                 />
                 {points.map((p) => (
                     <circle
@@ -146,6 +155,7 @@ function SparkLine({
                         cy={p.y}
                         r={2.5}
                         className="imcrm-fill-primary"
+                        vectorEffect="non-scaling-stroke"
                     >
                         <title>{`${p.label}: ${p.value.toLocaleString()}`}</title>
                     </circle>
@@ -163,7 +173,7 @@ function SparkLine({
                     </text>
                 ))}
             </svg>
-            <div className="imcrm-flex imcrm-justify-between imcrm-text-[10px] imcrm-text-muted-foreground">
+            <div className="imcrm-flex imcrm-shrink-0 imcrm-justify-between imcrm-text-[10px] imcrm-text-muted-foreground">
                 <span>{points[0]?.label}</span>
                 {points.length > 1 && <span>{points[points.length - 1]?.label}</span>}
             </div>

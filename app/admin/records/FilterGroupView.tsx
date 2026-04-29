@@ -109,17 +109,22 @@ export function FilterGroupView({
 
     const applyDateRangePreset = (
         condition: FilterCondition,
-        from: string,
-        to: string,
+        preset: string,
     ): void => {
         const idx = group.children.findIndex((c) => c === condition);
         if (idx < 0) return;
-        const next: FilterCondition[] = [
-            { type: 'condition', field_id: condition.field_id, op: 'gte', value: from },
-            { type: 'condition', field_id: condition.field_id, op: 'lte', value: to },
-        ];
+        // Una sola condición dinámica con `between_relative`. El backend
+        // (`QueryBuilder::compileFilter`) la resuelve a `[from, to]`
+        // contra `wp_timezone()` en cada query, por eso "Este mes" sigue
+        // siendo este mes la próxima vez que se abre el dashboard.
+        const next: FilterCondition = {
+            type: 'condition',
+            field_id: condition.field_id,
+            op: 'between_relative',
+            value: preset,
+        };
         const nextChildren = [...group.children];
-        nextChildren.splice(idx, 1, ...next);
+        nextChildren.splice(idx, 1, next);
         const newGroup: FilterGroup = { ...group, children: nextChildren };
         if (isRoot) {
             onRootChange(newGroup as FilterTree);
@@ -187,11 +192,8 @@ export function FilterGroupView({
                                         />
                                         {isDateField(fields, child.field_id) && (
                                             <DateRangePresetButtons
-                                                fieldType={
-                                                    getFieldType(fields, child.field_id) as 'date' | 'datetime'
-                                                }
-                                                onPick={(from, to) =>
-                                                    applyDateRangePreset(child, from, to)
+                                                onPick={(preset) =>
+                                                    applyDateRangePreset(child, preset)
                                                 }
                                             />
                                         )}
@@ -294,8 +296,4 @@ function defaultOpFor(type: string): FilterOperator {
 function isDateField(fields: FieldEntity[], fieldId: number): boolean {
     const f = fields.find((x) => x.id === fieldId);
     return f?.type === 'date' || f?.type === 'datetime';
-}
-
-function getFieldType(fields: FieldEntity[], fieldId: number): string {
-    return fields.find((x) => x.id === fieldId)?.type ?? '';
 }
