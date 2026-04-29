@@ -3,7 +3,7 @@
         'name' => 'imaginawp/imagina-crm',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '2a64c56fdbd0dd00ef8bc62294b8bc975d3177c7',
+        'reference' => '9096ad1ce97ebcb6991153e41ce12b4ac36890bf',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'imaginawp/imagina-crm' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '2a64c56fdbd0dd00ef8bc62294b8bc975d3177c7',
+            'reference' => '9096ad1ce97ebcb6991153e41ce12b4ac36890bf',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

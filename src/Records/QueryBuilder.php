@@ -32,7 +32,7 @@ final class QueryBuilder
     private const SCALAR_OPERATORS = [
         'eq', 'neq',
         'gt', 'gte', 'lt', 'lte',
-        'contains', 'starts_with', 'ends_with',
+        'contains', 'not_contains', 'starts_with', 'ends_with',
         'in', 'nin',
         'is_null', 'is_not_null',
     ];
@@ -662,7 +662,8 @@ final class QueryBuilder
             'gte' => ['sql' => "{$col} >= {$place}", 'args' => [$cast]],
             'lt'  => ['sql' => "{$col} < {$place}",  'args' => [$cast]],
             'lte' => ['sql' => "{$col} <= {$place}", 'args' => [$cast]],
-            'contains'    => ['sql' => "{$col} LIKE %s", 'args' => ['%' . $this->escLike((string) $value) . '%']],
+            'contains'     => ['sql' => "{$col} LIKE %s", 'args' => ['%' . $this->escLike((string) $value) . '%']],
+            'not_contains' => ['sql' => "({$col} IS NULL OR {$col} NOT LIKE %s)", 'args' => ['%' . $this->escLike((string) $value) . '%']],
             'starts_with' => ['sql' => "{$col} LIKE %s", 'args' => [$this->escLike((string) $value) . '%']],
             'ends_with'   => ['sql' => "{$col} LIKE %s", 'args' => ['%' . $this->escLike((string) $value)]],
             'in'  => $this->compileInClause($col, $value, $field, false),

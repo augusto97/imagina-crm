@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.19.0
+Stable tag: 0.20.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,44 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.20.0 =
+* Fix visual del if/else: el "tercer hilo" central que iba paralelo
+  a las líneas Sí/No (visualmente daba la sensación de un tercer
+  flujo) desapareció. Ahora las dos ramas convergen al siguiente
+  slot/acción del padre — semántica más clara.
+* Operadores en condiciones de automatización (triggers, acciones
+  if/sino, condición de ejecución de acción): antes solo `=`
+  ("eq"). Ahora soporta el set completo según tipo de campo:
+  · Texto/email/url: contiene, no contiene, es, no es, empieza
+    con, termina con, está/no está establecido.
+  · Número/moneda: =, ≠, >, ≥, <, ≤, está/no está establecido.
+  · Fecha/datetime: es, no es, desde, hasta, está/no está
+    establecido + chips de rangos rápidos (Hoy, Esta semana,
+    Mes pasado, Últimos 7/15/30 días, etc.).
+  · Select/multi_select: es, no es, es alguno de, no es ninguno
+    de, está/no está establecido.
+  Implementado vía un componente unificado `<ConditionEditor>`
+  que reusa `FilterValueInput` y `DateRangePresetButtons` de
+  records — misma UX rica que ya tenía el panel de filtros
+  desde 0.17.0.
+* Backend `ConditionEvaluator::matches` extendido: además del
+  shape legacy `{slug: value}` (eq-only) ahora acepta el shape
+  rico `[{slug, op, value}, ...]` con operadores. Detecta
+  automáticamente cuál es. Compat completa con automatizaciones
+  guardadas en versiones anteriores.
+* Operador `not_contains` añadido al `QueryBuilder` (records
+  filters): emite `(col IS NULL OR col NOT LIKE ?)` para que
+  records con valor NULL también matcheen "no contiene".
+* Labels de operadores refinados: `is_null` → "no está
+  establecido" (antes "está vacío"), `is_not_null` → "está
+  establecido" — más natural en contexto general (no solo
+  texto). Reordenados para mostrar primero los más comunes.
+* Tests: 11 nuevos en `ConditionEvaluatorTest` cubriendo todos
+  los operadores (eq, neq, contains, not_contains, gt/gte/lt/lte,
+  is_null, is_not_null, in, nin, starts_with, ends_with) +
+  date range via gte+lte. 1 nuevo en `QueryBuilderTest` para
+  `not_contains` con null safety.
 
 = 0.19.0 =
 * Visual Builder de automatizaciones: slots de inserción "+" entre
