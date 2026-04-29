@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.0
+Stable tag: 0.26.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,35 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.1 =
+* **Crear campos nuevos en el flujo de import**. Si el CSV tiene
+  más columnas que la lista (ej. ClickUp con 10 columnas → lista
+  con 5 campos), el wizard ahora permite crear los campos
+  faltantes sobre la marcha desde el paso de mapping. La opción
+  "+ Crear campo nuevo" aparece debajo de los campos existentes
+  en cada select; al elegirla se despliega un mini-form con label
+  (default = header del CSV) + tipo (default = inferido por los
+  datos).
+* `FieldTypeDetector` (helper PHP nuevo, 13 unit tests) infiere
+  el tipo apropiado desde una muestra de valores con threshold
+  80%:
+   - `email`     — pasan `filter_var(EMAIL)`.
+   - `url`       — empiezan con http(s)://.
+   - `number`    — numéricos (incluye formato ES `1.234,56`).
+   - `datetime`  — fecha + ≥50% incluyen hora.
+   - `date`      — solo fecha (ISO, DD/MM/YYYY, MM/DD/YYYY).
+   - `checkbox`  — sí/no/true/false/1/0/x.
+   - `select`    — cardinalidad ≤ 20 y al menos 50% de repetición.
+   - `text`      — fallback.
+* Backend: `ImportService::run` acepta un nuevo parámetro
+  `new_fields[{csv_column_index, label, type}]`. Los crea vía
+  `FieldService::create` (incluye ALTER TABLE para columnas
+  materializables) ANTES de iterar las filas; si falla, queda
+  reportado en `errors[]` con `row=0`. La response trae
+  `created_fields[]` para que la UI muestre lo que se generó.
+* La UI de "Listo" muestra los campos creados con un chip por
+  cada uno antes del summary de filas.
 
 = 0.26.0 =
 * **Importador CSV** para registros. Botón "Importar" en la toolbar

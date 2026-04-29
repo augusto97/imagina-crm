@@ -90,6 +90,7 @@ class ComposerStaticInit5b28592399c39b53b7f6f395f4c2e28a
         'ImaginaCRM\\Filters\\SavedFilterRepository' => __DIR__ . '/../..' . '/src/Filters/SavedFilterRepository.php',
         'ImaginaCRM\\Filters\\SavedFilterService' => __DIR__ . '/../..' . '/src/Filters/SavedFilterService.php',
         'ImaginaCRM\\Imports\\CsvParser' => __DIR__ . '/../..' . '/src/Imports/CsvParser.php',
+        'ImaginaCRM\\Imports\\FieldTypeDetector' => __DIR__ . '/../..' . '/src/Imports/FieldTypeDetector.php',
         'ImaginaCRM\\Imports\\ImportService' => __DIR__ . '/../..' . '/src/Imports/ImportService.php',
         'ImaginaCRM\\Licensing\\LicenseException' => __DIR__ . '/../..' . '/src/Licensing/LicenseException.php',
         'ImaginaCRM\\Licensing\\LicenseHttpClient' => __DIR__ . '/../..' . '/src/Licensing/LicenseHttpClient.php',

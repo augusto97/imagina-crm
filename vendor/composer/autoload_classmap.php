@@ -75,6 +75,7 @@ return array(
     'ImaginaCRM\\Filters\\SavedFilterRepository' => $baseDir . '/src/Filters/SavedFilterRepository.php',
     'ImaginaCRM\\Filters\\SavedFilterService' => $baseDir . '/src/Filters/SavedFilterService.php',
     'ImaginaCRM\\Imports\\CsvParser' => $baseDir . '/src/Imports/CsvParser.php',
+    'ImaginaCRM\\Imports\\FieldTypeDetector' => $baseDir . '/src/Imports/FieldTypeDetector.php',
     'ImaginaCRM\\Imports\\ImportService' => $baseDir . '/src/Imports/ImportService.php',
     'ImaginaCRM\\Licensing\\LicenseException' => $baseDir . '/src/Licensing/LicenseException.php',
     'ImaginaCRM\\Licensing\\LicenseHttpClient' => $baseDir . '/src/Licensing/LicenseHttpClient.php',

@@ -377,6 +377,7 @@ final class Plugin
             return new \ImaginaCRM\Imports\ImportService(
                 $c->get(FieldRepository::class),
                 $c->get(\ImaginaCRM\Records\RecordService::class),
+                $c->get(FieldService::class),
             );
         });
         $this->container->bind(\ImaginaCRM\Exports\CsvExporter::class, static function (Container $c): \ImaginaCRM\Exports\CsvExporter {

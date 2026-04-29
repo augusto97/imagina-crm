@@ -5,6 +5,7 @@ namespace ImaginaCRM\Imports;
 
 use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldRepository;
+use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Fields\Types\ComputedField;
 use ImaginaCRM\Lists\ListEntity;
 use ImaginaCRM\Records\RecordService;
@@ -40,18 +41,22 @@ final class ImportService
     public function __construct(
         private readonly FieldRepository $fields,
         private readonly RecordService $records,
+        private readonly FieldService $fieldService,
     ) {
     }
 
     /**
      * Inspecciona el CSV sin escribir nada. Devuelve cabeceras,
-     * filas de muestra y sugerencias de mapping.
+     * filas de muestra, sugerencias de mapping y un `suggested_type`
+     * por columna (útil cuando el usuario quiere crear un campo
+     * nuevo desde la UI).
      *
      * @return array{
      *     headers: array<int, string>,
      *     sample: array<int, array<int, string>>,
      *     total_rows: int,
      *     suggested_mapping: array<int, string>,
+     *     suggested_types: array<int, string>,
      *     fields: array<int, array{id:int, slug:string, label:string, type:string}>
      * }
      */
@@ -63,11 +68,25 @@ final class ImportService
         $listFields = $this->importableFields($list);
         $suggested  = $this->suggestMapping($headers, $listFields);
 
+        // Inferir tipo por columna a partir de la muestra. La UI lo
+        // usa como default cuando el usuario elige "crear campo nuevo"
+        // para una columna que no mapea a ninguno existente.
+        $sample           = array_slice($rows, 0, self::PREVIEW_ROWS);
+        $suggestedTypes   = [];
+        foreach ($headers as $idx => $_header) {
+            $columnSample = [];
+            foreach ($sample as $row) {
+                $columnSample[] = $row[$idx] ?? '';
+            }
+            $suggestedTypes[$idx] = FieldTypeDetector::detect($columnSample);
+        }
+
         return [
             'headers'           => $headers,
-            'sample'            => array_slice($rows, 0, self::PREVIEW_ROWS),
+            'sample'            => $sample,
             'total_rows'        => count($rows),
             'suggested_mapping' => $suggested,
+            'suggested_types'   => $suggestedTypes,
             'fields'            => array_map(
                 static fn (FieldEntity $f): array => [
                     'id'    => $f->id,
@@ -81,23 +100,66 @@ final class ImportService
     }
 
     /**
-     * Ejecuta el import. `$mapping` es `csv_column_index → field_slug`;
-     * las columnas no incluidas en el mapping se ignoran (permite al
-     * usuario dejar columnas fuera).
+     * Ejecuta el import. `$mapping` es `csv_column_index → field_slug`
+     * para campos ya existentes; `$newFields` permite crear campos
+     * sobre la marcha (uno por columna del CSV no mapeada). Las
+     * columnas no incluidas en ninguno de los dos se ignoran.
      *
-     * @param array<int, string> $mapping
+     * @param array<int, string>                                                $mapping
+     * @param array<int, array{csv_column_index:int, label:string, type:string}> $newFields
      *
      * @return array{
      *     imported: int,
      *     skipped: int,
      *     errors: array<int, array{row:int, message:string}>,
-     *     truncated: bool
+     *     truncated: bool,
+     *     created_fields: array<int, array{slug:string, label:string, type:string}>
      * }
      */
-    public function run(ListEntity $list, string $csv, array $mapping): array
+    public function run(ListEntity $list, string $csv, array $mapping, array $newFields = []): array
     {
-        $parsed     = CsvParser::parse($csv);
-        $rows       = $parsed['rows'];
+        $parsed = CsvParser::parse($csv);
+        $rows   = $parsed['rows'];
+
+        // Crear primero los campos nuevos (si los hay). El user puede
+        // haber pedido "crear nuevo" para columnas sin mapping en la
+        // lista actual. Errores de creación se reportan en `errors`
+        // como filas virtuales con row=0 y la columna como referencia.
+        $createdFields = [];
+        $errors        = [];
+        foreach ($newFields as $spec) {
+            $idx   = (int) ($spec['csv_column_index'] ?? -1);
+            $label = trim((string) ($spec['label'] ?? ''));
+            $type  = (string) ($spec['type'] ?? 'text');
+            if ($idx < 0 || $label === '') {
+                continue;
+            }
+            $created = $this->fieldService->create($list->id, [
+                'label' => $label,
+                'type'  => $type,
+            ]);
+            if ($created instanceof ValidationResult) {
+                $errors[] = [
+                    'row'     => 0,
+                    'message' => sprintf(
+                        /* translators: 1: column label, 2: validation message */
+                        __('No se pudo crear el campo "%1$s": %2$s', 'imagina-crm'),
+                        $label,
+                        $this->summarizeValidation($created),
+                    ),
+                ];
+                continue;
+            }
+            // Inyectamos el slug recién creado al mapping para que la
+            // segunda fase use la columna como cualquier otra.
+            $mapping[$idx]   = $created->slug;
+            $createdFields[] = [
+                'slug'  => $created->slug,
+                'label' => $created->label,
+                'type'  => $created->type,
+            ];
+        }
+
         $listFields = $this->importableFields($list);
         $bySlug     = [];
         foreach ($listFields as $f) {
@@ -112,7 +174,6 @@ final class ImportService
 
         $imported = 0;
         $skipped  = 0;
-        $errors   = [];
 
         foreach ($rows as $idx => $row) {
             $rowNumber = $idx + 2; // +1 por header, +1 para human-friendly (1-indexed)
@@ -152,10 +213,11 @@ final class ImportService
         }
 
         return [
-            'imported'  => $imported,
-            'skipped'   => $skipped,
-            'errors'    => $errors,
-            'truncated' => $truncated,
+            'imported'       => $imported,
+            'skipped'        => $skipped,
+            'errors'         => $errors,
+            'truncated'      => $truncated,
+            'created_fields' => $createdFields,
         ];
     }
 
