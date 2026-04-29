@@ -116,7 +116,7 @@ export function DateCellEditor({
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="imcrm-w-[520px] imcrm-p-0"
+                className="imcrm-w-[460px] imcrm-p-0"
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <div className="imcrm-flex">
