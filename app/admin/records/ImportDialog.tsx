@@ -23,7 +23,13 @@ interface PreviewResponse {
     total_rows: number;
     suggested_mapping: Record<string, string>;
     suggested_types: Record<string, string>;
-    fields: Array<{ id: number; slug: string; label: string; type: string }>;
+    fields: Array<{
+        id: number;
+        slug: string;
+        label: string;
+        type: string;
+        is_required?: boolean;
+    }>;
 }
 
 interface NewFieldSpec {
@@ -274,7 +280,24 @@ export function ImportDialog({
                             </>
                         )}
                         {step === 'done' && (
-                            <Button onClick={close}>{__('Cerrar')}</Button>
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        // Volver al map step preservando csv + mapping +
+                                        // newFields. Útil cuando el run trajo errores
+                                        // (campos obligatorios sin mapear, fechas inválidas)
+                                        // y el user quiere ajustar y re-correr sin tener
+                                        // que re-subir el CSV ni re-mapear todo.
+                                        setResult(null);
+                                        setError(null);
+                                        setStep('map');
+                                    }}
+                                >
+                                    {__('Volver al mapeo')}
+                                </Button>
+                                <Button onClick={close}>{__('Cerrar')}</Button>
+                            </>
                         )}
                     </div>
                 </Dialog.Content>
@@ -376,6 +399,16 @@ function MapStep({
 
     const newCount = Object.keys(newFields).length;
 
+    // Campos obligatorios de la lista que no quedaron mapeados a
+    // ninguna columna del CSV — el run los va a rechazar fila por
+    // fila con "Este campo es obligatorio". Aviso preventivo así el
+    // user lo arregla antes (o desactiva la obligatoriedad en la
+    // configuración de la lista).
+    const mappedSlugs = new Set(Object.values(mapping));
+    const unmappedRequired = preview.fields.filter(
+        (f) => f.is_required && !mappedSlugs.has(f.slug),
+    );
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-text-xs imcrm-text-muted-foreground">
@@ -393,6 +426,23 @@ function MapStep({
                 </span>
                 <span>{__('Mapea o crea campos nuevos. "—" ignora la columna.')}</span>
             </div>
+
+            {unmappedRequired.length > 0 && (
+                <div className="imcrm-rounded-md imcrm-border imcrm-border-warning/50 imcrm-bg-warning/10 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-foreground">
+                    <span className="imcrm-font-medium">{__('Atención:')}</span>{' '}
+                    {__('los siguientes campos son obligatorios y no están mapeados — todas las filas fallarán hasta que los mapees o desactives su obligatoriedad en la configuración de la lista:')}
+                    <ul className="imcrm-mt-1 imcrm-flex imcrm-flex-wrap imcrm-gap-1.5">
+                        {unmappedRequired.map((f) => (
+                            <li
+                                key={f.slug}
+                                className="imcrm-rounded imcrm-border imcrm-border-warning/40 imcrm-bg-card imcrm-px-1.5 imcrm-py-0.5"
+                            >
+                                {f.label} <span className="imcrm-text-muted-foreground">({f.type})</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             <div className="imcrm-overflow-auto imcrm-rounded-md imcrm-border imcrm-border-border">
                 <table className="imcrm-w-full imcrm-text-xs">
