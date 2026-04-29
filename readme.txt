@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.22.4
+Stable tag: 0.22.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.22.5 =
+* Tweak: ancho del DateCellEditor afinado a 445px (de 460px) —
+  match exacto con la preferencia del usuario tras testing visual.
 
 = 0.22.4 =
 * Fix: el popover del DateCellEditor tenía espacio en blanco al
