@@ -43,6 +43,12 @@ interface RunResponse {
     errors: Array<{ row: number; message: string }>;
     truncated: boolean;
     created_fields: Array<{ slug: string; label: string; type: string }>;
+    /**
+     * Opciones auto-creadas en campos `select`/`multi_select` cuando el
+     * CSV traía valores que no existían en el config del campo.
+     * Map de `field_slug → [{value, label}, …]`.
+     */
+    expanded_options: Record<string, Array<{ value: string; label: string }>>;
 }
 
 /** Tipos disponibles para la UI de "crear campo nuevo". Coinciden con los slugs del FieldTypeRegistry. */
@@ -566,6 +572,28 @@ function DoneStep({ result }: { result: RunResponse }): JSX.Element {
                                 className="imcrm-rounded imcrm-border imcrm-border-primary/30 imcrm-bg-card imcrm-px-1.5 imcrm-py-0.5 imcrm-text-foreground"
                             >
                                 {f.label} <span className="imcrm-text-muted-foreground">({f.type})</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            {result.expanded_options && Object.keys(result.expanded_options).length > 0 && (
+                <div className="imcrm-rounded-md imcrm-border imcrm-border-primary/30 imcrm-bg-primary/5 imcrm-p-3 imcrm-text-xs">
+                    <p className="imcrm-mb-1.5 imcrm-font-medium imcrm-text-foreground">
+                        {__('Opciones auto-creadas en campos de selección:')}
+                    </p>
+                    <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                        {Object.entries(result.expanded_options).map(([slug, opts]) => (
+                            <li key={slug} className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-1">
+                                <span className="imcrm-font-medium imcrm-text-foreground">{slug}:</span>
+                                {opts.map((o) => (
+                                    <span
+                                        key={o.value}
+                                        className="imcrm-rounded imcrm-border imcrm-border-primary/30 imcrm-bg-card imcrm-px-1.5 imcrm-py-0.5 imcrm-text-foreground"
+                                    >
+                                        {o.label}
+                                    </span>
+                                ))}
                             </li>
                         ))}
                     </ul>

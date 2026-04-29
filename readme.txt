@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.3
+Stable tag: 0.26.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,37 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.4 =
+* Fix: el importador rechazaba TODA fila si el CSV traía valores
+  para campos `select`/`multi_select` que no existían como
+  opciones. Caso típico: ClickUp persiste etiquetas humanas
+  ("sin factura", "Vencido", "Activo"), no slugs — sin
+  pre-poblar las opciones, el `RecordValidator` rebotaba
+  100% de las filas con "Opción no válida para este campo.".
+* Solución (estilo ClickUp/Airtable):
+   - Antes de insertar las filas, `ImportService::expandSelectOptions`
+     escanea cada columna mapeada a select/multi_select, recolecta
+     valores únicos del CSV, compara contra las opciones
+     existentes (case-insensitive incluido para tildes ES) y
+     añade vía `FieldService::update` las que falten. Una sola
+     escritura por campo.
+   - Al cocer cada celda, `resolveSelectValue` mapea label → slug.
+     Match case-insensitive primero por `label` exacto y luego
+     por `value`, así que tanto "Activo" como "activo" o el slug
+     "activo" caen al mismo `value`.
+   - Soporta opciones definidas como objetos
+     `{value, label}` (formato actual) o como strings sueltos
+     (formato legacy).
+   - `multi_select` aplica el mismo resolver a cada item después
+     del split por `,`/`;`.
+* La response del run incluye un nuevo campo `expanded_options`
+  con map `{field_slug: [{value, label}, ...]}` listando las
+  opciones auto-creadas. La UI las muestra en el paso "Listo"
+  como chips agrupados por campo, así el usuario sabe qué se
+  agregó (puede revisarlas/editarlas después en la config de
+  la lista).
+* 6 unit tests nuevos en `ImportSelectResolutionTest`.
 
 = 0.26.3 =
 * Fix: el importador rechazaba todas las fechas de ClickUp porque
