@@ -108,6 +108,10 @@ export function ImportDialog({
         const reader = new FileReader();
         reader.onload = async () => {
             const text = typeof reader.result === 'string' ? reader.result : '';
+            if (text === '') {
+                setError(__('El archivo está vacío o no se pudo leer como texto.'));
+                return;
+            }
             setCsv(text);
             setBusy(true);
             try {
@@ -115,21 +119,34 @@ export function ImportDialog({
                     `/lists/${listSlug}/import/preview`,
                     { csv: text },
                 );
+                if (!res.data || typeof res.data !== 'object' || !Array.isArray(res.data.headers)) {
+                    // Defensa: si el backend devuelve algo inesperado,
+                    // mostramos algo más útil que un crash silencioso.
+                    throw new Error(__('Respuesta inesperada del servidor (sin cabeceras).'));
+                }
                 setPreview(res.data);
                 setMapping(
                     Object.fromEntries(
-                        Object.entries(res.data.suggested_mapping).map(([k, v]) => [Number(k), v]),
+                        Object.entries(res.data.suggested_mapping ?? {}).map(([k, v]) => [Number(k), v]),
                     ),
                 );
                 setStep('map');
             } catch (err) {
-                setError(err instanceof ApiError ? err.message : __('No se pudo leer el archivo.'));
+                // eslint-disable-next-line no-console
+                console.error('[imcrm import] preview failed:', err);
+                if (err instanceof ApiError) {
+                    setError(err.message);
+                } else if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError(__('No se pudo leer el archivo.'));
+                }
             } finally {
                 setBusy(false);
             }
         };
         reader.onerror = () => {
-            setError(__('No se pudo leer el archivo.'));
+            setError(__('No se pudo leer el archivo (FileReader error).'));
         };
         // CSV es siempre texto plano; UTF-8 con fallback Latin-1 lo
         // maneja el backend (CsvParser).

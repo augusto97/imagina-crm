@@ -63,7 +63,10 @@ final class ImportController extends AbstractController
         if ($csv === '') {
             return new WP_Error('imcrm_empty_csv', __('El CSV está vacío.', 'imagina-crm'), ['status' => 400]);
         }
-        return new WP_REST_Response($this->imports->preview($list, $csv));
+        // Envoltorio `{data: ...}` — los demás controllers ya lo usan
+        // y `app/lib/api.ts` extrae `payload.data` antes de devolver
+        // la respuesta. Sin esto el frontend recibe `undefined`.
+        return new WP_REST_Response(['data' => $this->imports->preview($list, $csv)]);
     }
 
     public function run(WP_REST_Request $request): WP_REST_Response|WP_Error
@@ -115,6 +118,6 @@ final class ImportController extends AbstractController
             }
         }
 
-        return new WP_REST_Response($this->imports->run($list, $csv, $mapping, $newFields));
+        return new WP_REST_Response(['data' => $this->imports->run($list, $csv, $mapping, $newFields)]);
     }
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.1
+Stable tag: 0.26.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.2 =
+* Fix: el importador CSV mostraba "No se pudo leer el archivo." al
+  subir cualquier export. Era un mismatch del shape de respuesta:
+  `ImportController` devolvía la data plana
+  (`{headers, sample, ...}`) mientras que el resto del API y el
+  cliente (`app/lib/api.ts`) usan envelope `{data: {...}}`. El
+  frontend extraía `payload.data` → `undefined` → TypeError al
+  acceder a `.suggested_mapping` → catch genérico que mostraba
+  "No se pudo leer el archivo.". Ahora ambos endpoints
+  (`/import/preview` y `/import/run`) envuelven la respuesta como
+  el resto.
+* UX: en el dialog de import, mensajes de error más útiles. Si el
+  backend responde con un error tipado (ApiError), se muestra el
+  mensaje del servidor; si falla por otra razón, mostramos el
+  mensaje real del Error en lugar del genérico. Loguea
+  `console.error('[imcrm import] preview failed:', err)` para que
+  desarrolladores vean stack en DevTools.
 
 = 0.26.1 =
 * **Crear campos nuevos en el flujo de import**. Si el CSV tiene
