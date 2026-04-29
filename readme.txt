@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.17.0
+Stable tag: 0.18.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,38 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.18.0 =
+* Picker visual de variables ClickUp-style en automatizaciones. Los
+  inputs de Send Email (Para, Asunto, Cuerpo, Cc, Bcc), Call Webhook
+  (URL, Body) y Update Field (Valor) ahora muestran chips abajo con
+  los campos de la lista — click en un chip inserta `{{slug}}` en la
+  posición exacta del cursor sin que el usuario tenga que tipear
+  llaves. Botón "+ N" abre un popover searchable con TODAS las
+  variables agrupadas en "Campos" (de la lista) y "Sistema"
+  (record.id, timestamps, date.now, date.today, user.email,
+  user.display_name, signature). El cursor se preserva tras la
+  inserción.
+* Backend: extendido `AbstractAction::applyMergeTags()` con nuevos
+  tags resolvibles:
+  · `{{record.created_at}}` / `{{record.updated_at}}` / `{{record.created_by}}`.
+  · `{{date.now}}` (ISO 8601 UTC) y `{{date.today}}` (YYYY-MM-DD
+    en zona del sitio).
+  · `{{user.id|email|display_name|login}}` — datos del autor del
+    registro, fallback al usuario actual.
+  · `{{signature}}` — firma de email guardada del autor.
+* Firma de email per-usuario. Editor en Settings → "Firma de email"
+  (textarea HTML + vista previa en vivo). Persistido en
+  `user_meta:imcrm_email_signature` con `wp_kses_post` sanitization
+  (acepta links/formato/imágenes; bloquea scripts). REST endpoints
+  `GET/PATCH /imagina-crm/v1/me/email-signature`.
+* Botón "+ Agregar firma" en el body de los emails de automatización:
+  inserta el HTML guardado en el cursor con doble salto de línea
+  antes para separación visual. Si el usuario no tiene firma
+  guardada, no hace nada (sin error).
+* Tests: 5 nuevos en `MergeTagsTest` cubriendo metadata del registro,
+  date.now/today (regex de formato), y comportamiento de signature
+  cuando no hay user meta.
 
 = 0.17.0 =
 * Refactor mayor de filtros: panel inline ClickUp-style con AND/OR

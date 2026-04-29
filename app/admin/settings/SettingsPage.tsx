@@ -1,6 +1,7 @@
 import { getBootData } from '@/lib/boot';
 import { __ } from '@/lib/i18n';
 
+import { EmailSignatureCard } from './EmailSignatureCard';
 import { LicenseCard } from './LicenseCard';
 
 export function SettingsPage(): JSX.Element {
@@ -13,11 +14,13 @@ export function SettingsPage(): JSX.Element {
                     {__('Ajustes')}
                 </h1>
                 <p className="imcrm-mt-1 imcrm-text-sm imcrm-text-muted-foreground">
-                    {__('Licencia, entorno e información del plugin.')}
+                    {__('Licencia, firma de email, entorno e información del plugin.')}
                 </p>
             </header>
 
             <LicenseCard />
+
+            <EmailSignatureCard />
 
             <section className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                 <h2 className="imcrm-text-base imcrm-font-semibold">{__('Entorno')}</h2>

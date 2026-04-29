@@ -250,6 +250,46 @@ if (! defined('HOUR_IN_SECONDS')) {
     define('HOUR_IN_SECONDS', 3600);
 }
 
+if (! function_exists('wp_date')) {
+    function wp_date(string $format, ?int $timestamp = null): string
+    {
+        return date($format, $timestamp ?? time());
+    }
+}
+
+if (! function_exists('get_user_meta')) {
+    function get_user_meta(int $userId, string $key = '', bool $single = false): mixed
+    {
+        unset($userId, $key, $single);
+        return ''; // sin metadata en unit tests
+    }
+}
+
+if (! function_exists('update_user_meta')) {
+    function update_user_meta(int $userId, string $key, mixed $value): bool
+    {
+        unset($userId, $key, $value);
+        return true;
+    }
+}
+
+if (! function_exists('get_userdata')) {
+    function get_userdata(int $userId): mixed
+    {
+        unset($userId);
+        return false;
+    }
+}
+
+if (! function_exists('wp_kses_post')) {
+    function wp_kses_post(string $html): string
+    {
+        // En unit tests devolvemos tal cual; el filtro real de WP solo
+        // aplica al runtime.
+        return $html;
+    }
+}
+
 if (! function_exists('remove_accents')) {
     /**
      * Stub minimalista. La implementación real de WP es mucho más completa,

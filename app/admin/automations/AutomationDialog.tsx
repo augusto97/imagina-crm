@@ -3,7 +3,6 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { ChevronRight, LayoutList, Loader2, Plus, Trash2, Workflow, X } from 'lucide-react';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { AutocompleteInput } from '@/components/ui/autocomplete-input';
 import { Badge } from '@/components/ui/badge';
 
 /**
@@ -32,6 +31,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+
+import { MergeTagInput } from './MergeTagInput';
+import { useEmailSignature } from '@/hooks/useEmailSignature';
 import {
     useCreateAutomation,
     useUpdateAutomation,
@@ -954,9 +956,9 @@ export function ActionConfigEditor({
             {spec.type === 'update_field' ? (
                 <UpdateFieldConfig spec={spec} onChange={onChange} fields={fields} />
             ) : spec.type === 'call_webhook' ? (
-                <CallWebhookConfig spec={spec} onChange={onChange} />
+                <CallWebhookConfig spec={spec} onChange={onChange} fields={fields} />
             ) : spec.type === 'send_email' ? (
-                <SendEmailConfig spec={spec} onChange={onChange} />
+                <SendEmailConfig spec={spec} onChange={onChange} fields={fields} />
             ) : spec.type === 'if_else' ? (
                 <IfElseConfig
                     spec={spec}
@@ -1284,6 +1286,7 @@ function UpdateFieldConfig({
                         </Select>
                         <FieldValueInput
                             field={selectedField}
+                            availableFields={fields}
                             value={v.value}
                             onChange={(next) => {
                                 const arr = [...valueRows];
@@ -1329,14 +1332,22 @@ function UpdateFieldConfig({
  */
 function FieldValueInput({
     field,
+    availableFields,
     value,
     onChange,
 }: {
     field: FieldEntity | undefined;
+    /**
+     * Todos los fields de la lista — usados para alimentar el picker
+     * de variables del MergeTagInput cuando el field elegido es de
+     * texto. Si no se pasa, el picker queda en "Sistema" only.
+     */
+    availableFields?: FieldEntity[];
     value: string;
     onChange: (next: string) => void;
 }): JSX.Element {
     const listId = useAutomationListId();
+    void listId; // listId queda como referencia para futuras integraciones (autocomplete por columna).
 
     if (!field) {
         return (
@@ -1407,13 +1418,16 @@ function FieldValueInput({
     }
 
     if (field.type === 'number' || field.type === 'currency') {
+        // Numérico: input simple. No usamos MergeTagInput porque los
+        // chips abajo no tienen mucho sentido para `{{slug}}` numéricos
+        // (la mayoría de tags devuelven strings); el usuario puede
+        // tipear manualmente si quiere.
         return (
-            <AutocompleteInput
-                listId={listId}
-                fieldId={field.id}
+            <Input
                 type="number"
+                step="any"
                 value={value}
-                onChange={onChange}
+                onChange={(e) => onChange(e.target.value)}
                 placeholder={field.type === 'currency' ? '0.00' : '0'}
                 className="imcrm-flex-1"
                 aria-label={__('Valor')}
@@ -1422,19 +1436,17 @@ function FieldValueInput({
     }
 
     // text / long_text / email / url / multi_select / relation / user / file:
-    // input con autocomplete contra los valores existentes en la columna.
-    // Para multi_select / relation / etc. el endpoint backend skipea
-    // (devuelve []) y el componente cae a Input plano sin sugerencias.
+    // MergeTagInput con chips para insertar variables al cursor.
     return (
-        <AutocompleteInput
-            listId={listId}
-            fieldId={field.id}
-            value={value}
-            onChange={onChange}
-            placeholder={__('Valor o {{slug}}')}
-            className="imcrm-flex-1"
-            aria-label={__('Valor')}
-        />
+        <div className="imcrm-flex-1">
+            <MergeTagInput
+                value={value}
+                onChange={onChange}
+                fields={availableFields ?? []}
+                placeholder={__('Valor o usa los chips para insertar variables')}
+                aria-label={__('Valor')}
+            />
+        </div>
     );
 }
 
@@ -1485,7 +1497,15 @@ function FilterRow({ f, fields, onChangeSlug, onChangeValue, onRemove }: FilterR
     );
 }
 
-function CallWebhookConfig({ spec, onChange }: { spec: ActionSpec; onChange: (next: ActionSpec) => void }): JSX.Element {
+function CallWebhookConfig({
+    spec,
+    onChange,
+    fields,
+}: {
+    spec: ActionSpec;
+    onChange: (next: ActionSpec) => void;
+    fields: FieldEntity[];
+}): JSX.Element {
     const url = typeof spec.config.url === 'string' ? spec.config.url : '';
     const method = typeof spec.config.method === 'string' ? spec.config.method : 'POST';
     const body = typeof spec.config.body_template === 'string' ? spec.config.body_template : '';
@@ -1496,7 +1516,7 @@ function CallWebhookConfig({ spec, onChange }: { spec: ActionSpec; onChange: (ne
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-            <div className="imcrm-flex imcrm-gap-2">
+            <div className="imcrm-flex imcrm-gap-2 imcrm-items-start">
                 <Select
                     value={method}
                     onChange={(e) => set({ method: e.target.value })}
@@ -1509,20 +1529,23 @@ function CallWebhookConfig({ spec, onChange }: { spec: ActionSpec; onChange: (ne
                         </option>
                     ))}
                 </Select>
-                <Input
-                    placeholder="https://example.com/hook"
-                    value={url}
-                    onChange={(e) => set({ url: e.target.value })}
-                    className="imcrm-flex-1"
-                />
+                <div className="imcrm-flex-1">
+                    <MergeTagInput
+                        placeholder="https://example.com/hook"
+                        value={url}
+                        onChange={(next) => set({ url: next })}
+                        fields={fields}
+                    />
+                </div>
             </div>
             <Label className="imcrm-text-xs imcrm-text-muted-foreground">
                 {__('Body (opcional, soporta merge tags)')}
             </Label>
-            <Textarea
+            <MergeTagInput
                 rows={3}
                 value={body}
-                onChange={(e) => set({ body_template: e.target.value })}
+                onChange={(next) => set({ body_template: next })}
+                fields={fields}
                 placeholder='{"id": {{record.id}}, "name": "{{name}}"}'
             />
         </div>
@@ -1532,9 +1555,11 @@ function CallWebhookConfig({ spec, onChange }: { spec: ActionSpec; onChange: (ne
 function SendEmailConfig({
     spec,
     onChange,
+    fields,
 }: {
     spec: ActionSpec;
     onChange: (next: ActionSpec) => void;
+    fields: FieldEntity[];
 }): JSX.Element {
     const to = typeof spec.config.to === 'string' ? spec.config.to : '';
     const subject = typeof spec.config.subject === 'string' ? spec.config.subject : '';
@@ -1549,30 +1574,39 @@ function SendEmailConfig({
         onChange({ ...spec, config: { ...spec.config, ...patch } });
     };
 
+    // La firma se carga vía hook; el callback `onInsertSignature`
+    // resuelve la promesa con el HTML guardado por el usuario.
+    const signature = useEmailSignature();
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
             <Label className="imcrm-text-xs imcrm-text-muted-foreground">
                 {__('Para (acepta merge tags y múltiples emails separados por coma)')}
             </Label>
-            <Input
+            <MergeTagInput
                 placeholder="{{email}} o user@example.com"
                 value={to}
-                onChange={(e) => set({ to: e.target.value })}
+                onChange={(next) => set({ to: next })}
+                fields={fields}
             />
 
             <Label className="imcrm-text-xs imcrm-text-muted-foreground">{__('Asunto')}</Label>
-            <Input
+            <MergeTagInput
                 placeholder={__('Hola {{name}}')}
                 value={subject}
-                onChange={(e) => set({ subject: e.target.value })}
+                onChange={(next) => set({ subject: next })}
+                fields={fields}
             />
 
             <Label className="imcrm-text-xs imcrm-text-muted-foreground">{__('Cuerpo')}</Label>
-            <Textarea
+            <MergeTagInput
                 rows={4}
-                placeholder={__('Tu mensaje. Usa {{slug}} para insertar valores del registro.')}
+                placeholder={__('Tu mensaje. Usa los chips abajo para insertar variables.')}
                 value={body}
-                onChange={(e) => set({ body: e.target.value })}
+                onChange={(next) => set({ body: next })}
+                fields={fields}
+                showSignatureButton
+                onInsertSignature={() => signature.data ?? ''}
             />
 
             <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
@@ -1604,15 +1638,17 @@ function SendEmailConfig({
                             className="imcrm-flex-1"
                         />
                     </div>
-                    <Input
+                    <MergeTagInput
                         placeholder={__('Cc (separados por coma)')}
                         value={cc}
-                        onChange={(e) => set({ cc: e.target.value })}
+                        onChange={(next) => set({ cc: next })}
+                        fields={fields}
                     />
-                    <Input
+                    <MergeTagInput
                         placeholder={__('Bcc (separados por coma)')}
                         value={bcc}
-                        onChange={(e) => set({ bcc: e.target.value })}
+                        onChange={(next) => set({ bcc: next })}
+                        fields={fields}
                     />
                 </div>
             </details>

@@ -77,6 +77,53 @@ final class SystemController extends AbstractController
                 'limit' => ['type' => 'integer', 'default' => 8],
             ],
         ]);
+
+        // Firma de email per-usuario. Se inserta en el body del email
+        // automatizado vía el merge tag `{{signature}}` y vía el botón
+        // "+ Agregar firma" del editor.
+        register_rest_route($this->namespace, '/me/email-signature', [
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getEmailSignature'],
+                'permission_callback' => [$this, 'checkAdminPermissions'],
+            ],
+            [
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => [$this, 'updateEmailSignature'],
+                'permission_callback' => [$this, 'checkAdminPermissions'],
+            ],
+        ]);
+    }
+
+    public function getEmailSignature(WP_REST_Request $request): WP_REST_Response
+    {
+        unset($request);
+        $sig = get_user_meta(get_current_user_id(), 'imcrm_email_signature', true);
+        return new WP_REST_Response([
+            'data' => ['signature' => is_string($sig) ? $sig : ''],
+        ]);
+    }
+
+    public function updateEmailSignature(WP_REST_Request $request): WP_REST_Response
+    {
+        $params = $request->get_json_params();
+        if (! is_array($params)) {
+            $params = $request->get_params();
+        }
+        $sig = isset($params['signature']) ? (string) $params['signature'] : '';
+        // Limitamos a algo razonable para evitar abusos. Una firma de
+        // 8KB cubre cualquier caso real (incluyendo HTML enriquecido).
+        if (strlen($sig) > 8192) {
+            $sig = substr($sig, 0, 8192);
+        }
+        // Sanitización: permitimos HTML básico (kses_post) — los emails
+        // se envían con merge tag aplicado, así que el filtro garantiza
+        // que el cliente del email reciba HTML seguro.
+        $sig = $sig === '' ? '' : (string) wp_kses_post($sig);
+        update_user_meta(get_current_user_id(), 'imcrm_email_signature', $sig);
+        return new WP_REST_Response([
+            'data' => ['signature' => $sig],
+        ]);
     }
 
     public function me(WP_REST_Request $request): WP_REST_Response

@@ -50,6 +50,51 @@ final class MergeTagsTest extends TestCase
         $this->assertSame('texto literal sin tags', $action->expand('texto literal sin tags', $ctx));
     }
 
+    public function test_record_metadata_tags_resolve(): void
+    {
+        $action = $this->makeAction();
+        $ctx = $this->createContext([
+            'id' => 7,
+            'fields' => [],
+            'created_at' => '2026-04-29 10:30:00',
+            'updated_at' => '2026-04-29 11:45:00',
+            'created_by' => 42,
+        ]);
+
+        $this->assertSame('2026-04-29 10:30:00', $action->expand('{{record.created_at}}', $ctx));
+        $this->assertSame('2026-04-29 11:45:00', $action->expand('{{record.updated_at}}', $ctx));
+        $this->assertSame('42', $action->expand('{{record.created_by}}', $ctx));
+    }
+
+    public function test_date_now_returns_iso_8601_format(): void
+    {
+        $action = $this->makeAction();
+        $ctx = $this->createContext(['id' => 1, 'fields' => []]);
+        $result = $action->expand('{{date.now}}', $ctx);
+        // ISO 8601 con offset (e.g. 2026-04-29T15:30:00+00:00).
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/',
+            $result,
+        );
+    }
+
+    public function test_date_today_returns_ymd(): void
+    {
+        $action = $this->makeAction();
+        $ctx = $this->createContext(['id' => 1, 'fields' => []]);
+        $result = $action->expand('{{date.today}}', $ctx);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $result);
+    }
+
+    public function test_signature_returns_empty_when_no_user_meta(): void
+    {
+        $action = $this->makeAction();
+        // Sin created_by ni current_user, resolveAuthorId devuelve 0
+        // y get_user_meta queda en string vacío.
+        $ctx = $this->createContext(['id' => 1, 'fields' => []]);
+        $this->assertSame('', $action->expand('{{signature}}', $ctx));
+    }
+
     private function makeAction(): object
     {
         return new class extends AbstractAction {
