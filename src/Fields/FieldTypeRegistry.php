@@ -5,6 +5,7 @@ namespace ImaginaCRM\Fields;
 
 use ImaginaCRM\Contracts\FieldTypeInterface;
 use ImaginaCRM\Fields\Types\CheckboxField;
+use ImaginaCRM\Fields\Types\ComputedField;
 use ImaginaCRM\Fields\Types\CurrencyField;
 use ImaginaCRM\Fields\Types\DateField;
 use ImaginaCRM\Fields\Types\DateTimeField;
@@ -96,6 +97,7 @@ final class FieldTypeRegistry
             new UserField(),
             new RelationField(),
             new FileField(),
+            new ComputedField(),
         ];
 
         foreach ($defaults as $type) {
