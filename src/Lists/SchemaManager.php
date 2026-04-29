@@ -54,6 +54,7 @@ final class SchemaManager
             $this->sqlAutomationRuns($charset),
             $this->sqlDashboards($charset),
             $this->sqlSavedFilters($charset),
+            $this->sqlRecurrences($charset),
         ];
 
         foreach ($statements as $sql) {
@@ -320,6 +321,55 @@ final class SchemaManager
             PRIMARY KEY  (id),
             KEY idx_list (list_id),
             KEY idx_user (user_id)
+        ) {$charset};";
+    }
+
+    /**
+     * Recurrencias por record (ClickUp-style). Cada fila configura cómo
+     * un campo date/datetime de un record concreto "rueda" hacia adelante
+     * — ya sea cuando un campo de estado cambia a un valor target
+     * (`trigger_type = status_change`) o cuando el cron de Action
+     * Scheduler detecta que la fecha actual ya pasó
+     * (`trigger_type = schedule`).
+     *
+     * `monthly_pattern` solo aplica con frequency=monthly (same_day,
+     * first_day, last_day, weekday — donde "weekday" usa el día de la
+     * semana de la fecha original).
+     *
+     * `action_type`:
+     *  - `update`: el record actual se actualiza (avanza la fecha,
+     *    opcionalmente cambia su estado a `update_status_value`).
+     *  - `clone`: se crea un nuevo record copiando el original con la
+     *    fecha rodada; el original queda intacto.
+     *
+     * `repeat_until` NULL = indefinido. Si está, el runner deja de
+     * disparar pasada esa fecha.
+     */
+    private function sqlRecurrences(string $charset): string
+    {
+        $table = $this->db->systemTable('recurrences');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            record_id BIGINT UNSIGNED NOT NULL,
+            date_field_id BIGINT UNSIGNED NOT NULL,
+            frequency VARCHAR(16) NOT NULL,
+            interval_n INT UNSIGNED NOT NULL DEFAULT 1,
+            monthly_pattern VARCHAR(16) NULL,
+            trigger_type VARCHAR(16) NOT NULL,
+            trigger_status_field_id BIGINT UNSIGNED NULL,
+            trigger_status_value VARCHAR(191) NULL,
+            action_type VARCHAR(16) NOT NULL DEFAULT 'update',
+            update_status_field_id BIGINT UNSIGNED NULL,
+            update_status_value VARCHAR(191) NULL,
+            repeat_until DATE NULL,
+            last_fired_at DATETIME NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uq_record_field (record_id, date_field_id),
+            KEY idx_list (list_id),
+            KEY idx_trigger (trigger_type)
         ) {$charset};";
     }
 
