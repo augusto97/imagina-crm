@@ -28,6 +28,8 @@ final class RestBootstrap
         ActivityController::class,
         DashboardsController::class,
         RecurrencesController::class,
+        ImportController::class,
+        ExportController::class,
     ];
 
     public function __construct(private readonly Container $container)

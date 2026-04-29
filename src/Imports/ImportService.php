@@ -1,0 +1,338 @@
+<?php
+declare(strict_types=1);
+
+namespace ImaginaCRM\Imports;
+
+use ImaginaCRM\Fields\FieldEntity;
+use ImaginaCRM\Fields\FieldRepository;
+use ImaginaCRM\Fields\Types\ComputedField;
+use ImaginaCRM\Lists\ListEntity;
+use ImaginaCRM\Records\RecordService;
+use ImaginaCRM\Support\ValidationResult;
+
+/**
+ * Importa registros desde un CSV (export de ClickUp, Airtable, Excel
+ * "Save as CSV", Google Sheets, …) hacia una lista de Imagina CRM.
+ *
+ * Flujo de UI (dos pasos):
+ *  1. `preview()` — el cliente sube el CSV, mostramos cabeceras +
+ *     muestra de las primeras filas + sugerencia de mapping
+ *     `csv_column_index → field_slug` basada en match difuso del
+ *     header con el label/slug de cada campo.
+ *  2. `run()` — el cliente confirma el mapping y dispara el import.
+ *     Cada fila se valida contra `RecordValidator` y se inserta vía
+ *     `RecordService::create`. Errores por fila se acumulan; el
+ *     resto continúa importándose.
+ *
+ * No usa transacciones porque MySQL no garantiza atomicidad sobre
+ * múltiples inserts cuando hay hooks/automatizaciones que pueden
+ * disparar updates. El cliente recibe un summary con éxitos/errores
+ * para decidir qué hacer manualmente con los registros fallidos.
+ */
+final class ImportService
+{
+    /** Cuántas filas devolvemos en el preview. */
+    private const PREVIEW_ROWS = 20;
+
+    /** Hard cap para no sobrecargar el servidor de un solo shot. */
+    private const MAX_ROWS_PER_RUN = 5000;
+
+    public function __construct(
+        private readonly FieldRepository $fields,
+        private readonly RecordService $records,
+    ) {
+    }
+
+    /**
+     * Inspecciona el CSV sin escribir nada. Devuelve cabeceras,
+     * filas de muestra y sugerencias de mapping.
+     *
+     * @return array{
+     *     headers: array<int, string>,
+     *     sample: array<int, array<int, string>>,
+     *     total_rows: int,
+     *     suggested_mapping: array<int, string>,
+     *     fields: array<int, array{id:int, slug:string, label:string, type:string}>
+     * }
+     */
+    public function preview(ListEntity $list, string $csv): array
+    {
+        $parsed     = CsvParser::parse($csv);
+        $headers    = $parsed['headers'];
+        $rows       = $parsed['rows'];
+        $listFields = $this->importableFields($list);
+        $suggested  = $this->suggestMapping($headers, $listFields);
+
+        return [
+            'headers'           => $headers,
+            'sample'            => array_slice($rows, 0, self::PREVIEW_ROWS),
+            'total_rows'        => count($rows),
+            'suggested_mapping' => $suggested,
+            'fields'            => array_map(
+                static fn (FieldEntity $f): array => [
+                    'id'    => $f->id,
+                    'slug'  => $f->slug,
+                    'label' => $f->label,
+                    'type'  => $f->type,
+                ],
+                $listFields,
+            ),
+        ];
+    }
+
+    /**
+     * Ejecuta el import. `$mapping` es `csv_column_index → field_slug`;
+     * las columnas no incluidas en el mapping se ignoran (permite al
+     * usuario dejar columnas fuera).
+     *
+     * @param array<int, string> $mapping
+     *
+     * @return array{
+     *     imported: int,
+     *     skipped: int,
+     *     errors: array<int, array{row:int, message:string}>,
+     *     truncated: bool
+     * }
+     */
+    public function run(ListEntity $list, string $csv, array $mapping): array
+    {
+        $parsed     = CsvParser::parse($csv);
+        $rows       = $parsed['rows'];
+        $listFields = $this->importableFields($list);
+        $bySlug     = [];
+        foreach ($listFields as $f) {
+            $bySlug[$f->slug] = $f;
+        }
+
+        $truncated = false;
+        if (count($rows) > self::MAX_ROWS_PER_RUN) {
+            $rows      = array_slice($rows, 0, self::MAX_ROWS_PER_RUN);
+            $truncated = true;
+        }
+
+        $imported = 0;
+        $skipped  = 0;
+        $errors   = [];
+
+        foreach ($rows as $idx => $row) {
+            $rowNumber = $idx + 2; // +1 por header, +1 para human-friendly (1-indexed)
+
+            $values = [];
+            foreach ($mapping as $colIdx => $slug) {
+                if (! isset($bySlug[$slug])) {
+                    continue;
+                }
+                $rawCell = $row[$colIdx] ?? '';
+                $values[$slug] = $this->coerceCellValue($rawCell, $bySlug[$slug]);
+            }
+
+            // Fila completamente vacía → skip silencioso, no es un error.
+            $allEmpty = true;
+            foreach ($values as $v) {
+                if ($v !== null && $v !== '' && $v !== []) {
+                    $allEmpty = false;
+                    break;
+                }
+            }
+            if ($allEmpty) {
+                $skipped++;
+                continue;
+            }
+
+            $result = $this->records->create($list, $values);
+            if ($result instanceof ValidationResult) {
+                $errors[] = [
+                    'row'     => $rowNumber,
+                    'message' => $this->summarizeValidation($result),
+                ];
+                $skipped++;
+                continue;
+            }
+            $imported++;
+        }
+
+        return [
+            'imported'  => $imported,
+            'skipped'   => $skipped,
+            'errors'    => $errors,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * Convierte el string del CSV al shape que espera
+     * `RecordValidator` para cada tipo de campo. Best-effort:
+     * los errores de tipo los reporta el validator (con mensajes
+     * por campo) en `run()`.
+     */
+    private function coerceCellValue(string $raw, FieldEntity $field): mixed
+    {
+        $trimmed = trim($raw);
+        if ($trimmed === '') {
+            return $field->type === 'multi_select' ? [] : null;
+        }
+
+        return match ($field->type) {
+            // multi_select: ClickUp/Airtable usan "tag1, tag2" o
+            // "tag1; tag2". Aceptamos ambos.
+            'multi_select' => array_values(array_filter(
+                array_map('trim', preg_split('/[,;]/', $trimmed) ?: []),
+                static fn (string $v): bool => $v !== '',
+            )),
+
+            // checkbox: aceptamos true/false, 1/0, sí/no, x/blank.
+            'checkbox' => self::parseBool($trimmed),
+
+            // number/currency: limpiar separadores de miles.
+            'number', 'currency' => self::parseNumber($trimmed),
+
+            // user/file: ID numérico.
+            'user', 'file' => is_numeric($trimmed) ? (int) $trimmed : $trimmed,
+
+            // date/datetime: dejamos el string; el validator parsea.
+            // Si viene en formato local "DD/MM/YYYY" lo convertimos.
+            'date', 'datetime' => self::normalizeDate($trimmed, $field->type),
+
+            default => $trimmed,
+        };
+    }
+
+    private static function parseBool(string $v): bool
+    {
+        $low = strtolower($v);
+        return in_array($low, ['1', 'true', 'yes', 'sí', 'si', 'x', 'on'], true);
+    }
+
+    private static function parseNumber(string $v): float|int|string
+    {
+        // Excel ES exporta "1.234,56"; mantenemos el último separador
+        // como decimal y descartamos los demás (separadores de miles).
+        $clean = $v;
+        if (preg_match('/^-?[0-9]{1,3}(\.[0-9]{3})+(,[0-9]+)?$/', $v) === 1) {
+            $clean = str_replace('.', '', $v);
+            $clean = str_replace(',', '.', $clean);
+        } elseif (str_contains($v, ',') && ! str_contains($v, '.')) {
+            $clean = str_replace(',', '.', $v);
+        }
+        if (is_numeric($clean)) {
+            return str_contains($clean, '.') ? (float) $clean : (int) $clean;
+        }
+        return $v;
+    }
+
+    /**
+     * Acepta YYYY-MM-DD (formato canónico), DD/MM/YYYY (Excel ES),
+     * MM/DD/YYYY (ClickUp US). Heurística: si el primer grupo es > 12
+     * y los datos están separados por `/`, asumimos DD/MM/YYYY.
+     */
+    private static function normalizeDate(string $v, string $type): string
+    {
+        // Ya en formato ISO.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $v) === 1) {
+            return $v;
+        }
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(.*)$/', $v, $m) === 1) {
+            $a    = (int) $m[1];
+            $b    = (int) $m[2];
+            $year = (int) $m[3];
+            if ($year < 100) {
+                $year += 2000;
+            }
+            $tail = (string) $m[4];
+            // Si $a > 12, definitivamente DD/MM. Si $b > 12, MM/DD.
+            // Caso ambiguo (ambos ≤ 12): asumimos DD/MM (locale ES).
+            if ($a > 12 && $b <= 12) {
+                $day = $a; $month = $b;
+            } elseif ($b > 12 && $a <= 12) {
+                $day = $b; $month = $a;
+            } else {
+                $day = $a; $month = $b;
+            }
+            $iso = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            return $type === 'datetime' && trim($tail) !== '' ? $iso . 'T' . trim($tail) : $iso;
+        }
+        return $v;
+    }
+
+    /**
+     * Sugiere `csv_column_index → field_slug` basado en match difuso
+     * del header CSV con label/slug de cada campo. Usamos
+     * `similar_text()` que devuelve un score 0-100. Threshold > 60
+     * para minimizar falsos positivos.
+     *
+     * @param array<int, string>          $headers
+     * @param array<int, FieldEntity>     $listFields
+     * @return array<int, string>
+     */
+    private function suggestMapping(array $headers, array $listFields): array
+    {
+        $suggestions = [];
+        $usedSlugs   = [];
+        foreach ($headers as $idx => $header) {
+            $bestSlug  = null;
+            $bestScore = 0.0;
+            foreach ($listFields as $f) {
+                if (in_array($f->slug, $usedSlugs, true)) {
+                    continue;
+                }
+                $candidates = [
+                    self::normalize($f->slug),
+                    self::normalize($f->label),
+                ];
+                foreach ($candidates as $cand) {
+                    similar_text(self::normalize($header), $cand, $score);
+                    if ($score > $bestScore) {
+                        $bestScore = $score;
+                        $bestSlug  = $f->slug;
+                    }
+                }
+            }
+            if ($bestSlug !== null && $bestScore >= 60.0) {
+                $suggestions[$idx] = $bestSlug;
+                $usedSlugs[]       = $bestSlug;
+            }
+        }
+        return $suggestions;
+    }
+
+    private static function normalize(string $s): string
+    {
+        $s = strtolower(trim($s));
+        $s = (string) preg_replace('/[^a-z0-9]+/i', '_', $s);
+        return trim($s, '_');
+    }
+
+    /**
+     * Campos importables: todos menos `computed` (no acepta input
+     * directo, lo deriva el evaluator) y `relation` (requiere FK
+     * a registros que pueden no existir aún).
+     *
+     * @return array<int, FieldEntity>
+     */
+    private function importableFields(ListEntity $list): array
+    {
+        return array_values(array_filter(
+            $this->fields->allForList($list->id),
+            static fn (FieldEntity $f): bool =>
+                $f->type !== 'relation'
+                && $f->type !== ComputedField::SLUG
+                && $f->deletedAt === null,
+        ));
+    }
+
+    private function summarizeValidation(ValidationResult $result): string
+    {
+        $errors = $result->errors();
+        if ($errors === []) {
+            return __('Validación falló sin detalles.', 'imagina-crm');
+        }
+        $msgs = [];
+        foreach ($errors as $field => $messages) {
+            $list = is_array($messages) ? $messages : [$messages];
+            foreach ($list as $msg) {
+                $msgs[] = $field . ': ' . (string) $msg;
+            }
+        }
+        return implode('; ', array_slice($msgs, 0, 3));
+    }
+}
