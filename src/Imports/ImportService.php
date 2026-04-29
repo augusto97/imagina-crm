@@ -89,10 +89,11 @@ final class ImportService
             'suggested_types'   => $suggestedTypes,
             'fields'            => array_map(
                 static fn (FieldEntity $f): array => [
-                    'id'    => $f->id,
-                    'slug'  => $f->slug,
-                    'label' => $f->label,
-                    'type'  => $f->type,
+                    'id'          => $f->id,
+                    'slug'        => $f->slug,
+                    'label'       => $f->label,
+                    'type'        => $f->type,
+                    'is_required' => $f->isRequired,
                 ],
                 $listFields,
             ),
@@ -283,16 +284,35 @@ final class ImportService
     }
 
     /**
-     * Acepta YYYY-MM-DD (formato canónico), DD/MM/YYYY (Excel ES),
-     * MM/DD/YYYY (ClickUp US). Heurística: si el primer grupo es > 12
-     * y los datos están separados por `/`, asumimos DD/MM/YYYY.
+     * Normaliza una cadena de fecha a formato compatible con
+     * `RecordValidator`:
+     *  - `date`     → 'YYYY-MM-DD'
+     *  - `datetime` → 'YYYY-MM-DD HH:MM:SS'
+     *
+     * Acepta:
+     *  1. ISO 8601: 'YYYY-MM-DD' (canónico, devuelto sin tocar para
+     *     `date` — para `datetime` con hora ya viene formateado).
+     *  2. Slashed numéricos: 'DD/MM/YYYY' o 'MM/DD/YYYY' (Excel ES,
+     *     ClickUp US). Heurística: si el primer grupo > 12, es DD/MM;
+     *     si el segundo > 12, MM/DD; ambiguo → DD/MM (locale ES).
+     *  3. Fallback: `DateTimeImmutable::__construct` parsea formatos
+     *     humanos como "Thursday, May 21st 2026" o
+     *     "Wednesday, January 21st 2026, 5:29:08 pm -05:00" — el
+     *     parser nativo de PHP entiende nombres de día/mes y sufijos
+     *     ordinales (1st, 2nd, 3rd, 21st). Es lo que ClickUp emite
+     *     en sus exports CSV.
+     *
+     * Si nada parsea, devolvemos el string original — el validator
+     * reportará "Fecha inválida" con el valor crudo para que el
+     * usuario sepa qué celda revisar.
      */
-    private static function normalizeDate(string $v, string $type): string
+    public static function normalizeDate(string $v, string $type): string
     {
-        // Ya en formato ISO.
+        // 1. Ya en formato ISO.
         if (preg_match('/^\d{4}-\d{2}-\d{2}/', $v) === 1) {
             return $v;
         }
+        // 2. Slashed numéricos.
         if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(.*)$/', $v, $m) === 1) {
             $a    = (int) $m[1];
             $b    = (int) $m[2];
@@ -301,8 +321,6 @@ final class ImportService
                 $year += 2000;
             }
             $tail = (string) $m[4];
-            // Si $a > 12, definitivamente DD/MM. Si $b > 12, MM/DD.
-            // Caso ambiguo (ambos ≤ 12): asumimos DD/MM (locale ES).
             if ($a > 12 && $b <= 12) {
                 $day = $a; $month = $b;
             } elseif ($b > 12 && $a <= 12) {
@@ -311,9 +329,18 @@ final class ImportService
                 $day = $a; $month = $b;
             }
             $iso = sprintf('%04d-%02d-%02d', $year, $month, $day);
-            return $type === 'datetime' && trim($tail) !== '' ? $iso . 'T' . trim($tail) : $iso;
+            return $type === 'datetime' && trim($tail) !== '' ? $iso . ' ' . trim($tail) : $iso;
         }
-        return $v;
+        // 3. Fallback al parser nativo de PHP (cubre formatos humanos
+        // como ClickUp).
+        try {
+            $d = new \DateTimeImmutable($v);
+            return $type === 'datetime'
+                ? $d->format('Y-m-d H:i:s')
+                : $d->format('Y-m-d');
+        } catch (\Throwable) {
+            return $v;
+        }
     }
 
     /**

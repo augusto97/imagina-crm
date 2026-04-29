@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.2
+Stable tag: 0.26.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.3 =
+* Fix: el importador rechazaba todas las fechas de ClickUp porque
+  vienen en formato humano ("Thursday, May 21st 2026" /
+  "Wednesday, January 21st 2026, 5:29:08 pm -05:00") que no
+  matcheaba ninguna de las regex (ISO, DD/MM, MM/DD).
+  `ImportService::normalizeDate` ahora cae en
+  `DateTimeImmutable::__construct` como fallback — el parser
+  nativo de PHP entiende nombres de día/mes en inglés y sufijos
+  ordinales (1st, 2nd, 3rd, 21st, 22nd, 23rd…), que es justo lo
+  que ClickUp emite. Para campos `date` se descarta la hora;
+  para `datetime` se preserva en formato 'YYYY-MM-DD HH:MM:SS'.
+  10 unit tests nuevos cubriendo ClickUp human con/sin hora,
+  todos los sufijos ordinales, Excel ES (DD/MM), ClickUp US
+  (MM/DD), año de 2 dígitos, y unparseable → original.
+* UX: en el paso "Listo" del importador, nuevo botón
+  "Volver al mapeo" — preserva csv + mapping + new_fields y
+  vuelve al paso anterior. Útil cuando el run reportó errores
+  (campos obligatorios sin mapear, fechas inválidas) y el user
+  quiere ajustar y re-correr sin tener que re-subir el archivo
+  ni re-mapear todas las columnas desde cero.
+* UX: el paso "Mapeo" muestra un aviso amarillo cuando hay
+  campos obligatorios de la lista que no están mapeados a
+  ninguna columna. Lista los nombres con su tipo. Previene la
+  vuelta de "todas las filas fallaron por X obligatorio".
+  Backend: `ImportService::preview` ahora incluye
+  `is_required` en el array de campos.
 
 = 0.26.2 =
 * Fix: el importador CSV mostraba "No se pudo leer el archivo." al
