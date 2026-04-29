@@ -4,7 +4,7 @@
     "name": "main"
   },
   "app/admin/automations/AutomationVisualBuilder.tsx": {
-    "file": "assets/AutomationVisualBuilder-B2WVEnrX.js",
+    "file": "assets/AutomationVisualBuilder-k0CecVw2.js",
     "name": "AutomationVisualBuilder",
     "src": "app/admin/automations/AutomationVisualBuilder.tsx",
     "isDynamicEntry": true,
@@ -17,7 +17,7 @@
     ]
   },
   "app/admin/dashboards/DashboardGrid.tsx": {
-    "file": "assets/DashboardGrid-3afnunac.js",
+    "file": "assets/DashboardGrid-B5Lccz0p.js",
     "name": "DashboardGrid",
     "src": "app/admin/dashboards/DashboardGrid.tsx",
     "isDynamicEntry": true,
@@ -30,7 +30,7 @@
     ]
   },
   "app/main.tsx": {
-    "file": "assets/main-lrWjrau4.js",
+    "file": "assets/main-B7MBbFoV.js",
     "name": "main",
     "src": "app/main.tsx",
     "isEntry": true,
@@ -42,7 +42,7 @@
       "app/admin/dashboards/DashboardGrid.tsx"
     ],
     "css": [
-      "assets/main-DQo8tuyl.css"
+      "assets/main-BPs_Rb_-.css"
     ]
   }
 }

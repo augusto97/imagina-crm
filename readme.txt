@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.18.1
+Stable tag: 0.18.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.18.2 =
+* Fix: el panel de filtros se cortaba contra la sidebar en algunos
+  layouts — el `position: absolute; right: 0` sobre el wrapper del
+  botón ignoraba el viewport y el panel de 760px se metía bajo la
+  sidebar fija. Reescrito a Radix `Popover` con
+  `collision-padding: 16px` que reposiciona/auto-flippea
+  automáticamente para que el panel SIEMPRE quede dentro del
+  viewport visible. Width también es responsive ahora
+  (`min(720px, 100vw - 2rem)`) — en pantallas angostas se reduce a
+  ancho de viewport menos margen, en lugar de cortarse.
 
 = 0.18.1 =
 * Fix: el panel de filtros (introducido en 0.17.0) se veía vacío al
