@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.22.3
+Stable tag: 0.22.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.22.4 =
+* Fix: el popover del DateCellEditor tenía espacio en blanco al
+  lado del calendario porque el panel de recurrencia inferior
+  era más ancho y forzaba todo el popover a ~520px. Reducido a
+  460px — el calendario+atajos ahora llenan todo el ancho sin
+  hueco vacío y el panel de recurrencia se ajusta naturalmente
+  al ancho menor.
 
 = 0.22.3 =
 * Fix semántico de "Días después de…" matchea ClickUp:
