@@ -228,12 +228,12 @@ final class WidgetEvaluator
             return ['data' => $data];
         }
 
-        // date / datetime: agrupamos por mes (YYYY-MM) para que el chart
-        // sea legible. Si en algún momento exponemos granularidad day/week
-        // como config, pivoteamos el formato aquí.
+        // date / datetime: granularidad configurable vía `time_bucket`
+        // (day/week/month/quarter/year). Default: month.
         if ($field->type === 'date' || $field->type === 'datetime') {
+            $bucket = $this->bucketExpression($col, (string) ($config['time_bucket'] ?? 'month'));
             $rows = $runQuery(
-                'SELECT DATE_FORMAT(' . $col . ", '%Y-%m') AS bucket, COUNT(*) AS total"
+                'SELECT ' . $bucket . ' AS bucket, COUNT(*) AS total'
                 . ' FROM ' . $table
                 . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                 . ' GROUP BY bucket ORDER BY bucket DESC LIMIT ' . $limit,
@@ -325,7 +325,8 @@ final class WidgetEvaluator
         $where = $filterCtx['where'];
         $args  = $filterCtx['args'];
         $wpdb  = $this->db->wpdb();
-        $sql   = 'SELECT DATE_FORMAT(' . $col . ", '%Y-%m') AS bucket, COUNT(*) AS total"
+        $bucket = $this->bucketExpression($col, (string) ($config['time_bucket'] ?? 'month'));
+        $sql   = 'SELECT ' . $bucket . ' AS bucket, COUNT(*) AS total'
                . ' FROM ' . $this->dataTable($tableSuffix)
                . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                . ' GROUP BY bucket ORDER BY bucket ASC';
@@ -576,6 +577,32 @@ final class WidgetEvaluator
     private function validIdent(string $ident): bool
     {
         return (bool) preg_match(self::IDENT_REGEX, $ident);
+    }
+
+    /**
+     * Devuelve la expresión SQL que agrupa una columna de fecha por la
+     * granularidad solicitada. El bucket queda como string ordenable
+     * cronológicamente y legible para el frontend.
+     *
+     * - day      → 'YYYY-MM-DD'
+     * - week     → 'YYYY-Www'  (ISO week)
+     * - month    → 'YYYY-MM'
+     * - quarter  → 'YYYY-Qn'   (ej. '2026-Q2')
+     * - year     → 'YYYY'
+     *
+     * `$col` ya viene quoteado con backticks (ej. "`due_date`"). El
+     * bucket no recibe input del usuario salvo el slug, que validamos
+     * contra la lista cerrada acá.
+     */
+    private function bucketExpression(string $col, string $bucket): string
+    {
+        return match ($bucket) {
+            'day'     => "DATE_FORMAT({$col}, '%Y-%m-%d')",
+            'week'    => "DATE_FORMAT({$col}, '%x-W%v')",
+            'quarter' => "CONCAT(YEAR({$col}), '-Q', QUARTER({$col}))",
+            'year'    => "DATE_FORMAT({$col}, '%Y')",
+            default   => "DATE_FORMAT({$col}, '%Y-%m')",
+        };
     }
 
     private function dataTable(string $tableSuffix): string

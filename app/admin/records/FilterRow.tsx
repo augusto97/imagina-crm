@@ -49,10 +49,20 @@ export function FilterRow({
     };
 
     const setOp = (op: FilterOperator): void => {
+        let nextValue: unknown = condition.value;
+        if (isNullaryOperator(op)) {
+            nextValue = null;
+        } else if (op === 'between_relative') {
+            // El valor pasa de ser una fecha (string ISO) a un preset
+            // slug. Si no es ya un preset válido, default a este mes.
+            if (typeof condition.value !== 'string' || condition.value === '' || condition.value.includes('-')) {
+                nextValue = 'this_month';
+            }
+        }
         onChange({
             ...condition,
             op,
-            value: isNullaryOperator(op) ? null : condition.value,
+            value: nextValue,
         });
     };
 

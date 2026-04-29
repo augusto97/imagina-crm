@@ -36,6 +36,11 @@ const DATE_LIKE: OperatorMeta[] = [
     { op: 'neq', label: __('no es') },
     { op: 'gte', label: __('desde') },
     { op: 'lte', label: __('hasta') },
+    // Rango relativo dinámico: persiste el preset (this_month,
+    // last_year, etc.) en lugar de fechas fijas. Imprescindible
+    // para widgets de dashboard que tienen que seguir mostrando
+    // "este mes" la próxima semana.
+    { op: 'between_relative', label: __('en') },
     { op: 'is_not_null', label: __('está establecido'), nullary: true },
     { op: 'is_null', label: __('no está establecido'), nullary: true },
 ];

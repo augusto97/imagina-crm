@@ -16,6 +16,15 @@ export interface WidgetLayout {
     h: number;
 }
 
+/**
+ * Granularidad temporal para charts con eje de fecha. Cuando se setea
+ * sobre `chart_bar`/`chart_pie` con un `group_by_field_id` de tipo
+ * date/datetime, o sobre `chart_line`/`chart_area` (que siempre usan
+ * date_field_id), define el `DATE_FORMAT` que usa el backend para
+ * agrupar.
+ */
+export type ChartTimeBucket = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
 export interface WidgetSpec {
     id: string;
     type: WidgetType;
@@ -26,6 +35,14 @@ export interface WidgetSpec {
         metric_field_id?: number;
         group_by_field_id?: number;
         date_field_id?: number;
+        /** Granularidad temporal para charts con eje de fecha. Default: month. */
+        time_bucket?: ChartTimeBucket;
+        /** Mostrar línea de promedio horizontal (bar/line/area). */
+        show_average_line?: boolean;
+        /** Mostrar valor numérico encima de cada barra / punto / sector. */
+        show_data_labels?: boolean;
+        /** Mostrar leyenda de series (pie / charts con multi-serie). */
+        show_legend?: boolean;
         /**
          * Filtros opcionales aplicados al widget. Forma legacy plana
          * `{ field_<id>: { op: value } }` — sólo soporta AND. Si el

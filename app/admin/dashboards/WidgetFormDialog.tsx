@@ -10,7 +10,12 @@ import { useFields } from '@/hooks/useFields';
 import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type { KpiMetric, WidgetSpec, WidgetType } from '@/types/dashboard';
+import type {
+    ChartTimeBucket,
+    KpiMetric,
+    WidgetSpec,
+    WidgetType,
+} from '@/types/dashboard';
 import type { FilterTree } from '@/types/record';
 
 import { FiltersPanel } from '@/admin/records/FiltersPanel';
@@ -53,6 +58,10 @@ export function WidgetFormDialog({
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const [tableLimit, setTableLimit] = useState<number>(10);
     const [visibleFieldIds, setVisibleFieldIds] = useState<number[]>([]);
+    const [showAverageLine, setShowAverageLine] = useState<boolean>(false);
+    const [showDataLabels, setShowDataLabels] = useState<boolean>(false);
+    const [showLegend, setShowLegend] = useState<boolean>(false);
+    const [timeBucket, setTimeBucket] = useState<ChartTimeBucket>('month');
     const [filterTree, setFilterTree] = useState<FilterTree>({
         type: 'group',
         logic: 'and',
@@ -106,6 +115,14 @@ export function WidgetFormDialog({
                     ? (initial.config.visible_field_ids as number[])
                     : [],
             );
+            setShowAverageLine(Boolean(initial.config.show_average_line));
+            setShowDataLabels(Boolean(initial.config.show_data_labels));
+            setShowLegend(Boolean(initial.config.show_legend));
+            setTimeBucket(
+                isTimeBucket(initial.config.time_bucket)
+                    ? initial.config.time_bucket
+                    : 'month',
+            );
             setFilterTree(decodeWidgetFilters(initial.config));
         } else {
             setTitle('');
@@ -120,6 +137,10 @@ export function WidgetFormDialog({
             setSortDir('desc');
             setTableLimit(10);
             setVisibleFieldIds([]);
+            setShowAverageLine(false);
+            setShowDataLabels(false);
+            setShowLegend(false);
+            setTimeBucket('month');
             setFilterTree({ type: 'group', logic: 'and', children: [] });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -143,6 +164,10 @@ export function WidgetFormDialog({
                 tableLimit,
                 visibleFieldIds,
                 filterTree,
+                showAverageLine,
+                showDataLabels,
+                showLegend,
+                timeBucket,
             }),
             layout: initial?.layout ?? { x: 0, y: 0, w: 4, h: 3 },
         };
@@ -272,22 +297,49 @@ export function WidgetFormDialog({
                         )}
 
                         {(type === 'chart_bar' || type === 'chart_pie') && (
-                            <FieldPicker
-                                label={__('Agrupar por')}
-                                value={groupByFieldId}
-                                fields={groupableFields}
-                                onChange={setGroupByFieldId}
-                                emptyHint={__('La lista no tiene campos agrupables (select, multi_select, text, email, url, date, datetime, checkbox).')}
-                            />
+                            <>
+                                <FieldPicker
+                                    label={__('Agrupar por')}
+                                    value={groupByFieldId}
+                                    fields={groupableFields}
+                                    onChange={setGroupByFieldId}
+                                    emptyHint={__('La lista no tiene campos agrupables (select, multi_select, text, email, url, date, datetime, checkbox).')}
+                                />
+                                {isDateField(fields.data ?? [], groupByFieldId) && (
+                                    <TimeBucketPicker
+                                        value={timeBucket}
+                                        onChange={setTimeBucket}
+                                    />
+                                )}
+                            </>
                         )}
 
                         {(type === 'chart_line' || type === 'chart_area') && (
-                            <FieldPicker
-                                label={__('Campo de fecha')}
-                                value={dateFieldId}
-                                fields={dateFields}
-                                onChange={setDateFieldId}
-                                emptyHint={__('La lista no tiene campos Date/DateTime.')}
+                            <>
+                                <FieldPicker
+                                    label={__('Campo de fecha')}
+                                    value={dateFieldId}
+                                    fields={dateFields}
+                                    onChange={setDateFieldId}
+                                    emptyHint={__('La lista no tiene campos Date/DateTime.')}
+                                />
+                                <TimeBucketPicker
+                                    value={timeBucket}
+                                    onChange={setTimeBucket}
+                                />
+                            </>
+                        )}
+
+                        {(type === 'chart_bar' || type === 'chart_pie'
+                            || type === 'chart_line' || type === 'chart_area') && (
+                            <PresentationToggles
+                                type={type}
+                                showAverageLine={showAverageLine}
+                                showDataLabels={showDataLabels}
+                                showLegend={showLegend}
+                                onShowAverageLineChange={setShowAverageLine}
+                                onShowDataLabelsChange={setShowDataLabels}
+                                onShowLegendChange={setShowLegend}
                             />
                         )}
 
@@ -574,6 +626,110 @@ interface FieldPickerProps {
     emptyHint: string;
 }
 
+interface TimeBucketPickerProps {
+    value: ChartTimeBucket;
+    onChange: (next: ChartTimeBucket) => void;
+}
+
+function TimeBucketPicker({ value, onChange }: TimeBucketPickerProps): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+            <Label htmlFor="w-bucket">{__('Granularidad temporal')}</Label>
+            <Select
+                id="w-bucket"
+                value={value}
+                onChange={(e) => onChange(e.target.value as ChartTimeBucket)}
+            >
+                <option value="day">{__('Día')}</option>
+                <option value="week">{__('Semana')}</option>
+                <option value="month">{__('Mes')}</option>
+                <option value="quarter">{__('Trimestre')}</option>
+                <option value="year">{__('Año')}</option>
+            </Select>
+        </div>
+    );
+}
+
+interface PresentationTogglesProps {
+    type: WidgetType;
+    showAverageLine: boolean;
+    showDataLabels: boolean;
+    showLegend: boolean;
+    onShowAverageLineChange: (next: boolean) => void;
+    onShowDataLabelsChange: (next: boolean) => void;
+    onShowLegendChange: (next: boolean) => void;
+}
+
+function PresentationToggles({
+    type,
+    showAverageLine,
+    showDataLabels,
+    showLegend,
+    onShowAverageLineChange,
+    onShowDataLabelsChange,
+    onShowLegendChange,
+}: PresentationTogglesProps): JSX.Element {
+    // La línea de promedio sólo aplica a charts numéricos con eje
+    // ordenado (bar/line/area). En pie no hay un "eje Y" donde
+    // pintar una línea.
+    const supportsAverage = type !== 'chart_pie';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+            <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                {__('Mostrar')}
+            </Label>
+            {supportsAverage && (
+                <ToggleRow
+                    label={__('Línea de promedio')}
+                    checked={showAverageLine}
+                    onChange={onShowAverageLineChange}
+                />
+            )}
+            <ToggleRow
+                label={__('Etiquetas de datos')}
+                checked={showDataLabels}
+                onChange={onShowDataLabelsChange}
+            />
+            <ToggleRow
+                label={__('Leyenda')}
+                checked={showLegend}
+                onChange={onShowLegendChange}
+            />
+        </div>
+    );
+}
+
+function ToggleRow({
+    label,
+    checked,
+    onChange,
+}: {
+    label: string;
+    checked: boolean;
+    onChange: (next: boolean) => void;
+}): JSX.Element {
+    return (
+        <label className="imcrm-flex imcrm-cursor-pointer imcrm-items-center imcrm-justify-between imcrm-text-xs">
+            <span className="imcrm-text-foreground">{label}</span>
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
+                className="imcrm-h-4 imcrm-w-4"
+            />
+        </label>
+    );
+}
+
+function isDateField(
+    fields: ReadonlyArray<{ id: number; type: string }>,
+    fieldId: number,
+): boolean {
+    if (fieldId <= 0) return false;
+    const f = fields.find((x) => x.id === fieldId);
+    return f?.type === 'date' || f?.type === 'datetime';
+}
+
 function FieldPicker({ label, value, fields, onChange, emptyHint }: FieldPickerProps): JSX.Element {
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
@@ -607,6 +763,10 @@ function buildConfig(
         tableLimit: number;
         visibleFieldIds: number[];
         filterTree: FilterTree;
+        showAverageLine: boolean;
+        showDataLabels: boolean;
+        showLegend: boolean;
+        timeBucket: ChartTimeBucket;
     },
 ): WidgetSpec['config'] {
     const base = (): WidgetSpec['config'] => {
@@ -632,6 +792,13 @@ function buildConfig(
         return c;
     };
 
+    const presentation = (c: WidgetSpec['config']): WidgetSpec['config'] => {
+        if (state.showAverageLine) c.show_average_line = true;
+        if (state.showDataLabels) c.show_data_labels = true;
+        if (state.showLegend) c.show_legend = true;
+        return c;
+    };
+
     if (type === 'kpi') {
         const c = base();
         c.metric = state.metric;
@@ -641,10 +808,18 @@ function buildConfig(
         return c;
     }
     if (type === 'chart_bar' || type === 'chart_pie') {
-        return { ...base(), group_by_field_id: state.groupByFieldId };
+        return presentation({
+            ...base(),
+            group_by_field_id: state.groupByFieldId,
+            time_bucket: state.timeBucket,
+        });
     }
     if (type === 'chart_line' || type === 'chart_area') {
-        return { ...base(), date_field_id: state.dateFieldId };
+        return presentation({
+            ...base(),
+            date_field_id: state.dateFieldId,
+            time_bucket: state.timeBucket,
+        });
     }
     if (type === 'stat_delta') {
         const c: WidgetSpec['config'] = {
@@ -707,4 +882,9 @@ function decodeWidgetFilters(config: WidgetSpec['config']): FilterTree {
 
 function generateWidgetId(): string {
     return 'w_' + Math.random().toString(36).slice(2, 10);
+}
+
+function isTimeBucket(value: unknown): value is ChartTimeBucket {
+    return value === 'day' || value === 'week' || value === 'month'
+        || value === 'quarter' || value === 'year';
 }

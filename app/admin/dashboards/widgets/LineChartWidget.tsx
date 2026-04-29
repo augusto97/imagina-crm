@@ -13,11 +13,18 @@ interface LineChartWidgetProps {
 
 /**
  * Line / area chart minimalista con SVG vanilla. El backend agrupa por
- * mes (YYYY-MM); cada punto es un mes. Polyline + dots + opcional
- * fill area gradient. Tooltip via <title> nativo del SVG.
+ * la granularidad del config (`time_bucket`); cada punto es un bucket.
+ *
+ * Toggles del widget:
+ *  - `show_average_line` → línea horizontal punteada con valor del
+ *                          promedio
+ *  - `show_data_labels`  → valor numérico encima de cada punto
+ *  - `show_legend`       → no aplica (single-serie por ahora)
  */
 export function LineChartWidget({ dashboardId, widget, area }: LineChartWidgetProps): JSX.Element {
     const data = useWidgetData(dashboardId, widget.id);
+    const showAvg = Boolean(widget.config.show_average_line);
+    const showLabels = Boolean(widget.config.show_data_labels);
 
     return (
         <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
@@ -39,7 +46,12 @@ export function LineChartWidget({ dashboardId, widget, area }: LineChartWidgetPr
                         {__('Error')}
                     </div>
                 ) : data.data && 'data' in data.data && data.data.data.length > 0 ? (
-                    <SparkLine rows={data.data.data} area={area ?? false} />
+                    <SparkLine
+                        rows={data.data.data}
+                        area={area ?? false}
+                        showAvg={showAvg}
+                        showLabels={showLabels}
+                    />
                 ) : (
                     <p className="imcrm-text-xs imcrm-text-muted-foreground">{__('Sin datos.')}</p>
                 )}
@@ -55,14 +67,20 @@ const PADDING = 8;
 function SparkLine({
     rows,
     area,
+    showAvg,
+    showLabels,
 }: {
     rows: Array<{ label: string; value: number }>;
     area: boolean;
+    showAvg: boolean;
+    showLabels: boolean;
 }): JSX.Element {
     const max = Math.max(...rows.map((r) => r.value), 1);
     const min = 0;
     const innerW = VIEWBOX_WIDTH - PADDING * 2;
     const innerH = VIEWBOX_HEIGHT - PADDING * 2;
+    const avg = rows.reduce((s, r) => s + r.value, 0) / rows.length;
+    const avgY = PADDING + innerH - ((avg - min) / (max - min || 1)) * innerH;
 
     const points = rows.map((row, i) => {
         const x =
@@ -82,6 +100,11 @@ function SparkLine({
 
     return (
         <div className="imcrm-flex imcrm-w-full imcrm-flex-col imcrm-gap-1">
+            {showAvg && (
+                <div className="imcrm-flex imcrm-justify-end imcrm-text-[10px] imcrm-text-muted-foreground">
+                    {__('Promedio')}: <span className="imcrm-ml-1 imcrm-font-medium imcrm-text-foreground">{avg.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                </div>
+            )}
             <svg
                 viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
                 className="imcrm-w-full imcrm-h-24"
@@ -95,6 +118,18 @@ function SparkLine({
                     </linearGradient>
                 </defs>
                 {area && areaPath !== '' && <path d={areaPath} fill="url(#imcrm-area-grad)" />}
+                {showAvg && (
+                    <line
+                        x1={PADDING}
+                        x2={VIEWBOX_WIDTH - PADDING}
+                        y1={avgY}
+                        y2={avgY}
+                        stroke="hsl(var(--imcrm-destructive))"
+                        strokeWidth="1"
+                        strokeDasharray="3 3"
+                        opacity="0.7"
+                    />
+                )}
                 <polyline
                     points={polylinePoints}
                     fill="none"
@@ -114,6 +149,18 @@ function SparkLine({
                     >
                         <title>{`${p.label}: ${p.value.toLocaleString()}`}</title>
                     </circle>
+                ))}
+                {showLabels && points.map((p) => (
+                    <text
+                        key={`label-${p.label}`}
+                        x={p.x}
+                        y={p.y - 5}
+                        textAnchor="middle"
+                        className="imcrm-fill-foreground"
+                        style={{ fontSize: 8, fontWeight: 600 }}
+                    >
+                        {p.value.toLocaleString()}
+                    </text>
                 ))}
             </svg>
             <div className="imcrm-flex imcrm-justify-between imcrm-text-[10px] imcrm-text-muted-foreground">
