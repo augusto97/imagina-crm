@@ -106,6 +106,14 @@ final class ImportService
      * sobre la marcha (uno por columna del CSV no mapeada). Las
      * columnas no incluidas en ninguno de los dos se ignoran.
      *
+     * Antes de iterar las filas:
+     *  1. Crea los campos pedidos en `$newFields` (si los hay).
+     *  2. Para columnas mapeadas a `select`/`multi_select`, escanea
+     *     todas las filas y añade automáticamente cualquier valor
+     *     que no exista todavía como opción del campo. ClickUp emite
+     *     etiquetas como "sin factura", "Vencido" — no slugs — así
+     *     que sin esto el validator rechazaría 100% de las filas.
+     *
      * @param array<int, string>                                                $mapping
      * @param array<int, array{csv_column_index:int, label:string, type:string}> $newFields
      *
@@ -114,7 +122,8 @@ final class ImportService
      *     skipped: int,
      *     errors: array<int, array{row:int, message:string}>,
      *     truncated: bool,
-     *     created_fields: array<int, array{slug:string, label:string, type:string}>
+     *     created_fields: array<int, array{slug:string, label:string, type:string}>,
+     *     expanded_options: array<string, array<int, array{value:string, label:string}>>
      * }
      */
     public function run(ListEntity $list, string $csv, array $mapping, array $newFields = []): array
@@ -162,7 +171,18 @@ final class ImportService
         }
 
         $listFields = $this->importableFields($list);
-        $bySlug     = [];
+
+        // Auto-expandir opciones de selects/multi_selects con valores
+        // que aparezcan en el CSV pero no en la config actual del campo.
+        $expandedOptions = $this->expandSelectOptions($list, $rows, $mapping, $listFields);
+
+        // Si expandimos algo, refrescamos los campos para que el
+        // resolver de cell values tenga las opciones actualizadas.
+        if ($expandedOptions !== []) {
+            $listFields = $this->importableFields($list);
+        }
+
+        $bySlug = [];
         foreach ($listFields as $f) {
             $bySlug[$f->slug] = $f;
         }
@@ -214,11 +234,12 @@ final class ImportService
         }
 
         return [
-            'imported'       => $imported,
-            'skipped'        => $skipped,
-            'errors'         => $errors,
-            'truncated'      => $truncated,
-            'created_fields' => $createdFields,
+            'imported'         => $imported,
+            'skipped'          => $skipped,
+            'errors'           => $errors,
+            'truncated'        => $truncated,
+            'created_fields'   => $createdFields,
+            'expanded_options' => $expandedOptions,
         ];
     }
 
@@ -236,10 +257,21 @@ final class ImportService
         }
 
         return match ($field->type) {
-            // multi_select: ClickUp/Airtable usan "tag1, tag2" o
-            // "tag1; tag2". Aceptamos ambos.
+            // select: ClickUp/Airtable persisten la etiqueta humana
+            // ("Vencido", "sin factura"), no el slug. Buscamos por
+            // label o por value (case-insensitive); las opciones que
+            // no existan ya fueron auto-añadidas por
+            // `expandSelectOptions` antes de este loop, así que
+            // esperamos encontrar siempre el slug.
+            'select' => self::resolveSelectValue($trimmed, $field),
+
+            // multi_select: split por `,` o `;`, luego resolver cada
+            // ítem al slug.
             'multi_select' => array_values(array_filter(
-                array_map('trim', preg_split('/[,;]/', $trimmed) ?: []),
+                array_map(
+                    fn (string $v): string => self::resolveSelectValue(trim($v), $field),
+                    preg_split('/[,;]/', $trimmed) ?: [],
+                ),
                 static fn (string $v): bool => $v !== '',
             )),
 
@@ -258,6 +290,49 @@ final class ImportService
 
             default => $trimmed,
         };
+    }
+
+    /**
+     * Resuelve un valor crudo del CSV (típicamente la etiqueta humana)
+     * al `value` correcto de la opción. Match case-insensitive
+     * primero por label exacto, después por value exacto.
+     *
+     * Si no encontramos match, devolvemos el string crudo — el
+     * validator lo rechazará con "Opción no válida" y la fila irá a
+     * `errors`. En la práctica `expandSelectOptions` se ejecuta antes
+     * y cubre todos los valores presentes en el CSV.
+     */
+    private static function resolveSelectValue(string $raw, FieldEntity $field): string
+    {
+        if ($raw === '') {
+            return '';
+        }
+        $options = is_array($field->config['options'] ?? null) ? $field->config['options'] : [];
+        $needle  = self::ciKey($raw);
+        foreach ($options as $opt) {
+            if (! is_array($opt)) {
+                if (is_string($opt) && self::ciKey($opt) === $needle) {
+                    return $opt;
+                }
+                continue;
+            }
+            $value = isset($opt['value']) ? (string) $opt['value'] : '';
+            $label = isset($opt['label']) ? (string) $opt['label'] : $value;
+            if (self::ciKey($label) === $needle || self::ciKey($value) === $needle) {
+                return $value;
+            }
+        }
+        return $raw;
+    }
+
+    /**
+     * Lower-case multi-byte para comparaciones case-insensitive
+     * sobre cadenas con tildes (ES) — `strtolower` solo lowercase
+     * ASCII, así que "AL DÍA" no matchearía "al día" sin esto.
+     */
+    private static function ciKey(string $s): string
+    {
+        return function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
     }
 
     private static function parseBool(string $v): bool
@@ -407,6 +482,143 @@ final class ImportService
                 && $f->type !== ComputedField::SLUG
                 && $f->deletedAt === null,
         ));
+    }
+
+    /**
+     * Para cada columna mapeada a un `select`/`multi_select`, escanea
+     * todos los valores del CSV y añade al config del campo cualquier
+     * etiqueta que no exista ya como opción. Update vía
+     * `FieldService::update` con un solo write por campo (acumulamos
+     * primero, escribimos al final).
+     *
+     * Match es case-insensitive contra `label` Y `value` para no
+     * duplicar opciones cuando el user ya tiene "Activo" y el CSV
+     * trae "activo".
+     *
+     * @param array<int, array<int, string>> $rows
+     * @param array<int, string>             $mapping  csv_idx → field_slug
+     * @param array<int, FieldEntity>        $listFields
+     *
+     * @return array<string, array<int, array{value:string, label:string}>>
+     *         field_slug → opciones añadidas (para el summary del UI).
+     */
+    private function expandSelectOptions(
+        ListEntity $list,
+        array $rows,
+        array $mapping,
+        array $listFields,
+    ): array {
+        $bySlug = [];
+        foreach ($listFields as $f) {
+            $bySlug[$f->slug] = $f;
+        }
+
+        $result = [];
+        foreach ($mapping as $csvIdx => $slug) {
+            $field = $bySlug[$slug] ?? null;
+            if ($field === null) {
+                continue;
+            }
+            if ($field->type !== 'select' && $field->type !== 'multi_select') {
+                continue;
+            }
+
+            // Recolectar valores únicos de la columna.
+            $rawValues = [];
+            foreach ($rows as $row) {
+                $cell = $row[$csvIdx] ?? '';
+                $cell = trim((string) $cell);
+                if ($cell === '') {
+                    continue;
+                }
+                if ($field->type === 'multi_select') {
+                    $items = preg_split('/[,;]/', $cell) ?: [];
+                    foreach ($items as $item) {
+                        $item = trim($item);
+                        if ($item !== '') {
+                            $rawValues[$item] = true;
+                        }
+                    }
+                } else {
+                    $rawValues[$cell] = true;
+                }
+            }
+            if ($rawValues === []) {
+                continue;
+            }
+
+            $existing = is_array($field->config['options'] ?? null) ? $field->config['options'] : [];
+            $known    = [];   // ciKey(label|value) → true
+            $usedSlugs = [];  // existing values (slugs)
+            foreach ($existing as $opt) {
+                if (is_array($opt)) {
+                    $val = isset($opt['value']) ? (string) $opt['value'] : '';
+                    $lbl = isset($opt['label']) ? (string) $opt['label'] : $val;
+                    if ($val !== '') {
+                        $known[self::ciKey($lbl)] = true;
+                        $known[self::ciKey($val)] = true;
+                        $usedSlugs[]              = $val;
+                    }
+                } elseif (is_string($opt) && $opt !== '') {
+                    $known[self::ciKey($opt)] = true;
+                    $usedSlugs[]              = $opt;
+                }
+            }
+
+            $newOptions = [];
+            foreach (array_keys($rawValues) as $value) {
+                $value = (string) $value;
+                if (isset($known[self::ciKey($value)])) {
+                    continue;
+                }
+                $newSlug = $this->makeOptionSlug($value, $usedSlugs);
+                $newOptions[] = ['value' => $newSlug, 'label' => $value];
+                $usedSlugs[]  = $newSlug;
+                $known[self::ciKey($value)] = true;
+                $known[self::ciKey($newSlug)] = true;
+            }
+
+            if ($newOptions === []) {
+                continue;
+            }
+
+            $newConfig = $field->config;
+            $newConfig['options'] = array_merge($existing, $newOptions);
+
+            $updated = $this->fieldService->update($list->id, $field->id, [
+                'config' => $newConfig,
+            ]);
+            if ($updated instanceof ValidationResult) {
+                continue;
+            }
+            $result[$slug] = $newOptions;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Slugify para `option.value`. Asegura unicidad contra los slugs
+     * ya presentes en el campo: `vencido_2`, `vencido_3`, etc.
+     *
+     * @param array<int, string> $usedSlugs
+     */
+    private function makeOptionSlug(string $label, array $usedSlugs): string
+    {
+        $base = strtolower(trim($label));
+        $base = (string) preg_replace('/[^a-z0-9]+/', '_', $base);
+        $base = trim($base, '_');
+        if ($base === '') {
+            $base = 'option';
+        }
+        if (! in_array($base, $usedSlugs, true)) {
+            return $base;
+        }
+        $i = 2;
+        while (in_array($base . '_' . $i, $usedSlugs, true)) {
+            $i++;
+        }
+        return $base . '_' . $i;
     }
 
     private function summarizeValidation(ValidationResult $result): string
