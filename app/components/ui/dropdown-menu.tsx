@@ -10,15 +10,23 @@ export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 export const DropdownMenuContent = React.forwardRef<
     React.ElementRef<typeof DropdownMenuPrimitive.Content>,
     React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, align = 'end', ...props }, ref) => (
+>(({ className, sideOffset = 4, align = 'end', collisionPadding = 16, ...props }, ref) => (
     <DropdownMenuPrimitive.Portal>
         <DropdownMenuPrimitive.Content
             ref={ref}
             sideOffset={sideOffset}
             align={align}
+            collisionPadding={collisionPadding}
             className={cn(
                 'imcrm-z-50 imcrm-min-w-[10rem] imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-popover imcrm-p-1 imcrm-text-popover-foreground imcrm-shadow-imcrm-md',
                 'imcrm-animate-imcrm-fade-in',
+                // Anti-overflow: limit a viewport disponible (Radix
+                // calcula `--radix-dropdown-menu-content-available-*`
+                // contra collisionPadding) y scroll interno cuando el
+                // menú es más alto que ese espacio.
+                'imcrm-max-w-[var(--radix-dropdown-menu-content-available-width)]',
+                'imcrm-max-h-[var(--radix-dropdown-menu-content-available-height)]',
+                'imcrm-overflow-y-auto',
                 className,
             )}
             {...props}

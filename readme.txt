@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.21.0
+Stable tag: 0.21.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.21.1 =
+* Fix global de overflow en popovers/dropdowns flotantes: cuando el
+  contenido (panel de filtros con muchas anidadas, picker de
+  recurrencia, dropdown de filtros guardados, picker de merge tags)
+  era más alto que el viewport, el bottom quedaba fuera de pantalla
+  sin scroll y no se podía interactuar. Aplicado en
+  `<PopoverContent>` y `<DropdownMenuContent>` (los componentes
+  base que TODOS los flotantes reusan):
+  · `max-w-[var(--radix-popover-content-available-width)]` y
+    `max-h-[var(--radix-popover-content-available-height)]`
+    — Radix calcula esas variables CSS contra `collisionPadding`
+    (margen al viewport), así el popover nunca excede el espacio
+    real disponible.
+  · `overflow-y-auto` — scroll interno automático cuando el
+    contenido crece más alto que el espacio disponible.
+  · `collisionPadding={16}` ahora es default — el popover se
+    auto-flippea si chocaría contra los bordes del viewport.
 
 = 0.21.0 =
 * Nueva feature: recurrencias por celda (ClickUp-style) sobre
