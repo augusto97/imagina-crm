@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileUp, Loader2, X } from 'lucide-react';
+import { CheckCircle2, FileUp, Loader2, Plus, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { api, ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
@@ -21,7 +22,13 @@ interface PreviewResponse {
     sample: string[][];
     total_rows: number;
     suggested_mapping: Record<string, string>;
+    suggested_types: Record<string, string>;
     fields: Array<{ id: number; slug: string; label: string; type: string }>;
+}
+
+interface NewFieldSpec {
+    label: string;
+    type: string;
 }
 
 interface RunResponse {
@@ -29,7 +36,23 @@ interface RunResponse {
     skipped: number;
     errors: Array<{ row: number; message: string }>;
     truncated: boolean;
+    created_fields: Array<{ slug: string; label: string; type: string }>;
 }
+
+/** Tipos disponibles para la UI de "crear campo nuevo". Coinciden con los slugs del FieldTypeRegistry. */
+const CREATABLE_TYPES: Array<{ slug: string; label: string }> = [
+    { slug: 'text', label: __('Texto') },
+    { slug: 'long_text', label: __('Texto largo') },
+    { slug: 'number', label: __('Número') },
+    { slug: 'currency', label: __('Moneda') },
+    { slug: 'select', label: __('Selección') },
+    { slug: 'multi_select', label: __('Multi-selección') },
+    { slug: 'date', label: __('Fecha') },
+    { slug: 'datetime', label: __('Fecha y hora') },
+    { slug: 'checkbox', label: __('Checkbox') },
+    { slug: 'url', label: __('URL') },
+    { slug: 'email', label: __('Email') },
+];
 
 type Step = 'upload' | 'map' | 'done';
 
@@ -60,6 +83,10 @@ export function ImportDialog({
     const [fileName, setFileName] = useState<string>('');
     const [preview, setPreview] = useState<PreviewResponse | null>(null);
     const [mapping, setMapping] = useState<Record<number, string>>({});
+    // Columnas marcadas como "crear campo nuevo": csv_idx → {label,type}.
+    // Es exclusivo con `mapping`: una columna está o en uno o en el otro
+    // (o en ninguno = ignorar).
+    const [newFields, setNewFields] = useState<Record<number, NewFieldSpec>>({});
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<boolean>(false);
     const [result, setResult] = useState<RunResponse | null>(null);
@@ -70,6 +97,7 @@ export function ImportDialog({
         setFileName('');
         setPreview(null);
         setMapping({});
+        setNewFields({});
         setError(null);
         setResult(null);
     };
@@ -118,20 +146,35 @@ export function ImportDialog({
             for (const [k, v] of Object.entries(mapping)) {
                 if (v && v !== '') cleanMapping[Number(k)] = v;
             }
-            if (Object.keys(cleanMapping).length === 0) {
-                setError(__('Mapea al menos una columna a un campo de la lista.'));
+            // Convertimos newFields al shape que espera el backend.
+            const newFieldsPayload = Object.entries(newFields)
+                .filter(([, spec]) => spec.label.trim() !== '')
+                .map(([idx, spec]) => ({
+                    csv_column_index: Number(idx),
+                    label: spec.label.trim(),
+                    type: spec.type,
+                }));
+            if (
+                Object.keys(cleanMapping).length === 0
+                && newFieldsPayload.length === 0
+            ) {
+                setError(__('Mapea al menos una columna a un campo (existente o nuevo).'));
                 setBusy(false);
                 return;
             }
             const res = await api.post<RunResponse>(
                 `/lists/${listSlug}/import/run`,
-                { csv, mapping: cleanMapping },
+                {
+                    csv,
+                    mapping: cleanMapping,
+                    new_fields: newFieldsPayload,
+                },
             );
             setResult(res.data);
             setStep('done');
-            // Invalida las queries de records para que la tabla se
-            // refresque al cerrar el diálogo.
+            // Invalida queries de records y fields (creamos campos nuevos).
             await qc.invalidateQueries({ queryKey: ['records', listId] });
+            await qc.invalidateQueries({ queryKey: ['fields', listId] });
         } catch (err) {
             setError(err instanceof ApiError ? err.message : __('Error al importar.'));
         } finally {
@@ -191,7 +234,9 @@ export function ImportDialog({
                             <MapStep
                                 preview={preview}
                                 mapping={mapping}
+                                newFields={newFields}
                                 onMappingChange={setMapping}
+                                onNewFieldsChange={setNewFields}
                             />
                         )}
                         {step === 'done' && result !== null && (
@@ -264,20 +309,72 @@ function UploadStep({
 function MapStep({
     preview,
     mapping,
+    newFields,
     onMappingChange,
+    onNewFieldsChange,
 }: {
     preview: PreviewResponse;
     mapping: Record<number, string>;
+    newFields: Record<number, NewFieldSpec>;
     onMappingChange: (next: Record<number, string>) => void;
+    onNewFieldsChange: (next: Record<number, NewFieldSpec>) => void;
 }): JSX.Element {
+    // Token sentinel del select cuando el usuario elige "crear campo
+    // nuevo" — no es un slug real, lo interceptamos antes de
+    // persistirlo en el mapping.
+    const NEW_TOKEN = '__new__';
+
+    const onSelectChange = (idx: number, value: string, defaultLabel: string, defaultType: string): void => {
+        if (value === NEW_TOKEN) {
+            // Mover de mapping → newFields.
+            const m = { ...mapping };
+            delete m[idx];
+            onMappingChange(m);
+            onNewFieldsChange({
+                ...newFields,
+                [idx]: { label: defaultLabel || `Columna ${idx + 1}`, type: defaultType },
+            });
+            return;
+        }
+        // Cambiar a un campo existente (o ignorar) — limpiar newFields[idx] si lo había.
+        if (newFields[idx]) {
+            const nf = { ...newFields };
+            delete nf[idx];
+            onNewFieldsChange(nf);
+        }
+        const m = { ...mapping };
+        if (value === '') {
+            delete m[idx];
+        } else {
+            m[idx] = value;
+        }
+        onMappingChange(m);
+    };
+
+    const updateNewField = (idx: number, patch: Partial<NewFieldSpec>): void => {
+        const current = newFields[idx];
+        if (!current) return;
+        onNewFieldsChange({ ...newFields, [idx]: { ...current, ...patch } });
+    };
+
+    const newCount = Object.keys(newFields).length;
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-text-xs imcrm-text-muted-foreground">
                 <span>
                     {preview.total_rows.toLocaleString()} {__('filas detectadas')} ·{' '}
                     {preview.headers.length} {__('columnas')}
+                    {newCount > 0 && (
+                        <>
+                            {' · '}
+                            <span className="imcrm-font-medium imcrm-text-primary">
+                                {newCount} {__('campo(s) nuevo(s)')}
+                            </span>
+                        </>
+                    )}
                 </span>
-                <span>{__('Mapea cada columna del CSV a un campo de la lista. Deja "—" para ignorar.')}</span>
+                <span>{__('Mapea o crea campos nuevos. "—" ignora la columna.')}</span>
             </div>
 
             <div className="imcrm-overflow-auto imcrm-rounded-md imcrm-border imcrm-border-border">
@@ -295,32 +392,66 @@ function MapStep({
                                 .slice(0, 3)
                                 .map((r) => r[idx] ?? '')
                                 .filter((v) => v !== '');
+                            const isNew = newFields[idx] !== undefined;
+                            const selectValue = isNew
+                                ? NEW_TOKEN
+                                : (mapping[idx] ?? '');
+                            const suggestedType = preview.suggested_types?.[String(idx)] ?? 'text';
                             return (
-                                <tr key={idx} className="imcrm-border-t imcrm-border-border">
+                                <tr key={idx} className="imcrm-border-t imcrm-border-border imcrm-align-top">
                                     <td className="imcrm-px-2 imcrm-py-2 imcrm-font-medium imcrm-text-foreground">
                                         {header || `(${__('columna')} ${idx + 1})`}
                                     </td>
                                     <td className="imcrm-px-2 imcrm-py-2">
                                         <Select
-                                            value={mapping[idx] ?? ''}
-                                            onChange={(e) => {
-                                                const next = { ...mapping };
-                                                if (e.target.value === '') {
-                                                    delete next[idx];
-                                                } else {
-                                                    next[idx] = e.target.value;
-                                                }
-                                                onMappingChange(next);
-                                            }}
+                                            value={selectValue}
+                                            onChange={(e) =>
+                                                onSelectChange(idx, e.target.value, header, suggestedType)
+                                            }
                                             className="imcrm-h-8"
                                         >
                                             <option value="">{__('— Ignorar —')}</option>
-                                            {preview.fields.map((f) => (
-                                                <option key={f.id} value={f.slug}>
-                                                    {f.label} ({f.type})
-                                                </option>
-                                            ))}
+                                            <optgroup label={__('Campos existentes')}>
+                                                {preview.fields.map((f) => (
+                                                    <option key={f.id} value={f.slug}>
+                                                        {f.label} ({f.type})
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                            <option value={NEW_TOKEN}>
+                                                + {__('Crear campo nuevo')}
+                                            </option>
                                         </Select>
+                                        {isNew && (
+                                            <div className="imcrm-mt-1.5 imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-primary/30 imcrm-bg-primary/5 imcrm-p-2">
+                                                <Input
+                                                    value={newFields[idx]!.label}
+                                                    onChange={(e) =>
+                                                        updateNewField(idx, { label: e.target.value })
+                                                    }
+                                                    placeholder={__('Nombre del campo')}
+                                                    className="imcrm-h-7 imcrm-text-xs"
+                                                />
+                                                <Select
+                                                    value={newFields[idx]!.type}
+                                                    onChange={(e) =>
+                                                        updateNewField(idx, { type: e.target.value })
+                                                    }
+                                                    className="imcrm-h-7"
+                                                >
+                                                    {CREATABLE_TYPES.map((t) => (
+                                                        <option key={t.slug} value={t.slug}>
+                                                            {t.label}
+                                                        </option>
+                                                    ))}
+                                                </Select>
+                                                <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                                                    <Plus className="imcrm-inline imcrm-h-2.5 imcrm-w-2.5" />
+                                                    {' '}
+                                                    {__('Tipo sugerido por los datos:')} <span className="imcrm-font-medium">{suggestedType}</span>
+                                                </p>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="imcrm-px-2 imcrm-py-2 imcrm-text-muted-foreground imcrm-truncate imcrm-max-w-xs">
                                         {examples.join(' · ') || '—'}
@@ -333,7 +464,7 @@ function MapStep({
             </div>
 
             <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
-                {__('Las columnas no mapeadas se ignoran. Filas con errores de validación se reportan al final; el resto se importa igual.')}
+                {__('Las columnas no mapeadas se ignoran. Filas con errores de validación se reportan al final; el resto se importa igual. Los campos nuevos se crean en la lista antes de empezar el insert.')}
             </p>
         </div>
     );
@@ -356,6 +487,23 @@ function DoneStep({ result }: { result: RunResponse }): JSX.Element {
                     )}
                 </span>
             </div>
+            {result.created_fields && result.created_fields.length > 0 && (
+                <div className="imcrm-rounded-md imcrm-border imcrm-border-primary/30 imcrm-bg-primary/5 imcrm-p-3 imcrm-text-xs">
+                    <p className="imcrm-mb-1.5 imcrm-font-medium imcrm-text-foreground">
+                        {result.created_fields.length} {__('campo(s) nuevo(s) creado(s):')}
+                    </p>
+                    <ul className="imcrm-flex imcrm-flex-wrap imcrm-gap-1.5">
+                        {result.created_fields.map((f) => (
+                            <li
+                                key={f.slug}
+                                className="imcrm-rounded imcrm-border imcrm-border-primary/30 imcrm-bg-card imcrm-px-1.5 imcrm-py-0.5 imcrm-text-foreground"
+                            >
+                                {f.label} <span className="imcrm-text-muted-foreground">({f.type})</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
             {result.truncated && (
                 <p className="imcrm-text-xs imcrm-text-warning">
                     {__('Se procesaron las primeras 5 000 filas. Vuelve a ejecutar el import con el resto del archivo.')}

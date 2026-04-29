@@ -46,8 +46,9 @@ final class ImportController extends AbstractController
             'callback'            => [$this, 'run'],
             'permission_callback' => [$this, 'checkAdminPermissions'],
             'args'                => [
-                'csv'     => ['type' => 'string', 'required' => true],
-                'mapping' => ['required' => true],
+                'csv'        => ['type' => 'string', 'required' => true],
+                'mapping'    => ['required' => true],
+                'new_fields' => ['required' => false],
             ],
         ]);
     }
@@ -95,6 +96,25 @@ final class ImportController extends AbstractController
             $mapping[(int) $colIdx] = $slug;
         }
 
-        return new WP_REST_Response($this->imports->run($list, $csv, $mapping));
+        // `new_fields` es opcional: array de objetos
+        // `{csv_column_index, label, type}` con los campos que el
+        // user pidió crear sobre la marcha. Sanitizamos cada item
+        // — el Service hace la creación real vía FieldService.
+        $rawNewFields = $request->get_param('new_fields');
+        $newFields    = [];
+        if (is_array($rawNewFields)) {
+            foreach ($rawNewFields as $spec) {
+                if (! is_array($spec)) {
+                    continue;
+                }
+                $newFields[] = [
+                    'csv_column_index' => (int) ($spec['csv_column_index'] ?? -1),
+                    'label'            => isset($spec['label']) ? (string) $spec['label'] : '',
+                    'type'             => isset($spec['type']) ? (string) $spec['type'] : 'text',
+                ];
+            }
+        }
+
+        return new WP_REST_Response($this->imports->run($list, $csv, $mapping, $newFields));
     }
 }
