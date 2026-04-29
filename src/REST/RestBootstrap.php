@@ -19,6 +19,7 @@ final class RestBootstrap
         FieldsController::class,
         RecordsController::class,
         ViewsController::class,
+        SavedFiltersController::class,
         SlugsController::class,
         LicenseController::class,
         SystemController::class,

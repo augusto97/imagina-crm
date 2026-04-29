@@ -29,9 +29,14 @@ final class RecordService
     /**
      * Lista paginada con filtros/sort/search.
      *
+     * `$filterTree` (opcional, ClickUp-style) tiene prioridad sobre
+     * `$filters` (forma plana legacy) cuando ambos vienen. Permite
+     * AND/OR + grupos anidados que el shape plano no expresa.
+     *
      * @param array<string, mixed>                       $filters
      * @param array<int, array{slug:string, dir:string}> $sort
      * @param array<int, string>                         $fields
+     * @param array<string, mixed>|null                  $filterTree
      *
      * @return array{
      *     data: array<int, array<string, mixed>>,
@@ -46,16 +51,20 @@ final class RecordService
         ?string $search,
         int $page,
         int $perPage,
+        ?array $filterTree = null,
     ): array|ValidationResult {
         $listFields = $this->fields->allForList($list->id);
 
+        // Si viene tree, dejamos `$params->filters` vacío para que
+        // `buildSelect` use exclusivamente el override del tree-WHERE.
+        // El sort/proyección/paginación se siguen sacando de params.
         $params = $this->queryBuilder->normalize(
             $list->id,
             $listFields,
-            $filters,
+            $filterTree !== null ? [] : $filters,
             $sort,
             $fields,
-            $search,
+            $filterTree !== null ? null : $search,
             $page,
             $perPage,
             includeDeleted: false,
@@ -65,7 +74,23 @@ final class RecordService
             return $params;
         }
 
-        $compiled = $this->queryBuilder->buildSelect($list->tableSuffix, $listFields, $params);
+        $whereOverride = null;
+        if ($filterTree !== null) {
+            $whereOverride = $this->queryBuilder->compileTreeWhereForList(
+                $list->id,
+                $listFields,
+                $filterTree,
+                $search,
+                includeDeleted: false,
+            );
+        }
+
+        $compiled = $this->queryBuilder->buildSelect(
+            $list->tableSuffix,
+            $listFields,
+            $params,
+            $whereOverride,
+        );
         $result   = $this->records->executeQuery(
             $compiled['sql'],
             $compiled['args'],
@@ -97,7 +122,8 @@ final class RecordService
      * filters/search igual que `list()`. Cada bucket trae `value` (lo
      * que el frontend usa luego para filtrar al expandir) y `count`.
      *
-     * @param array<string, mixed> $filters
+     * @param array<string, mixed>      $filters
+     * @param array<string, mixed>|null $filterTree
      *
      * @return array{
      *     data: array<int, array{value: mixed, count: int}>,
@@ -115,6 +141,7 @@ final class RecordService
         int $groupByFieldId,
         array $filters,
         ?string $search,
+        ?array $filterTree = null,
     ): array|ValidationResult {
         $listFields = $this->fields->allForList($list->id);
 
@@ -142,14 +169,16 @@ final class RecordService
 
         // Reusamos `normalize` solo para sanitizar filters/search; las
         // dimensiones de paginación/sort/projection no aplican a la
-        // query de groups.
+        // query de groups. Si vino tree, igual que en `list()`,
+        // pasamos filtros vacíos a normalize y compilamos el tree-WHERE
+        // por separado.
         $params = $this->queryBuilder->normalize(
             $list->id,
             $listFields,
-            $filters,
+            $filterTree !== null ? [] : $filters,
             [],
             [],
-            $search,
+            $filterTree !== null ? null : $search,
             1,
             1,
             includeDeleted: false,
@@ -159,11 +188,23 @@ final class RecordService
             return $params;
         }
 
+        $whereOverride = null;
+        if ($filterTree !== null) {
+            $whereOverride = $this->queryBuilder->compileTreeWhereForList(
+                $list->id,
+                $listFields,
+                $filterTree,
+                $search,
+                includeDeleted: false,
+            );
+        }
+
         $compiled = $this->queryBuilder->buildGroupQuery(
             $list->tableSuffix,
             $listFields,
             $groupBy,
             $params,
+            $whereOverride,
         );
         $rows = $this->records->executeSelect($compiled['sql'], $compiled['args']);
 

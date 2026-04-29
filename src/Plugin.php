@@ -199,6 +199,24 @@ final class Plugin
             );
         });
 
+        // Filtros guardados (ClickUp-style): registro de los repos /
+        // service / controller. Schema versión 3 trae la tabla
+        // `wp_imcrm_saved_filters`.
+        $this->container->bind(\ImaginaCRM\Filters\SavedFilterRepository::class, static function (Container $c): \ImaginaCRM\Filters\SavedFilterRepository {
+            return new \ImaginaCRM\Filters\SavedFilterRepository($c->get(Database::class));
+        });
+        $this->container->bind(\ImaginaCRM\Filters\SavedFilterService::class, static function (Container $c): \ImaginaCRM\Filters\SavedFilterService {
+            return new \ImaginaCRM\Filters\SavedFilterService(
+                $c->get(\ImaginaCRM\Filters\SavedFilterRepository::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\SavedFiltersController::class, static function (Container $c): \ImaginaCRM\REST\SavedFiltersController {
+            return new \ImaginaCRM\REST\SavedFiltersController(
+                $c->get(\ImaginaCRM\Filters\SavedFilterService::class),
+                $c->get(\ImaginaCRM\Lists\ListService::class),
+            );
+        });
+
         // Licensing + Updater.
         $this->container->bind(LicenseHttpClient::class, static function (): LicenseHttpClient {
             return new LicenseHttpClient();

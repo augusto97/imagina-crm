@@ -145,6 +145,11 @@ final class QueryBuilder
 
     /**
      * @param array<int, FieldEntity> $fields
+     * @param array{where:string, args:array<int, mixed>}|null $whereOverride
+     *   Si se pasa, sobrescribe la cláusula WHERE generada desde
+     *   `$params->filters`. Lo usa el camino "tree" cuando los filtros
+     *   son un árbol AND/OR anidado (no representable en `$params->filters`,
+     *   que es plano).
      *
      * @return array{
      *     sql:string,
@@ -153,13 +158,22 @@ final class QueryBuilder
      *     count_args:array<int, mixed>
      * }
      */
-    public function buildSelect(string $tableSuffix, array $fields, QueryParams $params): array
-    {
+    public function buildSelect(
+        string $tableSuffix,
+        array $fields,
+        QueryParams $params,
+        ?array $whereOverride = null,
+    ): array {
         $table     = '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';
         $columnSet = $this->columnsByName($fields);
 
         $select = $this->buildSelectClause($params, $columnSet, $table);
-        [$where, $whereArgs] = $this->buildWhere($params, $columnSet);
+        if ($whereOverride !== null) {
+            $where     = $whereOverride['where'];
+            $whereArgs = $whereOverride['args'];
+        } else {
+            [$where, $whereArgs] = $this->buildWhere($params, $columnSet);
+        }
 
         $sql      = "SELECT {$select} FROM {$table} {$where}";
         $countSql = "SELECT COUNT(*) AS total FROM {$table} {$where}";
@@ -240,6 +254,217 @@ final class QueryBuilder
     }
 
     /**
+     * Compila un árbol de filtros (forma nueva, ClickUp-style) en
+     * fragment SQL. Soporta grupos AND/OR anidados, mientras que
+     * `compileWhereForList` sólo armaba un AND plano.
+     *
+     * Shape del árbol:
+     *   ['type' => 'group', 'logic' => 'and|or', 'children' => [...]]
+     *   ['type' => 'condition', 'field_id' => N, 'op' => 'eq', 'value' => ...]
+     *
+     * Devuelve `WHERE deleted_at IS NULL [AND <tree>]` listo para
+     * mergear, igual que `compileWhereForList`. Si el árbol es null o
+     * vacío, devuelve solo el soft-delete check. Cualquier nodo
+     * inválido (campo desconocido, operador inválido, etc.) se descarta
+     * silenciosamente — fail-open para no romper la UI.
+     *
+     * @param array<int, FieldEntity> $fields
+     * @param array<string, mixed>|null $tree
+     *
+     * @return array{where: string, args: array<int, mixed>}
+     */
+    public function compileTreeWhereForList(
+        int $listId,
+        array $fields,
+        ?array $tree,
+        ?string $search = null,
+        bool $includeDeleted = false,
+    ): array {
+        $columnSet  = $this->columnsByName($fields);
+        $fieldsById = $this->indexById($fields);
+
+        $clauses = [];
+        $args    = [];
+
+        if (! $includeDeleted) {
+            $clauses[] = 'deleted_at IS NULL';
+        }
+
+        if (is_array($tree)) {
+            $compiled = $this->compileNode($tree, $columnSet, $fieldsById, $listId, 0);
+            if ($compiled !== null) {
+                $clauses[] = $compiled['sql'];
+                foreach ($compiled['args'] as $a) {
+                    $args[] = $a;
+                }
+            }
+        }
+
+        if ($search !== null && $search !== '') {
+            $searchClauses = [];
+            foreach ($columnSet as $name => $field) {
+                if (! in_array($field->type, self::SEARCHABLE_TYPES, true)) {
+                    continue;
+                }
+                $searchClauses[] = '`' . esc_sql($name) . '` LIKE %s';
+                $args[]          = '%' . $this->escLike($search) . '%';
+            }
+            if ($searchClauses !== []) {
+                $clauses[] = '(' . implode(' OR ', $searchClauses) . ')';
+            } else {
+                $clauses[] = '1 = 0';
+            }
+        }
+
+        if ($clauses === []) {
+            return ['where' => 'WHERE 1=1', 'args' => []];
+        }
+
+        return [
+            'where' => 'WHERE ' . implode(' AND ', $clauses),
+            'args'  => $args,
+        ];
+    }
+
+    /**
+     * Profundidad máxima del árbol. Defensivo contra payloads
+     * abusivos/recursivos del frontend.
+     */
+    private const MAX_TREE_DEPTH = 8;
+
+    /**
+     * Recursión sobre el árbol. Devuelve null si el nodo no produce
+     * ninguna cláusula útil (vacío o inválido).
+     *
+     * @param array<string, mixed>       $node
+     * @param array<string, FieldEntity> $columnSet
+     * @param array<int, FieldEntity>    $fieldsById
+     *
+     * @return array{sql: string, args: array<int, mixed>}|null
+     */
+    private function compileNode(
+        array $node,
+        array $columnSet,
+        array $fieldsById,
+        int $listId,
+        int $depth,
+    ): ?array {
+        if ($depth > self::MAX_TREE_DEPTH) {
+            return null;
+        }
+        $type = isset($node['type']) ? (string) $node['type'] : '';
+
+        if ($type === 'group') {
+            $logic = strtolower((string) ($node['logic'] ?? 'and'));
+            $logic = $logic === 'or' ? 'OR' : 'AND';
+
+            $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
+            $parts    = [];
+            $args     = [];
+            foreach ($children as $child) {
+                if (! is_array($child)) {
+                    continue;
+                }
+                $compiled = $this->compileNode($child, $columnSet, $fieldsById, $listId, $depth + 1);
+                if ($compiled === null) {
+                    continue;
+                }
+                $parts[] = $compiled['sql'];
+                foreach ($compiled['args'] as $a) {
+                    $args[] = $a;
+                }
+            }
+            if ($parts === []) {
+                return null;
+            }
+            // Un solo hijo no necesita paréntesis ni el operador.
+            if (count($parts) === 1) {
+                return ['sql' => $parts[0], 'args' => $args];
+            }
+            return [
+                'sql'  => '(' . implode(' ' . $logic . ' ', $parts) . ')',
+                'args' => $args,
+            ];
+        }
+
+        if ($type === 'condition') {
+            $rawFieldId = $node['field_id'] ?? null;
+            $rawOp      = isset($node['op']) ? (string) $node['op'] : '';
+            $value      = $node['value'] ?? null;
+
+            $column = null;
+            $field  = null;
+            if (is_int($rawFieldId) || (is_string($rawFieldId) && ctype_digit($rawFieldId))) {
+                $fieldId = (int) $rawFieldId;
+                if (isset($fieldsById[$fieldId])) {
+                    $field  = $fieldsById[$fieldId];
+                    $column = $field->columnName;
+                }
+            } elseif (is_string($rawFieldId)) {
+                // Frontend podría mandar un slug o `field_<id>`.
+                $column = $this->resolveColumn($rawFieldId, $listId, $fieldsById);
+                foreach ($fieldsById as $f) {
+                    if ($f->columnName === $column) {
+                        $field = $f;
+                        break;
+                    }
+                }
+            }
+
+            if ($column === null || $field === null) {
+                return null;
+            }
+            if (in_array($field->type, self::NON_FILTERABLE_TYPES, true)) {
+                return null;
+            }
+            if (! $this->isAllowedColumn($column, $columnSet)) {
+                return null;
+            }
+
+            return $this->compileFilter($column, $rawOp, $value, $field);
+        }
+
+        return null;
+    }
+
+    /**
+     * Convierte la forma plana legacy `{field: {op: value}}` a un árbol
+     * con un único grupo AND raíz. Útil para que el endpoint REST acepte
+     * ambas formas y pase siempre tree al QueryBuilder internamente.
+     *
+     * @param array<string, mixed> $rawFilters
+     * @return array{type: string, logic: string, children: array<int, array<string, mixed>>}
+     */
+    public static function flatToTree(array $rawFilters): array
+    {
+        $children = [];
+        foreach ($rawFilters as $key => $value) {
+            $fieldRef = (string) $key;
+            if (is_array($value)) {
+                foreach ($value as $op => $opValue) {
+                    if (! is_string($op)) {
+                        continue;
+                    }
+                    $children[] = [
+                        'type'     => 'condition',
+                        'field_id' => $fieldRef,
+                        'op'       => $op,
+                        'value'    => $opValue,
+                    ];
+                }
+            } else {
+                $children[] = [
+                    'type'     => 'condition',
+                    'field_id' => $fieldRef,
+                    'op'       => 'eq',
+                    'value'    => $value,
+                ];
+            }
+        }
+        return ['type' => 'group', 'logic' => 'and', 'children' => $children];
+    }
+
+    /**
      * Compila SELECT (group_value, count) GROUP BY <group_field>, respetando
      * los mismos filtros / search / soft-deletes que `buildSelect`. Usado
      * por el endpoint `/records/groups` (toolbar "Agrupar por" estilo
@@ -259,6 +484,7 @@ final class QueryBuilder
      * es ruido visual cuando se mezcla con grupos reales.
      *
      * @param array<int, FieldEntity> $fields  Campos vivos de la lista (mismos que se pasan a buildSelect).
+     * @param array{where: string, args: array<int, mixed>}|null $whereOverride
      *
      * @return array{sql:string, args:array<int, mixed>}
      */
@@ -267,12 +493,18 @@ final class QueryBuilder
         array $fields,
         FieldEntity $groupByField,
         QueryParams $params,
+        ?array $whereOverride = null,
     ): array {
         $table     = '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';
         $columnSet = $this->columnsByName($fields);
 
-        [$where, $args] = $this->buildWhere($params, $columnSet);
-        $whereSql       = $where !== '' ? $where : 'WHERE 1=1';
+        if ($whereOverride !== null) {
+            $where = $whereOverride['where'];
+            $args  = $whereOverride['args'];
+        } else {
+            [$where, $args] = $this->buildWhere($params, $columnSet);
+        }
+        $whereSql = $where !== '' ? $where : 'WHERE 1=1';
 
         $col = '`' . esc_sql($groupByField->columnName) . '`';
 

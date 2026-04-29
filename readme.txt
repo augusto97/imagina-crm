@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.16.0
+Stable tag: 0.17.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,42 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.17.0 =
+* Refactor mayor de filtros: panel inline ClickUp-style con AND/OR
+  + grupos anidados + filtros guardados.
+  · Reemplazado el viejo `<FiltersBar>` (chips + popover) por un
+    `<FiltersPanel>` con chip toggleable arriba a la derecha. Al
+    abrirse muestra cada filtro como una fila inline (Campo →
+    Operador → Valor → 🗑) con conector "Y/O" entre filas. El
+    conector es clickeable y togglea la lógica del grupo.
+  · "Agregar filtro anidado" debajo de cada fila inserta un
+    sub-grupo con su propia lógica AND/OR independiente. Permite
+    expresar `(A AND B) OR (C AND D)`.
+  · "Borrar todo" a la derecha del footer del panel.
+  · El árbol nuevo se persiste en `SavedView.config.filter_tree`.
+    Para árboles AND-planos también se escribe el espejo legacy
+    `filters` para compat con builds anteriores. Para árboles con
+    OR/nesting solo se escribe `filter_tree`. Carga retro-compat:
+    si solo hay `filters`, se convierte automáticamente.
+* Backend: nuevo `QueryBuilder::compileTreeWhereForList()` que
+  recorre el árbol recursivamente y compila a SQL anidado con
+  paréntesis. Profundidad máxima 8 (defensa contra payloads
+  abusivos), nodos inválidos se descartan silenciosamente. El
+  endpoint `/records` y `/records/groups` aceptan el árbol como
+  `filter_tree` (JSON-encoded query param) además del shortcut
+  plano `filter[...]`. `WidgetEvaluator` también lo respeta.
+* Filtros guardados (entidad nueva): `wp_imcrm_saved_filters`
+  guarda sets nombrados de árboles reusables entre vistas. Cada
+  filtro pertenece a un usuario (Personal) o es compartido con
+  todo el "Entorno de trabajo" (`user_id` NULL). El panel tiene
+  un dropdown "Filtros guardados" con búsqueda + dos secciones
+  (Personal / Compartido) + "Guardar nuevo filtro". REST endpoints
+  `GET/POST/PATCH/DELETE /lists/{list}/saved-filters[/{id}]`.
+* DB version bumpeada a 3. La tabla nueva se crea automáticamente
+  en activación o en el upgrade silencioso del runtime.
+* Tests: 4 nuevos en `QueryBuilderTest` cubriendo group AND, group
+  OR (con paréntesis), nested groups, y skip de fields desconocidos.
 
 = 0.16.0 =
 * Fix CRÍTICO del Dashboard: los widgets se reorganizaban a una sola

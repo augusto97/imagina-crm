@@ -53,6 +53,7 @@ final class SchemaManager
             $this->sqlAutomations($charset),
             $this->sqlAutomationRuns($charset),
             $this->sqlDashboards($charset),
+            $this->sqlSavedFilters($charset),
         ];
 
         foreach ($statements as $sql) {
@@ -291,6 +292,29 @@ final class SchemaManager
             config LONGTEXT NOT NULL,
             is_default TINYINT(1) NOT NULL DEFAULT 0,
             position INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            KEY idx_list (list_id),
+            KEY idx_user (user_id)
+        ) {$charset};";
+    }
+
+    /**
+     * Filtros guardados (ClickUp-style): sets nombrados de
+     * filter_tree reusables entre vistas. user_id NULL = compartido
+     * con todo el "entorno de trabajo". Cada lista tiene su set
+     * propio (delete-cascade vía list_id).
+     */
+    private function sqlSavedFilters(string $charset): string
+    {
+        $table = $this->db->systemTable('saved_filters');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NULL,
+            name VARCHAR(191) NOT NULL,
+            filter_tree LONGTEXT NOT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             PRIMARY KEY  (id),
