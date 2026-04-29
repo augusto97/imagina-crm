@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.22.0
+Stable tag: 0.22.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.22.1 =
+* Fix UX del panel de recurrencia para matchear ClickUp:
+  · Ancho del popover reducido de 640px a 520px (la columna de
+    atajos también pasó de 176px a 160px). Ya no se ve estirado.
+  · Campos opt-in con checkboxes en vez de selects forzados:
+    · "Crear nueva tarea" — checkbox que togglea action_type
+      (update default → clone cuando se marca). Antes era un
+      select obligatorio "Acción al rodar" que confundía.
+    · "Repetir indefinidamente" — checkbox default ON. Cuando
+      se desmarca aparece input "Repetir N veces" (matchea el
+      "Repetir [N] veces" de ClickUp).
+    · "Actualizar estado a:" — ya era checkbox, ahora con la
+      misma estética de los otros.
+  · "Frecuencia" + "Cada N" en una grid `[1fr 80px]` compacta
+    (antes ocupaban dos columnas iguales).
+  · "Cuándo rueda" pasó a un único select sin label visible:
+    "Según un cronograma" / "Cuando cambia el estado".
+  · Removido "Acción al rodar" como select separado — ahora es
+    el checkbox "Crear nueva tarea".
+  · Removido "Repetir hasta (date input)" — sustituido por
+    "Repetir N veces" que internamente computa la fecha tope
+    desde la fecha base × frecuencia × N.
+  · Botón "Cancelar" añadido al footer cuando aún no hay
+    recurrencia guardada (antes solo había "Guardar"; ahora
+    también se puede cerrar el panel sin guardar).
 
 = 0.22.0 =
 * DateCellEditor: editor de fecha estilo ClickUp con calendario

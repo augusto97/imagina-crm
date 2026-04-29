@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/style.css';
-import { CalendarRange, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type {
     Recurrence,
-    RecurrenceActionType,
     RecurrenceFrequency,
     RecurrenceMonthlyPattern,
     RecurrenceTriggerType,
@@ -117,7 +116,7 @@ export function DateCellEditor({
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="imcrm-w-[640px] imcrm-p-0"
+                className="imcrm-w-[520px] imcrm-p-0"
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <div className="imcrm-flex">
@@ -189,6 +188,8 @@ export function DateCellEditor({
                             recordId={recordId}
                             field={field}
                             existing={existingRecurrence ?? null}
+                            seedDate={pickedDate}
+                            onClose={() => setRecurrenceOpen(false)}
                         />
                     )}
                 </div>
@@ -237,16 +238,16 @@ function ShortcutsColumn({
     hasValue: boolean;
 }): JSX.Element {
     return (
-        <div className="imcrm-flex imcrm-w-44 imcrm-shrink-0 imcrm-flex-col imcrm-gap-0.5 imcrm-p-2">
+        <div className="imcrm-flex imcrm-w-40 imcrm-shrink-0 imcrm-flex-col imcrm-gap-0.5 imcrm-p-2">
             {SHORTCUTS.map((s) => (
                 <button
                     key={s.id}
                     type="button"
                     onClick={() => onPick(s.id)}
-                    className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-rounded-md imcrm-px-2 imcrm-py-1.5 imcrm-text-left imcrm-text-xs hover:imcrm-bg-accent"
+                    className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2 imcrm-rounded-md imcrm-px-2 imcrm-py-1.5 imcrm-text-left imcrm-text-xs hover:imcrm-bg-accent"
                 >
-                    <span>{s.label}</span>
-                    <span className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                    <span className="imcrm-truncate">{s.label}</span>
+                    <span className="imcrm-shrink-0 imcrm-text-[10px] imcrm-text-muted-foreground">
                         {s.hint()}
                     </span>
                 </button>
@@ -324,6 +325,10 @@ interface RecurrencePanelProps {
     recordId: number;
     field: FieldEntity;
     existing: Recurrence | null;
+    /** Fecha base para calcular "Repetir N veces" → end_date. */
+    seedDate: Date | undefined;
+    /** Llamado tras guardar/eliminar para que el caller pueda colapsar. */
+    onClose?: () => void;
 }
 
 function RecurrencePanel({
@@ -331,6 +336,8 @@ function RecurrencePanel({
     recordId,
     field,
     existing,
+    seedDate,
+    onClose,
 }: RecurrencePanelProps): JSX.Element {
     const fields = useFields(listId);
     const upsert = useUpsertRecurrence(listId, recordId);
@@ -339,7 +346,7 @@ function RecurrencePanel({
     const [frequency, setFrequency] = useState<RecurrenceFrequency>(
         existing?.frequency ?? 'monthly',
     );
-    const [interval, setInterval] = useState<number>(existing?.interval_n ?? 1);
+    const [interval, setIntervalN] = useState<number>(existing?.interval_n ?? 1);
     const [monthlyPattern, setMonthlyPattern] = useState<RecurrenceMonthlyPattern>(
         existing?.monthly_pattern ?? 'same_day',
     );
@@ -352,8 +359,11 @@ function RecurrencePanel({
     const [triggerStatusValue, setTriggerStatusValue] = useState<string>(
         existing?.trigger_status_value ?? '',
     );
-    const [actionType, setActionType] = useState<RecurrenceActionType>(
-        existing?.action_type ?? 'update',
+    // Acción "clone" / "update" como checkbox: marcar = clonar; desmarcar
+    // = actualizar (default). Sigue el modelo ClickUp donde "Crear nueva
+    // tarea" es opt-in.
+    const [createNewTask, setCreateNewTask] = useState<boolean>(
+        existing?.action_type === 'clone',
     );
     const [updateStatusEnabled, setUpdateStatusEnabled] = useState<boolean>(
         existing?.update_status_field_id != null,
@@ -364,14 +374,47 @@ function RecurrencePanel({
     const [updateStatusValue, setUpdateStatusValue] = useState<string>(
         existing?.update_status_value ?? '',
     );
-    const [repeatUntil, setRepeatUntil] = useState<string>(
-        existing?.repeat_until ?? '',
+    // "Repetir indefinidamente" (default true). Cuando se desmarca,
+    // mostramos input de "Repetir N veces".
+    const [indefinite, setIndefinite] = useState<boolean>(
+        existing?.repeat_until == null,
     );
+    const [repeatCount, setRepeatCount] = useState<number>(1);
     const [error, setError] = useState<string | null>(null);
 
     const statusFields = (fields.data ?? []).filter(
         (f) => f.type === 'select' || f.type === 'checkbox',
     );
+
+    /**
+     * Convierte "Repetir N veces" → fecha final calculada desde la
+     * fecha base + N × frecuencia. Brittle pero matchea ClickUp UX.
+     */
+    const computeRepeatUntil = (): string | null => {
+        if (indefinite) return null;
+        if (!seedDate) return null;
+        const out = new Date(seedDate);
+        const n = Math.max(1, repeatCount);
+        switch (frequency) {
+            case 'daily':
+            case 'days_after':
+                out.setDate(out.getDate() + n * interval);
+                break;
+            case 'weekly':
+                out.setDate(out.getDate() + n * interval * 7);
+                break;
+            case 'monthly':
+                out.setMonth(out.getMonth() + n * interval);
+                break;
+            case 'yearly':
+                out.setFullYear(out.getFullYear() + n * interval);
+                break;
+        }
+        const y = out.getFullYear();
+        const m = String(out.getMonth() + 1).padStart(2, '0');
+        const d = String(out.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
 
     const handleSave = async (): Promise<void> => {
         setError(null);
@@ -386,11 +429,12 @@ function RecurrencePanel({
                     triggerType === 'status_change' ? triggerStatusFieldId : null,
                 trigger_status_value:
                     triggerType === 'status_change' ? triggerStatusValue : null,
-                action_type: actionType,
+                action_type: createNewTask ? 'clone' : 'update',
                 update_status_field_id: updateStatusEnabled ? updateStatusFieldId : null,
                 update_status_value: updateStatusEnabled ? updateStatusValue : null,
-                repeat_until: repeatUntil !== '' ? repeatUntil : null,
+                repeat_until: computeRepeatUntil(),
             });
+            onClose?.();
         } catch (err) {
             setError(err instanceof Error ? err.message : __('Error'));
         }
@@ -401,87 +445,69 @@ function RecurrencePanel({
         if (!window.confirm(__('¿Quitar la recurrencia de esta celda?'))) return;
         try {
             await remove.mutateAsync(existing.id);
+            onClose?.();
         } catch (err) {
             setError(err instanceof Error ? err.message : __('Error'));
         }
     };
 
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-bg-canvas imcrm-p-4">
-            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label className="imcrm-text-xs">{__('Frecuencia')}</Label>
-                    <Select
-                        value={frequency}
-                        onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
-                    >
-                        <option value="daily">{__('Diariamente')}</option>
-                        <option value="weekly">{__('Semanal')}</option>
-                        <option value="monthly">{__('Mensual')}</option>
-                        <option value="yearly">{__('Anual')}</option>
-                        <option value="days_after">{__('Días después de…')}</option>
-                    </Select>
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label className="imcrm-text-xs">{__('Cada')}</Label>
-                    <Input
-                        type="number"
-                        min={1}
-                        value={interval}
-                        onChange={(e) => setInterval(Math.max(1, Number(e.target.value) || 1))}
-                    />
-                </div>
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-bg-canvas imcrm-p-3">
+            <div className="imcrm-grid imcrm-grid-cols-[1fr_80px] imcrm-gap-2">
+                <Select
+                    value={frequency}
+                    onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
+                    aria-label={__('Frecuencia')}
+                    className="imcrm-h-8"
+                >
+                    <option value="daily">{__('Diariamente')}</option>
+                    <option value="weekly">{__('Semanal')}</option>
+                    <option value="monthly">{__('Mensual')}</option>
+                    <option value="yearly">{__('Anual')}</option>
+                    <option value="days_after">{__('Días después de…')}</option>
+                </Select>
+                <Input
+                    type="number"
+                    min={1}
+                    value={interval}
+                    onChange={(e) => setIntervalN(Math.max(1, Number(e.target.value) || 1))}
+                    aria-label={__('Cada')}
+                    className="imcrm-h-8"
+                />
             </div>
 
             {frequency === 'monthly' && (
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label className="imcrm-text-xs">{__('Patrón mensual')}</Label>
-                    <Select
-                        value={monthlyPattern}
-                        onChange={(e) =>
-                            setMonthlyPattern(e.target.value as RecurrenceMonthlyPattern)
-                        }
-                    >
-                        <option value="same_day">{__('El mismo día de cada mes')}</option>
-                        <option value="weekday">{__('El mismo día de la semana')}</option>
-                        <option value="first_day">{__('Primer día del mes')}</option>
-                        <option value="last_day">{__('Último día del mes')}</option>
-                    </Select>
-                </div>
+                <Select
+                    value={monthlyPattern}
+                    onChange={(e) =>
+                        setMonthlyPattern(e.target.value as RecurrenceMonthlyPattern)
+                    }
+                    aria-label={__('Patrón mensual')}
+                    className="imcrm-h-8"
+                >
+                    <option value="same_day">{__('El mismo día de cada mes')}</option>
+                    <option value="weekday">{__('El mismo día de la semana')}</option>
+                    <option value="first_day">{__('Primer día del mes')}</option>
+                    <option value="last_day">{__('Último día del mes')}</option>
+                </Select>
             )}
 
-            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3 imcrm-border-t imcrm-border-border imcrm-pt-3">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label className="imcrm-text-xs">{__('Cuándo rueda')}</Label>
-                    <Select
-                        value={triggerType}
-                        onChange={(e) =>
-                            setTriggerType(e.target.value as RecurrenceTriggerType)
-                        }
-                    >
-                        <option value="schedule">{__('Cuando llega la fecha')}</option>
-                        <option value="status_change">{__('Al cambiar el estado')}</option>
-                    </Select>
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label className="imcrm-text-xs">{__('Acción al rodar')}</Label>
-                    <Select
-                        value={actionType}
-                        onChange={(e) =>
-                            setActionType(e.target.value as RecurrenceActionType)
-                        }
-                    >
-                        <option value="update">{__('Actualizar este registro')}</option>
-                        <option value="clone">{__('Crear nueva tarea')}</option>
-                    </Select>
-                </div>
-            </div>
+            <Select
+                value={triggerType}
+                onChange={(e) => setTriggerType(e.target.value as RecurrenceTriggerType)}
+                aria-label={__('Cuándo rueda')}
+                className="imcrm-h-8"
+            >
+                <option value="schedule">{__('Según un cronograma')}</option>
+                <option value="status_change">{__('Cuando cambia el estado')}</option>
+            </Select>
 
             {triggerType === 'status_change' && (
-                <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
+                <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
                     <Select
                         value={triggerStatusFieldId}
                         onChange={(e) => setTriggerStatusFieldId(Number(e.target.value))}
+                        className="imcrm-h-8"
                     >
                         <option value={0}>{__('— Campo de estado —')}</option>
                         {statusFields.map((f) => (
@@ -494,6 +520,7 @@ function RecurrencePanel({
                         <Select
                             value={triggerStatusValue}
                             onChange={(e) => setTriggerStatusValue(e.target.value)}
+                            className="imcrm-h-8"
                         >
                             <option value="">{__('— Valor target —')}</option>
                             {statusOptions(fields.data, triggerStatusFieldId).map((o) => (
@@ -506,55 +533,82 @@ function RecurrencePanel({
                 </div>
             )}
 
-            <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
-                <input
-                    type="checkbox"
-                    checked={updateStatusEnabled}
-                    onChange={(e) => setUpdateStatusEnabled(e.target.checked)}
-                />
-                {__('Actualizar estado a:')}
-            </label>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-3">
+                <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
+                    <input
+                        type="checkbox"
+                        checked={createNewTask}
+                        onChange={(e) => setCreateNewTask(e.target.checked)}
+                    />
+                    {__('Crear nueva tarea')}
+                </label>
 
-            {updateStatusEnabled && (
-                <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3 imcrm-pl-6">
-                    <Select
-                        value={updateStatusFieldId}
-                        onChange={(e) => setUpdateStatusFieldId(Number(e.target.value))}
-                    >
-                        <option value={0}>{__('— Campo —')}</option>
-                        {statusFields.map((f) => (
-                            <option key={f.id} value={f.id}>
-                                {f.label}
-                            </option>
-                        ))}
-                    </Select>
-                    {updateStatusFieldId > 0 && (
+                <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
+                    <input
+                        type="checkbox"
+                        checked={indefinite}
+                        onChange={(e) => setIndefinite(e.target.checked)}
+                    />
+                    {__('Repetir indefinidamente')}
+                </label>
+
+                <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
+                    <input
+                        type="checkbox"
+                        checked={updateStatusEnabled}
+                        onChange={(e) => setUpdateStatusEnabled(e.target.checked)}
+                    />
+                    {__('Actualizar estado a:')}
+                </label>
+                {updateStatusEnabled && (
+                    <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2 imcrm-pl-6">
                         <Select
-                            value={updateStatusValue}
-                            onChange={(e) => setUpdateStatusValue(e.target.value)}
+                            value={updateStatusFieldId}
+                            onChange={(e) => setUpdateStatusFieldId(Number(e.target.value))}
+                            className="imcrm-h-8"
                         >
-                            <option value="">{__('— Valor —')}</option>
-                            {statusOptions(fields.data, updateStatusFieldId).map((o) => (
-                                <option key={o.value} value={o.value}>
-                                    {o.label}
+                            <option value={0}>{__('— Campo —')}</option>
+                            {statusFields.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                    {f.label}
                                 </option>
                             ))}
                         </Select>
-                    )}
+                        {updateStatusFieldId > 0 && (
+                            <Select
+                                value={updateStatusValue}
+                                onChange={(e) => setUpdateStatusValue(e.target.value)}
+                                className="imcrm-h-8"
+                            >
+                                <option value="">{__('— Valor —')}</option>
+                                {statusOptions(fields.data, updateStatusFieldId).map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                        {o.label}
+                                    </option>
+                                ))}
+                            </Select>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {!indefinite && (
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
+                    <Label className="imcrm-text-xs">{__('Repetir')}</Label>
+                    <Input
+                        type="number"
+                        min={1}
+                        value={repeatCount}
+                        onChange={(e) =>
+                            setRepeatCount(Math.max(1, Number(e.target.value) || 1))
+                        }
+                        className="imcrm-h-8 imcrm-w-20"
+                    />
+                    <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('veces')}
+                    </span>
                 </div>
             )}
-
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-xs">
-                    <CalendarRange className="imcrm-h-3 imcrm-w-3" />
-                    {__('Repetir hasta (opcional)')}
-                </Label>
-                <Input
-                    type="date"
-                    value={repeatUntil}
-                    onChange={(e) => setRepeatUntil(e.target.value)}
-                />
-            </div>
 
             {error !== null && (
                 <p className="imcrm-rounded imcrm-border imcrm-border-destructive/40 imcrm-bg-destructive/10 imcrm-px-2 imcrm-py-1.5 imcrm-text-xs imcrm-text-destructive">
@@ -573,14 +627,21 @@ function RecurrencePanel({
                         {__('No repetir')}
                     </Button>
                 ) : (
-                    <span />
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onClose?.()}
+                        className="imcrm-text-muted-foreground"
+                    >
+                        {__('Cancelar')}
+                    </Button>
                 )}
                 <Button
                     size="sm"
                     onClick={() => void handleSave()}
                     disabled={upsert.isPending}
                 >
-                    {upsert.isPending ? __('Guardando…') : __('Guardar recurrencia')}
+                    {upsert.isPending ? __('Guardando…') : __('Guardar')}
                 </Button>
             </div>
         </div>
