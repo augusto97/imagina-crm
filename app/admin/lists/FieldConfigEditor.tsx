@@ -27,12 +27,20 @@ interface FieldConfigEditorProps {
     type: FieldTypeSlug | '';
     config: Record<string, unknown>;
     onChange: (next: Record<string, unknown>) => void;
+    /** Solo lo necesita el editor `computed` para listar los otros
+     * campos de la lista que pueden ser inputs. */
+    listId?: number;
+    /** Field ID actual (en edición) — para excluirlo de los inputs
+     * elegibles del computed (no puede referenciarse a sí mismo). */
+    currentFieldId?: number;
 }
 
 export function FieldConfigEditor({
     type,
     config,
     onChange,
+    listId,
+    currentFieldId,
 }: FieldConfigEditorProps): JSX.Element | null {
     if (type === 'select' || type === 'multi_select') {
         return <OptionsEditor config={config} onChange={onChange} />;
@@ -51,6 +59,16 @@ export function FieldConfigEditor({
     }
     if (type === 'checkbox') {
         return <CheckboxDefaultEditor config={config} onChange={onChange} />;
+    }
+    if (type === 'computed') {
+        return (
+            <ComputedEditor
+                config={config}
+                onChange={onChange}
+                listId={listId}
+                currentFieldId={currentFieldId}
+            />
+        );
     }
     // date/datetime/url/email/user/file: no requieren config extra en MVP.
     return null;
@@ -290,5 +308,228 @@ function CheckboxDefaultEditor({ config, onChange }: SubProps): JSX.Element {
             />
             {__('Marcado por defecto')}
         </label>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Computed (campo calculado)
+// ─────────────────────────────────────────────────────────────────────
+
+interface ComputedOpDef {
+    slug: string;
+    label: string;
+    /** Cuántos inputs requiere (fixed) o `[min, max]`. */
+    arity: number | [number, number];
+    /** Tipos de field aceptables como input (filtra el dropdown). */
+    inputTypes: string[];
+    /** Texto de ayuda mostrado abajo del operador. */
+    hint: string;
+}
+
+const COMPUTED_OPS: ComputedOpDef[] = [
+    {
+        slug: 'date_diff_months',
+        label: __('Diferencia en meses'),
+        arity: 2,
+        inputTypes: ['date', 'datetime'],
+        hint: __('months(B) − months(A). Positivo si B es posterior a A; negativo si A es posterior.'),
+    },
+    {
+        slug: 'date_diff_days',
+        label: __('Diferencia en días'),
+        arity: 2,
+        inputTypes: ['date', 'datetime'],
+        hint: __('Días entre A y B. Positivo si B es posterior.'),
+    },
+    {
+        slug: 'sum',
+        label: __('Suma'),
+        arity: [2, 10],
+        inputTypes: ['number', 'currency', 'computed'],
+        hint: __('Suma de todos los inputs numéricos.'),
+    },
+    {
+        slug: 'product',
+        label: __('Producto'),
+        arity: [2, 10],
+        inputTypes: ['number', 'currency', 'computed'],
+        hint: __('Multiplica todos los inputs.'),
+    },
+    {
+        slug: 'subtract',
+        label: __('Resta'),
+        arity: 2,
+        inputTypes: ['number', 'currency', 'computed'],
+        hint: __('A − B.'),
+    },
+    {
+        slug: 'divide',
+        label: __('División'),
+        arity: 2,
+        inputTypes: ['number', 'currency', 'computed'],
+        hint: __('A / B. Si B es 0, el campo queda vacío.'),
+    },
+    {
+        slug: 'concat',
+        label: __('Concatenar texto'),
+        arity: [2, 10],
+        inputTypes: ['text', 'long_text', 'email', 'url', 'select', 'computed'],
+        hint: __('Une los inputs en un solo texto, separados por el separador.'),
+    },
+    {
+        slug: 'abs',
+        label: __('Valor absoluto'),
+        arity: 1,
+        inputTypes: ['number', 'currency', 'computed'],
+        hint: __('Valor absoluto (siempre positivo) del input.'),
+    },
+];
+
+interface ComputedEditorProps extends SubProps {
+    listId?: number;
+    currentFieldId?: number;
+}
+
+function ComputedEditor({
+    config,
+    onChange,
+    listId,
+    currentFieldId,
+}: ComputedEditorProps): JSX.Element {
+    // Lazy: imports dentro del componente para no aumentar el bundle
+    // de la builder cuando el usuario nunca elige "computed".
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useFields } = require('@/hooks/useFields') as typeof import('@/hooks/useFields');
+
+    const fields = useFields(listId);
+    const operation = typeof config.operation === 'string' ? config.operation : '';
+    const opDef = COMPUTED_OPS.find((o) => o.slug === operation);
+    const inputs = Array.isArray(config.inputs) ? (config.inputs as number[]) : [];
+
+    const eligibleFields = (fields.data ?? []).filter((f) => {
+        if (currentFieldId !== undefined && f.id === currentFieldId) return false;
+        if (!opDef) return true;
+        return opDef.inputTypes.includes(f.type);
+    });
+
+    const setOperation = (slug: string): void => {
+        // Reset inputs al cambiar la operación (los aceptables cambian).
+        onChange({ ...config, operation: slug, inputs: [] });
+    };
+
+    const setInputAt = (idx: number, fieldId: number): void => {
+        const next = [...inputs];
+        next[idx] = fieldId;
+        onChange({ ...config, inputs: next });
+    };
+
+    const addInput = (): void => {
+        onChange({ ...config, inputs: [...inputs, 0] });
+    };
+
+    const removeInput = (idx: number): void => {
+        onChange({ ...config, inputs: inputs.filter((_, i) => i !== idx) });
+    };
+
+    const setSeparator = (sep: string): void => {
+        onChange({ ...config, separator: sep });
+    };
+
+    const minInputs = typeof opDef?.arity === 'number' ? opDef.arity : opDef?.arity[0] ?? 2;
+    const maxInputs = typeof opDef?.arity === 'number' ? opDef.arity : opDef?.arity[1] ?? 10;
+    const canAdd = inputs.length < maxInputs;
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label className="imcrm-text-xs">{__('Operación')}</Label>
+                <Select
+                    value={operation}
+                    onChange={(e) => setOperation(e.target.value)}
+                >
+                    <option value="">{__('— Selecciona —')}</option>
+                    {COMPUTED_OPS.map((op) => (
+                        <option key={op.slug} value={op.slug}>
+                            {op.label}
+                        </option>
+                    ))}
+                </Select>
+                {opDef !== undefined && (
+                    <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                        {opDef.hint}
+                    </p>
+                )}
+            </div>
+
+            {opDef !== undefined && (
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label className="imcrm-text-xs">
+                        {opDef.arity === 2 || (Array.isArray(opDef.arity) && opDef.arity[0] === 2 && opDef.arity[1] === 2)
+                            ? __('Campos A y B')
+                            : __('Campos de entrada')}
+                    </Label>
+                    {Array.from({ length: Math.max(inputs.length, minInputs) }).map((_, i) => {
+                        const value = inputs[i] ?? 0;
+                        const isFixed = typeof opDef.arity === 'number';
+                        const canRemove = !isFixed && inputs.length > minInputs;
+                        return (
+                            <div key={i} className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                                <span className="imcrm-w-6 imcrm-text-xs imcrm-text-muted-foreground">
+                                    {opDef.arity === 2 ? (i === 0 ? 'A' : 'B') : `#${i + 1}`}
+                                </span>
+                                <Select
+                                    value={value}
+                                    onChange={(e) => setInputAt(i, Number(e.target.value))}
+                                    className="imcrm-flex-1"
+                                >
+                                    <option value={0}>{__('— Selecciona campo —')}</option>
+                                    {eligibleFields.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                            {f.label}
+                                            {f.type === 'computed' ? ` (${__('calculado')})` : ''}
+                                        </option>
+                                    ))}
+                                </Select>
+                                {canRemove && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeInput(i)}
+                                        aria-label={__('Quitar input')}
+                                    >
+                                        <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        );
+                    })}
+                    {canAdd && Array.isArray(opDef.arity) && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={addInput}
+                            className="imcrm-self-start imcrm-gap-2"
+                        >
+                            <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('Añadir input')}
+                        </Button>
+                    )}
+                </div>
+            )}
+
+            {opDef?.slug === 'concat' && (
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label className="imcrm-text-xs">{__('Separador')}</Label>
+                    <Input
+                        type="text"
+                        value={typeof config.separator === 'string' ? config.separator : ' '}
+                        onChange={(e) => setSeparator(e.target.value)}
+                        placeholder={__('Ej. " " o " - "')}
+                    />
+                </div>
+            )}
+        </div>
     );
 }

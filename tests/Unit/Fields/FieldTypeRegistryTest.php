@@ -9,13 +9,14 @@ use PHPUnit\Framework\TestCase;
 
 final class FieldTypeRegistryTest extends TestCase
 {
-    public function test_default_registry_has_all_14_mvp_types(): void
+    public function test_default_registry_has_all_mvp_types(): void
     {
         $registry = new FieldTypeRegistry();
         $expected = [
             'text', 'long_text', 'number', 'currency',
             'select', 'multi_select', 'date', 'datetime',
             'checkbox', 'url', 'email', 'user', 'relation', 'file',
+            'computed', // 0.23.0
         ];
 
         foreach ($expected as $slug) {
@@ -23,7 +24,7 @@ final class FieldTypeRegistryTest extends TestCase
             $this->assertInstanceOf(FieldTypeInterface::class, $registry->get($slug));
         }
 
-        $this->assertCount(14, $registry->all());
+        $this->assertCount(15, $registry->all());
     }
 
     public function test_relation_type_does_not_materialize_column(): void
@@ -54,7 +55,7 @@ final class FieldTypeRegistryTest extends TestCase
         $registry = new FieldTypeRegistry();
         $serialized = $registry->toArray();
 
-        $this->assertCount(14, $serialized);
+        $this->assertCount(15, $serialized);
 
         foreach ($serialized as $row) {
             $this->assertArrayHasKey('slug', $row);

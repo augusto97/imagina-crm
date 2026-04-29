@@ -209,7 +209,13 @@ export function FieldDialog({
                             onDirty={() => setSlugDirty(true)}
                         />
 
-                        <FieldConfigEditor type={type} config={config} onChange={setConfig} />
+                        <FieldConfigEditor
+                            type={type}
+                            config={config}
+                            onChange={setConfig}
+                            listId={listId}
+                            currentFieldId={field?.id}
+                        />
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                             <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">

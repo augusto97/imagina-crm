@@ -34,7 +34,9 @@ interface EditableCellProps {
  * más complejos — se editan por el RecordDetailDrawer en una iteración
  * posterior).
  */
-const NON_INLINE_TYPES = ['user', 'file', 'relation'];
+// `computed` se muestra read-only — su valor lo deriva el backend
+// desde otros campos del record, el usuario no lo edita directo.
+const NON_INLINE_TYPES = ['user', 'file', 'relation', 'computed'];
 
 export function EditableCell({ field, recordId, listId, value }: EditableCellProps): JSX.Element {
     const update = useUpdateRecord(listId);

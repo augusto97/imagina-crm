@@ -82,6 +82,12 @@ export function operatorsForType(type: FieldTypeSlug): OperatorMeta[] {
         case 'relation':
             // No filtrable en MVP (CLAUDE.md §9.4 — relation vive en wp_imcrm_relations).
             return [];
+        case 'computed':
+            // No filtrable: no tiene columna SQL, su valor lo deriva
+            // el backend en cada lectura. El QueryBuilder rechazaría
+            // cualquier filtro contra este field por whitelist de
+            // columnas físicas.
+            return [];
     }
 }
 

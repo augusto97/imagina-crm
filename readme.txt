@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.22.5
+Stable tag: 0.23.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,49 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.23.0 =
+* Nuevo tipo de campo: **Calculado** (`computed`). Deriva su valor
+  de otros campos del mismo registro vía operaciones pre-armadas.
+  Use case clásico: facturas con campo "mes facturado" + "último
+  mes pagado" + computed "meses de atraso" + computed "monto a
+  cobrar" = atraso × valor mensual.
+* 8 operaciones disponibles:
+  · `date_diff_months` — diferencia en meses entre dos fechas.
+    Calculada lineal (`year×12 + month`) para que cruzar años
+    funcione correctamente: dic 2025 → ene 2026 = 1 (no -11).
+    Signo positivo si B es posterior a A; negativo al revés
+    (refleja saldo a favor / atraso).
+  · `date_diff_days` — diferencia en días entre dos fechas.
+  · `sum` — suma de N inputs numéricos.
+  · `product` — producto de N inputs.
+  · `subtract` — A − B.
+  · `divide` — A / B (división por cero → null).
+  · `concat` — concatenación de N textos con separador
+    configurable.
+  · `abs` — valor absoluto.
+* **Encadenamiento**: un computed puede usar otro computed como
+  input. El evaluator recursa con cycle guard (depth limit 8 +
+  set de "visitados") — ciclos devuelven null en lugar de
+  loop infinito.
+* **Lazy evaluation**: el valor se calcula en cada lectura
+  (`RecordService::hydrate`), NO se persiste en la columna SQL.
+  El campo ni siquiera tiene columna en la tabla dinámica
+  (`hasColumn() = false`, mismo patrón que `relation`).
+  Performance: O(N_records × N_computed) — irrelevante para
+  hasta varios miles de records.
+* **UI**:
+  · FieldDialog: al elegir tipo "Calculado" aparece selector
+    de operación + pickers de field inputs filtrados por tipo
+    compatible. Inputs variables soportan "Añadir input" hasta
+    el max de la operación.
+  · Para `concat`: input de separador configurable.
+  · Cells de computed son read-only (no editables inline). El
+    valor se actualiza solo al cambiar las dependencias.
+* Tests: 16 unit tests en `ComputedFieldEvaluatorTest` cubren
+  todos los operadores + edge cases (cross-year, divide-by-zero,
+  missing input, ciclos, self-reference, cadenas computed →
+  computed).
 
 = 0.22.5 =
 * Tweak: ancho del DateCellEditor afinado a 445px (de 460px) —

@@ -12,7 +12,8 @@ export type FieldTypeSlug =
     | 'email'
     | 'user'
     | 'relation'
-    | 'file';
+    | 'file'
+    | 'computed';
 
 export interface FieldTypeMeta {
     slug: FieldTypeSlug;

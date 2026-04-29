@@ -74,6 +74,25 @@ export function renderCellValue(field: FieldEntity, value: unknown): React.React
         return value.toLocaleString(undefined, { minimumFractionDigits: 2 });
     }
 
+    // Computed: el evaluator backend pone null si falta input o
+    // división por cero. Formateamos según el operador (números con
+    // decimales, fechas con locale, strings tal cual).
+    if (field.type === 'computed' && value !== null && value !== undefined) {
+        if (typeof value === 'number') {
+            const op = (field.config as { operation?: string }).operation;
+            // Diferencias de fecha → entero sin decimales.
+            if (op === 'date_diff_months' || op === 'date_diff_days') {
+                return Number.isInteger(value) ? String(value) : value.toFixed(0);
+            }
+            const decimals = (field.config as { decimals?: number }).decimals ?? 2;
+            return value.toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: decimals,
+            });
+        }
+        return String(value);
+    }
+
     if (field.type === 'url' && typeof value === 'string') {
         return (
             <a

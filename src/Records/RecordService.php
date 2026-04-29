@@ -392,9 +392,24 @@ final class RecordService
      */
     private function hydrate(array $listFields, array $row): array
     {
+        $fields = $this->validator->hydrateRow($listFields, $row);
+
+        // Computed fields: derivamos su valor desde otros campos del
+        // mismo record. Lazy evaluation — se calcula en cada lectura.
+        // Soporta encadenamiento (un computed que depende de otro
+        // computed) vía recursión con cycle guard en el evaluator.
+        foreach ($listFields as $f) {
+            if ($f->type !== \ImaginaCRM\Fields\Types\ComputedField::SLUG) continue;
+            $fields[$f->slug] = \ImaginaCRM\Fields\ComputedFieldEvaluator::evaluate(
+                $f,
+                $listFields,
+                $fields,
+            );
+        }
+
         return [
             'id'         => (int) ($row['id'] ?? 0),
-            'fields'     => $this->validator->hydrateRow($listFields, $row),
+            'fields'     => $fields,
             'relations'  => [], // se llena en attachRelations
             'created_by' => (int) ($row['created_by'] ?? 0),
             'created_at' => (string) ($row['created_at'] ?? ''),
