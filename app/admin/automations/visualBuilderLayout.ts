@@ -65,6 +65,11 @@ interface LayoutOutput {
     nodes: Node[];
     edges: Edge[];
     firstNodeId: string | null;
+    /** Tail(s) de la chain — los nodos finales desde donde un caller
+     * podría continuar el flujo (eg. para el siguiente sibling). En
+     * una chain lineal es 1 elemento; tras un if_else son las dos
+     * ramas convergiendo. */
+    lastNodeIds: string[];
     endY: number;
 }
 
@@ -76,9 +81,10 @@ interface LayoutCtx {
 /**
  * Genera nodos y edges para una secuencia lineal de acciones que viven
  * bajo un mismo branch o el root. Recursa en sub-branches al toparse
- * con un `if_else`. Retorna el primer nodeId (para que el caller
- * conecte desde su trigger / parent) y la `endY` final (para que el
- * caller siga apilando hacia abajo si hay más actions hermanas).
+ * con un `if_else`. Las ramas de un if_else CONVERGEN al siguiente
+ * slot/acción del padre — no se dibuja una línea directa desde el
+ * if_else node mismo (que daba la sensación de un "tercer hilo"
+ * paralelo a Sí/No).
  */
 export function layoutChain(
     actions: ActionSpec[],
@@ -89,16 +95,31 @@ export function layoutChain(
 ): LayoutOutput {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
-    let prevId: string | null = null;
+    /**
+     * IDs de los nodos previos cuya salida converge en lo que se emita
+     * a continuación. Lista (no scalar) para soportar la convergencia
+     * post-if_else (`[thenTail, elseTail]`).
+     */
+    let prevIds: string[] = [];
     let firstNodeId: string | null = null;
     let curY = startY;
+
+    /** Conecta cada `prevIds` al nuevo node con una edge estándar. */
+    const connectFromPrevs = (toId: string, edgeStyle?: Edge['style']): void => {
+        for (const prev of prevIds) {
+            edges.push({
+                id: `e-${prev}-${toId}`,
+                source: prev,
+                target: toId,
+                ...(edgeStyle ? { style: edgeStyle } : {}),
+            });
+        }
+    };
 
     /**
      * Emite un slot de inserción. `slotIdx` es la posición dentro de
      * esta chain (0 = antes del primer action, actions.length = al
-     * final). Conecta el slot al nodo previo con una edge "fantasma"
-     * y deja el slot id como prevId para que la próxima acción
-     * conecte desde el slot.
+     * final).
      */
     const emitSlot = (slotIdx: number): void => {
         const slotPath: ActionPath = [...parentPath, slotIdx];
@@ -112,15 +133,8 @@ export function layoutChain(
             data: { insertPath: slotPath } satisfies SlotNodeData,
         });
         firstNodeId ??= id;
-        if (prevId !== null) {
-            edges.push({
-                id: `e-${prevId}-${id}`,
-                source: prevId,
-                target: id,
-                style: { strokeDasharray: '4 4', opacity: 0.6 },
-            });
-        }
-        prevId = id;
+        connectFromPrevs(id, { strokeDasharray: '4 4', opacity: 0.6 });
+        prevIds = [id];
         curY += SLOT_HEIGHT + SLOT_AFTER;
     };
 
@@ -134,8 +148,6 @@ export function layoutChain(
         const title =
             typeof action.config.title === 'string' ? action.config.title : '';
         const isSelected = ctx.selectedKey === pathKey(path);
-        // depth = cantidad de saltos de branch en el path (cada vez
-        // que entramos a un then/else, +1).
         const depth = parentPath.filter((p) => typeof p === 'string').length;
 
         if (action.type === 'if_else') {
@@ -155,13 +167,7 @@ export function layoutChain(
                 } satisfies ActionNodeData,
             });
             firstNodeId ??= id;
-            if (prevId !== null) {
-                edges.push({
-                    id: `e-${prevId}-${id}`,
-                    source: prevId,
-                    target: id,
-                });
-            }
+            connectFromPrevs(id);
 
             const branchY = curY + NODE_GAP_Y;
             const thenActions = thenOf(action);
@@ -169,7 +175,6 @@ export function layoutChain(
             const thenW = computeWidth(thenActions);
             const elseW = computeWidth(elseActions);
             const totalW = thenW + elseW + BRANCH_GAP_X;
-            // Centro de cada sub-branch relativo al padre.
             const thenCenterX = centerX - totalW / 2 + thenW / 2;
             const elseCenterX = centerX + totalW / 2 - elseW / 2;
 
@@ -223,10 +228,11 @@ export function layoutChain(
             }
 
             curY = Math.max(thenLayout.endY, elseLayout.endY) + NODE_GAP_Y;
-            // Action posterior en la misma chain conecta desde el
-            // if_else node (no desde los tails de los branches —
-            // semántica simplificada para v1).
-            prevId = id;
+            // CONVERGENCIA: el siguiente slot/acción del padre conecta
+            // desde los TAILS de las dos ramas (no desde el if_else node
+            // mismo). Esto elimina el "tercer hilo" central que iba
+            // paralelo a Sí/No y no representaba flujo real.
+            prevIds = [...thenLayout.lastNodeIds, ...elseLayout.lastNodeIds];
         } else {
             nodes.push({
                 id,
@@ -244,14 +250,8 @@ export function layoutChain(
                 } satisfies ActionNodeData,
             });
             firstNodeId ??= id;
-            if (prevId !== null) {
-                edges.push({
-                    id: `e-${prevId}-${id}`,
-                    source: prevId,
-                    target: id,
-                });
-            }
-            prevId = id;
+            connectFromPrevs(id);
+            prevIds = [id];
             curY += NODE_GAP_Y;
         }
     }
@@ -261,5 +261,5 @@ export function layoutChain(
     // slot es el único nodo emitido y firstNodeId apunta a él.
     emitSlot(actions.length);
 
-    return { nodes, edges, firstNodeId, endY: curY };
+    return { nodes, edges, firstNodeId, lastNodeIds: prevIds, endY: curY };
 }

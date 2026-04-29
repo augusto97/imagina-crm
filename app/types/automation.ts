@@ -8,8 +8,23 @@ export type TriggerSlug = 'record_created' | 'record_updated' | string;
 
 export type ActionSlug = 'update_field' | 'call_webhook' | string;
 
+/**
+ * Forma de las condiciones (trigger filter / action condition / if_else
+ * branch). Acepta dos shapes — `ConditionEvaluator::matches` backend
+ * detecta cuál es:
+ *
+ *  1. Legacy plano `{slug: value}` (eq-only). Compat 0.1.x → 0.18.x.
+ *  2. Nuevo array `[{slug, op, value}]` con operadores (0.20.0+).
+ *
+ * El UI nuevo (`<ConditionEditor>`) siempre escribe el shape 2 y lee
+ * cualquiera de los dos.
+ */
+export type ConditionData =
+    | Record<string, unknown>
+    | Array<{ slug: string; op: string; value: unknown }>;
+
 export interface TriggerConfig {
-    field_filters?: Record<string, unknown>;
+    field_filters?: ConditionData;
     changed_fields?: string[];
     [key: string]: unknown;
 }
@@ -18,11 +33,11 @@ export interface ActionSpec {
     type: ActionSlug;
     config: Record<string, unknown>;
     /**
-     * Condición opcional `[slug => valor_esperado]`. Si se define y la
-     * evaluación contra el registro del trigger falla, la acción se omite
-     * con `status: 'skipped'`. Misma shape que `TriggerConfig.field_filters`.
+     * Condición opcional. Si se define y la evaluación contra el
+     * registro del trigger falla, la acción se omite con
+     * `status: 'skipped'`. Misma shape que `TriggerConfig.field_filters`.
      */
-    condition?: Record<string, unknown>;
+    condition?: ConditionData;
 }
 
 /**

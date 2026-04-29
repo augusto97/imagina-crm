@@ -256,6 +256,23 @@ final class QueryBuilderTest extends TestCase
         $this->assertCount(2, $compiled['args']);
     }
 
+    public function test_compileFilter_not_contains_emits_not_like_with_null_safety(): void
+    {
+        $fields = $this->sampleFields();
+        $compiled = $this->qb->compileWhereForList(
+            listId: 1,
+            fields: $fields,
+            rawFilters: ['name' => ['not_contains' => 'acme']],
+        );
+
+        // SQL incluye `IS NULL OR ... NOT LIKE` para que records con
+        // valor NULL también matcheen "no contiene" (semántica intuitiva).
+        $this->assertStringContainsString('IS NULL OR', $compiled['where']);
+        $this->assertStringContainsString('NOT LIKE', $compiled['where']);
+        $this->assertCount(1, $compiled['args']);
+        $this->assertSame('%acme%', $compiled['args'][0]);
+    }
+
     public function test_compileTreeWhereForList_compiles_and_group(): void
     {
         $fields = $this->sampleFields();

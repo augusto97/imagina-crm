@@ -11,12 +11,13 @@ interface OperatorMeta {
 
 const TEXT_LIKE: OperatorMeta[] = [
     { op: 'contains', label: __('contiene') },
+    { op: 'not_contains', label: __('no contiene') },
     { op: 'eq', label: __('es') },
     { op: 'neq', label: __('no es') },
     { op: 'starts_with', label: __('empieza con') },
     { op: 'ends_with', label: __('termina con') },
-    { op: 'is_null', label: __('está vacío'), nullary: true },
-    { op: 'is_not_null', label: __('no está vacío'), nullary: true },
+    { op: 'is_not_null', label: __('está establecido'), nullary: true },
+    { op: 'is_null', label: __('no está establecido'), nullary: true },
 ];
 
 const NUMERIC: OperatorMeta[] = [
@@ -26,8 +27,8 @@ const NUMERIC: OperatorMeta[] = [
     { op: 'gte', label: '≥' },
     { op: 'lt', label: '<' },
     { op: 'lte', label: '≤' },
-    { op: 'is_null', label: __('está vacío'), nullary: true },
-    { op: 'is_not_null', label: __('no está vacío'), nullary: true },
+    { op: 'is_not_null', label: __('está establecido'), nullary: true },
+    { op: 'is_null', label: __('no está establecido'), nullary: true },
 ];
 
 const DATE_LIKE: OperatorMeta[] = [
@@ -35,8 +36,8 @@ const DATE_LIKE: OperatorMeta[] = [
     { op: 'neq', label: __('no es') },
     { op: 'gte', label: __('desde') },
     { op: 'lte', label: __('hasta') },
-    { op: 'is_null', label: __('está vacío'), nullary: true },
-    { op: 'is_not_null', label: __('no está vacío'), nullary: true },
+    { op: 'is_not_null', label: __('está establecido'), nullary: true },
+    { op: 'is_null', label: __('no está establecido'), nullary: true },
 ];
 
 const SELECT_LIKE: OperatorMeta[] = [
@@ -44,8 +45,8 @@ const SELECT_LIKE: OperatorMeta[] = [
     { op: 'neq', label: __('no es') },
     { op: 'in', label: __('es alguno de') },
     { op: 'nin', label: __('no es ninguno de') },
-    { op: 'is_null', label: __('está vacío'), nullary: true },
-    { op: 'is_not_null', label: __('no está vacío'), nullary: true },
+    { op: 'is_not_null', label: __('está establecido'), nullary: true },
+    { op: 'is_null', label: __('no está establecido'), nullary: true },
 ];
 
 const ID_LIKE: OperatorMeta[] = [
@@ -53,8 +54,8 @@ const ID_LIKE: OperatorMeta[] = [
     { op: 'neq', label: '≠' },
     { op: 'in', label: __('es alguno de') },
     { op: 'nin', label: __('no es ninguno de') },
-    { op: 'is_null', label: __('está vacío'), nullary: true },
-    { op: 'is_not_null', label: __('no está vacío'), nullary: true },
+    { op: 'is_not_null', label: __('está establecido'), nullary: true },
+    { op: 'is_null', label: __('no está establecido'), nullary: true },
 ];
 
 export function operatorsForType(type: FieldTypeSlug): OperatorMeta[] {

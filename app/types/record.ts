@@ -27,6 +27,7 @@ export type FilterOperator =
     | 'lt'
     | 'lte'
     | 'contains'
+    | 'not_contains'
     | 'starts_with'
     | 'ends_with'
     | 'in'

@@ -33,6 +33,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 import { MergeTagInput } from './MergeTagInput';
+import { ConditionEditor, type ConditionRule } from './ConditionEditor';
 import { useEmailSignature } from '@/hooks/useEmailSignature';
 import {
     useCreateAutomation,
@@ -479,38 +480,11 @@ export function TriggerConfigEditor({
     onChange,
     fields,
 }: TriggerConfigEditorProps): JSX.Element {
-    // State LOCAL para los rows del editor: permite filas con slug
-    // vacío (recién añadidas) durante la edición. Solo serializamos a
-    // `config.field_filters` (formato `{slug: value}`) las filas que
-    // tienen slug válido. Sin este buffer local, "Añadir filtro" parece
-    // no hacer nada porque la fila vacía se descartaba inmediatamente
-    // al guardar y el componente no re-renderizaba el array nuevo.
-    const [filterRows, setFilterRows] = useState<Array<{ slug: string; value: string }>>(() => {
-        const raw = config.field_filters;
-        if (!raw || typeof raw !== 'object') return [];
-        return Object.entries(raw as Record<string, unknown>).map(([slug, v]) => ({
-            slug,
-            value: typeof v === 'string' ? v : String(v ?? ''),
-        }));
-    });
-
     const changed = Array.isArray(config.changed_fields) ? config.changed_fields : [];
-
-    const commitFilters = (next: Array<{ slug: string; value: string }>): void => {
-        setFilterRows(next);
-        const out: Record<string, unknown> = {};
-        for (const r of next) {
-            if (r.slug.trim() === '') continue;
-            out[r.slug.trim()] = r.value;
-        }
-        onChange({ ...config, field_filters: out });
-    };
 
     const updateChanged = (next: string[]): void => {
         onChange({ ...config, changed_fields: next });
     };
-
-    const addFilter = (): void => commitFilters([...filterRows, { slug: '', value: '' }]);
 
     const help = helpForTrigger(triggerType);
 
@@ -526,33 +500,13 @@ export function TriggerConfigEditor({
                 </p>
             )}
 
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-                <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                    {__('Solo dispara si el registro cumple TODOS estos pares slug = valor.')}
-                </p>
-                {filterRows.map((f, i) => (
-                    <FilterRow
-                        key={i}
-                        f={f}
-                        fields={fields}
-                        onChangeSlug={(slug) => {
-                            const next = [...filterRows];
-                            next[i] = { slug, value: '' };
-                            commitFilters(next);
-                        }}
-                        onChangeValue={(value) => {
-                            const arr = [...filterRows];
-                            arr[i] = { ...arr[i]!, value };
-                            commitFilters(arr);
-                        }}
-                        onRemove={() => commitFilters(filterRows.filter((_, j) => j !== i))}
-                    />
-                ))}
-                <Button type="button" variant="ghost" size="sm" onClick={addFilter} className="imcrm-self-start imcrm-gap-2">
-                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                    {__('Añadir filtro')}
-                </Button>
-            </div>
+            <ConditionEditor
+                value={config.field_filters as ConditionRule[] | Record<string, unknown> | undefined}
+                onChange={(next) => onChange({ ...config, field_filters: next })}
+                fields={fields}
+                addLabel={__('Añadir filtro')}
+                helperText={__('El trigger solo dispara si el registro cumple TODAS estas condiciones.')}
+            />
 
             {triggerType === 'record_updated' && (
                 <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-border-t imcrm-border-border imcrm-pt-3">
@@ -1023,10 +977,10 @@ function IfElseConfig({
                         {__('Todos estos pares campo = valor matchean el registro.')}
                     </p>
                 </div>
-                <ConditionRows
-                    condition={condition}
-                    fields={fields}
+                <ConditionEditor
+                    value={condition as ConditionRule[] | Record<string, unknown> | undefined}
                     onChange={(next) => updateConfig({ condition: next })}
+                    fields={fields}
                 />
             </div>
 
@@ -1070,111 +1024,24 @@ function IfElseConfig({
 }
 
 /**
- * Filas editables de una condición `[slug => valor]`. Mismo buffer-local
- * pattern que TriggerConfigEditor / UpdateFieldConfig — permite filas
- * con slug vacío durante la edición.
- */
-function ConditionRows({
-    condition,
-    fields,
-    onChange,
-}: {
-    condition: Record<string, unknown>;
-    fields: FieldEntity[];
-    onChange: (next: Record<string, unknown>) => void;
-}): JSX.Element {
-    const [rows, setRows] = useState<Array<{ slug: string; value: string }>>(() =>
-        Object.entries(condition).map(([slug, v]) => ({
-            slug,
-            value: typeof v === 'string' ? v : String(v ?? ''),
-        })),
-    );
-
-    const commit = (next: Array<{ slug: string; value: string }>): void => {
-        setRows(next);
-        const out: Record<string, string> = {};
-        for (const r of next) {
-            if (r.slug.trim() === '') continue;
-            out[r.slug.trim()] = r.value;
-        }
-        onChange(out);
-    };
-
-    return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-            {rows.map((r, i) => (
-                <FilterRow
-                    key={i}
-                    f={r}
-                    fields={fields}
-                    onChangeSlug={(slug) => {
-                        const next = [...rows];
-                        next[i] = { slug, value: '' };
-                        commit(next);
-                    }}
-                    onChangeValue={(value) => {
-                        const arr = [...rows];
-                        arr[i] = { ...arr[i]!, value };
-                        commit(arr);
-                    }}
-                    onRemove={() => commit(rows.filter((_, j) => j !== i))}
-                />
-            ))}
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => commit([...rows, { slug: '', value: '' }])}
-                className="imcrm-self-start imcrm-gap-2"
-            >
-                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                {__('Añadir condición')}
-            </Button>
-        </div>
-    );
-}
-
-/**
  * Editor opcional de la condición de ejecución de la acción.
  *
- * Si se definen filtros, la acción solo corre cuando todos los pares
- * `[slug => valor]` matchean el registro que disparó el trigger
- * (igualdad laxa, misma semántica que `field_filters` del trigger).
- *
- * Mantenemos un buffer local idéntico al de `TriggerConfigEditor` para
- * que filas con slug vacío persistan visualmente durante la edición.
+ * Acepta tanto el shape legacy `{slug: value}` como el nuevo array
+ * `[{slug, op, value}]` (transparente vía `<ConditionEditor>` +
+ * `ConditionEvaluator::matches` backend).
  */
 function ActionConditionEditor({
     spec,
     onChange,
     fields,
 }: ActionConfigEditorProps): JSX.Element {
-    const [rows, setRows] = useState<Array<{ slug: string; value: string }>>(() => {
-        const raw = spec.condition;
-        if (!raw || typeof raw !== 'object') return [];
-        return Object.entries(raw as Record<string, unknown>).map(([slug, v]) => ({
-            slug,
-            value: typeof v === 'string' ? v : String(v ?? ''),
-        }));
-    });
-
-    const commit = (next: Array<{ slug: string; value: string }>): void => {
-        setRows(next);
-        const out: Record<string, string> = {};
-        for (const r of next) {
-            if (r.slug.trim() === '') continue;
-            out[r.slug.trim()] = r.value;
-        }
-        if (Object.keys(out).length === 0) {
-            // Eliminamos la key para no persistir condition vacía.
-            const { condition: _omit, ...rest } = spec;
-            onChange(rest as ActionSpec);
-            return;
-        }
-        onChange({ ...spec, condition: out });
-    };
-
-    const hasRows = rows.length > 0;
+    const conditionValue = spec.condition as ConditionRule[] | Record<string, unknown> | undefined;
+    const ruleCount = Array.isArray(conditionValue)
+        ? conditionValue.length
+        : conditionValue && typeof conditionValue === 'object'
+          ? Object.keys(conditionValue).length
+          : 0;
+    const hasRows = ruleCount > 0;
 
     return (
         <details
@@ -1186,42 +1053,26 @@ function ActionConditionEditor({
                 <span>{__('Condición de ejecución (opcional)')}</span>
                 {hasRows && (
                     <Badge variant="default" className="imcrm-ml-auto">
-                        {rows.length}
+                        {ruleCount}
                     </Badge>
                 )}
             </summary>
             <div className="imcrm-mt-3 imcrm-flex imcrm-flex-col imcrm-gap-2">
-                <p className="imcrm-text-[12px] imcrm-leading-relaxed imcrm-text-muted-foreground">
-                    {__('Esta acción solo se ejecuta si TODOS los pares campo = valor matchean el registro. Vacío = ejecutar siempre.')}
-                </p>
-                {rows.map((r, i) => (
-                    <FilterRow
-                        key={i}
-                        f={r}
-                        fields={fields}
-                        onChangeSlug={(slug) => {
-                            const next = [...rows];
-                            next[i] = { slug, value: '' };
-                            commit(next);
-                        }}
-                        onChangeValue={(value) => {
-                            const arr = [...rows];
-                            arr[i] = { ...arr[i]!, value };
-                            commit(arr);
-                        }}
-                        onRemove={() => commit(rows.filter((_, j) => j !== i))}
-                    />
-                ))}
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => commit([...rows, { slug: '', value: '' }])}
-                    className="imcrm-self-start imcrm-gap-2"
-                >
-                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                    {__('Añadir condición')}
-                </Button>
+                <ConditionEditor
+                    value={conditionValue}
+                    onChange={(next) => {
+                        if (next.length === 0) {
+                            const { condition: _omit, ...rest } = spec;
+                            onChange(rest as ActionSpec);
+                            return;
+                        }
+                        onChange({ ...spec, condition: next });
+                    }}
+                    fields={fields}
+                    helperText={__(
+                        'Esta acción solo se ejecuta si TODAS las condiciones matchean el registro. Vacío = ejecutar siempre.',
+                    )}
+                />
             </div>
         </details>
     );
@@ -1446,53 +1297,6 @@ function FieldValueInput({
                 placeholder={__('Valor o usa los chips para insertar variables')}
                 aria-label={__('Valor')}
             />
-        </div>
-    );
-}
-
-interface FilterRowProps {
-    f: { slug: string; value: unknown };
-    fields: FieldEntity[];
-    onChangeSlug: (slug: string) => void;
-    onChangeValue: (value: string) => void;
-    onRemove: () => void;
-}
-
-/**
- * Una fila del editor de `field_filters`. Extraída como componente
- * para que el `key` del map quede correctamente en la raíz.
- */
-function FilterRow({ f, fields, onChangeSlug, onChangeValue, onRemove }: FilterRowProps): JSX.Element {
-    const selectedField = fields.find((field) => field.slug === f.slug);
-    return (
-        <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-            <Select
-                value={f.slug}
-                onChange={(e) => onChangeSlug(e.target.value)}
-                aria-label={__('Campo')}
-                className="imcrm-flex-1"
-            >
-                <option value="">{__('— Selecciona campo —')}</option>
-                {fields.map((field) => (
-                    <option key={field.id} value={field.slug}>
-                        {field.label} ({field.slug})
-                    </option>
-                ))}
-            </Select>
-            <FieldValueInput
-                field={selectedField}
-                value={typeof f.value === 'string' ? f.value : String(f.value ?? '')}
-                onChange={onChangeValue}
-            />
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={onRemove}
-                aria-label={__('Eliminar filtro')}
-            >
-                <Trash2 className="imcrm-h-4 imcrm-w-4" />
-            </Button>
         </div>
     );
 }
