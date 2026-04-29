@@ -9,7 +9,21 @@ export interface SavedViewConfig {
     /** Anchura por columna en px. Persistida cuando el usuario hace
      * drag del resizer. Excel-style. */
     column_widths?: Record<string, number>;
+    /**
+     * Forma legacy plana: `[{field_id, op, value}, ...]`. Solo se
+     * usaba cuando los filtros eran AND plano. Se mantiene como
+     * espejo opcional cuando `filter_tree` es AND plano para
+     * compatibilidad con backends antiguos. Para árboles con OR /
+     * nested, este campo NO se escribe.
+     */
     filters?: Array<{ field_id: number; op: string; value: unknown }>;
+    /**
+     * Árbol completo de filtros (forma nueva, ClickUp-style). Tipo
+     * declarado como `unknown` porque `view.ts` se importa desde
+     * código que no debe traer toda la cadena de tipos del filtro;
+     * los consumers (`viewConfigToState`) lo castean a `FilterTree`.
+     */
+    filter_tree?: unknown;
     sort?: Array<{ field_id: number; dir: 'asc' | 'desc' }>;
     search?: string;
     /**

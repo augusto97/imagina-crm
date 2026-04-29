@@ -13,7 +13,7 @@ import type { RecordEntity } from '@/types/record';
 import type { SavedViewEntity } from '@/types/view';
 
 import { BulkActionsToolbar } from './BulkActionsToolbar';
-import { FiltersBar } from './FiltersBar';
+import { FiltersPanel } from './FiltersPanel';
 import { Pagination } from './Pagination';
 import { RecordCreateDialog } from './RecordCreateDialog';
 import { RecordDetailDrawer } from './RecordDetailDrawer';
@@ -21,7 +21,6 @@ import {
     INITIAL_STATE,
     buildRecordsQuery,
     toggleSort,
-    type ActiveFilter,
     type RecordsState,
 } from './recordsState';
 import { CalendarView } from './views/CalendarView';
@@ -101,8 +100,8 @@ export function RecordsPage(): JSX.Element {
         }
     }, [views.data, list.data?.id]);
 
-    const setFilters = (filters: ActiveFilter[]): void => {
-        setState((s) => ({ ...s, filters, page: 1 }));
+    const setFilterTree = (filterTree: import('@/types/record').FilterTree): void => {
+        setState((s) => ({ ...s, filterTree, page: 1 }));
     };
 
     const setSearch = (search: string): void => {
@@ -151,7 +150,7 @@ export function RecordsPage(): JSX.Element {
         ? false
         : activeView !== null
           ? hasChangesVsView(state, activeView.config)
-          : state.filters.length > 0 || state.sort.length > 0 || state.search.trim() !== '';
+          : state.filterTree.children.length > 0 || state.sort.length > 0 || state.search.trim() !== '';
 
     // Resolver el campo de agrupación de la vista kanban activa.
     const groupByField = useMemo(() => {
@@ -269,11 +268,11 @@ export function RecordsPage(): JSX.Element {
                                     className="imcrm-pl-8"
                                 />
                             </div>
-                            <FiltersBar
+                            <FiltersPanel
                                 listId={list.data?.id}
                                 fields={fields.data}
-                                filters={state.filters}
-                                onFiltersChange={setFilters}
+                                tree={state.filterTree}
+                                onChange={setFilterTree}
                             />
                             <ColumnsMenu
                                 fields={fields.data}
@@ -334,7 +333,7 @@ export function RecordsPage(): JSX.Element {
                             listId={list.data.id}
                             fields={fields.data}
                             groupByField={tableGroupByField}
-                            filters={state.filters}
+                            filterTree={state.filterTree}
                             search={state.search}
                             selectedIds={selectedIds}
                             onSelectionChange={setSelectedIds}

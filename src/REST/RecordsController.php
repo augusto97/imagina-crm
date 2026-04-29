@@ -88,18 +88,48 @@ final class RecordsController extends AbstractController
         $search  = $request->get_param('search');
         $search  = is_string($search) ? $search : null;
 
-        $filters = $request->get_param('filter');
-        $filters = is_array($filters) ? $filters : [];
+        $filters    = $request->get_param('filter');
+        $filters    = is_array($filters) ? $filters : [];
+        $filterTree = $this->parseFilterTree($request->get_param('filter_tree'));
 
         $sort = $this->parseSort($request->get_param('sort'));
         $proj = $this->parseFields($request->get_param('fields'));
 
-        $result = $this->service->list($list, $filters, $sort, $proj, $search, $page, $perPage);
+        $result = $this->service->list($list, $filters, $sort, $proj, $search, $page, $perPage, $filterTree);
         if ($result instanceof ValidationResult) {
             return $this->validationError($result);
         }
 
         return new WP_REST_Response($result);
+    }
+
+    /**
+     * Acepta `filter_tree` como JSON-encoded string (query param) o
+     * array ya decodificado (raro, vendría de tests). Devuelve `null`
+     * si está ausente, vacío, malformado o no es un grupo válido —
+     * el caller cae al filtro plano en ese caso.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function parseFilterTree(mixed $raw): ?array
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw     = is_array($decoded) ? $decoded : null;
+        }
+        if (! is_array($raw) || ($raw['type'] ?? '') !== 'group') {
+            return null;
+        }
+        // Tree vacío (raíz sin hijos) lo tratamos como ausente para
+        // que el path sea idéntico al de "sin filtros".
+        $children = $raw['children'] ?? [];
+        if (! is_array($children) || $children === []) {
+            return null;
+        }
+        return $raw;
     }
 
     public function getItem(WP_REST_Request $request): WP_REST_Response|WP_Error
@@ -188,13 +218,14 @@ final class RecordsController extends AbstractController
             );
         }
 
-        $filters = $request->get_param('filter');
-        $filters = is_array($filters) ? $filters : [];
+        $filters    = $request->get_param('filter');
+        $filters    = is_array($filters) ? $filters : [];
+        $filterTree = $this->parseFilterTree($request->get_param('filter_tree'));
 
         $search = $request->get_param('search');
         $search = is_string($search) ? $search : null;
 
-        $result = $this->service->groups($list, $groupBy, $filters, $search);
+        $result = $this->service->groups($list, $groupBy, $filters, $search, $filterTree);
         if ($result instanceof ValidationResult) {
             return $this->validationError($result);
         }

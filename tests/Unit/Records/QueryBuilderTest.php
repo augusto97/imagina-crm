@@ -256,6 +256,91 @@ final class QueryBuilderTest extends TestCase
         $this->assertCount(2, $compiled['args']);
     }
 
+    public function test_compileTreeWhereForList_compiles_and_group(): void
+    {
+        $fields = $this->sampleFields();
+        $tree = [
+            'type'  => 'group',
+            'logic' => 'and',
+            'children' => [
+                ['type' => 'condition', 'field_id' => 1, 'op' => 'contains', 'value' => 'acme'],
+                ['type' => 'condition', 'field_id' => 2, 'op' => 'gte', 'value' => 100],
+            ],
+        ];
+        $compiled = $this->qb->compileTreeWhereForList(1, $fields, $tree);
+
+        $this->assertStringContainsString('deleted_at IS NULL', $compiled['where']);
+        $this->assertStringContainsString('`col_name` LIKE', $compiled['where']);
+        $this->assertStringContainsString('`col_amount` >=', $compiled['where']);
+        $this->assertCount(2, $compiled['args']);
+    }
+
+    public function test_compileTreeWhereForList_compiles_or_group_with_parens(): void
+    {
+        $fields = $this->sampleFields();
+        $tree = [
+            'type'  => 'group',
+            'logic' => 'or',
+            'children' => [
+                ['type' => 'condition', 'field_id' => 3, 'op' => 'eq', 'value' => 'active'],
+                ['type' => 'condition', 'field_id' => 3, 'op' => 'eq', 'value' => 'pending'],
+            ],
+        ];
+        $compiled = $this->qb->compileTreeWhereForList(1, $fields, $tree);
+
+        // Dos condiciones con OR → envueltas en paréntesis.
+        $this->assertMatchesRegularExpression(
+            '/\([^)]*OR[^)]*\)/',
+            $compiled['where'],
+        );
+    }
+
+    public function test_compileTreeWhereForList_compiles_nested_groups(): void
+    {
+        $fields = $this->sampleFields();
+        // (status = 'active' OR amount > 1000) AND name CONTAINS 'acme'
+        $tree = [
+            'type' => 'group',
+            'logic' => 'and',
+            'children' => [
+                [
+                    'type' => 'group',
+                    'logic' => 'or',
+                    'children' => [
+                        ['type' => 'condition', 'field_id' => 3, 'op' => 'eq', 'value' => 'active'],
+                        ['type' => 'condition', 'field_id' => 2, 'op' => 'gt', 'value' => 1000],
+                    ],
+                ],
+                ['type' => 'condition', 'field_id' => 1, 'op' => 'contains', 'value' => 'acme'],
+            ],
+        ];
+        $compiled = $this->qb->compileTreeWhereForList(1, $fields, $tree);
+
+        $this->assertStringContainsString('OR', $compiled['where']);
+        $this->assertStringContainsString('AND', $compiled['where']);
+        // 4 args: status, amount, name (contains lo wrappea en %s),
+        // y la wildcard %acme% es un solo arg.
+        $this->assertCount(3, $compiled['args']);
+    }
+
+    public function test_compileTreeWhereForList_skips_unknown_fields_silently(): void
+    {
+        $fields = $this->sampleFields();
+        $tree = [
+            'type' => 'group', 'logic' => 'and',
+            'children' => [
+                ['type' => 'condition', 'field_id' => 999, 'op' => 'eq', 'value' => 'x'], // unknown
+                ['type' => 'condition', 'field_id' => 1, 'op' => 'contains', 'value' => 'acme'],
+            ],
+        ];
+        $compiled = $this->qb->compileTreeWhereForList(1, $fields, $tree);
+
+        // Solo el segundo nodo sobrevive.
+        $this->assertStringContainsString('`col_name` LIKE', $compiled['where']);
+        $this->assertStringNotContainsString('field_id', $compiled['where']);
+        $this->assertCount(1, $compiled['args']);
+    }
+
     public function test_compileWhereForList_falls_open_when_filters_invalid(): void
     {
         // Más filtros que el cap → normalize devuelve ValidationResult.

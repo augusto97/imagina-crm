@@ -1,22 +1,37 @@
-import type { FilterOperator } from '@/types/record';
+import { type FilterOperator, type FilterTree } from '@/types/record';
 import type { SavedViewConfig } from '@/types/view';
 
+import {
+    isFlatAndTree,
+    treeFromActiveFilters,
+} from '../filterTree';
 import type { ActiveFilter, ActiveSort, RecordsState } from '../recordsState';
 
 /**
  * Convierte el estado del UI en el `config` que persistimos en
- * `wp_imcrm_saved_views.config`. Solo guardamos filters/sort/search por
- * ahora; visible_fields/column_widths llegarán cuando tengamos UI para
- * mostrar/ocultar columnas y resize.
+ * `wp_imcrm_saved_views.config`.
+ *
+ * Persistimos el árbol nuevo bajo `filter_tree`. Si el árbol es
+ * AND-plano, también escribimos el espejo `filters` para que SavedViews
+ * legacy (sin filter_tree) puedan seguir leyéndose si en algún momento
+ * downgradeamos. Cuando el árbol tiene OR/nested NO escribimos
+ * `filters` (la forma plana no lo expresa).
  */
 export function stateToViewConfig(state: RecordsState): SavedViewConfig {
     const config: SavedViewConfig = {};
-    if (state.filters.length > 0) {
-        config.filters = state.filters.map((f) => ({
-            field_id: f.field_id,
-            op: f.op,
-            value: f.value,
-        }));
+    if (state.filterTree.children.length > 0) {
+        config.filter_tree = state.filterTree;
+        if (isFlatAndTree(state.filterTree)) {
+            config.filters = state.filterTree.children
+                .filter((c) => c.type === 'condition')
+                .map((c) => {
+                    const cond = c as Extract<typeof c, { type: 'condition' }>;
+                    return { field_id: cond.field_id, op: cond.op, value: cond.value };
+                });
+        } else {
+            // Tree con OR/nested: borramos el espejo legacy si existía.
+            delete config.filters;
+        }
     }
     if (state.sort.length > 0) {
         config.sort = state.sort.map((s) => ({ field_id: s.field_id, dir: s.dir }));
@@ -42,16 +57,25 @@ export function stateToViewConfig(state: RecordsState): SavedViewConfig {
 /**
  * Inverso: aplica la configuración guardada al estado del UI.
  *
- * Mantenemos la paginación local (no se persiste por vista) y se vuelve a
- * la página 1 al cambiar de vista para que el usuario vea resultados desde
- * el principio.
+ * Prioriza `filter_tree` (formato nuevo). Si solo viene `filters`
+ * (SavedViews creados antes del refactor), los convierte a un árbol
+ * AND plano automáticamente — backward compatibility.
  */
 export function viewConfigToState(config: SavedViewConfig, perPage: number): RecordsState {
-    const filters: ActiveFilter[] = (config.filters ?? []).map((f) => ({
-        field_id: f.field_id,
-        op: f.op as FilterOperator,
-        value: f.value,
-    }));
+    let filterTree: FilterTree;
+    if (config.filter_tree && typeof config.filter_tree === 'object') {
+        filterTree = config.filter_tree as FilterTree;
+    } else if (config.filters && config.filters.length > 0) {
+        const legacy: ActiveFilter[] = config.filters.map((f) => ({
+            field_id: f.field_id,
+            op: f.op as FilterOperator,
+            value: f.value,
+        }));
+        filterTree = treeFromActiveFilters(legacy);
+    } else {
+        filterTree = { type: 'group', logic: 'and', children: [] };
+    }
+
     const sort: ActiveSort[] = (config.sort ?? []).map((s) => ({
         field_id: s.field_id,
         dir: s.dir,
@@ -65,7 +89,7 @@ export function viewConfigToState(config: SavedViewConfig, perPage: number): Rec
     return {
         page: 1,
         perPage,
-        filters,
+        filterTree,
         sort,
         search: config.search ?? '',
         columnVisibility,
@@ -76,8 +100,8 @@ export function viewConfigToState(config: SavedViewConfig, perPage: number): Rec
 
 /**
  * Compara semánticamente el estado actual contra la configuración de la
- * vista activa. Devuelve `true` si hay diferencias persistibles
- * (filters/sort/search). La paginación NO cuenta como cambio.
+ * vista activa. Devuelve `true` si hay diferencias persistibles. La
+ * paginación NO cuenta como cambio.
  */
 export function hasChangesVsView(state: RecordsState, config: SavedViewConfig): boolean {
     const a = JSON.stringify(stateToViewConfig(state));
@@ -87,6 +111,7 @@ export function hasChangesVsView(state: RecordsState, config: SavedViewConfig): 
 
 function stripPaginationOnlyKeys(config: SavedViewConfig): SavedViewConfig {
     const out: SavedViewConfig = {};
+    if (config.filter_tree) out.filter_tree = config.filter_tree;
     if (config.filters && config.filters.length > 0) out.filters = config.filters;
     if (config.sort && config.sort.length > 0) out.sort = config.sort;
     if (config.search && config.search.trim() !== '') out.search = config.search.trim();

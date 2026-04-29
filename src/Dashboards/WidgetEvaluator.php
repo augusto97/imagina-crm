@@ -68,9 +68,24 @@ final class WidgetEvaluator
         // de evaluador ejecute (count, sum, group-by, etc.). Si el
         // widget no tiene `filters`, el WHERE queda en la base de
         // soft-delete (`WHERE deleted_at IS NULL`).
-        $rawFilters = is_array($config['filters'] ?? null) ? $config['filters'] : [];
+        //
+        // Forma nueva (ClickUp-style): `config.filter_tree` con AND/OR
+        // y grupos anidados. Si está presente, tiene prioridad sobre
+        // `filters` (forma legacy plana).
         $listFields = $this->fields->allForList($list->id);
-        $filterCtx  = $this->queryBuilder->compileWhereForList($list->id, $listFields, $rawFilters);
+        $tree       = $config['filter_tree'] ?? null;
+        if (is_array($tree) && ($tree['type'] ?? '') === 'group') {
+            $filterCtx = $this->queryBuilder->compileTreeWhereForList(
+                $list->id,
+                $listFields,
+                $tree,
+                null,
+                false,
+            );
+        } else {
+            $rawFilters = is_array($config['filters'] ?? null) ? $config['filters'] : [];
+            $filterCtx  = $this->queryBuilder->compileWhereForList($list->id, $listFields, $rawFilters);
+        }
 
         return match ($type) {
             'kpi'        => $this->evaluateKpi($list->tableSuffix, $list->id, $config, $filterCtx),

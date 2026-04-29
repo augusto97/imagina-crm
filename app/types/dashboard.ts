@@ -27,14 +27,20 @@ export interface WidgetSpec {
         group_by_field_id?: number;
         date_field_id?: number;
         /**
-         * Filtros opcionales aplicados al widget. Misma forma que
-         * `RecordsQuery['filter']`:
-         *   { 'field_42': { eq: 'foo' }, 'field_15': { gte: '2026-01-01' } }
-         * El backend (`WidgetEvaluator`) los pasa por
-         * `QueryBuilder::compileWhereForList` y los respeta en todas
-         * las queries que ejecuta el widget.
+         * Filtros opcionales aplicados al widget. Forma legacy plana
+         * `{ field_<id>: { op: value } }` — sólo soporta AND. Si el
+         * widget se guardó con OR/nesting, mira `filter_tree` en su
+         * lugar (ambos pueden coexistir, pero `filter_tree` tiene
+         * prioridad en el backend).
          */
         filters?: Record<string, Record<string, unknown>>;
+        /**
+         * Árbol completo de filtros (ClickUp-style). El backend
+         * (`WidgetEvaluator`) lo pasa por
+         * `QueryBuilder::compileTreeWhereForList` y lo respeta en
+         * todas las queries que ejecuta el widget.
+         */
+        filter_tree?: unknown;
         [key: string]: unknown;
     };
     layout: WidgetLayout;

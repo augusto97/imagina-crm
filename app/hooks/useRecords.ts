@@ -11,6 +11,7 @@ import type {
 interface GroupsKeyParams {
     groupBy: number;
     filter?: RecordsQuery['filter'];
+    filterTree?: unknown;
     search?: string;
 }
 
@@ -50,7 +51,12 @@ export function useRecords(listId: string | number | undefined, query: RecordsQu
  */
 export function useRecordGroups(
     listId: string | number | undefined,
-    params: { groupBy: number | null; filter?: RecordsQuery['filter']; search?: string },
+    params: {
+        groupBy: number | null;
+        filter?: RecordsQuery['filter'];
+        filterTree?: unknown;
+        search?: string;
+    },
 ) {
     const enabled =
         listId !== undefined && listId !== '' && params.groupBy !== null && params.groupBy > 0;
@@ -59,11 +65,15 @@ export function useRecordGroups(
         queryKey: recordsKeys.groups(listId ?? '', {
             groupBy: params.groupBy ?? 0,
             filter: params.filter,
+            filterTree: params.filterTree,
             search: params.search,
         }),
         queryFn: async () => {
             const query: Record<string, unknown> = { group_by: params.groupBy };
             if (params.filter !== undefined) query.filter = params.filter;
+            if (params.filterTree !== undefined) {
+                query.filter_tree = JSON.stringify(params.filterTree);
+            }
             if (params.search !== undefined && params.search !== '') query.search = params.search;
             const res = await api.get(`/lists/${listId}/records/groups`, { query });
             return res as unknown as RecordGroupsResponse;

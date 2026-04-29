@@ -7,7 +7,9 @@ import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type {
+    FilterCondition,
     FilterOperator,
+    FilterTree,
     RecordEntity,
     RecordGroupBucket,
     RecordsQuery,
@@ -15,15 +17,15 @@ import type {
 
 import { EditableCell } from '@/admin/records/EditableCell';
 import { renderCellValue } from '@/admin/records/renderCellValue';
-import type { ActiveFilter } from '@/admin/records/recordsState';
+import { addNode, isFlatAndTree } from '@/admin/records/filterTree';
 
 interface GroupedTableViewProps {
     listId: number;
     fields: FieldEntity[];
     groupByField: FieldEntity;
-    /** Filtros activos (sin contar el de agrupación). Se reusan en
-     * la query de groups y en la expansión de cada bucket. */
-    filters: ActiveFilter[];
+    /** Árbol de filtros activos (sin contar el de agrupación). Se
+     * reusa en la query de groups y en la expansión de cada bucket. */
+    filterTree: FilterTree;
     search: string;
     selectedIds: number[];
     onSelectionChange: (ids: number[]) => void;
@@ -52,18 +54,26 @@ export function GroupedTableView({
     listId,
     fields,
     groupByField,
-    filters,
+    filterTree,
     search,
     selectedIds,
     onSelectionChange,
     onRowClick,
     columnVisibility,
 }: GroupedTableViewProps): JSX.Element {
-    const filterParam = useMemo(() => buildFilterParam(filters), [filters]);
+    // Si el árbol es AND-plano, usamos el shortcut `filter[...]` (más
+    // amigable para cache keys y URLs cortas). Si tiene OR/nesting,
+    // pasamos el `filter_tree` JSON-encoded.
+    const filterParam = useMemo(() => buildFilterParam(filterTree), [filterTree]);
+    const filterTreeParam = useMemo(
+        () => (isFlatAndTree(filterTree) ? undefined : filterTree),
+        [filterTree],
+    );
 
     const groups = useRecordGroups(listId, {
         groupBy: groupByField.id,
         filter: filterParam,
+        filterTree: filterTreeParam,
         search,
     });
 
@@ -140,7 +150,7 @@ export function GroupedTableView({
                         isOpen={isOpen}
                         onToggle={() => toggleGroup(key)}
                         columns={visibleColumns}
-                        baseFilter={filterParam}
+                        baseTree={filterTree}
                         search={search}
                         selectedIds={selectedIds}
                         onSelectionChange={onSelectionChange}
@@ -183,7 +193,7 @@ interface GroupBucketSectionProps {
     isOpen: boolean;
     onToggle: () => void;
     columns: ColumnDef[];
-    baseFilter: RecordsQuery['filter'];
+    baseTree: FilterTree;
     search: string;
     selectedIds: number[];
     onSelectionChange: (ids: number[]) => void;
@@ -204,7 +214,7 @@ function GroupBucketSection({
     isOpen,
     onToggle,
     columns,
-    baseFilter,
+    baseTree,
     search,
     selectedIds,
     onSelectionChange,
@@ -213,20 +223,37 @@ function GroupBucketSection({
     const [page, setPage] = useState(1);
     const perPage = 50;
 
-    // Construimos la query del grupo: filtros base + filtro de bucket.
+    // Construimos la query del grupo: árbol base + condición del bucket
+    // como hijo más del root. Si el árbol resultante es AND-plano usamos
+    // el shortcut `filter[...]`; si tiene OR o nesting, mandamos el
+    // árbol completo en `filter_tree`.
     const query: RecordsQuery = useMemo(() => {
-        const filter: NonNullable<RecordsQuery['filter']> = { ...(baseFilter ?? {}) };
-        const key = `field_${groupByField.id}`;
         const op = filterOpForBucket(groupByField.type, bucket.value);
-        const existing = (filter[key] as Partial<Record<FilterOperator, unknown>> | undefined) ?? {};
-        filter[key] = { ...existing, [op.op]: op.value } as Partial<
-            Record<FilterOperator, unknown>
-        >;
+        const bucketCondition: FilterCondition = {
+            type: 'condition',
+            field_id: groupByField.id,
+            op: op.op,
+            value: op.value,
+        };
+        const merged: FilterTree = addNode(baseTree, [], bucketCondition);
 
-        const q: RecordsQuery = { page, per_page: perPage, filter };
+        const q: RecordsQuery = { page, per_page: perPage };
+        if (isFlatAndTree(merged)) {
+            const filter: NonNullable<RecordsQuery['filter']> = {};
+            for (const c of merged.children) {
+                if (c.type !== 'condition') continue;
+                const key = `field_${c.field_id}`;
+                const existing = (filter[key] as Partial<Record<FilterOperator, unknown>> | undefined) ?? {};
+                existing[c.op] = c.value;
+                filter[key] = existing;
+            }
+            q.filter = filter;
+        } else {
+            q.filter_tree = JSON.stringify(merged);
+        }
         if (search.trim() !== '') q.search = search.trim();
         return q;
-    }, [baseFilter, groupByField.id, groupByField.type, bucket.value, page, search]);
+    }, [baseTree, groupByField.id, groupByField.type, bucket.value, page, search]);
 
     const records = useRecords(isOpen ? listId : undefined, query);
 
@@ -461,14 +488,20 @@ function filterOpForBucket(
     return { op: 'eq', value };
 }
 
-/** Convierte el state-shape `ActiveFilter[]` al shape de RecordsQuery. */
-function buildFilterParam(filters: ActiveFilter[]): RecordsQuery['filter'] | undefined {
-    if (filters.length === 0) return undefined;
+/**
+ * Convierte el árbol al shortcut plano `filter[...]` cuando es
+ * AND-plano. Devuelve `undefined` si está vacío o tiene OR/nesting
+ * (en ese caso el caller manda `filter_tree` JSON aparte).
+ */
+function buildFilterParam(tree: FilterTree): RecordsQuery['filter'] | undefined {
+    if (tree.children.length === 0) return undefined;
+    if (!isFlatAndTree(tree)) return undefined;
     const out: NonNullable<RecordsQuery['filter']> = {};
-    for (const f of filters) {
-        const key = `field_${f.field_id}`;
+    for (const c of tree.children) {
+        if (c.type !== 'condition') continue;
+        const key = `field_${c.field_id}`;
         const existing = (out[key] as Partial<Record<FilterOperator, unknown>> | undefined) ?? {};
-        existing[f.op] = f.value;
+        existing[c.op] = c.value;
         out[key] = existing;
     }
     return out;

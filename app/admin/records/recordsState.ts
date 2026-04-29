@@ -1,5 +1,19 @@
-import type { FilterOperator, RecordsQuery } from '@/types/record';
+import {
+    EMPTY_FILTER_TREE,
+    type FilterOperator,
+    type FilterTree,
+    type RecordsQuery,
+} from '@/types/record';
 
+import { isFlatAndTree, treeFromActiveFilters } from './filterTree';
+
+/**
+ * `ActiveFilter` se mantiene como compatibilidad para SavedViews
+ * antiguos cuyo `config.filters` viene en forma plana legacy. La UI
+ * nueva trabaja contra `FilterTree` directamente, pero los helpers de
+ * conversión (`flattenToActiveFilters`, `treeFromActiveFilters` en
+ * `filterTree.ts`) permiten ir y venir.
+ */
 export interface ActiveFilter {
     /** ID estable del campo (no slug — sobrevive a renames). */
     field_id: number;
@@ -15,7 +29,12 @@ export interface ActiveSort {
 export interface RecordsState {
     page: number;
     perPage: number;
-    filters: ActiveFilter[];
+    /**
+     * Árbol completo de filtros (ClickUp-style, AND/OR + nested groups).
+     * Reemplaza el viejo `filters: ActiveFilter[]` plano. Para SavedViews
+     * legacy se convierte automáticamente al cargar.
+     */
+    filterTree: FilterTree;
     sort: ActiveSort[];
     search: string;
     /** Visibilidad por column id (TanStack Table convention). `false`
@@ -34,7 +53,7 @@ export const DEFAULT_PER_PAGE = 50;
 export const INITIAL_STATE: RecordsState = {
     page: 1,
     perPage: DEFAULT_PER_PAGE,
-    filters: [],
+    filterTree: { ...EMPTY_FILTER_TREE, children: [] },
     sort: [],
     search: '',
     columnVisibility: {},
@@ -43,9 +62,11 @@ export const INITIAL_STATE: RecordsState = {
 };
 
 /**
- * Convierte el estado del frontend al shape `RecordsQuery` que entiende
- * la REST API. Usa `field_<id>` para que las consultas guardadas no se
- * rompan si el slug cambia.
+ * Convierte el state del frontend al shape `RecordsQuery`. Para
+ * filtros usa el atajo plano `filter[...]` cuando el árbol es un
+ * AND plano sin subgrupos (compat con backends legacy / cache keys
+ * más estables); cuando hay OR o anidación, serializa el árbol
+ * completo a `filter_tree` (JSON-encoded en la URL).
  */
 export function buildRecordsQuery(state: RecordsState): RecordsQuery {
     const query: RecordsQuery = {
@@ -61,19 +82,30 @@ export function buildRecordsQuery(state: RecordsState): RecordsQuery {
         query.sort = state.sort.map((s) => `field_${s.field_id}:${s.dir}`).join(',');
     }
 
-    if (state.filters.length > 0) {
-        const filter: NonNullable<RecordsQuery['filter']> = {};
-        for (const f of state.filters) {
-            const key = `field_${f.field_id}`;
-            const existing = (filter[key] as Partial<Record<FilterOperator, unknown>> | undefined) ?? {};
-            existing[f.op] = f.value;
-            filter[key] = existing;
+    if (state.filterTree.children.length > 0) {
+        if (isFlatAndTree(state.filterTree)) {
+            const filter: NonNullable<RecordsQuery['filter']> = {};
+            for (const c of state.filterTree.children) {
+                if (c.type !== 'condition') continue;
+                const key = `field_${c.field_id}`;
+                const existing = (filter[key] as Partial<Record<FilterOperator, unknown>> | undefined) ?? {};
+                existing[c.op] = c.value;
+                filter[key] = existing;
+            }
+            query.filter = filter;
+        } else {
+            // El árbol con OR / nesting va JSON-encoded para no
+            // explotar la URL con docenas de `filter_tree[children]
+            // [0][children][1]…`. El backend acepta ambas formas
+            // (string JSON o array decodificado por WP REST).
+            query.filter_tree = JSON.stringify(state.filterTree);
         }
-        query.filter = filter;
     }
 
     return query;
 }
+
+export { treeFromActiveFilters };
 
 /**
  * Toggle del sort cuando se clickea en un header.

@@ -11,10 +11,13 @@ import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { KpiMetric, WidgetSpec, WidgetType } from '@/types/dashboard';
-import type { FilterOperator } from '@/types/record';
+import type { FilterTree } from '@/types/record';
 
-import { FiltersBar } from '@/admin/records/FiltersBar';
-import type { ActiveFilter } from '@/admin/records/recordsState';
+import { FiltersPanel } from '@/admin/records/FiltersPanel';
+import {
+    isFlatAndTree,
+    treeFromActiveFilters,
+} from '@/admin/records/filterTree';
 
 interface WidgetFormDialogProps {
     initial: WidgetSpec | null;
@@ -50,7 +53,11 @@ export function WidgetFormDialog({
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
     const [tableLimit, setTableLimit] = useState<number>(10);
     const [visibleFieldIds, setVisibleFieldIds] = useState<number[]>([]);
-    const [filters, setFilters] = useState<ActiveFilter[]>([]);
+    const [filterTree, setFilterTree] = useState<FilterTree>({
+        type: 'group',
+        logic: 'and',
+        children: [],
+    });
 
     const fields = useFields(listId === 0 ? undefined : listId);
 
@@ -59,7 +66,7 @@ export function WidgetFormDialog({
     const previousListIdRef = useRef<number>(listId);
     useEffect(() => {
         if (previousListIdRef.current !== listId && previousListIdRef.current !== 0) {
-            setFilters([]);
+            setFilterTree({ type: 'group', logic: 'and', children: [] });
         }
         previousListIdRef.current = listId;
     }, [listId]);
@@ -99,7 +106,7 @@ export function WidgetFormDialog({
                     ? (initial.config.visible_field_ids as number[])
                     : [],
             );
-            setFilters(decodeFilters(initial.config.filters));
+            setFilterTree(decodeWidgetFilters(initial.config));
         } else {
             setTitle('');
             setType('kpi');
@@ -113,7 +120,7 @@ export function WidgetFormDialog({
             setSortDir('desc');
             setTableLimit(10);
             setVisibleFieldIds([]);
-            setFilters([]);
+            setFilterTree({ type: 'group', logic: 'and', children: [] });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, initial?.id]);
@@ -135,7 +142,7 @@ export function WidgetFormDialog({
                 sortDir,
                 tableLimit,
                 visibleFieldIds,
-                filters,
+                filterTree,
             }),
             layout: initial?.layout ?? { x: 0, y: 0, w: 4, h: 3 },
         };
@@ -244,14 +251,14 @@ export function WidgetFormDialog({
                                 <Label className="imcrm-text-xs imcrm-text-muted-foreground">
                                     {__('Filtros')}
                                 </Label>
-                                <FiltersBar
+                                <FiltersPanel
                                     listId={listId}
                                     fields={fields.data}
-                                    filters={filters}
-                                    onFiltersChange={setFilters}
+                                    tree={filterTree}
+                                    onChange={setFilterTree}
                                 />
                                 <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
-                                    {__('Restringen los datos del widget. Para campos de fecha hay rangos rápidos como "este mes" o "últimos 30 días".')}
+                                    {__('Restringen los datos del widget. Soportan AND/OR y grupos anidados; para fechas hay rangos rápidos como "este mes".')}
                                 </p>
                             </div>
                         )}
@@ -601,12 +608,30 @@ function buildConfig(
         sortDir: 'asc' | 'desc';
         tableLimit: number;
         visibleFieldIds: number[];
-        filters: ActiveFilter[];
+        filterTree: FilterTree;
     },
 ): WidgetSpec['config'] {
     const base = (): WidgetSpec['config'] => {
-        const filters = encodeFilters(state.filters);
-        return filters !== undefined ? { filters } : {};
+        const c: WidgetSpec['config'] = {};
+        if (state.filterTree.children.length > 0) {
+            // Para árboles AND-planos persistimos también la forma
+            // legacy `filters` (espejo) para que builds anteriores
+            // del backend la sigan leyendo. Para árboles con OR/nested
+            // solo guardamos `filter_tree`.
+            c.filter_tree = state.filterTree;
+            if (isFlatAndTree(state.filterTree)) {
+                const filters: Record<string, Record<string, unknown>> = {};
+                for (const cnd of state.filterTree.children) {
+                    if (cnd.type !== 'condition') continue;
+                    const key = `field_${cnd.field_id}`;
+                    const existing = filters[key] ?? {};
+                    existing[cnd.op] = cnd.value;
+                    filters[key] = existing;
+                }
+                c.filters = filters;
+            }
+        }
+        return c;
     };
 
     if (type === 'kpi') {
@@ -651,40 +676,35 @@ function buildConfig(
 }
 
 /**
- * Convierte `ActiveFilter[]` (state UI) → la forma que espera el
- * backend (`{ field_<id>: { op: value } }`). Misma lógica que
- * `buildRecordsQuery` en `recordsState.ts` — duplicada acá para no
- * acoplar el dialog al state shape de records.
+ * Lee filtros del config de un widget en cualquiera de las dos formas:
+ * - `filter_tree` (forma nueva, ClickUp-style con AND/OR/nesting).
+ * - `filters` (legacy plano `{field_<id>: {op: val}}`).
+ *
+ * Si ninguna está, devuelve un árbol vacío.
  */
-function encodeFilters(filters: ActiveFilter[]): Record<string, Record<string, unknown>> | undefined {
-    if (filters.length === 0) return undefined;
-    const out: Record<string, Record<string, unknown>> = {};
-    for (const f of filters) {
-        const key = `field_${f.field_id}`;
-        const existing = out[key] ?? {};
-        existing[f.op] = f.value;
-        out[key] = existing;
+function decodeWidgetFilters(config: WidgetSpec['config']): FilterTree {
+    const tree = config.filter_tree;
+    if (tree && typeof tree === 'object' && (tree as FilterTree).type === 'group') {
+        return tree as FilterTree;
     }
-    return out;
-}
-
-/**
- * Inverso: backend shape → `ActiveFilter[]`. Aceptamos formas
- * defensivamente porque vienen de JSON guardado (pueden ser legacy).
- */
-function decodeFilters(raw: unknown): ActiveFilter[] {
-    if (raw === null || raw === undefined || typeof raw !== 'object') return [];
-    const out: ActiveFilter[] = [];
-    for (const [key, opMap] of Object.entries(raw as Record<string, unknown>)) {
-        if (!key.startsWith('field_')) continue;
-        const fieldId = Number(key.slice(6));
-        if (!Number.isFinite(fieldId) || fieldId <= 0) continue;
-        if (typeof opMap !== 'object' || opMap === null) continue;
-        for (const [op, value] of Object.entries(opMap as Record<string, unknown>)) {
-            out.push({ field_id: fieldId, op: op as FilterOperator, value });
-        }
+    const flat = config.filters;
+    if (flat && typeof flat === 'object') {
+        return treeFromActiveFilters(
+            Object.entries(flat as Record<string, unknown>).flatMap(([key, opMap]) => {
+                if (!key.startsWith('field_') || typeof opMap !== 'object' || opMap === null) {
+                    return [];
+                }
+                const fieldId = Number(key.slice(6));
+                if (!Number.isFinite(fieldId) || fieldId <= 0) return [];
+                return Object.entries(opMap as Record<string, unknown>).map(([op, value]) => ({
+                    field_id: fieldId,
+                    op: op as FilterTree['children'][number] extends { op: infer O } ? O : never,
+                    value,
+                }));
+            }) as Parameters<typeof treeFromActiveFilters>[0],
+        );
     }
-    return out;
+    return { type: 'group', logic: 'and', children: [] };
 }
 
 function generateWidgetId(): string {
