@@ -25,6 +25,14 @@ final class RecurrenceEntity
     public const FREQ_WEEKLY  = 'weekly';
     public const FREQ_MONTHLY = 'monthly';
     public const FREQ_YEARLY  = 'yearly';
+    /**
+     * "Días tras la finalización": semánticamente la fecha siguiente
+     * se mueve a `now() + N días` cuando dispara el trigger — NO a
+     * `currentValue + N días`. Tiene sentido solo con `trigger_type =
+     * status_change` (la "finalización" es el cambio de estado al
+     * valor target). El backend (`RecurrenceService::fire`) reemplaza
+     * el seed por `now()` cuando detecta esta frecuencia.
+     */
     public const FREQ_DAYS_AFTER = 'days_after';
 
     /** @var array<int, string> */
