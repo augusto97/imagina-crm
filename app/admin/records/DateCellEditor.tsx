@@ -422,7 +422,10 @@ function RecurrencePanel({
             await upsert.mutateAsync({
                 date_field_id: field.id,
                 frequency,
-                interval_n: interval,
+                // Interval solo aplica al modo `days_after`. Para
+                // diaria/semanal/mensual/anual lo forzamos a 1 — coincide
+                // con la UX simple ("Mensual" = cada mes).
+                interval_n: frequency === 'days_after' ? interval : 1,
                 monthly_pattern: frequency === 'monthly' ? monthlyPattern : null,
                 trigger_type: triggerType,
                 trigger_status_field_id:
@@ -453,28 +456,42 @@ function RecurrencePanel({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-bg-canvas imcrm-p-3">
-            <div className="imcrm-grid imcrm-grid-cols-[1fr_80px] imcrm-gap-2">
-                <Select
-                    value={frequency}
-                    onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
-                    aria-label={__('Frecuencia')}
-                    className="imcrm-h-8"
-                >
-                    <option value="daily">{__('Diariamente')}</option>
-                    <option value="weekly">{__('Semanal')}</option>
-                    <option value="monthly">{__('Mensual')}</option>
-                    <option value="yearly">{__('Anual')}</option>
-                    <option value="days_after">{__('Días después de…')}</option>
-                </Select>
-                <Input
-                    type="number"
-                    min={1}
-                    value={interval}
-                    onChange={(e) => setIntervalN(Math.max(1, Number(e.target.value) || 1))}
-                    aria-label={__('Cada')}
-                    className="imcrm-h-8"
-                />
-            </div>
+            {/* Frecuencia. El input de "interval" solo aparece para
+                `days_after` (donde N es obligatorio: "cada 5 días").
+                Para diaria/semanal/mensual/anual asumimos N=1 — coincide
+                con la UX simple de ClickUp ("Mensual" significa "cada
+                mes" sin pedir un número). */}
+            <Select
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
+                aria-label={__('Frecuencia')}
+                className="imcrm-h-8"
+            >
+                <option value="daily">{__('Diariamente')}</option>
+                <option value="weekly">{__('Semanal')}</option>
+                <option value="monthly">{__('Mensual')}</option>
+                <option value="yearly">{__('Anual')}</option>
+                <option value="days_after">{__('Días después de…')}</option>
+            </Select>
+
+            {frequency === 'days_after' && (
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Cada')}
+                    </span>
+                    <Input
+                        type="number"
+                        min={1}
+                        value={interval}
+                        onChange={(e) => setIntervalN(Math.max(1, Number(e.target.value) || 1))}
+                        aria-label={__('Cada N días')}
+                        className="imcrm-h-8 imcrm-w-20"
+                    />
+                    <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('días')}
+                    </span>
+                </div>
+            )}
 
             {frequency === 'monthly' && (
                 <Select

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.22.1
+Stable tag: 0.22.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,15 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.22.2 =
+* Fix UX: el input numérico al lado de "Frecuencia" en el panel
+  de recurrencia confundía. Ahora solo aparece cuando se elige
+  "Días después de…" — donde N tiene sentido obvio (ej. cada 5
+  días). Para Diariamente/Semanal/Mensual/Anual se asume `1` y
+  el input queda oculto, igual que en ClickUp simple.
+* Cuando aparece (modo days_after) viene con label inline:
+  "Cada [5] días" para que sea inequívoco qué representa.
 
 = 0.22.1 =
 * Fix UX del panel de recurrencia para matchear ClickUp:
