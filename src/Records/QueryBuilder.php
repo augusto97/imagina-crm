@@ -35,6 +35,11 @@ final class QueryBuilder
         'contains', 'not_contains', 'starts_with', 'ends_with',
         'in', 'nin',
         'is_null', 'is_not_null',
+        // Rango relativo dinámico — el valor es el slug del preset
+        // (`this_month`, `last_30_days`, etc.) y se resuelve contra
+        // `now()` en cada query, no se persiste como fecha fija.
+        // Sólo aplicable a campos `date` / `datetime`.
+        'between_relative',
     ];
 
     /** @var array<int, string> */
@@ -648,6 +653,27 @@ final class QueryBuilder
         // in/nin. Esto es lo que el usuario espera al filtrar.
         if ($field !== null && $field->type === 'multi_select') {
             return $this->compileMultiSelectFilter($col, $operator, $value);
+        }
+
+        // Rango relativo: sólo tiene sentido sobre date/datetime. El
+        // valor es el slug del preset (string). Se resuelve a `[from,
+        // to]` en el momento de compilar la query usando `wp_timezone()`,
+        // así "este mes" es realmente "este mes" cada vez que se
+        // ejecuta la query (no la fecha fija que estaba al guardar).
+        if ($operator === 'between_relative') {
+            if ($field === null || ! in_array($field->type, ['date', 'datetime'], true)) {
+                return null;
+            }
+            $preset = is_string($value) ? $value
+                : (is_array($value) && isset($value['preset']) && is_string($value['preset']) ? $value['preset'] : '');
+            $range = RelativeDateRange::compute($preset, $field->type);
+            if ($range === null) {
+                return null;
+            }
+            return [
+                'sql'  => "({$col} >= %s AND {$col} <= %s)",
+                'args' => [$range['from'], $range['to']],
+            ];
         }
 
         $place = $field !== null ? $this->placeholder($field) : '%s';

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.23.1
+Stable tag: 0.24.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,38 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.24.0 =
+* **Filtros con rango relativo dinámico** (`between_relative`).
+  Para campos `date` / `datetime` ahora hay un nuevo operador "en"
+  cuyo valor es el slug de un preset (`this_month`, `last_30_days`,
+  `last_year`, etc.). El backend (`QueryBuilder::compileFilter`) lo
+  resuelve a `[from, to]` con `wp_timezone()` cada vez que se ejecuta
+  la query — así un widget guardado con "Este mes" sigue cargando
+  datos de este mes la semana que viene, no las fechas fijas de
+  cuando se guardó. Espejo PHP del helper JS (`RelativeDateRange`),
+  con 13 unit tests cubriendo today/yesterday/this_week/last_week/
+  this_month/last_month/last_7d/last_15d/last_30d/this_year/last_year
+  + boundary de cambio de año.
+* **Granularidad temporal en charts** (`time_bucket`). Selector
+  nuevo en `WidgetFormDialog` para charts con eje de fecha:
+  Día / Semana (ISO) / Mes / Trimestre / Año. El backend
+  (`WidgetEvaluator`) genera la expresión `DATE_FORMAT` o
+  `CONCAT(YEAR, QUARTER)` apropiada en `evaluateChartBar` y
+  `evaluateChartLine`. Antes era hard-coded a "mes" en ambos.
+* **Toggles de presentación en widgets de chart**:
+  - **Línea de promedio**: bar chart pinta una marca punteada
+    vertical en cada fila + valor agregado arriba a la derecha;
+    line/area chart pinta una línea horizontal punteada con el
+    valor del promedio.
+  - **Etiquetas de datos**: line/area chart muestra el valor
+    numérico encima de cada punto.
+  - **Leyenda**: pie chart hace toggle de la leyenda lateral.
+* **Pie chart con leader-line labels** estilo ClickUp/Looker:
+  cada sector con ≥3% del total pinta su porcentaje + label fuera
+  del aro con un connector polylínea (segmentos chicos quedan en
+  la leyenda lateral para no saturar). Viewbox y radius ajustados
+  para dejar espacio a las etiquetas.
 
 = 0.23.1 =
 * Fix: en `WidgetFormDialog` (Paneles → Editar widget) el panel de

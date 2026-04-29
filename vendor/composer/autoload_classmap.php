@@ -105,6 +105,7 @@ return array(
     'ImaginaCRM\\Records\\RecordService' => $baseDir . '/src/Records/RecordService.php',
     'ImaginaCRM\\Records\\RecordValidator' => $baseDir . '/src/Records/RecordValidator.php',
     'ImaginaCRM\\Records\\RelationRepository' => $baseDir . '/src/Records/RelationRepository.php',
+    'ImaginaCRM\\Records\\RelativeDateRange' => $baseDir . '/src/Records/RelativeDateRange.php',
     'ImaginaCRM\\Recurrences\\DateRoller' => $baseDir . '/src/Recurrences/DateRoller.php',
     'ImaginaCRM\\Recurrences\\RecurrenceEntity' => $baseDir . '/src/Recurrences/RecurrenceEntity.php',
     'ImaginaCRM\\Recurrences\\RecurrenceRepository' => $baseDir . '/src/Recurrences/RecurrenceRepository.php',
