@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.29.0
+Stable tag: 0.29.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.29.1 =
+**Migración de la vista agrupada al bundle endpoint** (continuación
+del Tier 2 de performance, deferida de 0.29.0).
+
+* `GroupedTableView` ahora consume `/records/grouped-bundle` con un
+  solo hook (`useRecordsGroupedBundle`). Antes hacía 1 + N + N
+  requests (groups meta + records por bucket abierto + aggregates
+  por bucket abierto); ahora hace 1 — el backend devuelve buckets
+  meta + primera página de records de cada bucket expandido +
+  aggregates por bucket en la misma respuesta. En listas con 10
+  buckets visibles esto baja de ~21 round-trips a 1 (y a 2 en el
+  load inicial: 1 para conocer los buckets, 1 para traer expandidos).
+* Fallback automático a `useRecords` cuando el user pagina dentro de
+  un bucket (`page > 1`) — el bundle solo cubre la primera página por
+  bucket, así que la paginación profunda sigue funcionando sin
+  recargar todo el bundle.
+* Convención de keys: el frontend usa `v:<value>` / `__null__` para
+  state local (`collapsedGroups`, `openLocally`) — preserva compat
+  con saved views existentes — y `<value>` / `__null__` (sin prefijo)
+  para hablar con el backend.
+* `keepPreviousData` en el hook mantiene la UI estable mientras la
+  segunda fase del fetch inicial está en vuelo.
 
 = 0.29.0 =
 **Tier 2 — Escala** (5 items): segundo paso del roadmap de

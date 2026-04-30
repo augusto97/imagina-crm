@@ -1,8 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import type { AggregatesResponse } from '@/hooks/useAggregates';
 import type {
     RecordEntity,
+    RecordGroupBucket,
     RecordGroupsResponse,
     RecordListResponse,
     RecordsQuery,
@@ -34,8 +36,8 @@ export const recordsKeys = {
  * (aggregates de cada bucket expandido). Reemplaza el patrón de
  * 1 + N + N requests que tenía GroupedTableView.
  */
-interface GroupedBundleResponse {
-    buckets: Array<{ value: string | null; count: number }>;
+export interface GroupedBundleResponse {
+    buckets: RecordGroupBucket[];
     meta: {
         group_by_field_id: number;
         group_by_slug: string;
@@ -43,9 +45,13 @@ interface GroupedBundleResponse {
         total_groups: number;
         total_records: number;
     };
+    /**
+     * Map keyed por valor crudo del bucket (string), o `__null__` para
+     * el bucket "(sin valor)". Los buckets no expandidos no aparecen.
+     */
     expanded: Record<string, {
-        records: { data: RecordEntity[]; meta: Record<string, unknown> };
-        aggregates?: Record<string, unknown>;
+        records: RecordListResponse;
+        aggregates?: AggregatesResponse;
     }>;
 }
 
