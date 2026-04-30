@@ -34,11 +34,20 @@ final class WidgetEvaluator
 {
     private const IDENT_REGEX = '/^[a-z][a-z0-9_]{0,62}$/';
 
+    /**
+     * TTL del cache de resultados de widgets. 5 min es un buen
+     * balance: cambios disparan invalidación automática vía version
+     * bump, pero el TTL existe como safety net para casos edge
+     * (writes directos a la DB, jobs async que no disparen hooks).
+     */
+    private const CACHE_TTL_SECONDS = 300;
+
     public function __construct(
         private readonly Database $db,
         private readonly ListRepository $lists,
         private readonly FieldRepository $fields,
         private readonly QueryBuilder $queryBuilder,
+        private readonly \ImaginaCRM\Records\RecordsETag $etag,
     ) {
     }
 
@@ -62,6 +71,18 @@ final class WidgetEvaluator
 
         $type   = (string) $widget['type'];
         $config = is_array($widget['config'] ?? null) ? $widget['config'] : [];
+
+        // Cache lookup: la key incluye la versión de la lista (bumpea
+        // en cada record_*/import_* hook) + el config completo del
+        // widget. Cualquier cambio invalida automáticamente. TTL 5
+        // min como safety net por si algún write se saltó hooks.
+        $cacheKey = $this->cacheKey($list->id, $widgetId, $config);
+        if (function_exists('get_transient')) {
+            $cached = get_transient($cacheKey);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
 
         // Compilamos la cláusula WHERE de los filtros del widget UNA
         // sola vez. Es la misma para todas las queries que cada tipo
@@ -93,7 +114,7 @@ final class WidgetEvaluator
             $filterCtx  = $this->queryBuilder->compileWhereForList($list->id, $listFields, $rawFilters);
         }
 
-        return match ($type) {
+        $result = match ($type) {
             'kpi'        => $this->evaluateKpi($list->tableSuffix, $list->id, $config, $filterCtx),
             'chart_bar', 'chart_pie'
                          => $this->evaluateChartBar($list->tableSuffix, $list->id, $config, $filterCtx),
@@ -103,6 +124,35 @@ final class WidgetEvaluator
             'table'      => $this->evaluateTable($list->tableSuffix, $list->id, $config, $filterCtx),
             default      => ValidationResult::failWith('type', __('Tipo de widget no soportado.', 'imagina-crm')),
         };
+
+        // Solo cacheamos resultados válidos — un ValidationResult
+        // tipo "Widget no encontrado" se dispararía cada vez de
+        // todos modos.
+        if (is_array($result) && function_exists('set_transient')) {
+            set_transient($cacheKey, $result, self::CACHE_TTL_SECONDS);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Genera una key estable para el cache de transient. Incluye:
+     *  - La versión actual de la lista (bumpea en cada record_*
+     *    hook → invalida cache automáticamente).
+     *  - El widget id (en caso de N widgets con mismo config).
+     *  - El config completo del widget (filter_tree, period, etc.).
+     *
+     * Si CUALQUIERA de los tres cambia, la key cambia y el cache
+     * miss → se recalcula. Sin necesidad de iterar transients para
+     * borrarlos.
+     *
+     * @param array<string, mixed> $config
+     */
+    private function cacheKey(int $listId, string $widgetId, array $config): string
+    {
+        $version = $this->etag->getVersion($listId);
+        $hash = md5((string) wp_json_encode([$widgetId, $config, $version]));
+        return "imcrm_widget_{$listId}_{$hash}";
     }
 
     /**

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.28.0
+Stable tag: 0.29.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,48 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.29.0 =
+**Tier 2 — Escala** (5 items): segundo paso del roadmap de
+performance. Habilita uso a 50k–500k filas con UX sin degradar.
+
+* **Keyset pagination opt-in** (`?cursor=<id>`). Cuando el cliente
+  pasa el cursor del último registro visible y no hay sort custom,
+  el QueryBuilder usa `WHERE id < cursor LIMIT N` — costo
+  constante a cualquier profundidad. OFFSET tradicional sigue
+  funcionando como fallback (page-jumps directos del UI).
+  Response trae `meta.next_cursor` con el id para la siguiente
+  página. `MAX_PER_PAGE` subido de 200 a 500.
+* **ETag + If-None-Match**. `Records/RecordsETag` mantiene una
+  versión por lista en `wp_options` que se bumpea en cada
+  `record_*`/`field_*`/`import_finished` hook. `GET /records`
+  calcula un hash de (versión + queryParams) y lo devuelve como
+  `ETag`. Si el cliente envía `If-None-Match` con el hash y la
+  versión no cambió, retornamos `304 Not Modified` sin tocar la
+  DB ni serializar JSON. Beneficio real con TanStack Query
+  agresivo (refetchOnFocus, navegación entre tabs).
+* **Cache de widgets/aggregates** (`wp_transient` 5 min) con
+  invalidación automática vía version bump. Cualquier write a
+  la lista cambia la cache key → miss → recálculo. TTL como
+  safety net por si algún write se saltó hooks. Para dashboards
+  con SUM/AVG sobre miles de filas, repetir el render es
+  prácticamente gratis.
+* **Page size default 200** (de 50) + **prefetch automático de
+  next page**. TanStack Virtual ya virtualiza el render, así
+  que pintar 200 filas es igual de rápido que 50 — pero 200
+  reduce roundtrips a 1/4. El prefetch se dispara después del
+  primer fetch exitoso si `currentPage < totalPages`; React
+  Query lo cachea para que el avance al scrollear sea
+  instantáneo. `QueryParams::MAX_PER_PAGE` subido a 500.
+* **Endpoint `/records/grouped-bundle`** — orquesta en una sola
+  request: (1) buckets + counts del groupBy, (2) records de
+  cada bucket expandido, (3) aggregates de cada bucket
+  expandido. Antes la vista agrupada disparaba 1 + N + N
+  requests; con el bundle es 1. Hook frontend
+  `useRecordsGroupedBundle` disponible para migrar
+  `GroupedTableView` en una release menor 0.29.1 (refactor
+  cuidadoso de la coordinación de buckets, dejado para iterar
+  con tests).
 
 = 0.28.0 =
 **Tier 1 — Foundation** (8 items): primer paso del roadmap de

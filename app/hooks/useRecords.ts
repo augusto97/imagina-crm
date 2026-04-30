@@ -24,10 +24,87 @@ export const recordsKeys = {
         [...recordsKeys.forList(listId), 'item', recordId] as const,
     groups: (listId: string | number, params: GroupsKeyParams) =>
         [...recordsKeys.forList(listId), 'groups', params] as const,
+    groupedBundle: (listId: string | number, params: Record<string, unknown>) =>
+        [...recordsKeys.forList(listId), 'grouped-bundle', params] as const,
 };
 
-export function useRecords(listId: string | number | undefined, query: RecordsQuery) {
+/**
+ * Bundle endpoint para vista agrupada: una sola request retorna
+ * (buckets + counts) + (records de cada bucket expandido) +
+ * (aggregates de cada bucket expandido). Reemplaza el patrón de
+ * 1 + N + N requests que tenía GroupedTableView.
+ */
+interface GroupedBundleResponse {
+    buckets: Array<{ value: string | null; count: number }>;
+    meta: {
+        group_by_field_id: number;
+        group_by_slug: string;
+        group_by_type: string;
+        total_groups: number;
+        total_records: number;
+    };
+    expanded: Record<string, {
+        records: { data: RecordEntity[]; meta: Record<string, unknown> };
+        aggregates?: Record<string, unknown>;
+    }>;
+}
+
+interface UseGroupedBundleArgs {
+    listId: string | number | undefined;
+    groupBy: number | undefined;
+    expanded: string[];
+    filterTree?: unknown;
+    search?: string;
+    perPage?: number;
+    aggregateFieldIds?: number[];
+}
+
+export function useRecordsGroupedBundle({
+    listId,
+    groupBy,
+    expanded,
+    filterTree,
+    search,
+    perPage = 50,
+    aggregateFieldIds = [],
+}: UseGroupedBundleArgs) {
+    const params: Record<string, unknown> = {
+        group_by: groupBy,
+        per_page: perPage,
+    };
+    // Stable order in expanded → stable key (avoid useless refetch
+    // cuando el user toggles otro bucket en otro orden).
+    const sortedExpanded = [...expanded].sort();
+    if (sortedExpanded.length > 0) {
+        params.expanded = sortedExpanded;
+    }
+    if (filterTree) {
+        params.filter_tree = JSON.stringify(filterTree);
+    }
+    if (search && search.trim() !== '') {
+        params.search = search.trim();
+    }
+    if (aggregateFieldIds.length > 0) {
+        params.aggregate_fields = aggregateFieldIds.join(',');
+    }
+
     return useQuery({
+        queryKey: recordsKeys.groupedBundle(listId ?? '', params),
+        queryFn: async () => {
+            const res = await api.get<GroupedBundleResponse>(
+                `/lists/${listId}/records/grouped-bundle`,
+                { query: params },
+            );
+            return res.data;
+        },
+        enabled: listId !== undefined && listId !== '' && groupBy !== undefined && groupBy > 0,
+        placeholderData: keepPreviousData,
+    });
+}
+
+export function useRecords(listId: string | number | undefined, query: RecordsQuery) {
+    const qc = useQueryClient();
+    const result = useQuery({
         queryKey: recordsKeys.list(listId ?? '', query),
         queryFn: async () => {
             const res = await api.get<RecordEntity[]>(`/lists/${listId}/records`, {
@@ -39,6 +116,42 @@ export function useRecords(listId: string | number | undefined, query: RecordsQu
         enabled: listId !== undefined && listId !== '',
         placeholderData: keepPreviousData,
     });
+
+    // Prefetch de la siguiente página: cuando recibimos data de la
+    // página actual y todavía hay más, pre-disparamos el fetch de
+    // page+1 en background. React Query lo cachea por queryKey
+    // distinto, así que cuando el user scrollea o avanza de página,
+    // los datos ya están listos. Cero pausa visible.
+    //
+    // Solo aplica cuando hay paginación activa y `next_cursor` o
+    // page < total_pages. Sin filtros pesados ni fetch extra inútil
+    // — `staleTime` de React Query lo coloca en cache aunque no se
+    // use.
+    const meta = result.data?.meta;
+    if (
+        listId !== undefined && listId !== '' &&
+        meta !== undefined &&
+        result.isSuccess
+    ) {
+        const currentPage = (query.page as number | undefined) ?? 1;
+        const totalPages = (meta as { total_pages?: number }).total_pages ?? 1;
+        if (currentPage < totalPages) {
+            const nextQuery: RecordsQuery = { ...query, page: currentPage + 1 };
+            // prefetchQuery es idempotente — si la key ya está
+            // cacheada, no re-fetcha.
+            void qc.prefetchQuery({
+                queryKey: recordsKeys.list(listId, nextQuery),
+                queryFn: async () => {
+                    const res = await api.get<RecordEntity[]>(`/lists/${listId}/records`, {
+                        query: nextQuery as Record<string, unknown>,
+                    });
+                    return { data: res.data, meta: res.meta } as unknown as RecordListResponse;
+                },
+            });
+        }
+    }
+
+    return result;
 }
 
 /**

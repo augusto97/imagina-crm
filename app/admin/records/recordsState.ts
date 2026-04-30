@@ -70,7 +70,18 @@ export interface RecordsState {
     footerAggregates: Record<string, string>;
 }
 
-export const DEFAULT_PER_PAGE = 50;
+/**
+ * Page size por default para `/records`. Subido a 200 (de 50) en
+ * 0.29.0 — TanStack Virtual ya virtualiza el render, así que pintar
+ * 200 filas es igual de rápido que 50 (solo render lo visible). Pero
+ * 200 reduce a 1/4 los roundtrips de paginación al scrollear listas
+ * grandes. Combinado con prefetch automático de la siguiente página,
+ * la sensación es de scroll infinito sin pausas.
+ *
+ * El backend tiene cap absoluto de 500 (`QueryParams::MAX_PER_PAGE`)
+ * para evitar que un cliente malicioso pida 100k de un solo shot.
+ */
+export const DEFAULT_PER_PAGE = 200;
 
 export const INITIAL_STATE: RecordsState = {
     page: 1,

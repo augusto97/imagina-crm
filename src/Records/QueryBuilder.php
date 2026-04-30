@@ -78,6 +78,7 @@ final class QueryBuilder
         int $page,
         int $perPage,
         bool $includeDeleted,
+        ?int $cursor = null,
     ): QueryParams|ValidationResult {
         $page    = max(1, $page);
         $perPage = max(1, min($perPage, QueryParams::MAX_PER_PAGE));
@@ -145,6 +146,7 @@ final class QueryBuilder
             fields: $projection,
             search: $search,
             includeDeleted: $includeDeleted,
+            cursor: $cursor !== null && $cursor > 0 ? $cursor : null,
         );
     }
 
@@ -198,12 +200,47 @@ final class QueryBuilder
             $sql .= ' ORDER BY id DESC';
         }
 
-        $offset = ($params->page - 1) * $params->perPage;
-        $sql   .= ' LIMIT %d OFFSET %d';
+        // Keyset pagination opt-in (cursor): cuando el caller pasa
+        // `cursor=<last_id>` Y no hay sort custom, agregamos
+        // `WHERE id < cursor` y NO usamos OFFSET — costo constante a
+        // cualquier profundidad (vs OFFSET que skippea N filas, lento
+        // a 100k+). Para sort custom o page-jumps, fallback a OFFSET.
+        $useCursor = $params->cursor !== null && $params->sort === [];
+        if ($useCursor) {
+            // Inyectamos el filtro `id < cursor` ANTES del LIMIT.
+            // Como `$where` ya viene compilado, lo extendemos
+            // appendeando una condición — `WHERE` o `AND` según si
+            // el where actual es vacío.
+            $cursorClause = ' AND id < %d';
+            if ($where === 'WHERE 1=1' || $where === '') {
+                // Where vacío → reemplazar con cursor solo.
+                $sql = str_replace($where, "WHERE id < %d", $sql);
+                array_unshift($whereArgs, $params->cursor);
+            } else {
+                // Inyectar al final del WHERE: el lugar es justo antes
+                // del " ORDER BY". Reconstruimos el SQL sin tocar
+                // `$where` directamente para no afectar `countSql`.
+                $orderPos = strpos($sql, ' ORDER BY');
+                if ($orderPos !== false) {
+                    $sql = substr($sql, 0, $orderPos) . $cursorClause . substr($sql, $orderPos);
+                    $whereArgs[] = $params->cursor;
+                }
+            }
+            $sql   .= ' LIMIT %d';
+            $args   = $whereArgs;
+            $args[] = $params->perPage;
+            // No incluimos OFFSET ni count_sql modificado — el caller
+            // se queda con el `total` original (que pidió a la BD una
+            // sola vez al primer fetch) o lo ignora si solo le
+            // interesa `has_more`.
+        } else {
+            $offset = ($params->page - 1) * $params->perPage;
+            $sql   .= ' LIMIT %d OFFSET %d';
 
-        $args   = $whereArgs;
-        $args[] = $params->perPage;
-        $args[] = $offset;
+            $args   = $whereArgs;
+            $args[] = $params->perPage;
+            $args[] = $offset;
+        }
 
         return [
             'sql'        => $sql,

@@ -13,7 +13,7 @@ namespace ImaginaCRM\Records;
 final class QueryParams
 {
     public const MAX_FILTERS  = 5;
-    public const MAX_PER_PAGE = 200;
+    public const MAX_PER_PAGE = 500;
 
     /**
      * @param array<int, array{column:string, operator:string, value:mixed}> $filters
@@ -28,6 +28,19 @@ final class QueryParams
         public readonly array $fields,
         public readonly ?string $search,
         public readonly bool $includeDeleted,
+        /**
+         * Cursor opt-in para keyset pagination. Cuando es int >0, el
+         * QueryBuilder agrega `WHERE id < cursor ORDER BY id DESC LIMIT
+         * perPage` (mantiene constante el costo del query a cualquier
+         * profundidad — mientras OFFSET degrada lineal con el offset).
+         * Si es null, fallback a OFFSET tradicional (compat con
+         * page-jumps directos del UI).
+         *
+         * Solo se usa cuando el sort es por defecto (id DESC) o ID
+         * explícito; si hay sort custom, el QueryBuilder lo ignora
+         * porque keyset por id solo no garantiza el orden estable.
+         */
+        public readonly ?int $cursor = null,
     ) {
     }
 }
