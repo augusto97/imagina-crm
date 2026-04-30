@@ -194,18 +194,22 @@ final class RecordAggregator
             case 'number':
             case 'currency':
                 return [
-                    $base . '__sum'   => 'SUM(' . $col . ')',
-                    $base . '__avg'   => 'AVG(' . $col . ')',
-                    $base . '__count' => 'COUNT(' . $col . ')',
-                    $base . '__min'   => 'MIN(' . $col . ')',
-                    $base . '__max'   => 'MAX(' . $col . ')',
+                    $base . '__sum'          => 'SUM(' . $col . ')',
+                    $base . '__avg'          => 'AVG(' . $col . ')',
+                    $base . '__count'        => 'COUNT(' . $col . ')',
+                    $base . '__count_unique' => 'COUNT(DISTINCT ' . $col . ')',
+                    $base . '__count_empty'  => 'SUM(CASE WHEN ' . $col . ' IS NULL THEN 1 ELSE 0 END)',
+                    $base . '__min'          => 'MIN(' . $col . ')',
+                    $base . '__max'          => 'MAX(' . $col . ')',
                 ];
             case 'date':
             case 'datetime':
                 return [
-                    $base . '__min'   => 'MIN(' . $col . ')',
-                    $base . '__max'   => 'MAX(' . $col . ')',
-                    $base . '__count' => 'COUNT(' . $col . ')',
+                    $base . '__min'          => 'MIN(' . $col . ')',
+                    $base . '__max'          => 'MAX(' . $col . ')',
+                    $base . '__count'        => 'COUNT(' . $col . ')',
+                    $base . '__count_unique' => 'COUNT(DISTINCT ' . $col . ')',
+                    $base . '__count_empty'  => 'SUM(CASE WHEN ' . $col . ' IS NULL THEN 1 ELSE 0 END)',
                 ];
             case 'checkbox':
                 return [
@@ -216,8 +220,9 @@ final class RecordAggregator
             default:
                 // text / select / multi_select / email / url / user / file
                 return [
-                    $base . '__count'       => 'COUNT(' . $col . ')',
-                    $base . '__count_empty' => 'SUM(CASE WHEN ' . $col . ' IS NULL OR ' . $col . " = '' THEN 1 ELSE 0 END)",
+                    $base . '__count'        => 'COUNT(' . $col . ')',
+                    $base . '__count_unique' => 'COUNT(DISTINCT ' . $col . ')',
+                    $base . '__count_empty'  => 'SUM(CASE WHEN ' . $col . ' IS NULL OR ' . $col . " = '' THEN 1 ELSE 0 END)",
                 ];
         }
     }

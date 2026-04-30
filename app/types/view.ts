@@ -24,6 +24,14 @@ export interface SavedViewConfig {
      */
     collapsed_groups?: string[];
     /**
+     * Cálculo opt-in en el footer de cada columna: map
+     * `{column_id: kind_slug}` (ej. `{"valor_cop": "sum"}`). Si la
+     * column id no está acá, su footer queda con el CTA "Calcular".
+     * Slugs válidos en `AggregateKind` (ver
+     * `views/FooterAggregateCell.tsx`).
+     */
+    footer_aggregates?: Record<string, string>;
+    /**
      * Forma legacy plana: `[{field_id, op, value}, ...]`. Solo se
      * usaba cuando los filtros eran AND plano. Se mantiene como
      * espejo opcional cuando `filter_tree` es AND plano para

@@ -61,6 +61,13 @@ export interface RecordsState {
      * en el mismo estado que dejó. Default vacío = todos cerrados.
      */
     collapsedGroups: string[];
+    /**
+     * Cálculo elegido por el user en el footer de cada columna
+     * (column id → kind slug). Ej. `{valor_cop: 'sum', estado:
+     * 'count_unique'}`. Las columnas sin entry no muestran cálculo;
+     * la cell del footer queda con "Calcular ▾" como CTA.
+     */
+    footerAggregates: Record<string, string>;
 }
 
 export const DEFAULT_PER_PAGE = 50;
@@ -76,6 +83,7 @@ export const INITIAL_STATE: RecordsState = {
     columnOrder: [],
     groupByFieldId: null,
     collapsedGroups: [],
+    footerAggregates: {},
 };
 
 /**

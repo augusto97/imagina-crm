@@ -369,6 +369,10 @@ export function RecordsPage(): JSX.Element {
                             // pre-fill por bucket value queda como
                             // siguiente iteración.
                             onAddRecord={() => setCreateOpen(true)}
+                            footerAggregates={state.footerAggregates}
+                            onFooterAggregatesChange={(next) =>
+                                setState((s) => ({ ...s, footerAggregates: next }))
+                            }
                         />
                     ) : (
                         <TableView
@@ -396,6 +400,11 @@ export function RecordsPage(): JSX.Element {
                             filterTree={state.filterTree}
                             onAddRecord={() => setCreateOpen(true)}
                             onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
+                            footerAggregates={state.footerAggregates}
+                            onFooterAggregatesChange={(next) =>
+                                setState((s) => ({ ...s, footerAggregates: next }))
+                            }
+                            totalCount={records.data?.meta.total ?? 0}
                         />
                     )}
 

@@ -11,7 +11,7 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical, Inbox, KeyRound, Plus } from 'lucide-react';
 
 import { EmptyState } from '@/components/ui/empty-state';
-import { useAggregates, type AggregateBag } from '@/hooks/useAggregates';
+import { useAggregates } from '@/hooks/useAggregates';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
@@ -20,6 +20,7 @@ import type { FilterTree, RecordEntity } from '@/types/record';
 import { EditableCell } from '@/admin/records/EditableCell';
 import { renderCellValue } from '@/admin/records/renderCellValue';
 import type { ActiveSort } from '@/admin/records/recordsState';
+import { FooterAggregateCell, type AggregateKind } from './FooterAggregateCell';
 
 interface TableViewProps {
     listId: number;
@@ -54,6 +55,15 @@ interface TableViewProps {
     onAddRecord?: () => void;
     /** Click en "+ Agregar columna" al final del header. Si no se pasa, no se renderea. */
     onAddColumn?: () => void;
+    /**
+     * Cálculo opt-in elegido por el user para cada columna del
+     * footer. Map `{column_id: kind_slug}`. Si la column id no
+     * está acá, el footer muestra "Calcular ▾" como CTA.
+     */
+    footerAggregates?: Record<string, string>;
+    onFooterAggregatesChange?: (next: Record<string, string>) => void;
+    /** Total de registros (para porcentajes en el footer). */
+    totalCount?: number;
 }
 
 /**
@@ -85,6 +95,9 @@ export function TableView({
     filterTree,
     onAddRecord,
     onAddColumn,
+    footerAggregates,
+    onFooterAggregatesChange,
+    totalCount,
 }: TableViewProps): JSX.Element {
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -243,22 +256,28 @@ export function TableView({
         onColumnOrderChange(currentOrder);
     };
 
-    // Sticky-left: el checkbox queda fijo en `left: 0` y, si hay un
-    // field con `is_primary`, queda fijo en `left: 40px` (ancho del
-    // checkbox). El render de cada `<th>`/`<td>` usa este helper para
-    // saber si aplicar position:sticky + el offset correcto. En la
-    // captura de ClickUp esa columna es la del nombre — el equivalente
-    // acá es el primary field.
-    const PRIMARY_OFFSET = 40;
-    const stickyStyleFor = (
-        meta: { fieldId: number | null; primary?: boolean } | undefined,
-    ): React.CSSProperties | undefined => {
-        if (meta?.primary) {
-            return {
-                position: 'sticky' as const,
-                left: PRIMARY_OFFSET,
-                zIndex: 1,
-            };
+    // Sticky-left: la PRIMERA columna dinámica visible queda fija en
+    // `left: 0` (ancla la fila al scrollear horizontal). El checkbox
+    // ya no es sticky — scrollea con el resto de columnas. UX igual
+    // a ClickUp: la columna fija es la que ancla la fila visualmente
+    // (típicamente "Nombre"), no los controles de selección.
+    //
+    // Cuál es esa primera columna dinámica? Tomamos la primera columna
+    // visible (en column order) cuyo `meta.fieldId !== null` (es decir,
+    // descartamos `id` y `updated_at` de TanStack si están al inicio
+    // del orden, aunque normalmente `id` está oculto y `updated_at` al
+    // final).
+    const stickyColumnId = useMemo(() => {
+        const visibleLeaves = table.getVisibleLeafColumns();
+        for (const c of visibleLeaves) {
+            const m = c.columnDef.meta as { fieldId: number | null } | undefined;
+            if (m && m.fieldId !== null) return c.id;
+        }
+        return null;
+    }, [table, columnOrder, columnVisibility]);
+    const stickyStyleFor = (columnId: string): React.CSSProperties | undefined => {
+        if (columnId === stickyColumnId) {
+            return { position: 'sticky' as const, left: 0, zIndex: 1 };
         }
         return undefined;
     };
@@ -294,8 +313,7 @@ export function TableView({
                         <tr key={hg.id} className="imcrm-border-b imcrm-border-border">
                             <th
                                 scope="col"
-                                className="imcrm-w-10 imcrm-px-3 imcrm-py-3 imcrm-bg-muted/60"
-                                style={{ position: 'sticky', left: 0, zIndex: 2 }}
+                                className="imcrm-w-10 imcrm-px-3 imcrm-py-3"
                             >
                                 <input
                                     type="checkbox"
@@ -324,7 +342,7 @@ export function TableView({
                                 const isDraggable = fieldId !== null;
                                 const isDragOver = overColId === h.id && draggingColId !== h.id;
 
-                                const stickyStyle = stickyStyleFor(meta);
+                                const stickyStyle = stickyStyleFor(h.id);
                                 return (
                                     <th
                                         key={h.id}
@@ -362,12 +380,9 @@ export function TableView({
                                         } : undefined}
                                         className={cn(
                                             'imcrm-group/th imcrm-relative imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-3 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]',
-                                            // Sticky cells necesitan bg sólido para no
-                                            // dejar transparentar el contenido scrolleado
-                                            // por debajo. El `<thead>` ya trae gradiente,
-                                            // pero el `<th>` sticky-left necesita su
-                                            // propio bg para tapar las celdas que pasan
-                                            // por detrás horizontalmente.
+                                            // Sticky cells necesitan bg sólido para
+                                            // tapar las celdas que pasan por detrás
+                                            // horizontalmente al scrollear.
                                             stickyStyle && 'imcrm-bg-muted/60',
                                             isDragOver && 'imcrm-bg-primary/10',
                                             draggingColId === h.id && 'imcrm-opacity-50',
@@ -485,15 +500,7 @@ export function TableView({
                                     )}
                                 >
                                     <td
-                                        className={cn(
-                                            'imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
-                                            // bg sólido para tapar contenido scrolleado por
-                                            // detrás cuando es sticky-left.
-                                            isSelected
-                                                ? 'imcrm-bg-primary/5'
-                                                : 'imcrm-bg-card group-hover/row:imcrm-bg-accent/40',
-                                        )}
-                                        style={{ position: 'sticky', left: 0, zIndex: 1 }}
+                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle"
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <input
@@ -511,10 +518,7 @@ export function TableView({
                                         // El "ID" (primera celda dinámica) actúa como zona de drawer:
                                         // click ahí abre el drawer.
                                         const isOpenerCell = cellIndex === 0;
-                                        const cellMeta = cell.column.columnDef.meta as
-                                            | { fieldId: number | null; primary?: boolean }
-                                            | undefined;
-                                        const cellSticky = stickyStyleFor(cellMeta);
+                                        const cellSticky = stickyStyleFor(cell.column.id);
                                         return (
                                             <td
                                                 key={cell.id}
@@ -566,18 +570,17 @@ export function TableView({
                         </tr>
                     )}
                 </tbody>
-                {/* Footer con agregaciones por columna (sum/avg/count/
-                    min/max según el tipo del field). Solo se renderea
-                    si llegó algún dato del endpoint — cuando la lista
-                    está vacía o todos los fields son no-agregables, se
-                    omite. */}
-                {aggregates.data && Object.keys(aggregates.data.totals).length > 0 && (
-                    <tfoot className="imcrm-sticky imcrm-bottom-0 imcrm-z-10 imcrm-bg-muted/40 imcrm-backdrop-blur">
-                        <tr className="imcrm-border-t imcrm-border-border">
-                            <td
-                                className="imcrm-w-10 imcrm-bg-muted/60"
-                                style={{ position: 'sticky', left: 0, zIndex: 2 }}
-                            />
+                {/* Footer opt-in: el user elige por columna qué cálculo
+                    quiere ver. Sin elección, la cell muestra "Calcular ▾"
+                    (CTA invisible-hasta-hover). Con elección, muestra el
+                    valor formateado. La preferencia persiste en el saved
+                    view (`view.config.footer_aggregates`). El bg es el
+                    mismo que el body — sin separador visual entre el
+                    contenido y el footer (estilo ClickUp). */}
+                {onFooterAggregatesChange && (
+                    <tfoot>
+                        <tr className="imcrm-border-t imcrm-border-border/50">
+                            <td className="imcrm-w-10" />
                             {table.getVisibleLeafColumns().map((col) => {
                                 const meta = col.columnDef.meta as
                                     | { fieldId: number | null; primary?: boolean }
@@ -586,10 +589,11 @@ export function TableView({
                                 const field: FieldEntity | null = fieldId !== null
                                     ? (fields.find((f) => f.id === fieldId) ?? null)
                                     : null;
-                                const agg = field !== null
+                                const agg = field !== null && aggregates.data
                                     ? aggregates.data.totals[field.slug]
                                     : undefined;
-                                const cellSticky = stickyStyleFor(meta);
+                                const cellSticky = stickyStyleFor(col.id);
+                                const kind = (footerAggregates ?? {})[col.id] as AggregateKind | undefined;
                                 return (
                                     <td
                                         key={col.id}
@@ -599,11 +603,25 @@ export function TableView({
                                             ...(cellSticky ?? {}),
                                         }}
                                         className={cn(
-                                            'imcrm-overflow-hidden imcrm-px-3 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground',
-                                            cellSticky && 'imcrm-bg-muted/60',
+                                            'imcrm-overflow-hidden imcrm-px-1 imcrm-py-1 imcrm-align-middle',
+                                            cellSticky && 'imcrm-bg-card',
                                         )}
                                     >
-                                        <FooterAggregate field={field} agg={agg} />
+                                        <FooterAggregateCell
+                                            field={field}
+                                            totalCount={totalCount ?? 0}
+                                            agg={agg}
+                                            kind={kind}
+                                            onChange={(nextKind) => {
+                                                const next = { ...(footerAggregates ?? {}) };
+                                                if (nextKind === undefined) {
+                                                    delete next[col.id];
+                                                } else {
+                                                    next[col.id] = nextKind;
+                                                }
+                                                onFooterAggregatesChange(next);
+                                            }}
+                                        />
                                     </td>
                                 );
                             })}
@@ -616,73 +634,6 @@ export function TableView({
     );
 }
 
-/**
- * Render del valor agregado en el footer de una columna. Por tipo:
- *  - number/currency  → "Σ 12.500" (sum, default)
- *  - date/datetime    → "min – max" o "N items"
- *  - checkbox         → "✓ N · ✗ M"
- *  - text/select/etc  → "N items"
- *
- * Nada se muestra si el field no es agregable (relation/computed) o
- * si el endpoint todavía no respondió.
- */
-function FooterAggregate({
-    field,
-    agg,
-}: {
-    field: FieldEntity | null;
-    agg: AggregateBag | undefined;
-}): JSX.Element | null {
-    if (field === null || agg === undefined) return null;
-
-    if (field.type === 'number' || field.type === 'currency') {
-        if (agg.sum === null || agg.sum === undefined) return null;
-        const formatted = (agg.sum as number).toLocaleString(undefined, {
-            maximumFractionDigits: field.type === 'currency' ? 2 : 4,
-            minimumFractionDigits: field.type === 'currency' ? 2 : 0,
-        });
-        return (
-            <span className="imcrm-flex imcrm-items-baseline imcrm-gap-1.5">
-                <span className="imcrm-text-[10px] imcrm-uppercase imcrm-tracking-wide">{__('Suma')}</span>
-                <span className="imcrm-font-semibold imcrm-text-foreground imcrm-tabular-nums">
-                    {formatted}
-                </span>
-            </span>
-        );
-    }
-
-    if (field.type === 'checkbox') {
-        return (
-            <span className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-tabular-nums">
-                <span>✓ {agg.count_true ?? 0}</span>
-                <span>✗ {agg.count_false ?? 0}</span>
-            </span>
-        );
-    }
-
-    if (field.type === 'date' || field.type === 'datetime') {
-        if (! agg.min && ! agg.max) {
-            return (
-                <span className="imcrm-tabular-nums">
-                    {(agg.count ?? 0).toLocaleString()} {__('items')}
-                </span>
-            );
-        }
-        return (
-            <span className="imcrm-flex imcrm-flex-col imcrm-text-[10px] imcrm-tabular-nums">
-                <span>{__('Min')}: {String(agg.min ?? '—').slice(0, 10)}</span>
-                <span>{__('Max')}: {String(agg.max ?? '—').slice(0, 10)}</span>
-            </span>
-        );
-    }
-
-    // text / select / multi_select / email / url / user / file
-    return (
-        <span className="imcrm-tabular-nums">
-            {(agg.count ?? 0).toLocaleString()} {__('items')}
-        </span>
-    );
-}
 
 /**
  * Anchura inicial razonable según el tipo del campo. El usuario puede

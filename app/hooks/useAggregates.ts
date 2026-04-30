@@ -20,6 +20,7 @@ export interface AggregateBag {
     sum?: number | null;
     avg?: number | null;
     count?: number;
+    count_unique?: number;
     min?: number | string | null;
     max?: number | string | null;
     count_true?: number;

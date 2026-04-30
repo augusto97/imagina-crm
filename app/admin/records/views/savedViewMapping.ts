@@ -54,6 +54,9 @@ export function stateToViewConfig(state: RecordsState): SavedViewConfig {
     if (state.collapsedGroups.length > 0) {
         config.collapsed_groups = state.collapsedGroups;
     }
+    if (Object.keys(state.footerAggregates).length > 0) {
+        config.footer_aggregates = state.footerAggregates;
+    }
     if (state.groupByFieldId !== null) {
         config.group_by_field_id = state.groupByFieldId;
     }
@@ -107,6 +110,7 @@ export function viewConfigToState(config: SavedViewConfig, perPage: number): Rec
         columnSizing: config.column_widths ?? {},
         columnOrder: config.column_order ?? [],
         collapsedGroups: config.collapsed_groups ?? [],
+        footerAggregates: config.footer_aggregates ?? {},
         groupByFieldId: config.group_by_field_id ?? null,
     };
 }

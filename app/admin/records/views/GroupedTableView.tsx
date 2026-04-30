@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Inbox, KeyRound, Loader2, Plus } from 'lucide-react';
 
 import { EmptyState } from '@/components/ui/empty-state';
-import { useAggregates, type AggregateBag } from '@/hooks/useAggregates';
+import { useAggregates } from '@/hooks/useAggregates';
 import { useRecordGroups, useRecords } from '@/hooks/useRecords';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ import type {
 import { EditableCell } from '@/admin/records/EditableCell';
 import { renderCellValue } from '@/admin/records/renderCellValue';
 import { addNode, isFlatAndTree } from '@/admin/records/filterTree';
+import { FooterAggregateCell, type AggregateKind } from './FooterAggregateCell';
 
 interface GroupedTableViewProps {
     listId: number;
@@ -64,6 +65,13 @@ interface GroupedTableViewProps {
      * pre-rellenar el form de creación.
      */
     onAddRecord?: (groupByField: FieldEntity, bucketValue: string | null) => void;
+    /**
+     * Cálculos opt-in del footer por columna (compartidos entre
+     * todos los buckets, igual que ClickUp). Si está vacío o sin
+     * `onFooterAggregatesChange`, no se renderea el footer.
+     */
+    footerAggregates?: Record<string, string>;
+    onFooterAggregatesChange?: (next: Record<string, string>) => void;
 }
 
 /**
@@ -97,6 +105,8 @@ export function GroupedTableView({
     onCollapsedGroupsChange,
     onAddColumn,
     onAddRecord,
+    footerAggregates,
+    onFooterAggregatesChange,
 }: GroupedTableViewProps): JSX.Element {
     // Si el árbol es AND-plano, usamos el shortcut `filter[...]` (más
     // amigable para cache keys y URLs cortas). Si tiene OR/nesting,
@@ -243,6 +253,8 @@ export function GroupedTableView({
                                 ? () => onAddRecord(groupByField, bucket.value)
                                 : undefined
                         }
+                        footerAggregates={footerAggregates}
+                        onFooterAggregatesChange={onFooterAggregatesChange}
                     />
                 );
             })}
@@ -340,6 +352,8 @@ interface GroupBucketSectionProps {
     onRowClick?: (record: RecordEntity) => void;
     onAddColumn?: () => void;
     onAddRecord?: () => void;
+    footerAggregates?: Record<string, string>;
+    onFooterAggregatesChange?: (next: Record<string, string>) => void;
 }
 
 /**
@@ -365,6 +379,8 @@ function GroupBucketSection({
     onRowClick,
     onAddColumn,
     onAddRecord,
+    footerAggregates,
+    onFooterAggregatesChange,
 }: GroupBucketSectionProps): JSX.Element {
     const [page, setPage] = useState(1);
     const perPage = 50;
@@ -508,8 +524,7 @@ function GroupBucketSection({
                                 <tr className="imcrm-border-b imcrm-border-border">
                                     <th
                                         scope="col"
-                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-bg-muted/30"
-                                        style={{ position: 'sticky', left: 0, zIndex: 2 }}
+                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5"
                                     >
                                         <input
                                             type="checkbox"
@@ -518,10 +533,16 @@ function GroupBucketSection({
                                             aria-label={__('Seleccionar todos en grupo')}
                                         />
                                     </th>
-                                    {columns.map((c) => {
+                                    {columns.map((c, ci) => {
                                         const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
-                                        const sticky = c.isPrimary
-                                            ? { position: 'sticky' as const, left: 40, zIndex: 1 }
+                                        // Sticky-left: primera columna dinámica (la
+                                        // que tiene `field !== null`). UX igual a
+                                        // ClickUp — el "Nombre" se queda fijo,
+                                        // checkbox no.
+                                        const isFirstDynamic = c.field !== null
+                                            && columns.findIndex((cc) => cc.field !== null) === ci;
+                                        const sticky = isFirstDynamic
+                                            ? { position: 'sticky' as const, left: 0, zIndex: 1 }
                                             : undefined;
                                         return (
                                             <th
@@ -577,13 +598,7 @@ function GroupBucketSection({
                                             )}
                                         >
                                             <td
-                                                className={cn(
-                                                    'imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
-                                                    isSelected
-                                                        ? 'imcrm-bg-primary/5'
-                                                        : 'imcrm-bg-card group-hover/row:imcrm-bg-accent/40',
-                                                )}
-                                                style={{ position: 'sticky', left: 0, zIndex: 1 }}
+                                                className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle"
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <input
@@ -599,8 +614,10 @@ function GroupBucketSection({
                                             </td>
                                             {columns.map((c, ci) => {
                                                 const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
-                                                const sticky = c.isPrimary
-                                                    ? { position: 'sticky' as const, left: 40, zIndex: 1 }
+                                                const isFirstDynamic = c.field !== null
+                                                    && columns.findIndex((cc) => cc.field !== null) === ci;
+                                                const sticky = isFirstDynamic
+                                                    ? { position: 'sticky' as const, left: 0, zIndex: 1 }
                                                     : undefined;
                                                 return (
                                                     <td
@@ -644,31 +661,45 @@ function GroupBucketSection({
                                     </tr>
                                 )}
                             </tbody>
-                            {aggregates.data && Object.keys(aggregates.data.totals).length > 0 && (
-                                <tfoot className="imcrm-bg-muted/40">
-                                    <tr className="imcrm-border-t imcrm-border-border">
-                                        <td
-                                            className="imcrm-w-10 imcrm-bg-muted/40"
-                                            style={{ position: 'sticky', left: 0, zIndex: 1 }}
-                                        />
-                                        {columns.map((c) => {
+                            {onFooterAggregatesChange && (
+                                <tfoot>
+                                    <tr className="imcrm-border-t imcrm-border-border/50">
+                                        <td className="imcrm-w-10" />
+                                        {columns.map((c, ci) => {
                                             const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
-                                            const sticky = c.isPrimary
-                                                ? { position: 'sticky' as const, left: 40, zIndex: 1 }
+                                            const isFirstDynamic = c.field !== null
+                                                && columns.findIndex((cc) => cc.field !== null) === ci;
+                                            const sticky = isFirstDynamic
+                                                ? { position: 'sticky' as const, left: 0, zIndex: 1 }
                                                 : undefined;
-                                            const agg = c.field !== null
-                                                ? aggregates.data!.totals[c.field.slug]
+                                            const agg = c.field !== null && aggregates.data
+                                                ? aggregates.data.totals[c.field.slug]
                                                 : undefined;
+                                            const kind = (footerAggregates ?? {})[c.id] as AggregateKind | undefined;
                                             return (
                                                 <td
                                                     key={c.id}
                                                     style={{ width: w, maxWidth: w, ...(sticky ?? {}) }}
                                                     className={cn(
-                                                        'imcrm-overflow-hidden imcrm-px-3 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground',
-                                                        sticky && 'imcrm-bg-muted/40',
+                                                        'imcrm-overflow-hidden imcrm-px-1 imcrm-py-1 imcrm-align-middle',
+                                                        sticky && 'imcrm-bg-card',
                                                     )}
                                                 >
-                                                    <BucketFooterCell field={c.field} agg={agg} />
+                                                    <FooterAggregateCell
+                                                        field={c.field}
+                                                        totalCount={total}
+                                                        agg={agg}
+                                                        kind={kind}
+                                                        onChange={(nextKind) => {
+                                                            const next = { ...(footerAggregates ?? {}) };
+                                                            if (nextKind === undefined) {
+                                                                delete next[c.id];
+                                                            } else {
+                                                                next[c.id] = nextKind;
+                                                            }
+                                                            onFooterAggregatesChange(next);
+                                                        }}
+                                                    />
                                                 </td>
                                             );
                                         })}
@@ -799,55 +830,6 @@ function formatBucketLabel(field: FieldEntity, value: string | null): string {
         return value;
     }
     return value;
-}
-
-/**
- * Render del valor agregado en el footer de un bucket. Mismas
- * reglas que `FooterAggregate` de TableView pero con renderer
- * inline (no exportable cross-file por simplicidad).
- */
-function BucketFooterCell({
-    field,
-    agg,
-}: {
-    field: FieldEntity | null;
-    agg: AggregateBag | undefined;
-}): JSX.Element | null {
-    if (field === null || agg === undefined) return null;
-
-    if (field.type === 'number' || field.type === 'currency') {
-        if (agg.sum === null || agg.sum === undefined) return null;
-        const formatted = (agg.sum as number).toLocaleString(undefined, {
-            maximumFractionDigits: field.type === 'currency' ? 2 : 4,
-            minimumFractionDigits: field.type === 'currency' ? 2 : 0,
-        });
-        return (
-            <span className="imcrm-flex imcrm-items-baseline imcrm-gap-1.5">
-                <span className="imcrm-text-[10px] imcrm-uppercase imcrm-tracking-wide">{__('Suma')}</span>
-                <span className="imcrm-font-semibold imcrm-text-foreground imcrm-tabular-nums">{formatted}</span>
-            </span>
-        );
-    }
-    if (field.type === 'checkbox') {
-        return (
-            <span className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-tabular-nums">
-                <span>✓ {agg.count_true ?? 0}</span>
-                <span>✗ {agg.count_false ?? 0}</span>
-            </span>
-        );
-    }
-    if (field.type === 'date' || field.type === 'datetime') {
-        if (! agg.min && ! agg.max) {
-            return <span className="imcrm-tabular-nums">{(agg.count ?? 0).toLocaleString()} {__('items')}</span>;
-        }
-        return (
-            <span className="imcrm-flex imcrm-flex-col imcrm-text-[10px] imcrm-tabular-nums">
-                <span>{__('Min')}: {String(agg.min ?? '—').slice(0, 10)}</span>
-                <span>{__('Max')}: {String(agg.max ?? '—').slice(0, 10)}</span>
-            </span>
-        );
-    }
-    return <span className="imcrm-tabular-nums">{(agg.count ?? 0).toLocaleString()} {__('items')}</span>;
 }
 
 export { renderCellValue };
