@@ -180,6 +180,24 @@ export function GroupedTableView({
         [fields, columnVisibility, columnOrder],
     );
 
+    // Ancho total de la tabla = checkbox + columnas dinámicas + add-col.
+    // Lo usamos para que TODOS los bucket cards compartan el mismo
+    // ancho mínimo, así un solo scroll horizontal en el wrapper exterior
+    // alinea las columnas verticalmente entre buckets (estilo ClickUp).
+    //
+    // OJO: este `useMemo` tiene que ir ANTES de los early returns
+    // (loading/error/empty) — sino React tira "more hooks rendered
+    // than previous render" cuando el estado pasa de loading a ready.
+    const tableWidth = useMemo(() => {
+        const sizing = columnSizing ?? {};
+        let total = 40; // checkbox
+        for (const c of visibleColumns) {
+            total += sizing[c.id] ?? defaultSizeForColumn(c);
+        }
+        if (onAddColumn !== undefined) total += 48; // add-col
+        return total;
+    }, [visibleColumns, columnSizing, onAddColumn]);
+
     if (groups.isLoading) {
         return (
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-6 imcrm-text-sm imcrm-text-muted-foreground">
@@ -211,20 +229,6 @@ export function GroupedTableView({
             </div>
         );
     }
-
-    // Ancho total de la tabla = checkbox + columnas dinámicas + add-col.
-    // Lo usamos para que TODOS los bucket cards compartan el mismo
-    // ancho mínimo, así un solo scroll horizontal en el wrapper exterior
-    // alinea las columnas verticalmente entre buckets (estilo ClickUp).
-    const tableWidth = useMemo(() => {
-        const sizing = columnSizing ?? {};
-        let total = 40; // checkbox
-        for (const c of visibleColumns) {
-            total += sizing[c.id] ?? defaultSizeForColumn(c);
-        }
-        if (onAddColumn !== undefined) total += 48; // add-col
-        return total;
-    }, [visibleColumns, columnSizing, onAddColumn]);
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
