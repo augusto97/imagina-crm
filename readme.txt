@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.27.2
+Stable tag: 0.27.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.27.3 =
+* Fix: tras 0.27.2 la vista agrupada quedaba en pantalla blanca
+  con `Minified React error #310` (more hooks rendered than
+  during the previous render). El `useMemo(tableWidth)` que
+  añadí en `GroupedTableView` quedó DESPUÉS de los early
+  returns (`if loading`, `if error`, `if empty`) — cuando el
+  estado pasa de loading a ready, el orden de hooks cambia y
+  React rompe. Movido al bloque de hooks de arriba, antes de
+  los returns, así siempre se ejecuta en el mismo orden. Regla
+  básica de React hooks que se me coló.
 
 = 0.27.2 =
 * **Scroll horizontal único compartido entre buckets** en la
