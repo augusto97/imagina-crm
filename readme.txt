@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.1
+Stable tag: 0.30.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,19 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.2 =
+**Fix UX**: el item del menú "Imagina CRM" ahora abre la URL
+standalone directamente, sin pantalla intermedia.
+
+* `add_menu_page` recibe la URL standalone como `menu_slug` (con
+  `://` — WP la usa como `href` directo). Antes el callback hacía
+  un `wp_safe_redirect` pero corría tarde en el ciclo del admin
+  (`headers_sent() === true`) y caía al fallback con un link
+  "Abrir Imagina CRM".
+* Backwards compat: `admin_init` redirige las URLs viejas a
+  `admin.php?page=imagina-crm` (bookmarks) hacia la URL standalone.
+  Corre antes de cualquier output del admin.
 
 = 0.30.1 =
 **UI admin para Tier 3**: panel "Mantenimiento y rendimiento" en

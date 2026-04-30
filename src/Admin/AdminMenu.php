@@ -10,59 +10,56 @@ use ImaginaCRM\Standalone\StandalonePage;
  * Registra la entrada del plugin en el menú de wp-admin.
  *
  * Desde 0.13.0 el SPA vive en una página standalone fuera de wp-admin
- * (`/imagina-crm/`) — sin chrome, sin styles bleed, más rápido. El
- * menú de WP lateral sigue existiendo como entry point familiar
- * pero el render callback ya NO monta el SPA inline; redirige al
- * usuario a la URL standalone.
+ * (`/imagina-crm/`). El menú lateral de WP es solo un launcher: el
+ * `menu_slug` que pasamos a `add_menu_page` es la URL standalone
+ * directamente — WP detecta el `://` y la usa como `href` sin
+ * intermediar por `admin.php?page=...`. Cero round-trips, cero
+ * pantalla en blanco con "click aquí".
  *
- * Razón: tener un único mental model — todos los clicks del menú
- * llevan al mismo lugar; los bookmarks viejos a admin.php?page=...
- * también, sin sorpresas de estilos rotos por wp-admin chrome.
+ * Para bookmarks viejos a `admin.php?page=imagina-crm` mantenemos
+ * un redirect defensivo en `admin_init` (corre antes de cualquier
+ * output, así `wp_safe_redirect` siempre funciona).
  */
 final class AdminMenu
 {
     public function register(): void
     {
         add_action('admin_menu', [$this, 'registerMenu']);
+        add_action('admin_init', [$this, 'maybeRedirectLegacy']);
     }
 
     public function registerMenu(): void
     {
+        // `menu_slug` con `://` → WP lo trata como link externo y no
+        // intenta resolverlo via admin.php?page=<slug>. El callback
+        // queda como no-op (nunca se ejecuta, pero `add_menu_page`
+        // requiere un callable válido).
         add_menu_page(
             __('Imagina CRM', 'imagina-crm'),
             __('Imagina CRM', 'imagina-crm'),
             Plugin::ADMIN_CAPABILITY,
-            Plugin::ADMIN_PAGE,
-            [$this, 'redirectToStandalone'],
+            StandalonePage::url(),
+            '__return_null',
             'dashicons-rest-api',
             58,
         );
     }
 
     /**
-     * Render callback de la página de wp-admin. NO renderea el SPA;
-     * redirige a la URL standalone. Si por alguna razón el redirect
-     * falla (headers ya enviados, etc.) renderea un link manual.
+     * Backwards compat para URLs viejas (`/wp-admin/admin.php?page=imagina-crm`).
+     * `admin_init` corre antes de cualquier output del admin → el
+     * redirect siempre puede setear headers.
      */
-    public function redirectToStandalone(): void
+    public function maybeRedirectLegacy(): void
     {
-        if (! current_user_can(Plugin::ADMIN_CAPABILITY)) {
-            wp_die(esc_html__('No tienes permiso para acceder a Imagina CRM.', 'imagina-crm'));
+        if (! is_admin() || ! current_user_can(Plugin::ADMIN_CAPABILITY)) {
+            return;
         }
-
-        $target = StandalonePage::url();
-
-        if (! headers_sent()) {
-            wp_safe_redirect($target);
-            exit;
+        $page = isset($_GET['page']) && is_string($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        if ($page !== Plugin::ADMIN_PAGE) {
+            return;
         }
-
-        printf(
-            '<div class="wrap"><h1>%s</h1><p>%s <a href="%s">%s</a>.</p></div>',
-            esc_html__('Imagina CRM', 'imagina-crm'),
-            esc_html__('Esta página vive ahora en una URL standalone.', 'imagina-crm'),
-            esc_url($target),
-            esc_html__('Abrir Imagina CRM', 'imagina-crm'),
-        );
+        wp_safe_redirect(StandalonePage::url());
+        exit;
     }
 }
