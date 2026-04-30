@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.29.1
+Stable tag: 0.30.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,52 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.0 =
+**Tier 3 — Big data**: tercer y último step del roadmap de
+performance. Habilita uso a 1M+ filas con búsqueda por relevancia,
+índices compuestos auto-sugeridos, y purga automática de tablas
+append-only.
+
+* **Motor de búsqueda con índice invertido propio + BM25**.
+  `src/Search/InvertedIndexEngine` mantiene dos tablas nuevas
+  (`wp_imcrm_search_tokens`, `wp_imcrm_search_documents`) — una
+  fila por (token, record) con term frequency, y una fila por record
+  con doc_length. El query engine tokeniza el `?search=`, hace
+  lookup de tokens y rankea con BM25 (k1=1.5, b=0.75). Costo
+  ~O(matched_docs * tokens_in_query) — escala linealmente con la
+  cardinalidad de matches, no con el tamaño total de la lista.
+  Listas pequeñas/medianas siguen usando LIKE (`MysqlSearchEngine`)
+  vía un flag opt-in por lista (`settings.search_index_enabled`).
+* **Indexación automática**. Push hooks en `record_created`,
+  `record_updated`, `record_deleted` mantienen el índice fresco
+  sin que el caller lo sepa. Cuando el toggle se activa para una
+  lista existente, un job de Action Scheduler reindexa en lotes
+  de 500 records (idempotente, reanudable). Re-sync periódico
+  cada 6h vía cron — defensivo contra writes que evadan los hooks
+  (SQL directo, restores parciales).
+* **Tokenizer multi-idioma**. Lowercase + ASCII fold (sin
+  acentos) + filtro de stopwords ES/EN. Tokens entre 2-64 chars.
+  Suficiente para corpus latinos; iterable a alfabetos no latinos
+  via `mb_*`.
+* **Composite Index Suggester**. `Maintenance\CompositeIndexSuggester`
+  recorre las saved views de una lista y deriva sugerencias de
+  composite indexes (multi-column). Si la vista filtra por A y
+  ordena por B → sugiere `INDEX(A, B)`. El admin decide qué aplicar
+  vía REST (cada índice cuesta storage + writes lentas, no
+  automatizamos la creación). Endpoints: `GET /lists/{id}/indexes/suggest`,
+  `POST /lists/{id}/indexes/apply`, `POST /lists/{id}/indexes/drop`.
+* **Purge automático**. `Maintenance\PurgeService` borra entradas
+  > 1 año de tres tablas append-only: `slug_history` (redirects
+  raros tras un año), `activity` (debugging útil < 1 año), y
+  `automation_runs` (logs de ejecución). Cron diario via Action
+  Scheduler en lotes de 5k filas. Configurable: retention y batch
+  size. También expuesto como endpoint ad-hoc `POST /system/maintenance/purge`.
+* **REST endpoints admin**. Nuevos: `/lists/{id}/search/{status,
+  enable, disable, reindex}` para gestionar el motor invertido
+  por lista.
+* **DB version → 6**. Las tablas nuevas se crean en activación o
+  en updates desde admin (dbDelta automático).
 
 = 0.29.1 =
 **Migración de la vista agrupada al bundle endpoint** (continuación

@@ -31,6 +31,7 @@ final class RestBootstrap
         ImportController::class,
         ExportController::class,
         AggregatesController::class,
+        SearchAdminController::class,
     ];
 
     public function __construct(private readonly Container $container)

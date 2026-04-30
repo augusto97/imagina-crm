@@ -170,6 +170,7 @@ final class QueryBuilder
         array $fields,
         QueryParams $params,
         ?array $whereOverride = null,
+        ?array $idWhitelist = null,
     ): array {
         $table     = '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';
         $columnSet = $this->columnsByName($fields);
@@ -180,6 +181,24 @@ final class QueryBuilder
             $whereArgs = $whereOverride['args'];
         } else {
             [$where, $whereArgs] = $this->buildWhere($params, $columnSet);
+        }
+
+        // Inyección de id whitelist (Tier 3 — search engine): cuando
+        // RecordService delegó el search a InvertedIndexEngine, la
+        // lista de ids matcheables se inyecta acá como `id IN (...)`.
+        // Reemplaza al LIKE que hubiera generado buildWhere.
+        if ($idWhitelist !== null) {
+            if ($idWhitelist === []) {
+                // Ninguna fila matchea — short-circuit limpio.
+                $where     = ($where === '' ? 'WHERE 1=0' : $where . ' AND 1=0');
+            } else {
+                $idPlaceholders = implode(', ', array_fill(0, count($idWhitelist), '%d'));
+                $clause         = "id IN ({$idPlaceholders})";
+                $where          = ($where === '' ? "WHERE {$clause}" : "{$where} AND {$clause}");
+                foreach ($idWhitelist as $id) {
+                    $whereArgs[] = (int) $id;
+                }
+            }
         }
 
         $sql      = "SELECT {$select} FROM {$table} {$where}";
