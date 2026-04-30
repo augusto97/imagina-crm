@@ -9,6 +9,7 @@ import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
 import { useRecord, useRecords } from '@/hooks/useRecords';
 import { useSavedViews } from '@/hooks/useSavedViews';
+import { clientSideSearch } from '@/lib/clientSearch';
 import { __, sprintf } from '@/lib/i18n';
 import type { RecordEntity } from '@/types/record';
 import type { SavedViewEntity } from '@/types/view';
@@ -54,13 +55,51 @@ export function RecordsPage(): JSX.Element {
     // Para Kanban y Calendar traemos hasta 500 registros (el back-end
     // limita el máximo per_page; 500 cubre la mayoría de tableros y
     // calendarios mensuales sin paginar).
-    // Debounce del search input: el state visible (state.search) se
-    // actualiza instantáneo para que el Input sea responsivo, pero la
-    // query solo se dispara 300ms después del último keystroke. Sin
-    // esto, escribir "carlos" disparaba 6 requests y el user veía
-    // resultados parpadeantes (cada uno tarda ~200ms en LIKE).
-    const debouncedSearch = useDebouncedValue(state.search, 300);
-    const query = useMemo(() => {
+    // Debounce del search input: state.search es responsivo (lo que
+    // se ve en el Input), pero la query al server solo se rebuilda
+    // 200ms después del último keystroke. Bajo para listas grandes;
+    // listas chicas saltan el server entero (ver client-side abajo).
+    const debouncedSearch = useDebouncedValue(state.search, 200);
+
+    // Estrategia de búsqueda en dos modos según el tamaño de la lista:
+    //
+    //  - **Lista chica** (total <= per_page; ~30-50 registros): un
+    //    solo fetch sin search trae TODO. Cualquier búsqueda se
+    //    resuelve in-memory en <1ms — sin round-trip al server, sin
+    //    overhead de WP bootstrap (~150ms) ni network RTT (~50ms).
+    //    Para listas chicas el cuello de botella era el round-trip,
+    //    no la query SQL — saltarlo lo elimina.
+    //
+    //  - **Lista grande** (total > per_page): mantenemos la búsqueda
+    //    server-side con debounce — el filtrado in-memory cargaría
+    //    miles de records al browser y filtrar por LIKE en JS no
+    //    aprovecha índices.
+    //
+    // El "baseQuery" siempre fetchea SIN search para conocer el
+    // total. Si total <= per_page, el dataset completo está en
+    // baseRecords y filtramos client-side. Si no, disparamos un
+    // searchQuery server-side aparte (solo cuando hay search activo).
+    const baseQuery = useMemo(() => {
+        const base = buildRecordsQuery({ ...state, search: '' });
+        if (activeViewId !== null) {
+            const v = views.data?.find((x) => x.id === activeViewId);
+            if (v?.type === 'kanban' || v?.type === 'calendar') {
+                return { ...base, per_page: 500, page: 1 };
+            }
+        }
+        return base;
+    }, [state, activeViewId, views.data]);
+
+    const baseRecords = useRecords(list.data?.id, baseQuery);
+
+    const isSmallList = baseRecords.data
+        ? baseRecords.data.meta.total <= baseRecords.data.meta.per_page
+        : false;
+
+    const hasSearch = state.search.trim() !== '';
+    const useServerSearch = hasSearch && ! isSmallList;
+
+    const serverSearchQuery = useMemo(() => {
         const base = buildRecordsQuery({ ...state, search: debouncedSearch });
         if (activeViewId !== null) {
             const v = views.data?.find((x) => x.id === activeViewId);
@@ -70,7 +109,28 @@ export function RecordsPage(): JSX.Element {
         }
         return base;
     }, [state, debouncedSearch, activeViewId, views.data]);
-    const records = useRecords(list.data?.id, query);
+
+    const serverSearch = useRecords(
+        useServerSearch ? list.data?.id : undefined,
+        serverSearchQuery,
+    );
+
+    // Records efectivos que ven todos los consumidores (vistas, paginación, etc.).
+    const records = useMemo(() => {
+        if (! hasSearch) return baseRecords;
+        if (isSmallList && baseRecords.data && fields.data) {
+            const filtered = clientSideSearch(baseRecords.data.data, state.search, fields.data);
+            return {
+                ...baseRecords,
+                data: {
+                    ...baseRecords.data,
+                    data: filtered,
+                    meta: { ...baseRecords.data.meta, total: filtered.length },
+                },
+            };
+        }
+        return serverSearch;
+    }, [hasSearch, isSmallList, baseRecords, serverSearch, state.search, fields.data]);
     const [createOpen, setCreateOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [saveViewOpen, setSaveViewOpen] = useState(false);

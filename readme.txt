@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.7
+Stable tag: 0.30.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,28 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.8 =
+**Búsqueda instantánea para listas chicas (client-side filter).**
+
+Para 30 registros, el cuello de botella NO era la query SQL (~2ms)
+sino el round-trip completo: WordPress bootstrap (~100-150ms) +
+network RTT (~50-100ms) + auth + REST routing. Cada keystroke
+pagaba ~150-300ms de overhead constante, independiente del tamaño
+de la lista.
+
+* **Modo dual auto-detectado**:
+    - Lista chica (total ≤ per_page): un solo fetch trae TODO sin
+      search. Cualquier búsqueda subsiguiente filtra in-memory en
+      <1ms — sin red, sin overhead. Instantáneo al tipear.
+    - Lista grande: mantiene búsqueda server-side con índice
+      invertido (si está activado) o LIKE.
+* **Helper `clientSideSearch`** que tokeniza igual que el backend
+  (lowercase + ASCII fold + split alfanumérico) y aplica AND-mode
+  sobre los campos searchables (text, long_text, email, url).
+  Soporta acentos: "carlos" matchea "Cárlos".
+* **Debounce bajado** de 300ms → 200ms para listas grandes (donde
+  sí hay round-trip).
 
 = 0.30.7 =
 **Search reactivo + fix grouped view + spinner inline.**
