@@ -112,6 +112,7 @@ return array(
     'ImaginaCRM\\Records\\RecordRepository' => $baseDir . '/src/Records/RecordRepository.php',
     'ImaginaCRM\\Records\\RecordService' => $baseDir . '/src/Records/RecordService.php',
     'ImaginaCRM\\Records\\RecordValidator' => $baseDir . '/src/Records/RecordValidator.php',
+    'ImaginaCRM\\Records\\RecordsETag' => $baseDir . '/src/Records/RecordsETag.php',
     'ImaginaCRM\\Records\\RelationRepository' => $baseDir . '/src/Records/RelationRepository.php',
     'ImaginaCRM\\Records\\RelativeDateRange' => $baseDir . '/src/Records/RelativeDateRange.php',
     'ImaginaCRM\\Recurrences\\DateRoller' => $baseDir . '/src/Recurrences/DateRoller.php',

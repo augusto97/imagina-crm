@@ -127,6 +127,7 @@ class ComposerStaticInit5b28592399c39b53b7f6f395f4c2e28a
         'ImaginaCRM\\Records\\RecordRepository' => __DIR__ . '/../..' . '/src/Records/RecordRepository.php',
         'ImaginaCRM\\Records\\RecordService' => __DIR__ . '/../..' . '/src/Records/RecordService.php',
         'ImaginaCRM\\Records\\RecordValidator' => __DIR__ . '/../..' . '/src/Records/RecordValidator.php',
+        'ImaginaCRM\\Records\\RecordsETag' => __DIR__ . '/../..' . '/src/Records/RecordsETag.php',
         'ImaginaCRM\\Records\\RelationRepository' => __DIR__ . '/../..' . '/src/Records/RelationRepository.php',
         'ImaginaCRM\\Records\\RelativeDateRange' => __DIR__ . '/../..' . '/src/Records/RelativeDateRange.php',
         'ImaginaCRM\\Recurrences\\DateRoller' => __DIR__ . '/../..' . '/src/Recurrences/DateRoller.php',

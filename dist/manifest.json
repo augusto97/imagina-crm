@@ -1,20 +1,20 @@
 {
-  "_AutomationsPage-aswJUAoh.js": {
-    "file": "assets/AutomationsPage-aswJUAoh.js",
+  "_AutomationsPage-WIHzMwlN.js": {
+    "file": "assets/AutomationsPage-WIHzMwlN.js",
     "name": "AutomationsPage",
     "isDynamicEntry": true,
     "imports": [
       "_main-LDBBxV2y.js",
       "app/main.tsx",
-      "_triangle-alert-Bw4PsTeB.js",
-      "_useEmailSignature-LwELRhIe.js"
+      "_triangle-alert-CyN3KNJi.js",
+      "_useEmailSignature-CuhrBOTP.js"
     ],
     "dynamicImports": [
       "app/admin/automations/AutomationVisualBuilder.tsx"
     ]
   },
-  "_card-CfLuXwC-.js": {
-    "file": "assets/card-CfLuXwC-.js",
+  "_card-DvupoClH.js": {
+    "file": "assets/card-DvupoClH.js",
     "name": "card",
     "imports": [
       "_main-LDBBxV2y.js",
@@ -25,15 +25,15 @@
     "file": "assets/main-LDBBxV2y.js",
     "name": "main"
   },
-  "_triangle-alert-Bw4PsTeB.js": {
-    "file": "assets/triangle-alert-Bw4PsTeB.js",
+  "_triangle-alert-CyN3KNJi.js": {
+    "file": "assets/triangle-alert-CyN3KNJi.js",
     "name": "triangle-alert",
     "imports": [
       "app/main.tsx"
     ]
   },
-  "_useEmailSignature-LwELRhIe.js": {
-    "file": "assets/useEmailSignature-LwELRhIe.js",
+  "_useEmailSignature-CuhrBOTP.js": {
+    "file": "assets/useEmailSignature-CuhrBOTP.js",
     "name": "useEmailSignature",
     "imports": [
       "app/main.tsx",
@@ -41,23 +41,23 @@
     ]
   },
   "app/admin/automations/AutomationVisualBuilder.tsx": {
-    "file": "assets/AutomationVisualBuilder-iRjEEdnl.js",
+    "file": "assets/AutomationVisualBuilder-DSnJwvlK.js",
     "name": "AutomationVisualBuilder",
     "src": "app/admin/automations/AutomationVisualBuilder.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_main-LDBBxV2y.js",
-      "_AutomationsPage-aswJUAoh.js",
+      "_AutomationsPage-WIHzMwlN.js",
       "app/main.tsx",
-      "_triangle-alert-Bw4PsTeB.js",
-      "_useEmailSignature-LwELRhIe.js"
+      "_triangle-alert-CyN3KNJi.js",
+      "_useEmailSignature-CuhrBOTP.js"
     ],
     "css": [
       "assets/AutomationVisualBuilder-BZV40eAE.css"
     ]
   },
   "app/admin/dashboards/DashboardGrid.tsx": {
-    "file": "assets/DashboardGrid-u0Yb8Oq6.js",
+    "file": "assets/DashboardGrid-rWqtLN4i.js",
     "name": "DashboardGrid",
     "src": "app/admin/dashboards/DashboardGrid.tsx",
     "isDynamicEntry": true,
@@ -70,55 +70,55 @@
     ]
   },
   "app/admin/dashboards/DashboardPage.tsx": {
-    "file": "assets/DashboardPage-Bq3vLLEn.js",
+    "file": "assets/DashboardPage-DL51CAKc.js",
     "name": "DashboardPage",
     "src": "app/admin/dashboards/DashboardPage.tsx",
     "isDynamicEntry": true,
     "imports": [
       "app/main.tsx",
       "_main-LDBBxV2y.js",
-      "_triangle-alert-Bw4PsTeB.js"
+      "_triangle-alert-CyN3KNJi.js"
     ],
     "dynamicImports": [
       "app/admin/dashboards/DashboardGrid.tsx"
     ]
   },
   "app/admin/dashboards/DashboardsIndexPage.tsx": {
-    "file": "assets/DashboardsIndexPage-DGJ6UDIz.js",
+    "file": "assets/DashboardsIndexPage-BOU06_wQ.js",
     "name": "DashboardsIndexPage",
     "src": "app/admin/dashboards/DashboardsIndexPage.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_main-LDBBxV2y.js",
       "app/main.tsx",
-      "_card-CfLuXwC-.js"
+      "_card-DvupoClH.js"
     ]
   },
   "app/admin/lists/ListBuilderPage.tsx": {
-    "file": "assets/ListBuilderPage-Ct3HvNBJ.js",
+    "file": "assets/ListBuilderPage-bkfDFGoZ.js",
     "name": "ListBuilderPage",
     "src": "app/admin/lists/ListBuilderPage.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_main-LDBBxV2y.js",
       "app/main.tsx",
-      "_card-CfLuXwC-.js"
+      "_card-DvupoClH.js"
     ]
   },
   "app/admin/settings/SettingsPage.tsx": {
-    "file": "assets/SettingsPage-DOOmScsX.js",
+    "file": "assets/SettingsPage-BRXpvclD.js",
     "name": "SettingsPage",
     "src": "app/admin/settings/SettingsPage.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_main-LDBBxV2y.js",
       "app/main.tsx",
-      "_useEmailSignature-LwELRhIe.js",
-      "_card-CfLuXwC-.js"
+      "_useEmailSignature-CuhrBOTP.js",
+      "_card-DvupoClH.js"
     ]
   },
   "app/main.tsx": {
-    "file": "assets/main-DwedAdvE.js",
+    "file": "assets/main-Bc5DwbVF.js",
     "name": "main",
     "src": "app/main.tsx",
     "isEntry": true,
@@ -127,7 +127,7 @@
     ],
     "dynamicImports": [
       "app/admin/lists/ListBuilderPage.tsx",
-      "_AutomationsPage-aswJUAoh.js",
+      "_AutomationsPage-WIHzMwlN.js",
       "app/admin/dashboards/DashboardsIndexPage.tsx",
       "app/admin/dashboards/DashboardPage.tsx",
       "app/admin/settings/SettingsPage.tsx"

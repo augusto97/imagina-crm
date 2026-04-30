@@ -52,6 +52,7 @@ final class RecordService
         int $page,
         int $perPage,
         ?array $filterTree = null,
+        ?int $cursor = null,
     ): array|ValidationResult {
         $listFields = $this->fields->allForList($list->id);
 
@@ -68,6 +69,7 @@ final class RecordService
             $page,
             $perPage,
             includeDeleted: false,
+            cursor: $cursor,
         );
 
         if ($params instanceof ValidationResult) {
@@ -110,6 +112,16 @@ final class RecordService
         $hydrated = $this->attachRelations($listFields, $hydrated);
 
         $total = $result['total'];
+        // Para keyset (cursor activo): el "next cursor" es el id del
+        // último record devuelto. Si la página vino llena y hay más
+        // que ese id, el cliente lo usa para pedir la siguiente.
+        $nextCursor = null;
+        if ($params->cursor !== null && count($hydrated) === $params->perPage) {
+            $last = end($hydrated);
+            if (is_array($last) && isset($last['id'])) {
+                $nextCursor = (int) $last['id'];
+            }
+        }
         return [
             'data' => $hydrated,
             'meta' => [
@@ -117,6 +129,10 @@ final class RecordService
                 'per_page'    => $params->perPage,
                 'total'       => $total,
                 'total_pages' => $params->perPage > 0 ? (int) ceil($total / $params->perPage) : 1,
+                // Cuando keyset está activo, el cliente paginará via
+                // cursor en lugar de page. `next_cursor=null` indica
+                // fin de stream.
+                'next_cursor' => $nextCursor,
             ],
         ];
     }

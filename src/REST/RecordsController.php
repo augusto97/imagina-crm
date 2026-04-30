@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Records\RecordAggregator;
+use ImaginaCRM\Records\RecordsETag;
 use ImaginaCRM\Records\RecordService;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
@@ -23,6 +25,8 @@ final class RecordsController extends AbstractController
     public function __construct(
         private readonly RecordService $service,
         private readonly ListService $lists,
+        private readonly RecordsETag $etag,
+        private readonly RecordAggregator $aggregator,
     ) {
         parent::__construct();
     }
@@ -53,6 +57,16 @@ final class RecordsController extends AbstractController
         register_rest_route($this->namespace, '/' . $base . '/groups', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'getGroups'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+        ]);
+
+        // Bundle endpoint para vista agrupada — devuelve buckets +
+        // records expandidos + aggregates en una sola respuesta. Antes
+        // GroupedTableView necesitaba 1 + N + N requests (groups +
+        // records-per-bucket + aggregates-per-bucket); ahora 1.
+        register_rest_route($this->namespace, '/' . $base . '/grouped-bundle', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [$this, 'getGroupedBundle'],
             'permission_callback' => [$this, 'checkAdminPermissions'],
         ]);
 
@@ -95,12 +109,48 @@ final class RecordsController extends AbstractController
         $sort = $this->parseSort($request->get_param('sort'));
         $proj = $this->parseFields($request->get_param('fields'));
 
-        $result = $this->service->list($list, $filters, $sort, $proj, $search, $page, $perPage, $filterTree);
+        // Cursor opt-in (keyset pagination). Cuando el cliente lo
+        // manda y no hay sort custom, el QueryBuilder usa
+        // `WHERE id < cursor` — costo constante a cualquier
+        // profundidad (vs OFFSET que degrada lineal con la página).
+        $cursor = $request->get_param('cursor');
+        $cursor = is_numeric($cursor) ? (int) $cursor : null;
+
+        // ETag: hash determinístico de (versionDeLaLista, queryParams).
+        // Si el `If-None-Match` del request matchea, retornamos 304
+        // sin ejecutar el query — ahorra serialización JSON y todo el
+        // hydration. La versión se bumpea en cada record_* / import_*
+        // / field_* hook, así que un cliente con cache puede confiar
+        // en el ETag.
+        $etagContext = [
+            'filter'      => $filters,
+            'filter_tree' => $filterTree,
+            'sort'        => $sort,
+            'fields'      => $proj,
+            'search'      => $search,
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'cursor'      => $cursor,
+        ];
+        $etag = $this->etag->compute($list->id, $etagContext);
+        $etagHeader = '"' . $etag . '"';
+        $ifNoneMatch = $request->get_header('if_none_match');
+        if (is_string($ifNoneMatch) && trim($ifNoneMatch) === $etagHeader) {
+            $resp = new WP_REST_Response(null, 304);
+            $resp->header('ETag', $etagHeader);
+            $resp->header('Cache-Control', 'private, must-revalidate');
+            return $resp;
+        }
+
+        $result = $this->service->list($list, $filters, $sort, $proj, $search, $page, $perPage, $filterTree, $cursor);
         if ($result instanceof ValidationResult) {
             return $this->validationError($result);
         }
 
-        return new WP_REST_Response($result);
+        $response = new WP_REST_Response($result);
+        $response->header('ETag', $etagHeader);
+        $response->header('Cache-Control', 'private, must-revalidate');
+        return $response;
     }
 
     /**
@@ -231,6 +281,202 @@ final class RecordsController extends AbstractController
         }
 
         return new WP_REST_Response($result);
+    }
+
+    /**
+     * Bundle endpoint: una sola request retorna (buckets + counts) +
+     * (records de cada bucket expandido) + (aggregates de cada bucket
+     * expandido). Antes la vista agrupada necesitaba 1 + N + N
+     * requests; ahora 1.
+     *
+     * Query params:
+     *   - `group_by`: field id por el que se agrupa (requerido).
+     *   - `filter_tree`: filtro base (igual shape que /records).
+     *   - `expanded[]`: bucket values que el cliente tiene abiertos
+     *     (NULL como string `__null__`). Para cada uno trae records
+     *     y aggregates. Buckets no listados solo retornan count.
+     *   - `per_page`: records por bucket (default 50, max 500).
+     *   - `aggregate_fields`: CSV de field IDs a sumar/avg en cada
+     *     bucket. Vacío = skip aggregates.
+     *   - `search`: búsqueda fulltext aplicada al filtro base.
+     */
+    public function getGroupedBundle(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
+        if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+
+        $groupBy = (int) $request->get_param('group_by');
+        if ($groupBy <= 0) {
+            return new WP_Error(
+                'imcrm_bad_group_by',
+                __('Falta el parámetro group_by con el id del campo.', 'imagina-crm'),
+                ['status' => 400],
+            );
+        }
+
+        $filters    = $request->get_param('filter');
+        $filters    = is_array($filters) ? $filters : [];
+        $filterTree = $this->parseFilterTree($request->get_param('filter_tree'));
+        $search     = $request->get_param('search');
+        $search     = is_string($search) ? $search : null;
+
+        // Buckets expandidos. Los pasa el cliente como repeats:
+        // `expanded[]=al_dia&expanded[]=__null__`. WP REST acepta
+        // tanto array como CSV; normalizamos.
+        $rawExpanded = $request->get_param('expanded');
+        $expanded = [];
+        if (is_array($rawExpanded)) {
+            foreach ($rawExpanded as $v) {
+                $expanded[] = is_string($v) && $v !== '' ? $v : null;
+            }
+        } elseif (is_string($rawExpanded) && $rawExpanded !== '') {
+            foreach (explode(',', $rawExpanded) as $v) {
+                $v = trim($v);
+                $expanded[] = $v === '' ? null : $v;
+            }
+        }
+        // Cap defensivo — el front solo expande lo visible, pero
+        // un cliente abusivo podría pedir todos los buckets.
+        if (count($expanded) > 50) {
+            $expanded = array_slice($expanded, 0, 50);
+        }
+
+        $perPage = max(1, min(500, (int) ($request->get_param('per_page') ?? 50)));
+
+        $rawFields = $request->get_param('aggregate_fields');
+        $aggregateFieldIds = [];
+        if (is_string($rawFields) && $rawFields !== '') {
+            $aggregateFieldIds = array_values(array_filter(
+                array_map('intval', explode(',', $rawFields)),
+                static fn (int $id): bool => $id > 0,
+            ));
+        }
+
+        // 1) Buckets meta (count por valor).
+        $groupsResult = $this->service->groups($list, $groupBy, $filters, $search, $filterTree);
+        if ($groupsResult instanceof ValidationResult) {
+            return $this->validationError($groupsResult);
+        }
+
+        // 2) Para cada bucket en `expanded`, traer records + aggregates.
+        // Reutiliza RecordService::list y RecordAggregator (ambos ya
+        // existen y están testeados). Construimos el filter_tree
+        // compuesto: árbol base + condición del bucket bajo AND.
+        $expandedData = [];
+        $groupByField = $this->findFieldInGroups($groupsResult, $groupBy);
+        if ($groupByField !== null) {
+            foreach ($expanded as $bucketValue) {
+                $key = $bucketValue ?? '__null__';
+                $bucketTree = $this->composeBucketFilterTree(
+                    $filterTree,
+                    $groupBy,
+                    $groupByField['type'] ?? 'select',
+                    $bucketValue,
+                );
+                $records = $this->service->list(
+                    $list,
+                    [],
+                    [],
+                    [],
+                    null,
+                    1,
+                    $perPage,
+                    $bucketTree,
+                );
+                if ($records instanceof ValidationResult) {
+                    continue;
+                }
+                $bucketEntry = ['records' => $records];
+                if ($aggregateFieldIds !== []) {
+                    $bucketEntry['aggregates'] = $this->aggregator->aggregate(
+                        $list,
+                        $aggregateFieldIds,
+                        $bucketTree,
+                    );
+                }
+                $expandedData[$key] = $bucketEntry;
+            }
+        }
+
+        return new WP_REST_Response([
+            'data' => [
+                'buckets'  => $groupsResult['data'] ?? [],
+                'meta'     => $groupsResult['meta'] ?? [],
+                'expanded' => $expandedData,
+            ],
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $groupsResult
+     * @return array<string, mixed>|null
+     */
+    private function findFieldInGroups(array $groupsResult, int $groupByFieldId): ?array
+    {
+        $meta = $groupsResult['meta'] ?? null;
+        if (! is_array($meta)) {
+            return null;
+        }
+        // `groups` retorna meta con shape `{group_by_field_id, group_by_slug, group_by_type, ...}`.
+        if ((int) ($meta['group_by_field_id'] ?? 0) !== $groupByFieldId) {
+            return null;
+        }
+        return [
+            'id'   => $groupByFieldId,
+            'slug' => (string) ($meta['group_by_slug'] ?? ''),
+            'type' => (string) ($meta['group_by_type'] ?? 'select'),
+        ];
+    }
+
+    /**
+     * Compone el filter_tree del bucket: árbol base AND condición
+     * `groupByField op bucketValue`. Para multi_select usamos
+     * `contains`; para los demás `eq`. NULL → `is_null`.
+     *
+     * @param array<string, mixed>|null $baseTree
+     * @return array<string, mixed>
+     */
+    private function composeBucketFilterTree(
+        ?array $baseTree,
+        int $groupByFieldId,
+        string $groupByType,
+        ?string $bucketValue,
+    ): array {
+        $condition = [
+            'type'     => 'condition',
+            'field_id' => $groupByFieldId,
+            'op'       => $bucketValue === null
+                ? 'is_null'
+                : ($groupByType === 'multi_select' ? 'contains' : 'eq'),
+            'value'    => $bucketValue ?? true,
+        ];
+        if (! is_array($baseTree) || ($baseTree['type'] ?? '') !== 'group') {
+            return [
+                'type'     => 'group',
+                'logic'    => 'and',
+                'children' => [$condition],
+            ];
+        }
+        $logic = strtolower((string) ($baseTree['logic'] ?? 'and'));
+        if ($logic === 'and') {
+            $children = isset($baseTree['children']) && is_array($baseTree['children'])
+                ? $baseTree['children']
+                : [];
+            return [
+                'type'     => 'group',
+                'logic'    => 'and',
+                'children' => array_merge([$condition], $children),
+            ];
+        }
+        // Tree con OR root: envolvemos para que `bucket AND (existing
+        // OR tree)`.
+        return [
+            'type'     => 'group',
+            'logic'    => 'and',
+            'children' => [$condition, $baseTree],
+        ];
     }
 
     public function bulk(WP_REST_Request $request): WP_REST_Response|WP_Error

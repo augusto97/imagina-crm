@@ -200,6 +200,11 @@ final class Plugin
             );
         });
 
+        // RecordsETag — versión por lista para 304 Not Modified.
+        $this->container->bind(\ImaginaCRM\Records\RecordsETag::class, static function (): \ImaginaCRM\Records\RecordsETag {
+            return new \ImaginaCRM\Records\RecordsETag();
+        });
+
         // Saved Views.
         $this->container->bind(SavedViewRepository::class, static function (Container $c): SavedViewRepository {
             return new SavedViewRepository($c->get(Database::class));
@@ -373,6 +378,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Lists\ListRepository::class),
                 $c->get(FieldRepository::class),
                 $c->get(QueryBuilder::class),
+                $c->get(\ImaginaCRM\Records\RecordsETag::class),
             );
         });
 
@@ -448,6 +454,14 @@ final class Plugin
         $cache = $this->container->get(\ImaginaCRM\Support\Cache::class);
         if ($cache instanceof \ImaginaCRM\Support\Cache) {
             $cache->registerInvalidationHooks();
+        }
+
+        // Records ETag versioning: bumpea la versión de la lista en
+        // cada record_*/import_finished/field_* hook para que los
+        // 304 Not Modified sean correctos en GET /records.
+        $etag = $this->container->get(\ImaginaCRM\Records\RecordsETag::class);
+        if ($etag instanceof \ImaginaCRM\Records\RecordsETag) {
+            $etag->registerInvalidationHooks();
         }
 
         // REST se registra siempre (admin + frontend pueden consumirlo).
