@@ -43,6 +43,13 @@ export interface RecordsState {
     /** Anchura por column id en px (resizing). Si la key no existe,
      * usa el `size` default de la columna. */
     columnSizing: Record<string, number>;
+    /**
+     * Orden custom de columnas (TanStack convention): array de column
+     * ids en el orden visual deseado. Si está vacío, usa el orden
+     * default (`field.position`). Se modifica con drag-and-drop sobre
+     * los headers de la tabla.
+     */
+    columnOrder: string[];
     /** Field id por el que se agrupa la table view (ClickUp-style).
      * `null` = vista plana. */
     groupByFieldId: number | null;
@@ -58,6 +65,7 @@ export const INITIAL_STATE: RecordsState = {
     search: '',
     columnVisibility: {},
     columnSizing: {},
+    columnOrder: [],
     groupByFieldId: null,
 };
 

@@ -104,7 +104,7 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
                 >
                     <button
                         type="button"
-                        className="imcrm-w-full imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40"
+                        className="imcrm-block imcrm-w-full imcrm-truncate imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40"
                         title={__('Editar fecha y recurrencia')}
                     >
                         {renderCellValue(field, value)}
@@ -113,13 +113,18 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
             );
         }
 
+        // `imcrm-truncate` (overflow-hidden + nowrap + text-overflow:
+        // ellipsis) recorta el contenido cuando supera el ancho de la
+        // columna — sin esto, long_text/multi_select largos se metían
+        // visualmente sobre las celdas vecinas. El user usa el drawer
+        // de detalle para ver/editar el contenido completo.
         return (
             <button
                 type="button"
                 onDoubleClick={startEdit}
                 disabled={!canEdit}
                 className={cn(
-                    'imcrm-w-full imcrm-text-left imcrm-min-h-[1.5rem]',
+                    'imcrm-block imcrm-w-full imcrm-truncate imcrm-text-left imcrm-min-h-[1.5rem]',
                     canEdit && 'hover:imcrm-bg-accent/40 imcrm-rounded imcrm--mx-1 imcrm-px-1',
                     !canEdit && 'imcrm-cursor-default',
                 )}

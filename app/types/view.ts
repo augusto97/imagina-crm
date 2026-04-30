@@ -10,6 +10,13 @@ export interface SavedViewConfig {
      * drag del resizer. Excel-style. */
     column_widths?: Record<string, number>;
     /**
+     * Orden custom de columnas (TanStack convention): array de column
+     * ids en el orden visual deseado. Persistido cuando el usuario
+     * hace drag-and-drop sobre los headers. Si está vacío / ausente,
+     * se usa el orden default (`field.position`).
+     */
+    column_order?: string[];
+    /**
      * Forma legacy plana: `[{field_id, op, value}, ...]`. Solo se
      * usaba cuando los filtros eran AND plano. Se mantiene como
      * espejo opcional cuando `filter_tree` es AND plano para

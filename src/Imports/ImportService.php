@@ -205,23 +205,28 @@ final class ImportService
                     continue;
                 }
                 $rawCell = $row[$colIdx] ?? '';
-                $values[$slug] = $this->coerceCellValue($rawCell, $bySlug[$slug]);
+                $coerced = $this->coerceCellValue($rawCell, $bySlug[$slug]);
+                // Celdas vacías se OMITEN del payload — no se mandan
+                // como null. Eso permite que un campo `is_required` no
+                // rebote contra filas individuales que lo traen vacío:
+                // el validator corre en modo `partial:true` (típico de
+                // bulk import), así que la AUSENCIA del slug se acepta;
+                // un null EXPLÍCITO sí rebotaría. Si la columna está
+                // vacía en TODAS las filas, ningún registro la setea
+                // y queda nullable en SQL — el user la rellena después.
+                if ($coerced === null || $coerced === '' || $coerced === []) {
+                    continue;
+                }
+                $values[$slug] = $coerced;
             }
 
             // Fila completamente vacía → skip silencioso, no es un error.
-            $allEmpty = true;
-            foreach ($values as $v) {
-                if ($v !== null && $v !== '' && $v !== []) {
-                    $allEmpty = false;
-                    break;
-                }
-            }
-            if ($allEmpty) {
+            if ($values === []) {
                 $skipped++;
                 continue;
             }
 
-            $result = $this->records->create($list, $values);
+            $result = $this->records->create($list, $values, partial: true);
             if ($result instanceof ValidationResult) {
                 $errors[] = [
                     'row'     => $rowNumber,

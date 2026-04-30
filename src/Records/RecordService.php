@@ -250,15 +250,22 @@ final class RecordService
     }
 
     /**
+     * `$partial` es para imports bulk: cuando es true, los campos
+     * `is_required` que no estén en `$values` no rebotan la
+     * validación. Eso deja que filas con celdas vacías en columnas
+     * obligatorias se inserten igual con NULL en SQL — todas las
+     * columnas dinámicas son nullable a nivel schema. El usuario
+     * llena los faltantes después en la UI.
+     *
      * @param array<string, mixed> $values [slug => value]
      *
      * @return array<string, mixed>|ValidationResult
      */
-    public function create(ListEntity $list, array $values): array|ValidationResult
+    public function create(ListEntity $list, array $values, bool $partial = false): array|ValidationResult
     {
         $listFields = $this->fields->allForList($list->id);
 
-        $validation = $this->validator->validate($listFields, $values, partial: false);
+        $validation = $this->validator->validate($listFields, $values, partial: $partial);
         if (! $validation->isValid()) {
             return $validation;
         }

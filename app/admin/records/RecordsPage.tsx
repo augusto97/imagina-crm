@@ -375,6 +375,10 @@ export function RecordsPage(): JSX.Element {
                             onColumnSizingChange={(next) =>
                                 setState((s) => ({ ...s, columnSizing: next }))
                             }
+                            columnOrder={state.columnOrder}
+                            onColumnOrderChange={(next) =>
+                                setState((s) => ({ ...s, columnOrder: next }))
+                            }
                         />
                     )}
 

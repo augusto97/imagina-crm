@@ -1,13 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
     flexRender,
     getCoreRowModel,
     useReactTable,
     type ColumnDef,
+    type ColumnOrderState,
     type ColumnSizingState,
     type VisibilityState,
 } from '@tanstack/react-table';
-import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, KeyRound } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical, Inbox, KeyRound } from 'lucide-react';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { __, sprintf } from '@/lib/i18n';
@@ -34,6 +35,13 @@ interface TableViewProps {
     /** Anchuras de columnas en px (resizable). */
     columnSizing: ColumnSizingState;
     onColumnSizingChange: (next: ColumnSizingState) => void;
+    /**
+     * Orden custom de columnas (TanStack convention): array de column ids.
+     * Cuando está vacío usa el orden default (field.position).
+     * Se actualiza con drag-and-drop sobre los headers.
+     */
+    columnOrder: ColumnOrderState;
+    onColumnOrderChange: (next: ColumnOrderState) => void;
 }
 
 /**
@@ -59,8 +67,16 @@ export function TableView({
     onColumnVisibilityChange,
     columnSizing,
     onColumnSizingChange,
+    columnOrder,
+    onColumnOrderChange,
 }: TableViewProps): JSX.Element {
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+    // Drag-and-drop column reorder: trackeamos qué column está siendo
+    // arrastrada en local state (no persiste). Al drop, computamos el
+    // nuevo orden y se lo pasamos al parent vía `onColumnOrderChange`.
+    const [draggingColId, setDraggingColId] = useState<string | null>(null);
+    const [overColId, setOverColId] = useState<string | null>(null);
 
     const allVisibleSelected =
         records.length > 0 && records.every((r) => selectedSet.has(r.id));
@@ -154,6 +170,7 @@ export function TableView({
         state: {
             columnVisibility,
             columnSizing,
+            columnOrder,
         },
         onColumnVisibilityChange: (updater) => {
             const next = typeof updater === 'function' ? updater(columnVisibility) : updater;
@@ -163,7 +180,34 @@ export function TableView({
             const next = typeof updater === 'function' ? updater(columnSizing) : updater;
             onColumnSizingChange(next);
         },
+        onColumnOrderChange: (updater) => {
+            const next = typeof updater === 'function' ? updater(columnOrder) : updater;
+            onColumnOrderChange(next);
+        },
     });
+
+    /**
+     * Reordena `columnOrder` insertando `dragged` justo antes de
+     * `target`. Si el `columnOrder` está vacío, lo derivamos del
+     * orden actual de columnas (necesario para el primer drag — sin
+     * esto, persistiríamos solo dos columnas y el resto quedaría al
+     * principio en el orden default).
+     */
+    const reorderColumns = (dragged: string, target: string): void => {
+        if (dragged === target) return;
+        const currentOrder = columnOrder.length > 0
+            ? [...columnOrder]
+            : table.getAllLeafColumns().map((c) => c.id);
+        const fromIdx = currentOrder.indexOf(dragged);
+        const toIdx   = currentOrder.indexOf(target);
+        if (fromIdx < 0 || toIdx < 0) return;
+        currentOrder.splice(fromIdx, 1);
+        // Si `dragged` estaba antes de `target`, los índices se
+        // recalculan: insertamos en el `toIdx` original ajustado.
+        const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+        currentOrder.splice(insertAt, 0, dragged);
+        onColumnOrderChange(currentOrder);
+    };
 
     return (
         <div
@@ -202,6 +246,10 @@ export function TableView({
                                 const sortDir = sortIndex >= 0 ? sort[sortIndex]?.dir : null;
                                 const ariaSort: 'ascending' | 'descending' | 'none' =
                                     sortDir === 'asc' ? 'ascending' : sortDir === 'desc' ? 'descending' : 'none';
+                                // ID y updated_at no son re-orderables — los demás (los
+                                // de campos del usuario) sí.
+                                const isDraggable = fieldId !== null;
+                                const isDragOver = overColId === h.id && draggingColId !== h.id;
 
                                 return (
                                     <th
@@ -209,40 +257,95 @@ export function TableView({
                                         scope="col"
                                         aria-sort={fieldId !== null ? ariaSort : undefined}
                                         style={{ width: h.getSize() }}
-                                        className="imcrm-relative imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-3 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
-                                    >
-                                        {fieldId !== null ? (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => onSortChange(fieldId, e.shiftKey)}
-                                                className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded hover:imcrm-text-foreground"
-                                            >
-                                                {isPrimary && (
-                                                    <KeyRound className="imcrm-h-3 imcrm-w-3 imcrm-text-primary" aria-hidden="true" />
-                                                )}
-                                                <span>
-                                                    {h.isPlaceholder
-                                                        ? null
-                                                        : flexRender(h.column.columnDef.header, h.getContext())}
-                                                </span>
-                                                <SortIndicator dir={sortDir ?? null} index={sortIndex} multiCount={sort.length} />
-                                            </button>
-                                        ) : h.isPlaceholder ? null : (
-                                            flexRender(h.column.columnDef.header, h.getContext())
+                                        draggable={isDraggable}
+                                        onDragStart={isDraggable ? (e) => {
+                                            setDraggingColId(h.id);
+                                            // Algunos navegadores (Firefox) requieren
+                                            // setData para iniciar el drag.
+                                            e.dataTransfer.effectAllowed = 'move';
+                                            e.dataTransfer.setData('text/plain', h.id);
+                                        } : undefined}
+                                        onDragEnd={() => {
+                                            setDraggingColId(null);
+                                            setOverColId(null);
+                                        }}
+                                        onDragOver={isDraggable ? (e) => {
+                                            if (draggingColId === null || draggingColId === h.id) return;
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = 'move';
+                                            if (overColId !== h.id) setOverColId(h.id);
+                                        } : undefined}
+                                        onDrop={isDraggable ? (e) => {
+                                            e.preventDefault();
+                                            if (draggingColId !== null) {
+                                                reorderColumns(draggingColId, h.id);
+                                            }
+                                            setDraggingColId(null);
+                                            setOverColId(null);
+                                        } : undefined}
+                                        className={cn(
+                                            'imcrm-group/th imcrm-relative imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-3 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]',
+                                            isDragOver && 'imcrm-bg-primary/10',
+                                            draggingColId === h.id && 'imcrm-opacity-50',
                                         )}
-                                        {/* Resize handle estilo Excel:
-                                             barra fina al borde derecho del
-                                             <th>; mousedown inicia el drag
-                                             vía TanStack onMouseDown handler. */}
+                                    >
+                                        <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                                            {isDraggable && (
+                                                <span
+                                                    className="imcrm-cursor-grab imcrm-text-muted-foreground/40 imcrm-opacity-0 imcrm-transition-opacity group-hover/th:imcrm-opacity-100 active:imcrm-cursor-grabbing"
+                                                    aria-hidden
+                                                    title={__('Arrastra para reordenar')}
+                                                >
+                                                    <GripVertical className="imcrm-h-3 imcrm-w-3" />
+                                                </span>
+                                            )}
+                                            {fieldId !== null ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => onSortChange(fieldId, e.shiftKey)}
+                                                    className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded hover:imcrm-text-foreground"
+                                                >
+                                                    {isPrimary && (
+                                                        <KeyRound className="imcrm-h-3 imcrm-w-3 imcrm-text-primary" aria-hidden="true" />
+                                                    )}
+                                                    <span>
+                                                        {h.isPlaceholder
+                                                            ? null
+                                                            : flexRender(h.column.columnDef.header, h.getContext())}
+                                                    </span>
+                                                    <SortIndicator dir={sortDir ?? null} index={sortIndex} multiCount={sort.length} />
+                                                </button>
+                                            ) : h.isPlaceholder ? null : (
+                                                flexRender(h.column.columnDef.header, h.getContext())
+                                            )}
+                                        </div>
+                                        {/* Resize handle estilo Excel: barra
+                                            de 4px al borde derecho del <th>.
+                                            Antes era de 1px transparent y el
+                                            user no la encontraba. Ahora es
+                                            visible (border) y resalta a
+                                            primary on hover. */}
                                         {h.column.getCanResize() && (
                                             <div
-                                                onMouseDown={h.getResizeHandler()}
+                                                onMouseDown={(e) => {
+                                                    // Al iniciar resize, prevenir que el
+                                                    // mousedown burbujee al draggable=<th>
+                                                    // (sino el browser inicia un drag de
+                                                    // columna en lugar del resize).
+                                                    e.stopPropagation();
+                                                    h.getResizeHandler()(e);
+                                                }}
                                                 onTouchStart={h.getResizeHandler()}
                                                 onClick={(e) => e.stopPropagation()}
+                                                draggable={false}
+                                                onDragStart={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                }}
                                                 className={cn(
-                                                    'imcrm-absolute imcrm-right-0 imcrm-top-0 imcrm-h-full imcrm-w-1 imcrm-cursor-col-resize imcrm-select-none imcrm-touch-none',
-                                                    'imcrm-bg-transparent hover:imcrm-bg-primary/40',
-                                                    h.column.getIsResizing() && 'imcrm-bg-primary',
+                                                    'imcrm-absolute imcrm-right-0 imcrm-top-0 imcrm-h-full imcrm-w-1 imcrm-cursor-col-resize imcrm-select-none imcrm-touch-none imcrm-z-20',
+                                                    'imcrm-bg-border/40 hover:imcrm-bg-primary/60',
+                                                    h.column.getIsResizing() && 'imcrm-bg-primary imcrm-w-[2px]',
                                                 )}
                                                 aria-hidden
                                             />
@@ -303,8 +406,15 @@ export function TableView({
                                         return (
                                             <td
                                                 key={cell.id}
+                                                style={{ width: cell.column.getSize(), maxWidth: cell.column.getSize() }}
                                                 className={cn(
-                                                    'imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
+                                                    // `overflow-hidden` + `width/maxWidth` cortan el
+                                                    // desbordamiento visual de cells largas (long_text,
+                                                    // multi_select con muchas opciones). El truncate
+                                                    // con elipsis va dentro de `EditableCell` para que
+                                                    // afecte solo al modo lectura — el editor inline
+                                                    // necesita escaparse del clip cuando el user clickea.
+                                                    'imcrm-overflow-hidden imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
                                                     isOpenerCell && onRowClick && 'imcrm-cursor-pointer imcrm-font-medium',
                                                 )}
                                                 onClick={

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.4
+Stable tag: 0.26.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,43 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.5 =
+* Fix import: filas con celdas vacías en columnas mapeadas a
+  campos `is_required` rebotaban con "Este campo es obligatorio"
+  aunque OTRAS filas SÍ tenían el valor — caso típico de
+  ClickUp donde "Start Date" está casi siempre vacío y solo
+  "Due Date" se llena. Ahora `ImportService` corre el
+  validator en modo `partial: true` para imports bulk: las
+  celdas vacías se OMITEN del payload (ni se mandan como null)
+  así que la ausencia no rebota la regla de obligatoriedad. La
+  fila se inserta con NULL en SQL — todas las columnas dinámicas
+  son nullable a nivel schema, así que es seguro. Si la columna
+  está vacía en TODAS las filas, el campo queda null en cada
+  registro y el user lo rellena manualmente.
+  `RecordService::create()` ahora acepta `bool $partial = false`
+  como tercer argumento; el call manual desde la UI sigue
+  validando con strict required (default).
+* Fix tabla: celdas largas (long_text, multi_select con muchas
+  chips) se desbordaban visualmente sobre las columnas
+  vecinas. `<td>` ahora trae `overflow: hidden` + `width` /
+  `maxWidth` explícitos, y el botón de modo lectura del
+  `EditableCell` lleva `truncate` (overflow + ellipsis +
+  nowrap). El user ve `...` y abre el drawer para ver el
+  contenido completo.
+* Tabla: handle de resize visible. Antes era 1px transparent y
+  el user no podía encontrarlo; ahora es 1px con
+  `bg-border/40` (visible siempre) que pasa a 2px
+  `bg-primary/60` on hover y 2px `bg-primary` mientras
+  arrastra.
+* Tabla: drag-and-drop para reordenar columnas. Cada `<th>` de
+  campo del usuario es `draggable`; al arrastrar sobre otro
+  header, el target se resalta con tinte primary y al soltar
+  el orden se persiste. El icono `<GripVertical>` aparece on
+  hover del header para indicar que es draggable. Las columnas
+  fijas (ID y Actualizado) no son re-orderables. Estado nuevo
+  `state.columnOrder` (TanStack `ColumnOrderState`) que se
+  guarda en `SavedView.config.column_order`.
 
 = 0.26.4 =
 * Fix: el importador rechazaba TODA fila si el CSV traía valores
