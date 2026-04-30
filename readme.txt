@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.7
+Stable tag: 0.26.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.8 =
+* Fix: al elegir "Calculado" como tipo de campo en el builder de
+  la lista, la pantalla quedaba en blanco con
+  `ReferenceError: require is not defined`. `FieldConfigEditor`
+  importaba `useFields` con `require('@/hooks/useFields')` dentro
+  del componente (era un intento de "lazy import" que se coló en
+  el commit del feature de campos calculados). `require()` no
+  existe en el bundle ESM del browser; cualquier uso revienta el
+  render. Ahora `useFields` se importa al top como los demás
+  hooks. Sin pretexto, debería haber sido así desde 0.23.0.
 
 = 0.26.7 =
 * Fix: las celdas de fecha no respondían a click después de

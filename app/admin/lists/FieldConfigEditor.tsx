@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useFields } from '@/hooks/useFields';
 import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
 import type { FieldTypeSlug } from '@/types/field';
@@ -396,11 +397,6 @@ function ComputedEditor({
     listId,
     currentFieldId,
 }: ComputedEditorProps): JSX.Element {
-    // Lazy: imports dentro del componente para no aumentar el bundle
-    // de la builder cuando el usuario nunca elige "computed".
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { useFields } = require('@/hooks/useFields') as typeof import('@/hooks/useFields');
-
     const fields = useFields(listId);
     const operation = typeof config.operation === 'string' ? config.operation : '';
     const opDef = COMPUTED_OPS.find((o) => o.slug === operation);
