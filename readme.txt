@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.6
+Stable tag: 0.26.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,18 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.7 =
+* Fix: las celdas de fecha no respondían a click después de
+  0.26.6. Causa: `DateCellTrigger` (introducido para mostrar el
+  icono de recurrencia) era una function component sin
+  `forwardRef`. Radix `<PopoverTrigger asChild>` inyecta `ref` y
+  handlers (`onClick`, `onPointerDown`, `aria-*`) sobre su hijo
+  directo; al ser una function component sin forward, esos props
+  se quedaban atascados en el wrapper y nunca llegaban al
+  `<button>` real, así que clicks no abrían el popover. Ahora
+  `DateCellTrigger` usa `forwardRef` y spreadea `...rest` en el
+  `<button>` interno, así Radix le inyecta lo que necesita.
 
 = 0.26.6 =
 * Fix: agrupar la tabla (group_by) descartaba los ajustes
