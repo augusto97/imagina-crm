@@ -555,30 +555,15 @@ export function TableView({
                             );
                         })
                     )}
-                    {onAddRecord && (
-                        <tr className="imcrm-border-t imcrm-border-border/50">
-                            <td colSpan={columns.length + 1 + (onAddColumn ? 1 : 0)} className="imcrm-px-3 imcrm-py-2">
-                                <button
-                                    type="button"
-                                    onClick={onAddRecord}
-                                    className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-2 imcrm-py-1.5 imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-accent/40 hover:imcrm-text-foreground"
-                                >
-                                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                                    {__('Agregar tarea')}
-                                </button>
-                            </td>
-                        </tr>
-                    )}
                 </tbody>
-                {/* Footer opt-in: el user elige por columna qué cálculo
-                    quiere ver. Sin elección, la cell muestra "Calcular ▾"
-                    (CTA invisible-hasta-hover). Con elección, muestra el
-                    valor formateado. La preferencia persiste en el saved
-                    view (`view.config.footer_aggregates`). El bg es el
-                    mismo que el body — sin separador visual entre el
-                    contenido y el footer (estilo ClickUp). */}
-                {onFooterAggregatesChange && (
-                    <tfoot>
+                {/* Footer unificado (estilo ClickUp): UNA sola fila con
+                    "+ Agregar tarea" en la primera columna dinámica y
+                    Calcular dropdown en las demás. Las cells de Calcular
+                    están invisibles por default y solo aparecen on hover
+                    de la fila (vía `group/footer`). El bg matchea el body
+                    — sin separador visual entre contenido y footer. */}
+                {(onAddRecord || onFooterAggregatesChange) && (
+                    <tfoot className="imcrm-group/footer">
                         <tr className="imcrm-border-t imcrm-border-border/50">
                             <td className="imcrm-w-10" />
                             {table.getVisibleLeafColumns().map((col) => {
@@ -589,10 +574,54 @@ export function TableView({
                                 const field: FieldEntity | null = fieldId !== null
                                     ? (fields.find((f) => f.id === fieldId) ?? null)
                                     : null;
+                                const cellSticky = stickyStyleFor(col.id);
+                                const isFirstDynamic = col.id === stickyColumnId;
+
+                                // Primera columna dinámica: "+ Agregar
+                                // tarea" (en lugar de Calcular).
+                                if (isFirstDynamic && onAddRecord) {
+                                    return (
+                                        <td
+                                            key={col.id}
+                                            style={{
+                                                width: col.getSize(),
+                                                maxWidth: col.getSize(),
+                                                ...(cellSticky ?? {}),
+                                            }}
+                                            className={cn(
+                                                'imcrm-overflow-hidden imcrm-px-1 imcrm-py-1 imcrm-align-middle',
+                                                cellSticky && 'imcrm-bg-card',
+                                            )}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={onAddRecord}
+                                                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-1.5 imcrm-py-1 imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-accent/40 hover:imcrm-text-foreground"
+                                            >
+                                                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                                                {__('Agregar tarea')}
+                                            </button>
+                                        </td>
+                                    );
+                                }
+
+                                // Resto: Calcular dropdown si aplica.
+                                if (! onFooterAggregatesChange) {
+                                    return (
+                                        <td
+                                            key={col.id}
+                                            style={{
+                                                width: col.getSize(),
+                                                maxWidth: col.getSize(),
+                                                ...(cellSticky ?? {}),
+                                            }}
+                                            className={cn(cellSticky && 'imcrm-bg-card')}
+                                        />
+                                    );
+                                }
                                 const agg = field !== null && aggregates.data
                                     ? aggregates.data.totals[field.slug]
                                     : undefined;
-                                const cellSticky = stickyStyleFor(col.id);
                                 const kind = (footerAggregates ?? {})[col.id] as AggregateKind | undefined;
                                 return (
                                     <td

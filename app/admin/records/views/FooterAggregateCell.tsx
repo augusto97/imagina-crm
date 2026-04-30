@@ -86,9 +86,13 @@ export function FooterAggregateCell({
                 <button
                     type="button"
                     className={cn(
-                        'imcrm-flex imcrm-w-full imcrm-items-center imcrm-justify-between imcrm-gap-1.5 imcrm-rounded imcrm-px-1.5 imcrm-py-1 imcrm-text-[11px]',
+                        'imcrm-flex imcrm-w-full imcrm-items-center imcrm-justify-between imcrm-gap-1.5 imcrm-rounded imcrm-px-1.5 imcrm-py-1 imcrm-text-[11px] imcrm-transition-opacity',
                         kind === undefined
-                            ? 'imcrm-text-muted-foreground/60 hover:imcrm-bg-accent/40 hover:imcrm-text-foreground'
+                            // Sin kind: invisible por default, aparece on
+                            // hover de la fila completa del footer (estilo
+                            // ClickUp). Al hover individual del trigger
+                            // se opaca a foreground completo.
+                            ? 'imcrm-opacity-0 group-hover/footer:imcrm-opacity-60 imcrm-text-muted-foreground hover:imcrm-bg-accent/40 hover:imcrm-text-foreground hover:imcrm-opacity-100'
                             : 'imcrm-text-foreground hover:imcrm-bg-accent/40',
                     )}
                     title={kind ? labelForKind(kind) : __('Elegir cálculo')}

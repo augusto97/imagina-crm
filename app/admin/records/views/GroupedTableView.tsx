@@ -697,23 +697,13 @@ function GroupBucketSection({
                                         </tr>
                                     );
                                 })}
-                                {onAddRecord && (
-                                    <tr className="imcrm-border-t imcrm-border-border/50">
-                                        <td colSpan={columns.length + 1 + (onAddColumn ? 1 : 0)} className="imcrm-px-3 imcrm-py-1.5">
-                                            <button
-                                                type="button"
-                                                onClick={onAddRecord}
-                                                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-2 imcrm-py-1.5 imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-accent/40 hover:imcrm-text-foreground"
-                                            >
-                                                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                                                {__('Agregar tarea')}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
-                            {onFooterAggregatesChange && (
-                                <tfoot>
+                            {/* Footer unificado: "+ Agregar tarea" en la
+                                primera columna dinámica + Calcular en
+                                las demás (oculto hasta hover de la
+                                fila). Igual que TableView flat. */}
+                            {(onAddRecord || onFooterAggregatesChange) && (
+                                <tfoot className="imcrm-group/footer">
                                     <tr className="imcrm-border-t imcrm-border-border/50">
                                         <td className="imcrm-w-10" />
                                         {columns.map((c, ci) => {
@@ -723,6 +713,40 @@ function GroupBucketSection({
                                             const sticky = isFirstDynamic
                                                 ? { position: 'sticky' as const, left: 0, zIndex: 1 }
                                                 : undefined;
+
+                                            // Primera columna dinámica → "+ Agregar tarea"
+                                            if (isFirstDynamic && onAddRecord) {
+                                                return (
+                                                    <td
+                                                        key={c.id}
+                                                        style={{ width: w, maxWidth: w, ...(sticky ?? {}) }}
+                                                        className={cn(
+                                                            'imcrm-overflow-hidden imcrm-px-1 imcrm-py-1 imcrm-align-middle',
+                                                            sticky && 'imcrm-bg-card',
+                                                        )}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={onAddRecord}
+                                                            className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-1.5 imcrm-py-1 imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-accent/40 hover:imcrm-text-foreground"
+                                                        >
+                                                            <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                                                            {__('Agregar tarea')}
+                                                        </button>
+                                                    </td>
+                                                );
+                                            }
+
+                                            // Resto: Calcular dropdown si aplica.
+                                            if (! onFooterAggregatesChange) {
+                                                return (
+                                                    <td
+                                                        key={c.id}
+                                                        style={{ width: w, maxWidth: w, ...(sticky ?? {}) }}
+                                                        className={cn(sticky && 'imcrm-bg-card')}
+                                                    />
+                                                );
+                                            }
                                             const agg = c.field !== null && aggregates.data
                                                 ? aggregates.data.totals[c.field.slug]
                                                 : undefined;

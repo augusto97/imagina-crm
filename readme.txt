@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.27.3
+Stable tag: 0.27.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,21 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.27.4 =
+* Fix: el footer estaba en DOS filas (la de "+ Agregar tarea" con
+  colSpan + la de Calcular) cuando ClickUp lo unifica en UNA sola.
+  Ahora ambas funciones viven en la misma `<tr>` del `<tfoot>`:
+  el "+ Agregar tarea" ocupa la celda de la primera columna
+  dinámica (alineada con el campo Nombre, que típicamente no es
+  numérico), y las demás celdas siguen mostrando el dropdown de
+  Calcular.
+* Las celdas de Calcular ahora son **invisibles por default** y
+  solo aparecen on hover de la fila completa del footer
+  (`group/footer` + `group-hover/footer:opacity-60`). Al hover
+  individual del trigger se opaca a 100%. Cuando ya hay un kind
+  seleccionado el valor sí queda siempre visible. UX idéntica a
+  ClickUp en sus capturas de referencia.
 
 = 0.27.3 =
 * Fix: tras 0.27.2 la vista agrupada quedaba en pantalla blanca
