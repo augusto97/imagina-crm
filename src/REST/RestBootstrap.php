@@ -30,6 +30,7 @@ final class RestBootstrap
         RecurrencesController::class,
         ImportController::class,
         ExportController::class,
+        AggregatesController::class,
     ];
 
     public function __construct(private readonly Container $container)

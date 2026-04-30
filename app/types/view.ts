@@ -17,6 +17,13 @@ export interface SavedViewConfig {
      */
     column_order?: string[];
     /**
+     * Bucket keys que el user quiere CERRADOS por defecto al abrir
+     * esta vista. Solo aplica cuando `group_by_field_id` está set.
+     * Persistido para que la próxima visita encuentre los grupos en
+     * el mismo estado.
+     */
+    collapsed_groups?: string[];
+    /**
      * Forma legacy plana: `[{field_id, op, value}, ...]`. Solo se
      * usaba cuando los filtros eran AND plano. Se mantiene como
      * espejo opcional cuando `filter_tree` es AND plano para

@@ -348,6 +348,7 @@ export function RecordsPage(): JSX.Element {
                     ) : isTableGrouped && tableGroupByField ? (
                         <GroupedTableView
                             listId={list.data.id}
+                            listSlug={list.data.slug}
                             fields={fields.data}
                             groupByField={tableGroupByField}
                             filterTree={state.filterTree}
@@ -358,10 +359,21 @@ export function RecordsPage(): JSX.Element {
                             columnVisibility={state.columnVisibility}
                             columnSizing={state.columnSizing}
                             columnOrder={state.columnOrder}
+                            collapsedGroups={state.collapsedGroups}
+                            onCollapsedGroupsChange={(next) =>
+                                setState((s) => ({ ...s, collapsedGroups: next }))
+                            }
+                            onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
+                            // El bucket value llega al callback pero por
+                            // ahora abrimos el create dialog plain — el
+                            // pre-fill por bucket value queda como
+                            // siguiente iteración.
+                            onAddRecord={() => setCreateOpen(true)}
                         />
                     ) : (
                         <TableView
                             listId={list.data.id}
+                            listSlug={list.data.slug}
                             fields={fields.data}
                             records={records.data?.data ?? []}
                             sort={state.sort}
@@ -381,6 +393,9 @@ export function RecordsPage(): JSX.Element {
                             onColumnOrderChange={(next) =>
                                 setState((s) => ({ ...s, columnOrder: next }))
                             }
+                            filterTree={state.filterTree}
+                            onAddRecord={() => setCreateOpen(true)}
+                            onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
                         />
                     )}
 

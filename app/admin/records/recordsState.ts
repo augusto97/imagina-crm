@@ -53,6 +53,14 @@ export interface RecordsState {
     /** Field id por el que se agrupa la table view (ClickUp-style).
      * `null` = vista plana. */
     groupByFieldId: number | null;
+    /**
+     * Bucket keys (formato `v:<value>` o `__null__` — ver
+     * `bucketKey()` en GroupedTableView) que el user quiere que
+     * arranquen colapsados al cargar la vista. Persistido en el
+     * saved view, así que la próxima vez el user ve los grupos
+     * en el mismo estado que dejó. Default vacío = todos cerrados.
+     */
+    collapsedGroups: string[];
 }
 
 export const DEFAULT_PER_PAGE = 50;
@@ -67,6 +75,7 @@ export const INITIAL_STATE: RecordsState = {
     columnSizing: {},
     columnOrder: [],
     groupByFieldId: null,
+    collapsedGroups: [],
 };
 
 /**

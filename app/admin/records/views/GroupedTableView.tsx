@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Inbox, KeyRound, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Inbox, KeyRound, Loader2, Plus } from 'lucide-react';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { useAggregates, type AggregateBag } from '@/hooks/useAggregates';
 import { useRecordGroups, useRecords } from '@/hooks/useRecords';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,8 @@ import { addNode, isFlatAndTree } from '@/admin/records/filterTree';
 
 interface GroupedTableViewProps {
     listId: number;
+    /** Slug — usado para queries de aggregates por bucket. */
+    listSlug?: string;
     fields: FieldEntity[];
     groupByField: FieldEntity;
     /** Árbol de filtros activos (sin contar el de agrupación). Se
@@ -46,6 +49,21 @@ interface GroupedTableViewProps {
      * agrupar.
      */
     columnOrder?: string[];
+    /**
+     * Set de bucket keys colapsadas (persistido en el saved view).
+     * Si un bucket NO está acá, está expandido. Por defecto array
+     * vacío = todos expandidos.
+     */
+    collapsedGroups?: string[];
+    onCollapsedGroupsChange?: (next: string[]) => void;
+    /** Click "+ Agregar columna" en el header del primer bucket. */
+    onAddColumn?: () => void;
+    /**
+     * Click "+ Agregar tarea" al pie de un bucket. Recibe el field
+     * de agrupación y el `value` del bucket para que el caller pueda
+     * pre-rellenar el form de creación.
+     */
+    onAddRecord?: (groupByField: FieldEntity, bucketValue: string | null) => void;
 }
 
 /**
@@ -64,6 +82,7 @@ interface GroupedTableViewProps {
  */
 export function GroupedTableView({
     listId,
+    listSlug,
     fields,
     groupByField,
     filterTree,
@@ -74,6 +93,10 @@ export function GroupedTableView({
     columnVisibility,
     columnSizing,
     columnOrder,
+    collapsedGroups,
+    onCollapsedGroupsChange,
+    onAddColumn,
+    onAddRecord,
 }: GroupedTableViewProps): JSX.Element {
     // Si el árbol es AND-plano, usamos el shortcut `filter[...]` (más
     // amigable para cache keys y URLs cortas). Si tiene OR/nesting,
@@ -91,15 +114,54 @@ export function GroupedTableView({
         search,
     });
 
-    const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    // El user puede tener N buckets; por simplicidad de UX y para no
+    // disparar un fetch enorme al cargar la página, todos arrancan
+    // colapsados a menos que (a) el saved view los marque expandidos
+    // explícitamente, o (b) el user los haya expandido en sesión.
+    // `collapsedGroups` (del saved view) tiene los keys que el user
+    // quiere CERRADOS por defecto; un bucket que no está en esa lista
+    // y tampoco en el state local de "abiertos en sesión" se asume
+    // colapsado al inicio. Si llega vacío, todos arrancan cerrados.
+    const collapsedSet = useMemo(
+        () => new Set(collapsedGroups ?? []),
+        [collapsedGroups],
+    );
+    // Local: buckets que el user expandió/colapsó explícitamente en
+    // esta sesión (sin guardar todavía). Persistir requiere
+    // re-guardar el saved view; por ahora local hasta el siguiente
+    // SaveView del usuario.
+    const [openLocally, setOpenLocally] = useState<Set<string>>(new Set());
+
+    const isOpen = (key: string): boolean => {
+        // Override local tiene prioridad. Si el user lo abrió en
+        // sesión, está abierto, sin importar el saved view. Sino
+        // miramos el persistido.
+        if (openLocally.has(key)) return true;
+        return ! collapsedSet.has(key);
+    };
 
     const toggleGroup = (key: string): void => {
-        setExpanded((prev) => {
+        const willBeOpen = ! isOpen(key);
+        // Update local override.
+        setOpenLocally((prev) => {
             const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
+            if (willBeOpen) {
+                next.add(key);
+            } else {
+                next.delete(key);
+            }
             return next;
         });
+        // Update persistido del saved view (si el caller lo soporta).
+        if (onCollapsedGroupsChange) {
+            const next = new Set(collapsedSet);
+            if (willBeOpen) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            onCollapsedGroupsChange([...next]);
+        }
     };
 
     const visibleColumns = useMemo(
@@ -153,16 +215,16 @@ export function GroupedTableView({
                 </span>
             </div>
 
-            {buckets.map((bucket) => {
+            {buckets.map((bucket, idx) => {
                 const key = bucketKey(bucket);
-                const isOpen = expanded.has(key);
                 return (
                     <GroupBucketSection
                         key={key}
                         listId={listId}
+                        listSlug={listSlug}
                         groupByField={groupByField}
                         bucket={bucket}
-                        isOpen={isOpen}
+                        isOpen={isOpen(key)}
                         onToggle={() => toggleGroup(key)}
                         columns={visibleColumns}
                         columnSizing={columnSizing ?? {}}
@@ -171,6 +233,16 @@ export function GroupedTableView({
                         selectedIds={selectedIds}
                         onSelectionChange={onSelectionChange}
                         onRowClick={onRowClick}
+                        // El "+" de agregar columna solo se muestra
+                        // en el header del PRIMER bucket — sino sale
+                        // duplicado en cada grupo. UX consistent con
+                        // el flat view (un solo trigger).
+                        onAddColumn={idx === 0 ? onAddColumn : undefined}
+                        onAddRecord={
+                            onAddRecord
+                                ? () => onAddRecord(groupByField, bucket.value)
+                                : undefined
+                        }
                     />
                 );
             })}
@@ -254,6 +326,7 @@ function buildColumns(fields: FieldEntity[]): ColumnDef[] {
 
 interface GroupBucketSectionProps {
     listId: number;
+    listSlug?: string;
     groupByField: FieldEntity;
     bucket: RecordGroupBucket;
     isOpen: boolean;
@@ -265,6 +338,8 @@ interface GroupBucketSectionProps {
     selectedIds: number[];
     onSelectionChange: (ids: number[]) => void;
     onRowClick?: (record: RecordEntity) => void;
+    onAddColumn?: () => void;
+    onAddRecord?: () => void;
 }
 
 /**
@@ -276,6 +351,7 @@ interface GroupBucketSectionProps {
  */
 function GroupBucketSection({
     listId,
+    listSlug,
     groupByField,
     bucket,
     isOpen,
@@ -287,9 +363,38 @@ function GroupBucketSection({
     selectedIds,
     onSelectionChange,
     onRowClick,
+    onAddColumn,
+    onAddRecord,
 }: GroupBucketSectionProps): JSX.Element {
     const [page, setPage] = useState(1);
     const perPage = 50;
+
+    // Aggregates por bucket: usamos el mismo endpoint que TableView
+    // pero pasamos el filter_tree con la condición del bucket para
+    // que el backend agregue solo dentro de ese bucket. Solo
+    // disparamos cuando el bucket está expandido.
+    const bucketTree: FilterTree = useMemo(() => {
+        const op = filterOpForBucket(groupByField.type, bucket.value);
+        const cond: FilterCondition = {
+            type: 'condition',
+            field_id: groupByField.id,
+            op: op.op,
+            value: op.value,
+        };
+        return addNode(baseTree, [], cond);
+    }, [baseTree, groupByField.id, groupByField.type, bucket.value]);
+
+    const aggregateFieldIds = useMemo(
+        () => columns
+            .filter((c) => c.field !== null && c.field.type !== 'relation' && c.field.type !== 'computed')
+            .map((c) => c.field!.id),
+        [columns],
+    );
+    const aggregates = useAggregates({
+        listSlug: isOpen ? listSlug : undefined,
+        fieldIds: aggregateFieldIds,
+        filterTree: bucketTree,
+    });
 
     // Construimos la query del grupo: árbol base + condición del bucket
     // como hijo más del root. Si el árbol resultante es AND-plano usamos
@@ -401,7 +506,11 @@ function GroupBucketSection({
                         <table className="imcrm-w-full imcrm-text-sm" aria-label={labelText}>
                             <thead className="imcrm-bg-muted/30">
                                 <tr className="imcrm-border-b imcrm-border-border">
-                                    <th scope="col" className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5">
+                                    <th
+                                        scope="col"
+                                        className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-bg-muted/30"
+                                        style={{ position: 'sticky', left: 0, zIndex: 2 }}
+                                    >
                                         <input
                                             type="checkbox"
                                             checked={allRecordsSelected}
@@ -411,12 +520,18 @@ function GroupBucketSection({
                                     </th>
                                     {columns.map((c) => {
                                         const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
+                                        const sticky = c.isPrimary
+                                            ? { position: 'sticky' as const, left: 40, zIndex: 1 }
+                                            : undefined;
                                         return (
                                             <th
                                                 key={c.id}
                                                 scope="col"
-                                                style={{ width: w, minWidth: w }}
-                                                className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
+                                                style={{ width: w, minWidth: w, ...(sticky ?? {}) }}
+                                                className={cn(
+                                                    'imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]',
+                                                    sticky && 'imcrm-bg-muted/30',
+                                                )}
                                             >
                                                 <span className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
                                                     {c.isPrimary && (
@@ -430,6 +545,22 @@ function GroupBucketSection({
                                             </th>
                                         );
                                     })}
+                                    {onAddColumn && (
+                                        <th
+                                            scope="col"
+                                            className="imcrm-w-12 imcrm-px-2 imcrm-py-2.5"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={onAddColumn}
+                                                className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-border imcrm-border-dashed imcrm-border-border imcrm-text-muted-foreground hover:imcrm-border-primary hover:imcrm-bg-primary/10 hover:imcrm-text-primary"
+                                                title={__('Agregar columna')}
+                                                aria-label={__('Agregar columna')}
+                                            >
+                                                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                                            </button>
+                                        </th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
@@ -439,14 +570,20 @@ function GroupBucketSection({
                                         <tr
                                             key={record.id}
                                             className={cn(
-                                                'imcrm-border-t imcrm-border-border/50 imcrm-transition-colors imcrm-duration-100',
+                                                'imcrm-group/row imcrm-border-t imcrm-border-border/50 imcrm-transition-colors imcrm-duration-100',
                                                 isSelected
                                                     ? 'imcrm-bg-primary/5'
                                                     : 'hover:imcrm-bg-accent/40',
                                             )}
                                         >
                                             <td
-                                                className="imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle"
+                                                className={cn(
+                                                    'imcrm-w-10 imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
+                                                    isSelected
+                                                        ? 'imcrm-bg-primary/5'
+                                                        : 'imcrm-bg-card group-hover/row:imcrm-bg-accent/40',
+                                                )}
+                                                style={{ position: 'sticky', left: 0, zIndex: 1 }}
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <input
@@ -462,12 +599,18 @@ function GroupBucketSection({
                                             </td>
                                             {columns.map((c, ci) => {
                                                 const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
+                                                const sticky = c.isPrimary
+                                                    ? { position: 'sticky' as const, left: 40, zIndex: 1 }
+                                                    : undefined;
                                                 return (
                                                     <td
                                                         key={c.id}
-                                                        style={{ width: w, maxWidth: w }}
+                                                        style={{ width: w, maxWidth: w, ...(sticky ?? {}) }}
                                                         className={cn(
                                                             'imcrm-overflow-hidden imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
+                                                            sticky && (isSelected
+                                                                ? 'imcrm-bg-primary/5'
+                                                                : 'imcrm-bg-card group-hover/row:imcrm-bg-accent/40'),
                                                             ci === 0 &&
                                                                 onRowClick &&
                                                                 'imcrm-cursor-pointer imcrm-font-medium',
@@ -482,10 +625,57 @@ function GroupBucketSection({
                                                     </td>
                                                 );
                                             })}
+                                            {onAddColumn && <td className="imcrm-w-12" />}
                                         </tr>
                                     );
                                 })}
+                                {onAddRecord && (
+                                    <tr className="imcrm-border-t imcrm-border-border/50">
+                                        <td colSpan={columns.length + 1 + (onAddColumn ? 1 : 0)} className="imcrm-px-3 imcrm-py-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={onAddRecord}
+                                                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-2 imcrm-py-1.5 imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-accent/40 hover:imcrm-text-foreground"
+                                            >
+                                                <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                                                {__('Agregar tarea')}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
+                            {aggregates.data && Object.keys(aggregates.data.totals).length > 0 && (
+                                <tfoot className="imcrm-bg-muted/40">
+                                    <tr className="imcrm-border-t imcrm-border-border">
+                                        <td
+                                            className="imcrm-w-10 imcrm-bg-muted/40"
+                                            style={{ position: 'sticky', left: 0, zIndex: 1 }}
+                                        />
+                                        {columns.map((c) => {
+                                            const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
+                                            const sticky = c.isPrimary
+                                                ? { position: 'sticky' as const, left: 40, zIndex: 1 }
+                                                : undefined;
+                                            const agg = c.field !== null
+                                                ? aggregates.data!.totals[c.field.slug]
+                                                : undefined;
+                                            return (
+                                                <td
+                                                    key={c.id}
+                                                    style={{ width: w, maxWidth: w, ...(sticky ?? {}) }}
+                                                    className={cn(
+                                                        'imcrm-overflow-hidden imcrm-px-3 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground',
+                                                        sticky && 'imcrm-bg-muted/40',
+                                                    )}
+                                                >
+                                                    <BucketFooterCell field={c.field} agg={agg} />
+                                                </td>
+                                            );
+                                        })}
+                                        {onAddColumn && <td className="imcrm-w-12" />}
+                                    </tr>
+                                </tfoot>
+                            )}
                         </table>
                     )}
 
@@ -609,6 +799,55 @@ function formatBucketLabel(field: FieldEntity, value: string | null): string {
         return value;
     }
     return value;
+}
+
+/**
+ * Render del valor agregado en el footer de un bucket. Mismas
+ * reglas que `FooterAggregate` de TableView pero con renderer
+ * inline (no exportable cross-file por simplicidad).
+ */
+function BucketFooterCell({
+    field,
+    agg,
+}: {
+    field: FieldEntity | null;
+    agg: AggregateBag | undefined;
+}): JSX.Element | null {
+    if (field === null || agg === undefined) return null;
+
+    if (field.type === 'number' || field.type === 'currency') {
+        if (agg.sum === null || agg.sum === undefined) return null;
+        const formatted = (agg.sum as number).toLocaleString(undefined, {
+            maximumFractionDigits: field.type === 'currency' ? 2 : 4,
+            minimumFractionDigits: field.type === 'currency' ? 2 : 0,
+        });
+        return (
+            <span className="imcrm-flex imcrm-items-baseline imcrm-gap-1.5">
+                <span className="imcrm-text-[10px] imcrm-uppercase imcrm-tracking-wide">{__('Suma')}</span>
+                <span className="imcrm-font-semibold imcrm-text-foreground imcrm-tabular-nums">{formatted}</span>
+            </span>
+        );
+    }
+    if (field.type === 'checkbox') {
+        return (
+            <span className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-tabular-nums">
+                <span>✓ {agg.count_true ?? 0}</span>
+                <span>✗ {agg.count_false ?? 0}</span>
+            </span>
+        );
+    }
+    if (field.type === 'date' || field.type === 'datetime') {
+        if (! agg.min && ! agg.max) {
+            return <span className="imcrm-tabular-nums">{(agg.count ?? 0).toLocaleString()} {__('items')}</span>;
+        }
+        return (
+            <span className="imcrm-flex imcrm-flex-col imcrm-text-[10px] imcrm-tabular-nums">
+                <span>{__('Min')}: {String(agg.min ?? '—').slice(0, 10)}</span>
+                <span>{__('Max')}: {String(agg.max ?? '—').slice(0, 10)}</span>
+            </span>
+        );
+    }
+    return <span className="imcrm-tabular-nums">{(agg.count ?? 0).toLocaleString()} {__('items')}</span>;
 }
 
 export { renderCellValue };
