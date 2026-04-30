@@ -34,6 +34,18 @@ interface GroupedTableViewProps {
      * `TableView` para que el ColumnsMenu funcione igual en ambos
      * modos. */
     columnVisibility: Record<string, boolean>;
+    /**
+     * Anchos persistidos del flat view (px). Si está vacío, usamos
+     * `defaultSizeForType`. Sin esto el user perdía sus ajustes de
+     * width al agrupar.
+     */
+    columnSizing?: Record<string, number>;
+    /**
+     * Orden custom del flat view (column ids). Si está vacío, usamos
+     * `field.position`. Sin esto el user perdía su reordenamiento al
+     * agrupar.
+     */
+    columnOrder?: string[];
 }
 
 /**
@@ -60,6 +72,8 @@ export function GroupedTableView({
     onSelectionChange,
     onRowClick,
     columnVisibility,
+    columnSizing,
+    columnOrder,
 }: GroupedTableViewProps): JSX.Element {
     // Si el árbol es AND-plano, usamos el shortcut `filter[...]` (más
     // amigable para cache keys y URLs cortas). Si tiene OR/nesting,
@@ -89,8 +103,9 @@ export function GroupedTableView({
     };
 
     const visibleColumns = useMemo(
-        () => buildColumns(fields).filter((c) => columnVisibility[c.id] !== false),
-        [fields, columnVisibility],
+        () => sortByOrder(buildColumns(fields), columnOrder ?? [])
+            .filter((c) => columnVisibility[c.id] !== false),
+        [fields, columnVisibility, columnOrder],
     );
 
     if (groups.isLoading) {
@@ -150,6 +165,7 @@ export function GroupedTableView({
                         isOpen={isOpen}
                         onToggle={() => toggleGroup(key)}
                         columns={visibleColumns}
+                        columnSizing={columnSizing ?? {}}
                         baseTree={filterTree}
                         search={search}
                         selectedIds={selectedIds}
@@ -167,6 +183,56 @@ interface ColumnDef {
     label: string;
     field: FieldEntity | null;
     isPrimary: boolean;
+}
+
+/**
+ * Aplica el `columnOrder` persistido (mismo formato que TanStack:
+ * array de column ids) sobre un set de columnas. Las columnas no
+ * incluidas en `order` quedan al final en su orden original — esto
+ * cubre el caso "el user reordenó algunas pero no todas, después
+ * agregó un campo nuevo, y queremos que el campo nuevo aparezca al
+ * final sin romper el orden custom".
+ */
+function sortByOrder(columns: ColumnDef[], order: string[]): ColumnDef[] {
+    if (order.length === 0) return columns;
+    const byId = new Map(columns.map((c) => [c.id, c]));
+    const seen = new Set<string>();
+    const out: ColumnDef[] = [];
+    for (const id of order) {
+        const c = byId.get(id);
+        if (c && ! seen.has(id)) {
+            out.push(c);
+            seen.add(id);
+        }
+    }
+    for (const c of columns) {
+        if (! seen.has(c.id)) out.push(c);
+    }
+    return out;
+}
+
+/**
+ * Default si el user no ha resizeado todavía. Mismos valores que
+ * `TableView.defaultSizeForType` para que el visual sea consistente
+ * entre flat y grouped.
+ */
+function defaultSizeForColumn(c: ColumnDef): number {
+    if (c.id === 'id') return 70;
+    if (c.id === 'updated_at') return 170;
+    const t = c.field?.type ?? 'text';
+    switch (t) {
+        case 'checkbox':     return 90;
+        case 'number':
+        case 'currency':     return 120;
+        case 'date':         return 130;
+        case 'datetime':     return 170;
+        case 'select':       return 140;
+        case 'multi_select': return 200;
+        case 'email':
+        case 'url':          return 220;
+        case 'long_text':    return 280;
+        default:             return 180;
+    }
 }
 
 function buildColumns(fields: FieldEntity[]): ColumnDef[] {
@@ -193,6 +259,7 @@ interface GroupBucketSectionProps {
     isOpen: boolean;
     onToggle: () => void;
     columns: ColumnDef[];
+    columnSizing: Record<string, number>;
     baseTree: FilterTree;
     search: string;
     selectedIds: number[];
@@ -214,6 +281,7 @@ function GroupBucketSection({
     isOpen,
     onToggle,
     columns,
+    columnSizing,
     baseTree,
     search,
     selectedIds,
@@ -341,23 +409,27 @@ function GroupBucketSection({
                                             aria-label={__('Seleccionar todos en grupo')}
                                         />
                                     </th>
-                                    {columns.map((c) => (
-                                        <th
-                                            key={c.id}
-                                            scope="col"
-                                            className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
-                                        >
-                                            <span className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
-                                                {c.isPrimary && (
-                                                    <KeyRound
-                                                        className="imcrm-h-3 imcrm-w-3 imcrm-text-primary"
-                                                        aria-hidden="true"
-                                                    />
-                                                )}
-                                                {c.label}
-                                            </span>
-                                        </th>
-                                    ))}
+                                    {columns.map((c) => {
+                                        const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
+                                        return (
+                                            <th
+                                                key={c.id}
+                                                scope="col"
+                                                style={{ width: w, minWidth: w }}
+                                                className="imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-text-left imcrm-text-[11px] imcrm-font-semibold imcrm-text-muted-foreground imcrm-uppercase imcrm-tracking-[0.06em]"
+                                            >
+                                                <span className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
+                                                    {c.isPrimary && (
+                                                        <KeyRound
+                                                            className="imcrm-h-3 imcrm-w-3 imcrm-text-primary"
+                                                            aria-hidden="true"
+                                                        />
+                                                    )}
+                                                    {c.label}
+                                                </span>
+                                            </th>
+                                        );
+                                    })}
                                 </tr>
                             </thead>
                             <tbody>
@@ -388,24 +460,28 @@ function GroupBucketSection({
                                                     )}
                                                 />
                                             </td>
-                                            {columns.map((c, ci) => (
-                                                <td
-                                                    key={c.id}
-                                                    className={cn(
-                                                        'imcrm-whitespace-nowrap imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
-                                                        ci === 0 &&
-                                                            onRowClick &&
-                                                            'imcrm-cursor-pointer imcrm-font-medium',
-                                                    )}
-                                                    onClick={
-                                                        ci === 0 && onRowClick
-                                                            ? () => onRowClick(record)
-                                                            : undefined
-                                                    }
-                                                >
-                                                    {renderColumnCell(c, record, listId)}
-                                                </td>
-                                            ))}
+                                            {columns.map((c, ci) => {
+                                                const w = columnSizing[c.id] ?? defaultSizeForColumn(c);
+                                                return (
+                                                    <td
+                                                        key={c.id}
+                                                        style={{ width: w, maxWidth: w }}
+                                                        className={cn(
+                                                            'imcrm-overflow-hidden imcrm-px-3 imcrm-py-2.5 imcrm-align-middle',
+                                                            ci === 0 &&
+                                                                onRowClick &&
+                                                                'imcrm-cursor-pointer imcrm-font-medium',
+                                                        )}
+                                                        onClick={
+                                                            ci === 0 && onRowClick
+                                                                ? () => onRowClick(record)
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        {renderColumnCell(c, record, listId)}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     );
                                 })}

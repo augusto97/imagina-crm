@@ -356,6 +356,8 @@ export function RecordsPage(): JSX.Element {
                             onSelectionChange={setSelectedIds}
                             onRowClick={(record) => setDrawerRecordId(record.id)}
                             columnVisibility={state.columnVisibility}
+                            columnSizing={state.columnSizing}
+                            columnOrder={state.columnOrder}
                         />
                     ) : (
                         <TableView

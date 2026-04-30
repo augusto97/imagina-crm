@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useRecurrences } from '@/hooks/useRecurrences';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
@@ -102,13 +104,12 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
                     value={typeof value === 'string' ? value : null}
                     onCommit={(next) => void commit(next)}
                 >
-                    <button
-                        type="button"
-                        className="imcrm-block imcrm-w-full imcrm-truncate imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40"
-                        title={__('Editar fecha y recurrencia')}
-                    >
-                        {renderCellValue(field, value)}
-                    </button>
+                    <DateCellTrigger
+                        listId={listId}
+                        recordId={recordId}
+                        field={field}
+                        value={value}
+                    />
                 </DateCellEditor>
             );
         }
@@ -361,4 +362,50 @@ function CellEditor({ field, value, onChange, onCommit, onCancel, isPending }: C
                 />
             );
     }
+}
+
+/**
+ * Trigger del `DateCellEditor` en modo lectura. Muestra el valor
+ * formateado y, cuando el record tiene una recurrencia activa para
+ * este field, un icono `RefreshCw` en el lado derecho — feedback
+ * visual rápido para que el user sepa qué fechas se repiten sin
+ * tener que abrir cada celda.
+ *
+ * `useRecurrences` se llama también dentro de `DateCellEditor`,
+ * pero React Query dedupea por queryKey (mismos `listId+recordId`)
+ * — sin overhead extra de red.
+ */
+function DateCellTrigger({
+    listId,
+    recordId,
+    field,
+    value,
+}: {
+    listId: number;
+    recordId: number;
+    field: FieldEntity;
+    value: unknown;
+}): JSX.Element {
+    const recurrences = useRecurrences(listId, recordId);
+    const hasRecurrence = (recurrences.data ?? []).some((r) => r.date_field_id === field.id);
+
+    return (
+        <button
+            type="button"
+            className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-1 imcrm-truncate imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40"
+            title={hasRecurrence
+                ? __('Recurrente · click para editar')
+                : __('Editar fecha y recurrencia')}
+        >
+            <span className="imcrm-min-w-0 imcrm-flex-1 imcrm-truncate">
+                {renderCellValue(field, value)}
+            </span>
+            {hasRecurrence && (
+                <RefreshCw
+                    className="imcrm-h-3 imcrm-w-3 imcrm-shrink-0 imcrm-text-success"
+                    aria-label={__('Recurrente')}
+                />
+            )}
+        </button>
+    );
 }

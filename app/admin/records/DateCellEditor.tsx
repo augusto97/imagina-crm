@@ -132,7 +132,15 @@ export function DateCellEditor({
                             onSelect={handleSelect}
                             modifiers={{
                                 recurrence: existingRecurrence
-                                    ? computeUpcomingOccurrences(pickedDate, existingRecurrence, 5)
+                                    ? computeUpcomingOccurrences(
+                                        pickedDate,
+                                        existingRecurrence,
+                                        // Cantidad proporcional a la frecuencia para
+                                        // cubrir un horizonte de 10 años (las marcas
+                                        // siguen apareciendo aunque el user navegue
+                                        // hacia adelante varios años).
+                                        previewCountFor(existingRecurrence),
+                                    )
                                     : [],
                             }}
                             modifiersClassNames={{
@@ -759,6 +767,29 @@ function freqLabel(freq: RecurrenceFrequency, interval: number): string {
             return `${__('Cada')} ${interval} ${__('meses')}`;
         case 'yearly':
             return `${__('Cada')} ${interval} ${__('años')}`;
+    }
+}
+
+/**
+ * Cuántas ocurrencias precomputar como preview en el calendario,
+ * proporcional a la frecuencia. Cubre ~10 años hacia adelante, así
+ * el user puede navegar varios años sin perder las marcas:
+ *  - daily   → 365·10 = 3650
+ *  - weekly  → 52·10  = 520
+ *  - monthly → 12·10  = 120
+ *  - yearly  → 10
+ *
+ * El cálculo es local y barato (un loop de aritmética de fechas);
+ * 3650 puntos por celda no impactan el render.
+ */
+function previewCountFor(rec: Recurrence): number {
+    const horizonYears = 10;
+    switch (rec.frequency) {
+        case 'daily':   return 365 * horizonYears;
+        case 'weekly':  return 52 * horizonYears;
+        case 'monthly': return 12 * horizonYears;
+        case 'yearly':  return horizonYears;
+        default:        return 60; // days_after / fallback
     }
 }
 
