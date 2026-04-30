@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.3
+Stable tag: 0.30.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.4 =
+**Hotfix**: el menú "Imagina CRM" abría una pantalla en blanco en
+0.30.2-0.30.3.
+
+* Causa: en 0.30.2 cambié el `menu_slug` a la URL standalone
+  esperando que WP la usara como `href` directo. WordPress no
+  funciona así — generó un link `admin.php?page=<URL%20encoded>`
+  que no resuelve a ninguna página → canvas en blanco.
+* Fix: vuelve al slug normal (`imagina-crm`) pero engancha el
+  redirect en `load-{hookname}`. Ese hook corre ANTES de
+  `admin-header.php` (es decir, antes de cualquier output del
+  admin) → `wp_safe_redirect` siempre puede setear headers. Era
+  el patrón que faltaba en el 0.13.x original (que enganchaba el
+  redirect en el render callback, demasiado tarde).
+* Fallback defensivo si los headers ya se enviaron (por ej. otro
+  plugin printea en `init`): meta-refresh + `window.location.replace`
+  + link manual. El user igual aterriza en el SPA en <100ms.
 
 = 0.30.3 =
 **Cleanup**: elimina el toggle de pantalla completa (Maximize2 en

@@ -10,56 +10,70 @@ use ImaginaCRM\Standalone\StandalonePage;
  * Registra la entrada del plugin en el menú de wp-admin.
  *
  * Desde 0.13.0 el SPA vive en una página standalone fuera de wp-admin
- * (`/imagina-crm/`). El menú lateral de WP es solo un launcher: el
- * `menu_slug` que pasamos a `add_menu_page` es la URL standalone
- * directamente — WP detecta el `://` y la usa como `href` sin
- * intermediar por `admin.php?page=...`. Cero round-trips, cero
- * pantalla en blanco con "click aquí".
+ * (`/imagina-crm/`) — sin chrome, sin styles bleed, más rápido. El
+ * menú lateral de WP es solo un launcher que redirige al SPA.
  *
- * Para bookmarks viejos a `admin.php?page=imagina-crm` mantenemos
- * un redirect defensivo en `admin_init` (corre antes de cualquier
- * output, así `wp_safe_redirect` siempre funciona).
+ * El redirect se engancha al hook `load-{hookname}` que dispara WP
+ * ANTES de incluir `admin-header.php` (es decir, antes de cualquier
+ * output). Así `wp_safe_redirect` siempre puede setear headers — sin
+ * caer al fallback HTML "click aquí" como pasaba con render callbacks
+ * tardíos.
  */
 final class AdminMenu
 {
     public function register(): void
     {
         add_action('admin_menu', [$this, 'registerMenu']);
-        add_action('admin_init', [$this, 'maybeRedirectLegacy']);
     }
 
     public function registerMenu(): void
     {
-        // `menu_slug` con `://` → WP lo trata como link externo y no
-        // intenta resolverlo via admin.php?page=<slug>. El callback
-        // queda como no-op (nunca se ejecuta, pero `add_menu_page`
-        // requiere un callable válido).
-        add_menu_page(
+        $hook = add_menu_page(
             __('Imagina CRM', 'imagina-crm'),
             __('Imagina CRM', 'imagina-crm'),
             Plugin::ADMIN_CAPABILITY,
-            StandalonePage::url(),
-            '__return_null',
+            Plugin::ADMIN_PAGE,
+            '__return_null',           // No-op: el load-hook hace exit antes.
             'dashicons-rest-api',
             58,
         );
+
+        if (is_string($hook) && $hook !== '') {
+            add_action("load-{$hook}", [$this, 'redirectToStandalone']);
+        }
     }
 
     /**
-     * Backwards compat para URLs viejas (`/wp-admin/admin.php?page=imagina-crm`).
-     * `admin_init` corre antes de cualquier output del admin → el
-     * redirect siempre puede setear headers.
+     * Engachado a `load-{hookname}`: corre antes de admin-header.php,
+     * así el redirect funciona siempre. Si por alguna razón los
+     * headers ya se enviaron (output buffering raro, plugin que printea
+     * en `init`), caemos al fallback HTML.
      */
-    public function maybeRedirectLegacy(): void
+    public function redirectToStandalone(): void
     {
-        if (! is_admin() || ! current_user_can(Plugin::ADMIN_CAPABILITY)) {
-            return;
+        if (! current_user_can(Plugin::ADMIN_CAPABILITY)) {
+            wp_die(esc_html__('No tienes permiso para acceder a Imagina CRM.', 'imagina-crm'));
         }
-        $page = isset($_GET['page']) && is_string($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        if ($page !== Plugin::ADMIN_PAGE) {
-            return;
+
+        $target = StandalonePage::url();
+
+        if (! headers_sent()) {
+            wp_safe_redirect($target);
+            exit;
         }
-        wp_safe_redirect(StandalonePage::url());
+
+        // Fallback defensivo: meta-refresh + JS + link manual. Si
+        // llegamos acá es porque otro plugin printeó algo antes — el
+        // user ve un mensaje breve y rebotamos cliente-side.
+        printf(
+            '<meta http-equiv="refresh" content="0;url=%1$s">'
+            . '<script>window.location.replace(%2$s);</script>'
+            . '<div class="wrap"><h1>%3$s</h1><p><a href="%1$s">%4$s</a></p></div>',
+            esc_url($target),
+            wp_json_encode($target),
+            esc_html__('Abriendo Imagina CRM…', 'imagina-crm'),
+            esc_html__('Click aquí si no eres redirigido', 'imagina-crm'),
+        );
         exit;
     }
 }
