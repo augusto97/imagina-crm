@@ -146,6 +146,7 @@ final class FieldsController extends AbstractController
             'is_required' => ! empty($params['is_required']),
             'is_unique'   => ! empty($params['is_unique']),
             'is_primary'  => ! empty($params['is_primary']),
+            'is_indexed'  => ! empty($params['is_indexed']),
         ];
 
         if (isset($params['position']) && is_numeric($params['position'])) {
@@ -191,7 +192,7 @@ final class FieldsController extends AbstractController
 
         $patch = array_intersect_key(
             $params,
-            array_flip(['label', 'config', 'is_required', 'is_unique', 'is_primary', 'position'])
+            array_flip(['label', 'config', 'is_required', 'is_unique', 'is_primary', 'is_indexed', 'position'])
         );
 
         if ($patch !== []) {

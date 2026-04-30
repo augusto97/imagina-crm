@@ -119,6 +119,7 @@ final class FieldService
             'is_required' => ! empty($input['is_required']),
             'is_unique'   => $isUnique,
             'is_primary'  => ! empty($input['is_primary']),
+            'is_indexed'  => ! empty($input['is_indexed']),
             'position'    => isset($input['position']) ? (int) $input['position'] : $this->nextPosition($listId),
             'created_at'  => $now,
             'updated_at'  => $now,
@@ -134,6 +135,12 @@ final class FieldService
                 $this->schema->addColumn($list->tableSuffix, $columnName, $fieldType->getSqlDefinition($config));
                 if ($isUnique) {
                     $this->schema->addUniqueIndex($list->tableSuffix, $columnName);
+                }
+                // Toggle de índice no-unique. Mutuamente exclusivo con
+                // UNIQUE (UNIQUE ya implica un índice) — solo creamos
+                // este si NO hay UNIQUE.
+                if (! $isUnique && ! empty($input['is_indexed'])) {
+                    $this->schema->addIndex($list->tableSuffix, $columnName);
                 }
             } catch (\Throwable $e) {
                 // Rollback: marcar el campo como deleted; intentar limpiar
@@ -247,6 +254,31 @@ final class FieldService
                     sprintf(
                         /* translators: %s: error message */
                         __('No se pudo actualizar el índice único: %s', 'imagina-crm'),
+                        $e->getMessage()
+                    )
+                );
+            }
+        }
+
+        // Toggle índice NO-único (`is_indexed`) si cambió. Solo
+        // cuando NO hay UNIQUE — el UNIQUE ya provee índice. Si
+        // ambos toggles están activos, gana UNIQUE y el regular se
+        // dropea para no duplicar.
+        $newIndexed = array_key_exists('is_indexed', $patch) ? (bool) $patch['is_indexed'] : null;
+        $effectiveUnique = $newUnique ?? $current->isUnique;
+        if ($newIndexed !== null && $newIndexed !== $current->isIndexed && $type->hasColumn()) {
+            try {
+                if ($newIndexed && ! $effectiveUnique) {
+                    $this->schema->addIndex($list->tableSuffix, $current->columnName);
+                } else {
+                    $this->schema->dropIndex($list->tableSuffix, $current->columnName);
+                }
+            } catch (\Throwable $e) {
+                return ValidationResult::failWith(
+                    'schema',
+                    sprintf(
+                        /* translators: %s: error message */
+                        __('No se pudo actualizar el índice: %s', 'imagina-crm'),
                         $e->getMessage()
                     )
                 );

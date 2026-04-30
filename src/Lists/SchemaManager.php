@@ -168,6 +168,60 @@ final class SchemaManager
         $this->db->wpdb()->query("ALTER TABLE {$table} DROP INDEX {$index}");
     }
 
+    /**
+     * Crea un índice NO-único para acelerar filtros / sort sobre la
+     * columna. El user lo activa con `is_indexed=true` en el field
+     * config. A diferencia de UNIQUE, este permite valores duplicados.
+     *
+     * Tradeoff: cada índice cuesta storage (~10% de la tabla) y
+     * lentifica writes ~5%; por eso es opt-in. Pero filtros sobre la
+     * columna pasan de table scan a index seek — orden de magnitud
+     * más rápido a 50k+ filas.
+     *
+     * Idempotente: si el índice ya existe, MySQL retorna error pero
+     * lo capturamos y seguimos. Útil para reactivar el toggle sin
+     * que rompa.
+     */
+    public function addIndex(string $tableSuffix, string $columnName): void
+    {
+        if ($this->indexExists($tableSuffix, 'idx_' . $columnName)) {
+            return;
+        }
+        $table  = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $column = $this->quoteIdent($columnName);
+        $index  = $this->quoteIdent('idx_' . $columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} ADD INDEX {$index} ({$column})");
+    }
+
+    public function dropIndex(string $tableSuffix, string $columnName): void
+    {
+        if (! $this->indexExists($tableSuffix, 'idx_' . $columnName)) {
+            return;
+        }
+        $table = $this->quoteIdent($this->db->dataTable($tableSuffix), allowPrefix: true);
+        $index = $this->quoteIdent('idx_' . $columnName);
+
+        $this->db->wpdb()->query("ALTER TABLE {$table} DROP INDEX {$index}");
+    }
+
+    /**
+     * Verifica que un índice exista en la tabla dinámica antes de
+     * crear/dropear — evita errores de MySQL "Duplicate key name" al
+     * re-activar el toggle, y "Can't DROP" cuando se desactiva sin
+     * haberlo creado nunca.
+     */
+    public function indexExists(string $tableSuffix, string $indexName): bool
+    {
+        $tableName = $this->db->dataTable($tableSuffix);
+        $sql = $this->db->wpdb()->prepare(
+            'SHOW INDEX FROM `' . esc_sql($tableName) . '` WHERE Key_name = %s',
+            $indexName,
+        );
+        $found = $this->db->wpdb()->get_var($sql);
+        return $found !== null;
+    }
+
     public function columnExists(string $tableSuffix, string $columnName): bool
     {
         $tableName = $this->db->dataTable($tableSuffix);
@@ -269,6 +323,7 @@ final class SchemaManager
             is_required TINYINT(1) NOT NULL DEFAULT 0,
             is_unique TINYINT(1) NOT NULL DEFAULT 0,
             is_primary TINYINT(1) NOT NULL DEFAULT 0,
+            is_indexed TINYINT(1) NOT NULL DEFAULT 0,
             position INT NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,

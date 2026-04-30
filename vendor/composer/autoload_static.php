@@ -135,6 +135,7 @@ class ComposerStaticInit5b28592399c39b53b7f6f395f4c2e28a
         'ImaginaCRM\\Recurrences\\RecurrenceRunner' => __DIR__ . '/../..' . '/src/Recurrences/RecurrenceRunner.php',
         'ImaginaCRM\\Recurrences\\RecurrenceService' => __DIR__ . '/../..' . '/src/Recurrences/RecurrenceService.php',
         'ImaginaCRM\\Standalone\\StandalonePage' => __DIR__ . '/../..' . '/src/Standalone/StandalonePage.php',
+        'ImaginaCRM\\Support\\Cache' => __DIR__ . '/../..' . '/src/Support/Cache.php',
         'ImaginaCRM\\Support\\ContainerException' => __DIR__ . '/../..' . '/src/Support/ContainerException.php',
         'ImaginaCRM\\Support\\Database' => __DIR__ . '/../..' . '/src/Support/Database.php',
         'ImaginaCRM\\Support\\RenameResult' => __DIR__ . '/../..' . '/src/Support/RenameResult.php',

@@ -120,6 +120,7 @@ return array(
     'ImaginaCRM\\Recurrences\\RecurrenceRunner' => $baseDir . '/src/Recurrences/RecurrenceRunner.php',
     'ImaginaCRM\\Recurrences\\RecurrenceService' => $baseDir . '/src/Recurrences/RecurrenceService.php',
     'ImaginaCRM\\Standalone\\StandalonePage' => $baseDir . '/src/Standalone/StandalonePage.php',
+    'ImaginaCRM\\Support\\Cache' => $baseDir . '/src/Support/Cache.php',
     'ImaginaCRM\\Support\\ContainerException' => $baseDir . '/src/Support/ContainerException.php',
     'ImaginaCRM\\Support\\Database' => $baseDir . '/src/Support/Database.php',
     'ImaginaCRM\\Support\\RenameResult' => $baseDir . '/src/Support/RenameResult.php',
