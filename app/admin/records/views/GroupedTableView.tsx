@@ -212,6 +212,20 @@ export function GroupedTableView({
         );
     }
 
+    // Ancho total de la tabla = checkbox + columnas dinámicas + add-col.
+    // Lo usamos para que TODOS los bucket cards compartan el mismo
+    // ancho mínimo, así un solo scroll horizontal en el wrapper exterior
+    // alinea las columnas verticalmente entre buckets (estilo ClickUp).
+    const tableWidth = useMemo(() => {
+        const sizing = columnSizing ?? {};
+        let total = 40; // checkbox
+        for (const c of visibleColumns) {
+            total += sizing[c.id] ?? defaultSizeForColumn(c);
+        }
+        if (onAddColumn !== undefined) total += 48; // add-col
+        return total;
+    }, [visibleColumns, columnSizing, onAddColumn]);
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-text-xs imcrm-text-muted-foreground">
@@ -225,39 +239,57 @@ export function GroupedTableView({
                 </span>
             </div>
 
-            {buckets.map((bucket, idx) => {
-                const key = bucketKey(bucket);
-                return (
-                    <GroupBucketSection
-                        key={key}
-                        listId={listId}
-                        listSlug={listSlug}
-                        groupByField={groupByField}
-                        bucket={bucket}
-                        isOpen={isOpen(key)}
-                        onToggle={() => toggleGroup(key)}
-                        columns={visibleColumns}
-                        columnSizing={columnSizing ?? {}}
-                        baseTree={filterTree}
-                        search={search}
-                        selectedIds={selectedIds}
-                        onSelectionChange={onSelectionChange}
-                        onRowClick={onRowClick}
-                        // El "+" de agregar columna solo se muestra
-                        // en el header del PRIMER bucket — sino sale
-                        // duplicado en cada grupo. UX consistent con
-                        // el flat view (un solo trigger).
-                        onAddColumn={idx === 0 ? onAddColumn : undefined}
-                        onAddRecord={
-                            onAddRecord
-                                ? () => onAddRecord(groupByField, bucket.value)
-                                : undefined
-                        }
-                        footerAggregates={footerAggregates}
-                        onFooterAggregatesChange={onFooterAggregatesChange}
-                    />
-                );
-            })}
+            {/* Scroll horizontal único compartido entre todos los
+                buckets — sin esto cada bucket tenía su propio
+                overflow-x-auto y las columnas no quedaban alineadas
+                verticalmente entre grupos al scrollear. Ahora el outer
+                div es el contenedor de scroll; cada `<section>` adentro
+                tiene `min-width: tableWidth` para que todos midan
+                igual. Sticky-left funciona contra este outer div.
+
+                `imcrm-pb-2` deja un colchón debajo del último bucket
+                para que el scrollbar no quede pegado a su border. */}
+            <div className="imcrm-overflow-x-auto imcrm-pb-2">
+                <div
+                    className="imcrm-flex imcrm-flex-col imcrm-gap-3"
+                    style={{ minWidth: tableWidth }}
+                >
+                    {buckets.map((bucket, idx) => {
+                        const key = bucketKey(bucket);
+                        return (
+                            <GroupBucketSection
+                                key={key}
+                                listId={listId}
+                                listSlug={listSlug}
+                                groupByField={groupByField}
+                                bucket={bucket}
+                                isOpen={isOpen(key)}
+                                onToggle={() => toggleGroup(key)}
+                                columns={visibleColumns}
+                                columnSizing={columnSizing ?? {}}
+                                tableWidth={tableWidth}
+                                baseTree={filterTree}
+                                search={search}
+                                selectedIds={selectedIds}
+                                onSelectionChange={onSelectionChange}
+                                onRowClick={onRowClick}
+                                // El "+" de agregar columna solo se muestra
+                                // en el header del PRIMER bucket — sino sale
+                                // duplicado en cada grupo. UX consistent con
+                                // el flat view (un solo trigger).
+                                onAddColumn={idx === 0 ? onAddColumn : undefined}
+                                onAddRecord={
+                                    onAddRecord
+                                        ? () => onAddRecord(groupByField, bucket.value)
+                                        : undefined
+                                }
+                                footerAggregates={footerAggregates}
+                                onFooterAggregatesChange={onFooterAggregatesChange}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 }
@@ -345,6 +377,13 @@ interface GroupBucketSectionProps {
     onToggle: () => void;
     columns: ColumnDef[];
     columnSizing: Record<string, number>;
+    /**
+     * Ancho total compartido por todos los buckets. La tabla se
+     * estira a este ancho con `tableLayout: 'fixed'` para que las
+     * columnas queden alineadas entre buckets cuando el outer scroll
+     * mueve la posición.
+     */
+    tableWidth: number;
     baseTree: FilterTree;
     search: string;
     selectedIds: number[];
@@ -372,6 +411,7 @@ function GroupBucketSection({
     onToggle,
     columns,
     columnSizing,
+    tableWidth,
     baseTree,
     search,
     selectedIds,
@@ -508,7 +548,10 @@ function GroupBucketSection({
             </button>
 
             {isOpen && (
-                <div className="imcrm-border-t imcrm-border-border imcrm-overflow-x-auto">
+                // Sin `overflow-x-auto` aquí — el scroll horizontal es
+                // del wrapper exterior compartido entre todos los
+                // buckets (single-scroll ClickUp-style).
+                <div className="imcrm-border-t imcrm-border-border">
                     {records.isLoading ? (
                         <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-px-4 imcrm-py-4 imcrm-text-sm imcrm-text-muted-foreground">
                             <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
@@ -519,7 +562,11 @@ function GroupBucketSection({
                             {(records.error as Error).message}
                         </p>
                     ) : (
-                        <table className="imcrm-w-full imcrm-text-sm" aria-label={labelText}>
+                        <table
+                            className="imcrm-text-sm"
+                            style={{ tableLayout: 'fixed', width: tableWidth }}
+                            aria-label={labelText}
+                        >
                             <thead className="imcrm-bg-muted/30">
                                 <tr className="imcrm-border-b imcrm-border-border">
                                     <th

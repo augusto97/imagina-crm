@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.27.1
+Stable tag: 0.27.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,19 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.27.2 =
+* **Scroll horizontal único compartido entre buckets** en la
+  vista agrupada (estilo ClickUp). Antes cada bucket card tenía
+  su propio `overflow-x-auto` — el user veía N scrollbars y las
+  columnas no quedaban alineadas verticalmente entre grupos
+  cuando scrolleaba en uno (ej. ABRIL en columna 5, MARZO en
+  columna 1). Ahora el outer wrapper de la lista de buckets es
+  el contenedor de scroll; cada `<section>` de bucket tiene
+  `min-width: tableWidth` (suma de todas las columnas visibles
+  + checkbox + add-col), así todos miden lo mismo. Resultado:
+  un solo scrollbar al fondo, columnas alineadas entre buckets.
+  El sticky-left sigue funcionando contra el outer wrapper.
 
 = 0.27.1 =
 * Fix: la columna sticky de 0.27.0 era el checkbox de selección,
