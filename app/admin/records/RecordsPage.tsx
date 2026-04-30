@@ -4,6 +4,7 @@ import { ArrowLeft, FileUp, Loader2, Plus, Search, Settings, Zap } from 'lucide-
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
 import { useRecord, useRecords } from '@/hooks/useRecords';
@@ -53,8 +54,14 @@ export function RecordsPage(): JSX.Element {
     // Para Kanban y Calendar traemos hasta 500 registros (el back-end
     // limita el máximo per_page; 500 cubre la mayoría de tableros y
     // calendarios mensuales sin paginar).
+    // Debounce del search input: el state visible (state.search) se
+    // actualiza instantáneo para que el Input sea responsivo, pero la
+    // query solo se dispara 300ms después del último keystroke. Sin
+    // esto, escribir "carlos" disparaba 6 requests y el user veía
+    // resultados parpadeantes (cada uno tarda ~200ms en LIKE).
+    const debouncedSearch = useDebouncedValue(state.search, 300);
     const query = useMemo(() => {
-        const base = buildRecordsQuery(state);
+        const base = buildRecordsQuery({ ...state, search: debouncedSearch });
         if (activeViewId !== null) {
             const v = views.data?.find((x) => x.id === activeViewId);
             if (v?.type === 'kanban' || v?.type === 'calendar') {
@@ -62,7 +69,7 @@ export function RecordsPage(): JSX.Element {
             }
         }
         return base;
-    }, [state, activeViewId, views.data]);
+    }, [state, debouncedSearch, activeViewId, views.data]);
     const records = useRecords(list.data?.id, query);
     const [createOpen, setCreateOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
@@ -282,8 +289,19 @@ export function RecordsPage(): JSX.Element {
                                     value={state.search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     placeholder={__('Buscar…')}
-                                    className="imcrm-pl-8"
+                                    className="imcrm-pl-8 imcrm-pr-8"
                                 />
+                                {/*
+                                  Spinner in-input mientras la query
+                                  está en vuelo (tras el debounce).
+                                  isFetching también es true en otros
+                                  fetches (paginación, sort), pero
+                                  visualmente todos se ven igual de
+                                  reactivos — no es problema.
+                                */}
+                                {(records.isFetching || state.search !== debouncedSearch) && (
+                                    <Loader2 className="imcrm-pointer-events-none imcrm-absolute imcrm-right-2.5 imcrm-top-2 imcrm-h-4 imcrm-w-4 imcrm-animate-spin imcrm-text-muted-foreground" />
+                                )}
                             </div>
                             <FiltersPanel
                                 listId={list.data?.id}
@@ -352,7 +370,7 @@ export function RecordsPage(): JSX.Element {
                             fields={fields.data}
                             groupByField={tableGroupByField}
                             filterTree={state.filterTree}
-                            search={state.search}
+                            search={debouncedSearch}
                             selectedIds={selectedIds}
                             onSelectionChange={setSelectedIds}
                             onRowClick={(record) => setDrawerRecordId(record.id)}

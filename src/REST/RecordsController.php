@@ -380,7 +380,7 @@ final class RecordsController extends AbstractController
                     [],
                     [],
                     [],
-                    null,
+                    $search, // 0.30.7: aplica el ?search= dentro de cada bucket (antes solo filtraba la meta de buckets, no los records dentro).
                     1,
                     $perPage,
                     $bucketTree,

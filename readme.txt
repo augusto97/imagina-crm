@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.6
+Stable tag: 0.30.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,34 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.7 =
+**Search reactivo + fix grouped view + spinner inline.**
+
+* **Search en vivo (debounced 300ms)**. Ahora podés escribir en
+  el buscador y los resultados se actualizan automáticamente
+  cuando dejás de tipear, sin tener que presionar Enter. El
+  state visible del Input se actualiza instantáneo (responsivo);
+  la query solo se dispara 300ms después del último keystroke,
+  evitando una request por letra. Implementado con un nuevo hook
+  `useDebouncedValue` reutilizable.
+* **Fix: search en vista agrupada**. El bundle endpoint
+  (`/records/grouped-bundle`) recibía `?search=` pero solo lo
+  aplicaba a la meta de buckets — los registros dentro de cada
+  bucket NO se filtraban. Ahora se pasa también a
+  `service->list()` por bucket. Resultado: el buscador funciona
+  igual en table flat, table agrupada, kanban y calendar.
+* **Spinner inline**. Pequeño loader a la derecha del Input
+  mientras la query está en vuelo (incluido durante el debounce).
+  El user ve que el sistema está procesando, sin que aparezca
+  como pantalla congelada.
+
+**Nota sobre performance**: si tu lista tiene >10k registros y la
+primera búsqueda se siente lenta, activá "Búsqueda avanzada" en
+**Editar lista → Mantenimiento y rendimiento**. Reemplaza el LIKE
+%q% (que escanea la tabla) por un índice invertido + BM25
+(O(matches × tokens) — escala a millones). El resultado es
+inmediato, no solo en cargas cacheadas.
 
 = 0.30.6 =
 **UI**: editar nombre y descripción de un dashboard.
