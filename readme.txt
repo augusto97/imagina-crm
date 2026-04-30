@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.27.4
+Stable tag: 0.27.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,40 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.27.5 =
+* Fix: hover de fila tenía lag (200ms aprox) por
+  `transition-colors duration-100` que causaba un wait perceptible
+  antes de pintar el bg. Especialmente notorio en la primera fila.
+  Quitada la transición — feedback instantáneo en TableView y
+  GroupedTableView.
+* Fix: el sticky-left de la primera columna dinámica no
+  funcionaba en la vista agrupada por culpa de `overflow-hidden`
+  en cada `<section>` de bucket. Ese overflow crea un containing
+  block que rompe `position: sticky` (las cells se quedaban
+  pegadas al section, no al outer scroll). Removido. El
+  `rounded-xl` y los borders del bucket card siguen funcionando
+  porque el contenido cabe naturalmente.
+* Fix: las barras de scroll quedaban al fondo del contenido de
+  la página. Si la lista era larga, había que scrollear hasta
+  abajo para encontrar la barra horizontal. Ahora los wrappers
+  de tabla (flat y grouped) tienen `max-h: calc(100vh - 220px)`
+  con `overflow: auto`, así el scroll vive DENTRO del wrapper y
+  las barras quedan al fondo del viewport (estilo ClickUp).
+* **Bulk actions toolbar flotante** (estilo ClickUp).
+  `position: fixed` centrada al fondo del viewport en lugar de
+  al fondo del contenedor de records. Border + shadow más
+  marcados para que se distinga del contenido.
+* **Acciones bulk nuevas:**
+  - **Actualizar campo**: popover con selector de campo + input
+    apropiado al tipo (select dropdown, fecha, número, texto,
+    checkbox, multi-select por CSV). Aplica `bulk update` con
+    `{slug: value}` a todos los seleccionados.
+  - **Duplicar**: lee cada registro seleccionado vía API y crea
+    uno nuevo con los mismos valores. Procesa en serie para no
+    bombardear el server.
+  - Se mantiene **Eliminar** (soft delete) y **Limpiar
+    selección**.
 
 = 0.27.4 =
 * Fix: el footer estaba en DOS filas (la de "+ Agregar tarea" con

@@ -290,7 +290,14 @@ export function TableView({
 
     return (
         <div
-            className="imcrm-overflow-auto imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm"
+            // `max-h: calc(100vh - 220px)` mantiene el scroll horizontal
+            // (y vertical) DENTRO de este box, así la barra de scroll
+            // queda siempre visible al fondo del viewport en lugar de
+            // al fondo de la página. 220px ≈ altura combinada de
+            // header + ViewsTabs + filtros toolbar arriba. Si el
+            // contenido cabe en ese alto, no hay scrollbar — comportamiento
+            // natural.
+            className="imcrm-overflow-auto imcrm-max-h-[calc(100vh-220px)] imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm"
             role="region"
             aria-label={__('Tabla de registros')}
             onScroll={(e) => {
@@ -493,7 +500,11 @@ export function TableView({
                                 <tr
                                     key={row.id}
                                     className={cn(
-                                        'imcrm-group/row imcrm-border-t imcrm-border-border/50 imcrm-transition-colors imcrm-duration-100',
+                                        // Sin `transition-colors` aquí — daba lag
+                                        // perceptible en hover (200ms de wait con
+                                        // duration-100 antes de la primera frame).
+                                        // Hover bg debe ser instantáneo.
+                                        'imcrm-group/row imcrm-border-t imcrm-border-border/50',
                                         isSelected
                                             ? 'imcrm-bg-primary/5'
                                             : 'hover:imcrm-bg-accent/40',

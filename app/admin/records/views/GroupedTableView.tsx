@@ -251,9 +251,10 @@ export function GroupedTableView({
                 tiene `min-width: tableWidth` para que todos midan
                 igual. Sticky-left funciona contra este outer div.
 
-                `imcrm-pb-2` deja un colchón debajo del último bucket
-                para que el scrollbar no quede pegado a su border. */}
-            <div className="imcrm-overflow-x-auto imcrm-pb-2">
+                `max-h: calc(100vh - 220px)` mantiene el scroll DENTRO
+                de este wrapper, así la barra horizontal queda al fondo
+                del viewport en lugar de al fondo de la página. */}
+            <div className="imcrm-overflow-auto imcrm-max-h-[calc(100vh-220px)] imcrm-pb-2">
                 <div
                     className="imcrm-flex imcrm-flex-col imcrm-gap-3"
                     style={{ minWidth: tableWidth }}
@@ -521,7 +522,14 @@ function GroupBucketSection({
 
     return (
         <section
-            className="imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm"
+            // No usar `overflow-hidden` aquí — rompe `position: sticky`
+            // de las celdas internas (crea un containing block para el
+            // sticky que NO scrollea, así que las cells quedan
+            // pegadas a la sección y no al outer scroll). Sin él, los
+            // rounded corners siguen funcionando porque el contenido
+            // interno cabe naturalmente. El `border` y `rounded-xl`
+            // siguen aplicando como bordes externos.
+            className="imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm"
             aria-expanded={isOpen}
         >
             <button
@@ -642,7 +650,7 @@ function GroupBucketSection({
                                         <tr
                                             key={record.id}
                                             className={cn(
-                                                'imcrm-group/row imcrm-border-t imcrm-border-border/50 imcrm-transition-colors imcrm-duration-100',
+                                                'imcrm-group/row imcrm-border-t imcrm-border-border/50',
                                                 isSelected
                                                     ? 'imcrm-bg-primary/5'
                                                     : 'hover:imcrm-bg-accent/40',
