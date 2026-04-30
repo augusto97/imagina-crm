@@ -14,7 +14,9 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useToast } from '@/components/ui/toast';
 import {
     useActionCatalog,
     useAutomations,
@@ -50,6 +52,8 @@ export function AutomationsPage(): JSX.Element {
     const [runsFor, setRunsFor] = useState<AutomationEntity | null>(null);
 
     const deleteMutation = useDeleteAutomation(list.data?.id ?? 0);
+    const toast = useToast();
+    const confirm = useConfirm();
 
     const handleEdit = (automation: AutomationEntity): void => {
         setEditing(automation);
@@ -63,15 +67,19 @@ export function AutomationsPage(): JSX.Element {
 
     const handleDelete = async (id: number): Promise<void> => {
         if (!list.data) return;
-        const ok = window.confirm(
-            __('¿Eliminar esta automatización? Sus runs anteriores se conservan para auditoría.'),
-        );
+        const ok = await confirm({
+            title: __('Eliminar automatización'),
+            description: __('Sus runs anteriores se conservan para auditoría.'),
+            destructive: true,
+            confirmLabel: __('Eliminar'),
+        });
         if (!ok) return;
         try {
             await deleteMutation.mutateAsync(id);
+            toast.success(__('Automatización eliminada'));
         } catch (err) {
             if (err instanceof ApiError || err instanceof Error) {
-                window.alert(err.message);
+                toast.error(__('No se pudo eliminar'), err.message);
             }
         }
     };
@@ -194,6 +202,7 @@ function AutomationRow({
     onShowRuns,
 }: AutomationRowProps): JSX.Element {
     const update = useUpdateAutomation(listId);
+    const toast = useToast();
     const triggerLabel =
         triggers.find((t) => t.slug === automation.trigger_type)?.label ?? automation.trigger_type;
 
@@ -204,7 +213,7 @@ function AutomationRow({
                 input: { is_active: !automation.is_active },
             });
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) toast.error(__('No se pudo cambiar el estado'), err.message);
         }
     };
 

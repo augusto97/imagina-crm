@@ -15,6 +15,7 @@ import { CommentsPanel } from '@/admin/comments/CommentsPanel';
 import { RecordFieldsForm } from '@/admin/records/RecordFieldsForm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useFields } from '@/hooks/useFields';
 import { useList } from '@/hooks/useLists';
 import { useDeleteRecord, useRecord, useUpdateRecord } from '@/hooks/useRecords';
@@ -47,6 +48,7 @@ export function RecordPage(): JSX.Element {
     const record = useRecord(list.data?.id, id);
     const update = useUpdateRecord(list.data?.id ?? 0);
     const remove = useDeleteRecord(list.data?.id ?? 0);
+    const confirm = useConfirm();
 
     const initialValues = useMemo<Record<string, unknown>>(() => {
         if (!record.data) return {};
@@ -143,17 +145,17 @@ export function RecordPage(): JSX.Element {
 
     const handleDelete = async (): Promise<void> => {
         if (!record.data) return;
-        if (
-            !window.confirm(
-                sprintf(
-                    /* translators: %d: record id */
-                    __('¿Eliminar el registro #%d?'),
-                    record.data.id,
-                ),
-            )
-        ) {
-            return;
-        }
+        const ok = await confirm({
+            title: sprintf(
+                /* translators: %d: record id */
+                __('¿Eliminar el registro #%d?'),
+                record.data.id,
+            ),
+            description: __('Esta acción no se puede deshacer.'),
+            destructive: true,
+            confirmLabel: __('Eliminar'),
+        });
+        if (!ok) return;
         try {
             await remove.mutateAsync({ id: record.data.id, purge: false });
             navigate(`/lists/${list.data!.slug}/records`);

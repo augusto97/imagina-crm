@@ -146,6 +146,46 @@ final class DashboardService
         return $updated;
     }
 
+    /**
+     * Housekeeping: cuando un field se borra, recorre todos los
+     * dashboards activos y elimina los widgets que lo referencian
+     * (en `metric_field_id`, `group_by_field_id`, `date_field_id`,
+     * `sort_field_id`). Se llama desde el hook
+     * `imagina_crm/field_deleted`. Sin esto, los dashboards quedaban
+     * con widgets orphaned mostrando placeholder de error.
+     */
+    public function pruneFieldReferences(int $fieldId): void
+    {
+        if ($fieldId <= 0) {
+            return;
+        }
+        foreach ($this->repo->allActive() as $dash) {
+            $next = [];
+            $changed = false;
+            foreach ($dash->widgets as $w) {
+                if (! is_array($w) || ! isset($w['config']) || ! is_array($w['config'])) {
+                    $next[] = $w;
+                    continue;
+                }
+                $config = $w['config'];
+                $references = [
+                    (int) ($config['metric_field_id'] ?? 0),
+                    (int) ($config['group_by_field_id'] ?? 0),
+                    (int) ($config['date_field_id'] ?? 0),
+                    (int) ($config['sort_field_id'] ?? 0),
+                ];
+                if (in_array($fieldId, $references, true)) {
+                    $changed = true;
+                    continue; // skip = drop widget
+                }
+                $next[] = $w;
+            }
+            if ($changed) {
+                $this->repo->update($dash->id, ['widgets' => $next]);
+            }
+        }
+    }
+
     public function delete(int $id, int $userId, bool $isAdmin): ValidationResult
     {
         $current = $this->repo->find($id);
@@ -205,21 +245,28 @@ final class DashboardService
             }
 
             $listId = isset($item['list_id']) ? (int) $item['list_id'] : 0;
-            if ($listId <= 0 || $this->lists->find($listId) === null) {
+            if ($listId <= 0) {
                 return ValidationResult::failWith(
                     'widgets',
                     sprintf(
                         /* translators: %d: widget index */
-                        __('La lista del widget en posición %d no existe.', 'imagina-crm'),
+                        __('Falta la lista del widget en posición %d.', 'imagina-crm'),
                         $idx,
                     ),
                 );
             }
+            $listExists = $this->lists->find($listId) !== null;
 
             $config = isset($item['config']) && is_array($item['config']) ? $item['config'] : [];
-            $configError = $this->validateWidgetConfig($type, $listId, $config);
-            if ($configError !== null) {
-                return ValidationResult::failWith('widgets', $configError);
+            // Si la lista referenciada ya no existe (fue borrada),
+            // saltamos la validación de config — el widget queda
+            // orphaned pero el dashboard se puede seguir editando/
+            // borrando. El evaluator mostrará un placeholder.
+            if ($listExists) {
+                $configError = $this->validateWidgetConfig($type, $listId, $config);
+                if ($configError !== null) {
+                    return ValidationResult::failWith('widgets', $configError);
+                }
             }
 
             $out[] = [
@@ -239,6 +286,18 @@ final class DashboardService
      */
     private function validateWidgetConfig(string $type, int $listId, array $config): ?string
     {
+        // Tolerancia con field refs faltantes: si un campo referenciado
+        // ya no existe (e.g. el user borró la columna), NO bloqueamos
+        // el save — el widget queda persistido con su config original
+        // y el `WidgetEvaluator` muestra un placeholder de error al
+        // renderear. Sin esto, una vez que se borraba un campo
+        // referenciado, el dashboard quedaba "atrapado" — no se podía
+        // editar layout, agregar widgets, ni siquiera eliminar (el
+        // grid dispara onLayoutChange que intenta save y fallaba).
+        // Fix de 0.30.5 — antes era hard reject.
+        $fieldExists = fn (int $id): bool =>
+            $id > 0 && $this->fields->find($id) !== null;
+
         if ($type === 'kpi') {
             $metric = isset($config['metric']) ? (string) $config['metric'] : '';
             if (! in_array($metric, self::ALLOWED_KPI_METRICS, true)) {
@@ -249,9 +308,11 @@ final class DashboardService
                 if ($fieldId <= 0) {
                     return __('Sum/Avg requieren un campo numérico.', 'imagina-crm');
                 }
-                $field = $this->fields->find($fieldId);
-                if ($field === null || $field->listId !== $listId || ! in_array($field->type, self::NUMERIC_FIELD_TYPES, true)) {
-                    return __('El campo de métrica debe ser tipo number o currency de la misma lista.', 'imagina-crm');
+                if ($fieldExists($fieldId)) {
+                    $field = $this->fields->find($fieldId);
+                    if ($field !== null && ($field->listId !== $listId || ! in_array($field->type, self::NUMERIC_FIELD_TYPES, true))) {
+                        return __('El campo de métrica debe ser tipo number o currency de la misma lista.', 'imagina-crm');
+                    }
                 }
             }
         }
@@ -261,13 +322,15 @@ final class DashboardService
             if ($fieldId <= 0) {
                 return __('El gráfico requiere un campo de agrupación.', 'imagina-crm');
             }
-            $field = $this->fields->find($fieldId);
-            if (
-                $field === null
-                || $field->listId !== $listId
-                || ! in_array($field->type, self::GROUPABLE_FIELD_TYPES, true)
-            ) {
-                return __('El campo de agrupación debe ser de un tipo agrupable (select, multi_select, text, email, url, date, datetime o checkbox) de la misma lista.', 'imagina-crm');
+            if ($fieldExists($fieldId)) {
+                $field = $this->fields->find($fieldId);
+                if (
+                    $field !== null
+                    && ($field->listId !== $listId
+                        || ! in_array($field->type, self::GROUPABLE_FIELD_TYPES, true))
+                ) {
+                    return __('El campo de agrupación debe ser de un tipo agrupable (select, multi_select, text, email, url, date, datetime o checkbox) de la misma lista.', 'imagina-crm');
+                }
             }
         }
 
@@ -276,9 +339,11 @@ final class DashboardService
             if ($fieldId <= 0) {
                 return __('El gráfico de línea requiere un campo de fecha.', 'imagina-crm');
             }
-            $field = $this->fields->find($fieldId);
-            if ($field === null || $field->listId !== $listId || ! in_array($field->type, self::DATE_FIELD_TYPES, true)) {
-                return __('El campo de fecha debe ser tipo date o datetime de la misma lista.', 'imagina-crm');
+            if ($fieldExists($fieldId)) {
+                $field = $this->fields->find($fieldId);
+                if ($field !== null && ($field->listId !== $listId || ! in_array($field->type, self::DATE_FIELD_TYPES, true))) {
+                    return __('El campo de fecha debe ser tipo date o datetime de la misma lista.', 'imagina-crm');
+                }
             }
         }
 
@@ -289,34 +354,40 @@ final class DashboardService
             }
             if (in_array($metric, ['sum', 'avg'], true)) {
                 $mfId = (int) ($config['metric_field_id'] ?? 0);
-                $mf   = $mfId > 0 ? $this->fields->find($mfId) : null;
-                if (
-                    $mf === null
-                    || $mf->listId !== $listId
-                    || ! in_array($mf->type, self::NUMERIC_FIELD_TYPES, true)
-                ) {
+                if ($fieldExists($mfId)) {
+                    $mf = $this->fields->find($mfId);
+                    if (
+                        $mf !== null
+                        && ($mf->listId !== $listId
+                            || ! in_array($mf->type, self::NUMERIC_FIELD_TYPES, true))
+                    ) {
+                        return __('Sum/Avg requieren un campo numérico de la misma lista.', 'imagina-crm');
+                    }
+                } elseif ($mfId <= 0) {
                     return __('Sum/Avg requieren un campo numérico de la misma lista.', 'imagina-crm');
                 }
             }
             $dfId = (int) ($config['date_field_id'] ?? 0);
-            $df   = $dfId > 0 ? $this->fields->find($dfId) : null;
-            if (
-                $df === null
-                || $df->listId !== $listId
-                || ! in_array($df->type, self::DATE_FIELD_TYPES, true)
-            ) {
+            if ($dfId <= 0) {
                 return __('El campo de fecha del comparador es requerido y debe ser date o datetime.', 'imagina-crm');
+            }
+            if ($fieldExists($dfId)) {
+                $df = $this->fields->find($dfId);
+                if (
+                    $df !== null
+                    && ($df->listId !== $listId
+                        || ! in_array($df->type, self::DATE_FIELD_TYPES, true))
+                ) {
+                    return __('El campo de fecha del comparador es requerido y debe ser date o datetime.', 'imagina-crm');
+                }
             }
         }
 
         if ($type === 'table') {
-            // No requerimos sort/visible; el evaluator cae a defaults
-            // razonables. Pero si se proveen, validamos que pertenezcan
-            // a la lista.
             $sortFieldId = (int) ($config['sort_field_id'] ?? 0);
-            if ($sortFieldId > 0) {
+            if ($fieldExists($sortFieldId)) {
                 $sf = $this->fields->find($sortFieldId);
-                if ($sf === null || $sf->listId !== $listId) {
+                if ($sf !== null && $sf->listId !== $listId) {
                     return __('El campo de ordenamiento de la tabla no pertenece a la lista.', 'imagina-crm');
                 }
             }

@@ -3,6 +3,7 @@ import { Loader2, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/toast';
 import {
     useEmailSignature,
     useUpdateEmailSignature,
@@ -24,6 +25,7 @@ import { __ } from '@/lib/i18n';
 export function EmailSignatureCard(): JSX.Element {
     const query = useEmailSignature();
     const update = useUpdateEmailSignature();
+    const toast = useToast();
 
     const [draft, setDraft] = useState('');
     const [dirty, setDirty] = useState(false);
@@ -38,8 +40,9 @@ export function EmailSignatureCard(): JSX.Element {
         try {
             await update.mutateAsync(draft);
             setDirty(false);
+            toast.success(__('Firma guardada'));
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) toast.error(__('No se pudo guardar la firma'), err.message);
         }
     };
 

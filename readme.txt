@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.4
+Stable tag: 0.30.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,38 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.5 =
+**Fix dashboards atascados + reemplazo de alerts nativos del browser
+por toasts/dialogs in-app.**
+
+* **Bugfix dashboard atascado**: si borrabas una columna que un widget
+  usaba como métrica/agrupación/fecha, el dashboard quedaba "atrapado"
+  — react-grid-layout disparaba `onLayoutChange` al montar, el
+  frontend hacía PATCH y el backend rechazaba con "El campo de
+  métrica debe ser tipo number o currency...". No podías editar
+  layout, agregar widgets, ni siquiera eliminar el dashboard.
+* **Fix backend**: `validateWidgets` ahora tolera referencias rotas.
+  Si el campo o la lista referenciada ya no existe, acepta el save
+  (el widget queda persistido — el evaluator muestra placeholder al
+  renderear). Solo reporta error si la ref existe pero es de tipo
+  incorrecto.
+* **Auto-cleanup**: hook en `imagina_crm/field_deleted` que recorre
+  los dashboards activos y elimina los widgets que referenciaban el
+  campo borrado (`pruneFieldReferences`). Sin esto los dashboards
+  quedaban con widgets huérfanos para siempre.
+* **Toast in-app**: nuevo `<ToastProvider>` con `useToast()`. API
+  Sonner-like: `toast.success/error/warning/info(title, description?)`.
+  Stack apilable bottom-right, auto-cierre 5s (8s para errores),
+  dismiss manual. Portal a `document.body`, z-index 100000.
+* **Confirm in-app**: nuevo `<ConfirmProvider>` con `useConfirm()`
+  que devuelve `Promise<boolean>`. Modal centrado con icono de
+  advertencia para acciones destructivas, label customizable,
+  Escape cancela.
+* **Reemplazo de 16 `window.alert`/`window.confirm`** en
+  DashboardPage, RecordPage, SavedFiltersDropdown, DateCellEditor,
+  EmailSignatureCard, AutomationsPage, CommentsPanel. La app se
+  siente nativa, no como un script de browser.
 
 = 0.30.4 =
 **Hotfix**: el menú "Imagina CRM" abría una pantalla en blanco en

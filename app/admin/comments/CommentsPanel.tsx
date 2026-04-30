@@ -4,6 +4,7 @@ import { Loader2, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
 import { CommentContent } from '@/admin/comments/CommentContent';
 import { MentionAutocomplete } from '@/admin/comments/MentionAutocomplete';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
     useComments,
@@ -229,6 +230,7 @@ function CommentItem({
     const [draft, setDraft] = useState(comment.content);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const confirm = useConfirm();
 
     const handleSave = async (): Promise<void> => {
         const content = draft.trim();
@@ -249,7 +251,13 @@ function CommentItem({
     };
 
     const handleDelete = async (): Promise<void> => {
-        if (!window.confirm(__('¿Eliminar este comentario?'))) return;
+        const ok = await confirm({
+            title: __('Eliminar comentario'),
+            description: __('Esta acción no se puede deshacer.'),
+            destructive: true,
+            confirmLabel: __('Eliminar'),
+        });
+        if (!ok) return;
         try {
             await onDelete();
         } catch (err) {

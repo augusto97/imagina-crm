@@ -4,6 +4,7 @@ import 'react-day-picker/style.css';
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -348,6 +349,7 @@ function RecurrencePanel({
     onClose,
 }: RecurrencePanelProps): JSX.Element {
     const fields = useFields(listId);
+    const confirm = useConfirm();
     const upsert = useUpsertRecurrence(listId, recordId);
     const remove = useDeleteRecurrence(listId, recordId);
 
@@ -453,7 +455,13 @@ function RecurrencePanel({
 
     const handleDelete = async (): Promise<void> => {
         if (existing === null) return;
-        if (!window.confirm(__('¿Quitar la recurrencia de esta celda?'))) return;
+        const ok = await confirm({
+            title: __('Quitar recurrencia'),
+            description: __('La celda dejará de repetirse automáticamente.'),
+            destructive: true,
+            confirmLabel: __('Quitar'),
+        });
+        if (!ok) return;
         try {
             await remove.mutateAsync(existing.id);
             onClose?.();

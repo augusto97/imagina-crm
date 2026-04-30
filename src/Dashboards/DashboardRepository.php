@@ -56,6 +56,27 @@ class DashboardRepository
     }
 
     /**
+     * Todos los dashboards activos (no soft-deleted), independientemente
+     * del usuario. Usado para tareas de housekeeping (e.g. limpiar
+     * widgets que referencian un field recién borrado).
+     *
+     * @return array<int, DashboardEntity>
+     */
+    public function allActive(): array
+    {
+        $wpdb = $this->db->wpdb();
+        /** @phpstan-ignore-next-line */
+        $rows = $wpdb->get_results(
+            'SELECT * FROM ' . $this->db->systemTable('dashboards') . ' WHERE deleted_at IS NULL',
+            ARRAY_A,
+        );
+        if (! is_array($rows)) {
+            return [];
+        }
+        return array_map(static fn (array $r): DashboardEntity => DashboardEntity::fromRow($r), $rows);
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     public function insert(array $data): int

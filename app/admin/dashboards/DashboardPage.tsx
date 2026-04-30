@@ -17,6 +17,8 @@ const DashboardGrid = lazy(() =>
 );
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
 import {
     useDashboard,
     useDeleteDashboard,
@@ -46,6 +48,8 @@ export function DashboardPage(): JSX.Element {
     const dashboard = useDashboard(id);
     const update = useUpdateDashboard(id);
     const remove = useDeleteDashboard();
+    const toast = useToast();
+    const confirm = useConfirm();
 
     const [widgetDialogOpen, setWidgetDialogOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetSpec | null>(null);
@@ -71,7 +75,7 @@ export function DashboardPage(): JSX.Element {
             await update.mutateAsync({ widgets });
         } catch (err) {
             if (err instanceof ApiError || err instanceof Error) {
-                window.alert(err.message);
+                toast.error(__('No se pudo guardar el widget'), err.message);
             }
         }
     };
@@ -103,29 +107,49 @@ export function DashboardPage(): JSX.Element {
         try {
             await update.mutateAsync({ widgets });
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) {
+                toast.error(__('No se pudo guardar el layout'), err.message);
+            }
         }
     };
 
     const handleDeleteWidget = async (widgetId: string): Promise<void> => {
         if (!dashboard.data) return;
-        if (!window.confirm(__('¿Eliminar este widget?'))) return;
+        const ok = await confirm({
+            title: __('Eliminar widget'),
+            description: __('Esta acción no se puede deshacer.'),
+            destructive: true,
+            confirmLabel: __('Eliminar'),
+        });
+        if (!ok) return;
         const widgets = dashboard.data.widgets.filter((w) => w.id !== widgetId);
         try {
             await update.mutateAsync({ widgets });
+            toast.success(__('Widget eliminado'));
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) {
+                toast.error(__('No se pudo eliminar el widget'), err.message);
+            }
         }
     };
 
     const handleDeleteDashboard = async (): Promise<void> => {
         if (!dashboard.data) return;
-        if (!window.confirm(__('¿Eliminar este dashboard? Sus widgets se perderán.'))) return;
+        const ok = await confirm({
+            title: __('Eliminar dashboard'),
+            description: __('Sus widgets se perderán. Esta acción no se puede deshacer.'),
+            destructive: true,
+            confirmLabel: __('Eliminar'),
+        });
+        if (!ok) return;
         try {
             await remove.mutateAsync(dashboard.data.id);
+            toast.success(__('Dashboard eliminado'));
             navigate('/dashboards');
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) {
+                toast.error(__('No se pudo eliminar el dashboard'), err.message);
+            }
         }
     };
 

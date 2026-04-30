@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Bookmark, ChevronDown, Plus, Search, Trash2, Users, User as UserIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/toast';
 import {
     useDeleteSavedFilter,
     useSaveFilter,
@@ -42,6 +44,8 @@ export function SavedFiltersDropdown({
     const filters = useSavedFilters(listId);
     const save    = useSaveFilter(listId);
     const remove  = useDeleteSavedFilter(listId);
+    const toast   = useToast();
+    const confirm = useConfirm();
 
     const all     = filters.data ?? [];
     const matches = (s: string): boolean =>
@@ -59,17 +63,25 @@ export function SavedFiltersDropdown({
             });
             setSavingName('');
             setShowSaveForm(false);
+            toast.success(__('Filtro guardado'));
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) toast.error(__('No se pudo guardar el filtro'), err.message);
         }
     };
 
     const handleDelete = async (id: number, name: string): Promise<void> => {
-        if (!window.confirm(sprintf(__('¿Eliminar el filtro "%s"?'), name))) return;
+        const ok = await confirm({
+            title: sprintf(__('¿Eliminar el filtro "%s"?'), name),
+            description: __('Esta acción no se puede deshacer.'),
+            destructive: true,
+            confirmLabel: __('Eliminar'),
+        });
+        if (!ok) return;
         try {
             await remove.mutateAsync(id);
+            toast.success(__('Filtro eliminado'));
         } catch (err) {
-            if (err instanceof Error) window.alert(err.message);
+            if (err instanceof Error) toast.error(__('No se pudo eliminar'), err.message);
         }
     };
 

@@ -527,6 +527,26 @@ final class Plugin
             $purge->ensureScheduled();
         }
 
+        // Cuando se borra un field de una lista, limpiamos referencias
+        // huérfanas en los widgets de dashboards. Sin esto, los
+        // dashboards quedaban con widgets que referenciaban el field
+        // borrado — el evaluator mostraba placeholder pero el dashboard
+        // mismo quedaba "atascado" si el frontend disparaba un PATCH
+        // y la validación rechazaba (fix paralelo en validateWidgets).
+        $dashboards = $this->container->get(DashboardService::class);
+        if ($dashboards instanceof DashboardService) {
+            add_action(
+                'imagina_crm/field_deleted',
+                static function ($fieldEntity) use ($dashboards): void {
+                    if (is_object($fieldEntity) && property_exists($fieldEntity, 'id')) {
+                        $dashboards->pruneFieldReferences((int) $fieldEntity->id);
+                    }
+                },
+                10,
+                1
+            );
+        }
+
         // REST se registra siempre (admin + frontend pueden consumirlo).
         $rest = new RestBootstrap($this->container);
         $rest->register();
