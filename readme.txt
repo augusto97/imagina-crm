@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.5
+Stable tag: 0.30.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.6 =
+**UI**: editar nombre y descripción de un dashboard.
+
+* Botón "Editar" en el header de la página del dashboard, junto a
+  "Eliminar" y "Añadir widget".
+* Pencil icon a la derecha del título que aparece on-hover (UX
+  estilo Notion/Linear) — segundo affordance para usuarios que
+  van directo al título.
+* Nuevo `DashboardSettingsDialog` con campos de nombre +
+  descripción. Toast de éxito al guardar.
 
 = 0.30.5 =
 **Fix dashboards atascados + reemplazo de alerts nativos del browser

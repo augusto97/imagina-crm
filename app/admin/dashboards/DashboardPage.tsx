@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react';
 
 import { BarChartWidget } from '@/admin/dashboards/widgets/BarChartWidget';
 import { KpiWidget } from '@/admin/dashboards/widgets/KpiWidget';
@@ -29,6 +29,7 @@ import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { WidgetSpec } from '@/types/dashboard';
 
+import { DashboardSettingsDialog } from './DashboardSettingsDialog';
 import { WidgetFormDialog } from './WidgetFormDialog';
 
 /**
@@ -53,6 +54,7 @@ export function DashboardPage(): JSX.Element {
 
     const [widgetDialogOpen, setWidgetDialogOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetSpec | null>(null);
+    const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
     const handleAddWidget = (): void => {
         setEditingWidget(null);
@@ -193,17 +195,34 @@ export function DashboardPage(): JSX.Element {
                             {__('Dashboards')}
                         </Link>
                     </Button>
-                    <h1 className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
+                    <h1 className="imcrm-group/title imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
                         {d.name}
                         {d.user_id === null && (
                             <Badge variant="outline">{__('Compartido')}</Badge>
                         )}
+                        <button
+                            type="button"
+                            onClick={() => setSettingsDialogOpen(true)}
+                            className="imcrm-ml-1 imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground imcrm-opacity-0 imcrm-transition-opacity hover:imcrm-bg-accent hover:imcrm-text-foreground group-hover/title:imcrm-opacity-100 focus-visible:imcrm-opacity-100"
+                            aria-label={__('Editar nombre y descripción')}
+                            title={__('Editar nombre y descripción')}
+                        >
+                            <Pencil className="imcrm-h-4 imcrm-w-4" />
+                        </button>
                     </h1>
                     {d.description && (
                         <p className="imcrm-text-sm imcrm-text-muted-foreground">{d.description}</p>
                     )}
                 </div>
                 <div className="imcrm-flex imcrm-gap-2">
+                    <Button
+                        variant="outline"
+                        className="imcrm-gap-2"
+                        onClick={() => setSettingsDialogOpen(true)}
+                    >
+                        <Settings className="imcrm-h-4 imcrm-w-4" />
+                        {__('Editar')}
+                    </Button>
                     <Button variant="outline" className="imcrm-gap-2 imcrm-text-destructive" onClick={handleDeleteDashboard}>
                         <Trash2 className="imcrm-h-4 imcrm-w-4" />
                         {__('Eliminar')}
@@ -214,6 +233,12 @@ export function DashboardPage(): JSX.Element {
                     </Button>
                 </div>
             </header>
+
+            <DashboardSettingsDialog
+                dashboard={d}
+                open={settingsDialogOpen}
+                onOpenChange={setSettingsDialogOpen}
+            />
 
             {d.widgets.length === 0 ? (
                 <EmptyState onAdd={handleAddWidget} />
