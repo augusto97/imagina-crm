@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Lists;
 
+use ImaginaCRM\Support\Cache;
 use ImaginaCRM\Support\Database;
 
 /**
@@ -10,43 +11,60 @@ use ImaginaCRM\Support\Database;
  *
  * Solo persistencia: nada de validación ni de DDL — eso vive en
  * `ListService`, `SlugManager` y `SchemaManager`.
+ *
+ * Lecturas hot (`find`, `findBySlug`, `all`) van por `Cache`. Las
+ * escrituras NO cachean — los hooks `imagina_crm/list_*`
+ * invalidan el group automáticamente
+ * (`Cache::registerInvalidationHooks`).
  */
 // No es `final` para permitir dobles de prueba en el suite unitario;
 // ningún consumer del plugin debería extenderla en runtime.
 class ListRepository
 {
-    public function __construct(private readonly Database $db)
-    {
+    public function __construct(
+        private readonly Database $db,
+        private readonly ?Cache $cache = null,
+    ) {
     }
 
     public function find(int $id): ?ListEntity
     {
-        $wpdb = $this->db->wpdb();
-        $row  = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . $this->db->systemTable('lists')
-                . ' WHERE id = %d AND deleted_at IS NULL',
-                $id
-            ),
-            ARRAY_A
-        );
-
-        return is_array($row) ? ListEntity::fromRow($row) : null;
+        $loader = function () use ($id): ?ListEntity {
+            $wpdb = $this->db->wpdb();
+            $row  = $wpdb->get_row(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $this->db->systemTable('lists')
+                    . ' WHERE id = %d AND deleted_at IS NULL',
+                    $id
+                ),
+                ARRAY_A
+            );
+            return is_array($row) ? ListEntity::fromRow($row) : null;
+        };
+        if ($this->cache === null) {
+            return $loader();
+        }
+        return $this->cache->remember($this->cache->key('list', $id), $loader);
     }
 
     public function findBySlug(string $slug): ?ListEntity
     {
-        $wpdb = $this->db->wpdb();
-        $row  = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . $this->db->systemTable('lists')
-                . ' WHERE slug = %s AND deleted_at IS NULL',
-                $slug
-            ),
-            ARRAY_A
-        );
-
-        return is_array($row) ? ListEntity::fromRow($row) : null;
+        $loader = function () use ($slug): ?ListEntity {
+            $wpdb = $this->db->wpdb();
+            $row  = $wpdb->get_row(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $this->db->systemTable('lists')
+                    . ' WHERE slug = %s AND deleted_at IS NULL',
+                    $slug
+                ),
+                ARRAY_A
+            );
+            return is_array($row) ? ListEntity::fromRow($row) : null;
+        };
+        if ($this->cache === null) {
+            return $loader();
+        }
+        return $this->cache->remember($this->cache->key('list_by_slug', $slug), $loader);
     }
 
     /**
@@ -54,18 +72,22 @@ class ListRepository
      */
     public function all(): array
     {
-        $wpdb = $this->db->wpdb();
-        $rows = $wpdb->get_results(
-            'SELECT * FROM ' . $this->db->systemTable('lists')
-            . ' WHERE deleted_at IS NULL ORDER BY position ASC, id ASC',
-            ARRAY_A
-        );
-
-        if (! is_array($rows)) {
-            return [];
+        $loader = function (): array {
+            $wpdb = $this->db->wpdb();
+            $rows = $wpdb->get_results(
+                'SELECT * FROM ' . $this->db->systemTable('lists')
+                . ' WHERE deleted_at IS NULL ORDER BY position ASC, id ASC',
+                ARRAY_A
+            );
+            if (! is_array($rows)) {
+                return [];
+            }
+            return array_map(static fn (array $r): ListEntity => ListEntity::fromRow($r), $rows);
+        };
+        if ($this->cache === null) {
+            return $loader();
         }
-
-        return array_map(static fn (array $r): ListEntity => ListEntity::fromRow($r), $rows);
+        return $this->cache->remember($this->cache->key('lists', 'all'), $loader);
     }
 
     /**

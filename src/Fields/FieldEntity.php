@@ -29,6 +29,14 @@ final class FieldEntity
         public readonly string $createdAt,
         public readonly string $updatedAt,
         public readonly ?string $deletedAt,
+        /**
+         * `is_indexed` (0.28.0): toggle opt-in para que el plugin
+         * cree un índice MySQL no-unique sobre la columna del field
+         * — acelera filtros y sort de table scan a index seek.
+         * Tradeoff: cada índice cuesta ~10% de storage de la tabla
+         * y lentifica writes ~5%. Por eso es opt-in.
+         */
+        public readonly bool $isIndexed = false,
     ) {
     }
 
@@ -55,6 +63,7 @@ final class FieldEntity
             createdAt:   (string) ($row['created_at'] ?? ''),
             updatedAt:   (string) ($row['updated_at'] ?? ''),
             deletedAt:   isset($row['deleted_at']) ? (string) $row['deleted_at'] : null,
+            isIndexed:   (bool) ($row['is_indexed'] ?? false),
         );
     }
 
@@ -73,6 +82,7 @@ final class FieldEntity
             'is_required' => $this->isRequired,
             'is_unique'   => $this->isUnique,
             'is_primary'  => $this->isPrimary,
+            'is_indexed'  => $this->isIndexed,
             'position'    => $this->position,
             'created_at'  => $this->createdAt,
             'updated_at'  => $this->updatedAt,

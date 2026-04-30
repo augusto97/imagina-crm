@@ -56,6 +56,53 @@ final class RecurrencesController extends AbstractController
             'callback'            => [$this, 'deleteItem'],
             'permission_callback' => [$this, 'checkAdminPermissions'],
         ]);
+
+        // Batch endpoint: trae las recurrencias de N records de un
+        // solo shot. Reemplaza el N+1 que existía cuando cada celda
+        // de fecha pegaba a `/recurrences` independientemente.
+        register_rest_route(
+            $this->namespace,
+            '/lists/(?P<list>[a-zA-Z0-9_-]+)/recurrences',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getBatch'],
+                'permission_callback' => [$this, 'checkAdminPermissions'],
+            ],
+        );
+    }
+
+    /**
+     * Devuelve `{record_id: Recurrence[]}` para los IDs pedidos.
+     * Una sola query con `WHERE record_id IN (...)` en lugar de N
+     * queries individuales. El frontend pide esto una vez por
+     * página de records visible y dispatch los iconos por celda.
+     */
+    public function getBatch(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
+        if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        $rawIds = (string) ($request->get_param('ids') ?? '');
+        $ids = array_values(array_filter(
+            array_map('intval', explode(',', $rawIds)),
+            static fn (int $id): bool => $id > 0,
+        ));
+        // Hard cap: pedir 5000 ids de una sola es ridículo, casi
+        // seguro un bug del cliente. WHERE IN con 5k items también
+        // es incómodo para MySQL.
+        if (count($ids) > 1000) {
+            $ids = array_slice($ids, 0, 1000);
+        }
+        if ($ids === []) {
+            return new WP_REST_Response(['data' => []]);
+        }
+        $byRecord = $this->repo->batchForRecords($ids);
+        $out = [];
+        foreach ($byRecord as $rid => $recurrences) {
+            $out[(string) $rid] = array_map(static fn ($r) => $r->toArray(), $recurrences);
+        }
+        return new WP_REST_Response(['data' => $out]);
     }
 
     public function getCollection(WP_REST_Request $request): WP_REST_Response|WP_Error

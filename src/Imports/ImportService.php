@@ -196,46 +196,76 @@ final class ImportService
         $imported = 0;
         $skipped  = 0;
 
+        // Stage de filas válidas (no vacías) para procesar en bulk.
+        // Mantenemos `originalRowNumber` para reportar errores con
+        // el número de fila CSV correcto (1-indexed + header).
+        /** @var array<int, array{values: array<string, mixed>, rowNumber: int}> $stagedRows */
+        $stagedRows = [];
         foreach ($rows as $idx => $row) {
-            $rowNumber = $idx + 2; // +1 por header, +1 para human-friendly (1-indexed)
+            $rowNumber = $idx + 2; // +1 por header, +1 para human-friendly
 
             $values = [];
             foreach ($mapping as $colIdx => $slug) {
-                if (! isset($bySlug[$slug])) {
-                    continue;
-                }
+                if (! isset($bySlug[$slug])) continue;
                 $rawCell = $row[$colIdx] ?? '';
                 $coerced = $this->coerceCellValue($rawCell, $bySlug[$slug]);
                 // Celdas vacías se OMITEN del payload — no se mandan
-                // como null. Eso permite que un campo `is_required` no
-                // rebote contra filas individuales que lo traen vacío:
-                // el validator corre en modo `partial:true` (típico de
-                // bulk import), así que la AUSENCIA del slug se acepta;
-                // un null EXPLÍCITO sí rebotaría. Si la columna está
-                // vacía en TODAS las filas, ningún registro la setea
-                // y queda nullable en SQL — el user la rellena después.
+                // como null. Eso permite que un campo `is_required`
+                // no rebote contra filas individuales que lo traen
+                // vacío. Validator en partial:true.
                 if ($coerced === null || $coerced === '' || $coerced === []) {
                     continue;
                 }
                 $values[$slug] = $coerced;
             }
-
-            // Fila completamente vacía → skip silencioso, no es un error.
+            // Fila completamente vacía → skip silencioso.
             if ($values === []) {
                 $skipped++;
                 continue;
             }
+            $stagedRows[] = ['values' => $values, 'rowNumber' => $rowNumber];
+        }
 
-            $result = $this->records->create($list, $values, partial: true);
-            if ($result instanceof ValidationResult) {
-                $errors[] = [
-                    'row'     => $rowNumber,
-                    'message' => $this->summarizeValidation($result),
-                ];
-                $skipped++;
-                continue;
-            }
-            $imported++;
+        // Bulk insert: una sola INSERT con 200 VALUES por chunk.
+        // En hosting con RTT >5ms esto es ~10× más rápido que
+        // N inserts individuales — para 5000 filas, ~25s pasa a
+        // ~3s solo en network.
+        //
+        // `silentHooks: true`: no disparamos `imagina_crm/record_created`
+        // por cada uno de los 5000. Eso evita que cada record gatille
+        // automations, eventual search reindex, listeners de logging,
+        // etc. — multiplicaría el tiempo del import por N. En lugar,
+        // disparamos UN solo `imagina_crm/import_finished` al final
+        // que los listeners pueden usar para hacer el trabajo en
+        // bulk (ej. el motor de búsqueda v0.30.0 va a re-indexar la
+        // lista entera en una pasada, no record por record).
+        $valuesList = array_map(static fn (array $s): array => $s['values'], $stagedRows);
+        $bulkResult = $this->records->bulkCreate($list, $valuesList, partial: true, silentHooks: true);
+        $imported = count($bulkResult['created']);
+
+        // Notificar fin de import. Si hay Action Scheduler instalado
+        // (lo está en este plugin como dep), encolar async para no
+        // bloquear la response del import; sino, dispatch sync.
+        $createdIds = $bulkResult['created'];
+        if (function_exists('as_enqueue_async_action')) {
+            as_enqueue_async_action(
+                'imagina_crm/import_finished',
+                [$list->id, $createdIds],
+                'imagina-crm',
+            );
+        } else {
+            do_action('imagina_crm/import_finished', $list->id, $createdIds);
+        }
+        // Mapear errors del bulk (que vienen con `index` 0-based en
+        // staged) al rowNumber del CSV original.
+        foreach ($bulkResult['errors'] as $err) {
+            $stagedIdx = $err['index'] ?? -1;
+            $rowNumber = $stagedRows[$stagedIdx]['rowNumber'] ?? 0;
+            $errors[] = [
+                'row'     => $rowNumber,
+                'message' => $err['message'] ?? __('Error.', 'imagina-crm'),
+            ];
+            $skipped++;
         }
 
         return [

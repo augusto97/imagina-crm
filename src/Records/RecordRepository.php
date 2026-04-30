@@ -74,6 +74,85 @@ final class RecordRepository
     }
 
     /**
+     * Insert masivo: una sola query con N filas. Para imports y
+     * generación de fixtures donde el costo de N round-trips a MySQL
+     * domina (5000 filas × 1ms RTT ≈ 5s solo en network).
+     *
+     * Importante: TODAS las filas deben tener exactamente el mismo
+     * conjunto de columnas (orden y nombre). El caller es
+     * responsable de normalizar antes de llamar acá. Si una fila
+     * tiene columnas distintas, MySQL rechazaría el INSERT
+     * incompleto.
+     *
+     * Devuelve el array de IDs creados, en el mismo orden que las
+     * filas de entrada. Implementado vía `LAST_INSERT_ID()` + count
+     * — MySQL garantiza que IDs auto_increment dentro de un INSERT
+     * múltiple son consecutivos y empiezan en `LAST_INSERT_ID()`.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, int> IDs creados, en orden
+     */
+    public function insertBatch(string $tableSuffix, array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+        $now = current_time('mysql', true);
+        $userId = get_current_user_id();
+        // Normalizar: usamos las columnas del primer row como
+        // contrato. Cada fila se rellena con `created_by/at`
+        // si faltaba.
+        $columns = array_keys($rows[0] + [
+            'created_by' => null,
+            'created_at' => null,
+            'updated_at' => null,
+        ]);
+        $columnSql = implode(', ', array_map(static fn (string $c): string => '`' . esc_sql($c) . '`', $columns));
+
+        $allPlaceholders = [];
+        $args = [];
+        foreach ($rows as $row) {
+            $row += [
+                'created_by' => $userId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            $rowPlaceholders = [];
+            foreach ($columns as $col) {
+                $value = $row[$col] ?? null;
+                if ($value === null) {
+                    $rowPlaceholders[] = 'NULL';
+                    continue;
+                }
+                $rowPlaceholders[] = $this->placeholderForValue($value);
+                $args[] = $value;
+            }
+            $allPlaceholders[] = '(' . implode(', ', $rowPlaceholders) . ')';
+        }
+
+        $table = $this->qualifiedTable($tableSuffix);
+        $sql = "INSERT INTO {$table} ({$columnSql}) VALUES " . implode(', ', $allPlaceholders);
+
+        $wpdb = $this->db->wpdb();
+        $prepared = $args === [] ? $sql : (string) $wpdb->prepare($sql, $args);
+        $wpdb->query($prepared);
+
+        $firstId = $this->db->lastInsertId();
+        if ($firstId === 0) {
+            return [];
+        }
+        // IDs consecutivos: ranking InnoDB con auto_increment garantiza
+        // que en un single INSERT múltiple, los IDs van firstId,
+        // firstId+1, ..., firstId+count-1.
+        $count = count($rows);
+        $ids = [];
+        for ($i = 0; $i < $count; $i++) {
+            $ids[] = $firstId + $i;
+        }
+        return $ids;
+    }
+
+    /**
      * @param array<string, mixed> $row [columnName => value]
      */
     public function update(string $tableSuffix, int $id, array $row): bool

@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useRecurrences } from '@/hooks/useRecurrences';
+import { useRecurrencesForRecord } from '@/hooks/useRecurrences';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
@@ -396,7 +396,11 @@ const DateCellTrigger = forwardRef<
     { listId, recordId, field, cellValue, ...rest },
     ref,
 ) {
-    const recurrences = useRecurrences(listId, recordId);
+    // Usa el batch context si existe (TableView lo provee con N
+    // recordIds en una sola query). Fallback a fetch individual
+    // cuando se renderea fuera de TableView (ej. un drawer
+    // standalone). Cero N+1 en la tabla.
+    const recurrences = useRecurrencesForRecord(listId, recordId);
     const hasRecurrence = (recurrences.data ?? []).some((r) => r.date_field_id === field.id);
 
     return (

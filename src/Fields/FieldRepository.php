@@ -3,46 +3,72 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Fields;
 
+use ImaginaCRM\Support\Cache;
 use ImaginaCRM\Support\Database;
 
 /**
  * Acceso a `wp_imcrm_fields`. Solo persistencia.
+ *
+ * Lecturas hot (`find`, `allForList`) van por `Cache` — beneficio
+ * brutal con drop-in persistente (Redis/Memcached); fallback a
+ * per-request sin él. Las escrituras (insert/update/delete) NO
+ * cachean — los hooks `imagina_crm/field_*` se encargan de
+ * invalidar todo el grupo automáticamente
+ * (`Cache::registerInvalidationHooks`).
  */
 final class FieldRepository
 {
-    public function __construct(private readonly Database $db)
-    {
+    public function __construct(
+        private readonly Database $db,
+        private readonly ?Cache $cache = null,
+    ) {
     }
 
     public function find(int $id): ?FieldEntity
     {
-        $wpdb = $this->db->wpdb();
-        $row  = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . $this->db->systemTable('fields')
-                . ' WHERE id = %d AND deleted_at IS NULL',
-                $id
-            ),
-            ARRAY_A
+        $loader = function () use ($id): ?FieldEntity {
+            $wpdb = $this->db->wpdb();
+            $row  = $wpdb->get_row(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $this->db->systemTable('fields')
+                    . ' WHERE id = %d AND deleted_at IS NULL',
+                    $id
+                ),
+                ARRAY_A
+            );
+            return is_array($row) ? FieldEntity::fromRow($row) : null;
+        };
+        if ($this->cache === null) {
+            return $loader();
+        }
+        return $this->cache->remember(
+            $this->cache->key('field', $id),
+            $loader,
         );
-
-        return is_array($row) ? FieldEntity::fromRow($row) : null;
     }
 
     public function findBySlug(int $listId, string $slug): ?FieldEntity
     {
-        $wpdb = $this->db->wpdb();
-        $row  = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . $this->db->systemTable('fields')
-                . ' WHERE list_id = %d AND slug = %s AND deleted_at IS NULL',
-                $listId,
-                $slug
-            ),
-            ARRAY_A
+        $loader = function () use ($listId, $slug): ?FieldEntity {
+            $wpdb = $this->db->wpdb();
+            $row  = $wpdb->get_row(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $this->db->systemTable('fields')
+                    . ' WHERE list_id = %d AND slug = %s AND deleted_at IS NULL',
+                    $listId,
+                    $slug
+                ),
+                ARRAY_A
+            );
+            return is_array($row) ? FieldEntity::fromRow($row) : null;
+        };
+        if ($this->cache === null) {
+            return $loader();
+        }
+        return $this->cache->remember(
+            $this->cache->key('field_by_slug', "{$listId}:{$slug}"),
+            $loader,
         );
-
-        return is_array($row) ? FieldEntity::fromRow($row) : null;
     }
 
     /**
@@ -50,22 +76,29 @@ final class FieldRepository
      */
     public function allForList(int $listId): array
     {
-        $wpdb = $this->db->wpdb();
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                'SELECT * FROM ' . $this->db->systemTable('fields')
-                . ' WHERE list_id = %d AND deleted_at IS NULL'
-                . ' ORDER BY position ASC, id ASC',
-                $listId
-            ),
-            ARRAY_A
-        );
-
-        if (! is_array($rows)) {
-            return [];
+        $loader = function () use ($listId): array {
+            $wpdb = $this->db->wpdb();
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    'SELECT * FROM ' . $this->db->systemTable('fields')
+                    . ' WHERE list_id = %d AND deleted_at IS NULL'
+                    . ' ORDER BY position ASC, id ASC',
+                    $listId
+                ),
+                ARRAY_A
+            );
+            if (! is_array($rows)) {
+                return [];
+            }
+            return array_map(static fn (array $r): FieldEntity => FieldEntity::fromRow($r), $rows);
+        };
+        if ($this->cache === null) {
+            return $loader();
         }
-
-        return array_map(static fn (array $r): FieldEntity => FieldEntity::fromRow($r), $rows);
+        return $this->cache->remember(
+            $this->cache->key('fields_for_list', $listId),
+            $loader,
+        );
     }
 
     /**
@@ -86,11 +119,12 @@ final class FieldRepository
                 'is_required' => ! empty($data['is_required']) ? 1 : 0,
                 'is_unique'   => ! empty($data['is_unique']) ? 1 : 0,
                 'is_primary'  => ! empty($data['is_primary']) ? 1 : 0,
+                'is_indexed'  => ! empty($data['is_indexed']) ? 1 : 0,
                 'position'    => (int) ($data['position'] ?? 0),
                 'created_at'  => (string) $data['created_at'],
                 'updated_at'  => (string) $data['updated_at'],
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
         );
 
         return $this->db->lastInsertId();
@@ -101,7 +135,7 @@ final class FieldRepository
      */
     public function update(int $id, array $data): bool
     {
-        $allowed = ['label', 'config', 'is_required', 'is_unique', 'is_primary', 'position'];
+        $allowed = ['label', 'config', 'is_required', 'is_unique', 'is_primary', 'is_indexed', 'position'];
         $update  = ['updated_at' => current_time('mysql', true)];
         $format  = ['%s'];
 
@@ -117,6 +151,7 @@ final class FieldRepository
                 case 'is_required':
                 case 'is_unique':
                 case 'is_primary':
+                case 'is_indexed':
                     $update[$key] = empty($data[$key]) ? 0 : 1;
                     $format[]     = '%d';
                     break;

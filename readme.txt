@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.27.5
+Stable tag: 0.28.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,65 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.28.0 =
+**Tier 1 — Foundation** (8 items): primer paso del roadmap de
+performance para llevar al plugin de "cómodo a 5k filas" a
+"cómodo a 50k+ filas".
+
+* **Object cache layer** (`Support/Cache`). Wrapper sobre
+  `wp_cache_*` con auto-detect de drop-in persistente
+  (`wp_using_ext_object_cache()`). `FieldRepository::find` /
+  `findBySlug` / `allForList` y `ListRepository::find` /
+  `findBySlug` / `all` cachean lecturas. Invalidación
+  automática enganchada a hooks `imagina_crm/list_*`,
+  `field_*`, `schema_upgraded`. Settings option
+  `imcrm_object_cache_enabled` (default true) para
+  emergency-disable. Sin Redis: cache per-request (ya útil).
+  Con Redis: persistente, gana 10-100× en sites con tráfico
+  real.
+* **Fix N+1 de recurrencias**. Antes cada celda de fecha
+  visible en la tabla pegaba a `/lists/X/records/Y/recurrences`
+  → 50 queries por página de 50 records. Ahora un solo
+  endpoint batch `GET /lists/X/recurrences?ids=1,2,3,...`
+  que React Query hidrata en context y las celdas leen sin
+  fetch propio. Hard cap de 1000 ids por request por defensa.
+* **Toggle `is_indexed` en field config**. Nuevo checkbox
+  "Indexar" en FieldDialog. Cuando se activa, el plugin hace
+  `ALTER TABLE ... ADD INDEX` sobre la columna del field
+  (idx_<column_name>); al desactivar, `DROP INDEX`.
+  Acelera filtros y sort de full-table-scan (segundos a 50k
+  filas) a index seek (ms). Mutuamente exclusivo con UNIQUE
+  (UNIQUE ya provee índice). Schema bumpeado a v5: nueva
+  columna `is_indexed TINYINT(1) NOT NULL DEFAULT 0` en
+  `wp_imcrm_fields`.
+* **Bulk INSERT en chunks** (`RecordRepository::insertBatch`).
+  Una sola query con N filas (`VALUES (...), (...), ...`) en
+  lugar de N round-trips. ImportService usa chunks de 200.
+  Para imports de 5k filas, 25s pasa a ~3s solo en network.
+  Nuevo `RecordService::bulkCreate(list, valuesList, partial,
+  silentHooks)` orquesta validación + insertBatch + relations
+  + hooks.
+* **Action Scheduler para imports**. El bulk import dispara
+  `silentHooks: true` (no truena 5000 hooks individuales que
+  cada uno gatillaría automations + listeners) y un solo
+  evento `imagina_crm/import_finished` async via
+  `as_enqueue_async_action`. Listeners (ej. el motor de
+  búsqueda v0.30.0) van a re-indexar la lista en bulk.
+* **Skip evaluación de `computed` cuando no está en projection**.
+  Si el cliente pidió `?fields=name,email`, no perdemos tiempo
+  evaluando computed fields fuera del set. Reduce hydration
+  cost por record.
+* **Auditoría autoload**. Verificado que TODAS las options
+  del plugin usan `autoload=false`. Comentario explícito en
+  el código para mantener la convención.
+* **Code-splitting frontend por ruta**. ListBuilderPage,
+  AutomationsPage, DashboardsIndexPage, DashboardPage y
+  SettingsPage ahora son `React.lazy()`. Bundle inicial baja
+  ~17 KB gzip. Más importante: si el user solo usa Records,
+  no descarga ~250 KB de chunks (Automations + Dashboards).
+* DB version: 4 → 5. El runtime upgrader corre dbDelta
+  automáticamente al primer hit del admin tras el update.
 
 = 0.27.5 =
 * Fix: hover de fila tenía lag (200ms aprox) por

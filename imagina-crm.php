@@ -3,7 +3,7 @@
  * Plugin Name:       Imagina CRM
  * Plugin URI:        https://imaginawp.com/imagina-crm
  * Description:       Plataforma de gestión de listas, registros y automatizaciones tipo ClickUp/Airtable nativa en WordPress.
- * Version:           0.27.5
+ * Version:           0.28.0
  * Requires at least: 6.4
  * Requires PHP:      8.2
  * Author:            IMAGINA LA WEB S.A.S.
@@ -26,7 +26,7 @@ if (defined('IMAGINA_CRM_VERSION')) {
     return;
 }
 
-define('IMAGINA_CRM_VERSION', '0.27.5');
+define('IMAGINA_CRM_VERSION', '0.28.0');
 define('IMAGINA_CRM_FILE', __FILE__);
 define('IMAGINA_CRM_DIR', plugin_dir_path(__FILE__));
 define('IMAGINA_CRM_URL', plugin_dir_url(__FILE__));
@@ -46,7 +46,9 @@ define('IMAGINA_CRM_TEXT_DOMAIN', 'imagina-crm');
 //        con AND/OR + nested + saved sets — 0.17.0).
 //  '4' — añade tabla recurrences (recurrencia ClickUp-style en campos
 //        date/datetime — 0.21.0).
-define('IMAGINA_CRM_DB_VERSION', '4');
+//  '5' — añade columna `is_indexed` a wp_imcrm_fields (toggle opt-in
+//        de índice MySQL no-unique sobre la columna del field — 0.28.0).
+define('IMAGINA_CRM_DB_VERSION', '5');
 define('IMAGINA_CRM_MIN_PHP', '8.2');
 define('IMAGINA_CRM_MIN_WP', '6.4');
 

@@ -98,8 +98,12 @@ final class RecordService
             $compiled['count_args'],
         );
 
+        // Si el cliente pidió projection (`?fields=...`), pasamos los
+        // slugs al hydrate para skipear evaluación de computed fuera
+        // del set.
+        $projection = $params->fields !== [] ? $params->fields : null;
         $hydrated = array_map(
-            fn (array $row): array => $this->hydrate($listFields, $row),
+            fn (array $row): array => $this->hydrate($listFields, $row, $projection),
             $result['rows']
         );
 
@@ -292,6 +296,90 @@ final class RecordService
     }
 
     /**
+     * Bulk create: inserta N records en chunks usando una sola
+     * INSERT por chunk (en lugar de N round-trips). Para imports
+     * grandes y fixtures de testing.
+     *
+     * - Valida CADA fila individualmente (mismo nivel de safety
+     *   que `create`). Las que fallan validación se reportan en
+     *   el array de errors y NO se insertan; el resto del chunk
+     *   sí.
+     * - Las relaciones (`relation` field) se sincronizan
+     *   per-record después del insert porque dependen del ID
+     *   generado.
+     * - Dispara `imagina_crm/record_created` por cada record.
+     *   Si quieres suprimir esto durante imports masivos, pasa
+     *   `$silentHooks = true`.
+     *
+     * @param array<int, array<string, mixed>> $valuesList Cada item es `[slug => value]`.
+     *
+     * @return array{created: array<int, int>, errors: array<int, array{index:int, message:string}>}
+     */
+    public function bulkCreate(
+        ListEntity $list,
+        array $valuesList,
+        bool $partial = false,
+        bool $silentHooks = false,
+        int $chunkSize = 200,
+    ): array {
+        $chunkSize = max(1, $chunkSize);
+        $listFields = $this->fields->allForList($list->id);
+        $created = [];
+        $errors  = [];
+
+        // Validar todas las filas primero. Las inválidas quedan
+        // marcadas con índice; las válidas pasan al staging.
+        /** @var array<int, array{values: array<string, mixed>, row: array<string, mixed>, originalIndex: int}> $staged */
+        $staged = [];
+        foreach ($valuesList as $idx => $values) {
+            $validation = $this->validator->validate($listFields, $values, partial: $partial);
+            if (! $validation->isValid()) {
+                $errors[] = [
+                    'index'   => $idx,
+                    'message' => $validation->firstError() ?? __('Validación fallida.', 'imagina-crm'),
+                ];
+                continue;
+            }
+            $row = $this->validator->buildRow($listFields, $values);
+            $staged[] = [
+                'values'        => $values,
+                'row'           => $row,
+                'originalIndex' => $idx,
+            ];
+        }
+
+        // Insert por chunks. Una INSERT con 200 VALUES = 200 filas
+        // en un solo round-trip a MySQL. Mucho más rápido que N
+        // INSERTs individuales en hosting con RTT >5ms.
+        foreach (array_chunk($staged, $chunkSize) as $chunk) {
+            $rows = array_map(static fn (array $s): array => $s['row'], $chunk);
+            $ids = $this->records->insertBatch($list->tableSuffix, $rows);
+            foreach ($ids as $i => $id) {
+                $stagedItem = $chunk[$i] ?? null;
+                if ($stagedItem === null || $id <= 0) continue;
+                $created[] = $id;
+                // Sync relations per-record (necesita el ID).
+                $this->syncRelationsFromValues($list, $listFields, $id, $stagedItem['values']);
+                // Hook por record. `$silentHooks` suprime esto cuando
+                // un import masivo no quiere disparar 5000
+                // automatizaciones.
+                if (! $silentHooks) {
+                    $hydrated = $this->find($list, $id) ?? [];
+                    do_action(
+                        'imagina_crm/record_created',
+                        $list,
+                        $id,
+                        $hydrated,
+                        $stagedItem['values'],
+                    );
+                }
+            }
+        }
+
+        return ['created' => $created, 'errors' => $errors];
+    }
+
+    /**
      * @param array<string, mixed> $values
      *
      * @return array<string, mixed>|ValidationResult
@@ -392,12 +480,16 @@ final class RecordService
     }
 
     /**
-     * @param array<int, FieldEntity> $listFields
-     * @param array<string, mixed>    $row Fila cruda.
+     * @param array<int, FieldEntity>   $listFields
+     * @param array<string, mixed>      $row             Fila cruda.
+     * @param array<int, string>|null   $projectedSlugs  Si no es null,
+     *      solo se hidratan / evalúan los slugs incluidos. Skip de
+     *      computed fields fuera del set ahorra evaluación recursiva
+     *      (con cycle guard, división, etc.) en cada read.
      *
      * @return array<string, mixed>
      */
-    private function hydrate(array $listFields, array $row): array
+    private function hydrate(array $listFields, array $row, ?array $projectedSlugs = null): array
     {
         $fields = $this->validator->hydrateRow($listFields, $row);
 
@@ -405,8 +497,16 @@ final class RecordService
         // mismo record. Lazy evaluation — se calcula en cada lectura.
         // Soporta encadenamiento (un computed que depende de otro
         // computed) vía recursión con cycle guard en el evaluator.
+        //
+        // Si el caller pasó una projection explícita (ej. `?fields=
+        // name,email`) skipeamos los computed fuera del set — sin
+        // sentido evaluar `total_owed` si el cliente solo pidió
+        // name+email. Reduce hydration cost por record cuando hay
+        // muchos computed.
+        $projection = $projectedSlugs !== null ? array_flip($projectedSlugs) : null;
         foreach ($listFields as $f) {
             if ($f->type !== \ImaginaCRM\Fields\Types\ComputedField::SLUG) continue;
+            if ($projection !== null && ! isset($projection[$f->slug])) continue;
             $fields[$f->slug] = \ImaginaCRM\Fields\ComputedFieldEvaluator::evaluate(
                 $f,
                 $listFields,

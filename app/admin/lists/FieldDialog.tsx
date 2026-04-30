@@ -54,6 +54,7 @@ export function FieldDialog({
     const [slugDirty, setSlugDirty] = useState(false);
     const [isRequired, setIsRequired] = useState(false);
     const [isUnique, setIsUnique] = useState(false);
+    const [isIndexed, setIsIndexed] = useState(false);
     const [config, setConfig] = useState<Record<string, unknown>>({});
     const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -74,6 +75,7 @@ export function FieldDialog({
             setSlugDirty(true);
             setIsRequired(field.is_required);
             setIsUnique(field.is_unique);
+            setIsIndexed(field.is_indexed);
             setConfig(field.config ?? {});
         } else {
             setLabel('');
@@ -82,6 +84,7 @@ export function FieldDialog({
             setSlugDirty(false);
             setIsRequired(false);
             setIsUnique(false);
+            setIsIndexed(false);
             setConfig({});
         }
         setSubmitError(null);
@@ -122,6 +125,7 @@ export function FieldDialog({
                         slug: slug || undefined,
                         is_required: isRequired,
                         is_unique: isUnique,
+                        is_indexed: isIndexed,
                         config,
                     },
                 });
@@ -132,6 +136,7 @@ export function FieldDialog({
                     slug: slug || undefined,
                     is_required: isRequired,
                     is_unique: isUnique,
+                    is_indexed: isIndexed,
                     config,
                 });
             }
@@ -240,6 +245,31 @@ export function FieldDialog({
                                 />
                                 {__('Único')}
                                 {!supportsUnique && type !== '' && ' ' + __('(no soportado por este tipo)')}
+                            </label>
+                            {/* `is_indexed` (0.28.0): el user marca los
+                                campos por los que filtra/ordena seguido
+                                para que el plugin agregue un índice
+                                MySQL. Vital a 50k+ filas. Tooltip explica
+                                el tradeoff. UNIQUE ya provee índice así
+                                que cuando isUnique está on, este se
+                                deshabilita. */}
+                            <label
+                                className={cn(
+                                    'imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm',
+                                    isUnique && 'imcrm-opacity-50',
+                                )}
+                                title={__('Crea un índice MySQL no-único sobre la columna. Acelera filtros y sort en listas grandes (50k+ registros). Tradeoff: ~10% más storage y writes ~5% más lentos. Activa solo en campos por los que filtras a menudo.')}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={isIndexed}
+                                    onChange={(e) => setIsIndexed(e.target.checked)}
+                                    disabled={isUnique}
+                                />
+                                {__('Indexar')}
+                                <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                                    {__('(rápido a gran escala)')}
+                                </span>
                             </label>
                         </div>
 

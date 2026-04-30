@@ -124,9 +124,20 @@ final class Plugin
             return new SlugManager($c->get(Database::class));
         });
 
+        // Object cache wrapper — auto-detect drop-in persistente
+        // (Redis/Memcached) y se cae a per-request si no hay. Se
+        // inyecta a los repositorios hot (ListRepository,
+        // FieldRepository) para deduplicar reads.
+        $this->container->bind(\ImaginaCRM\Support\Cache::class, static function (): \ImaginaCRM\Support\Cache {
+            return new \ImaginaCRM\Support\Cache();
+        });
+
         // Lists.
         $this->container->bind(ListRepository::class, static function (Container $c): ListRepository {
-            return new ListRepository($c->get(Database::class));
+            return new ListRepository(
+                $c->get(Database::class),
+                $c->get(\ImaginaCRM\Support\Cache::class),
+            );
         });
 
         $this->container->bind(ListService::class, static function (Container $c): ListService {
@@ -144,7 +155,10 @@ final class Plugin
         });
 
         $this->container->bind(FieldRepository::class, static function (Container $c): FieldRepository {
-            return new FieldRepository($c->get(Database::class));
+            return new FieldRepository(
+                $c->get(Database::class),
+                $c->get(\ImaginaCRM\Support\Cache::class),
+            );
         });
 
         // Records (debe construirse antes que FieldService porque éste lo
@@ -427,6 +441,14 @@ final class Plugin
         // en fases posteriores (automations, dashboards) existan en
         // sites con el plugin pre-actualizado.
         add_action('init', [$this, 'maybeUpgradeSchema'], 1);
+
+        // Object cache: enganchar invalidación automática. El wrapper
+        // se cae a per-request si no hay drop-in persistente
+        // (Redis/Memcached).
+        $cache = $this->container->get(\ImaginaCRM\Support\Cache::class);
+        if ($cache instanceof \ImaginaCRM\Support\Cache) {
+            $cache->registerInvalidationHooks();
+        }
 
         // REST se registra siempre (admin + frontend pueden consumirlo).
         $rest = new RestBootstrap($this->container);

@@ -33,6 +33,13 @@ export interface FieldEntity {
     is_required: boolean;
     is_unique: boolean;
     is_primary: boolean;
+    /**
+     * Toggle opt-in para crear un índice MySQL no-único sobre la
+     * columna del field — acelera filtros y sort al pasar de
+     * table-scan a index-seek. Tradeoff: cuesta storage (~10% de la
+     * tabla) y lentifica writes ~5%. Por eso es opt-in.
+     */
+    is_indexed: boolean;
     position: number;
     created_at: string;
     updated_at: string;
@@ -47,6 +54,7 @@ export interface CreateFieldInput {
     is_required?: boolean;
     is_unique?: boolean;
     is_primary?: boolean;
+    is_indexed?: boolean;
     position?: number;
 }
 
@@ -57,5 +65,6 @@ export interface UpdateFieldInput {
     is_required?: boolean;
     is_unique?: boolean;
     is_primary?: boolean;
+    is_indexed?: boolean;
     position?: number;
 }

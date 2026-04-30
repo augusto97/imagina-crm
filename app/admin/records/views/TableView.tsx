@@ -12,6 +12,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical, Inbox, KeyRound, Plus } 
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { useAggregates } from '@/hooks/useAggregates';
+import { RecurrencesBatchProvider } from '@/hooks/useRecurrences';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
@@ -288,7 +289,13 @@ export function TableView({
     // contenido pasando por debajo.
     const [scrolled, setScrolled] = useState(false);
 
+    // IDs visibles: alimenta el batch fetch de recurrencias para la
+    // página actual de records. UNA sola query reemplaza el N+1 que
+    // pegaban las celdas de fecha individuales antes.
+    const visibleRecordIds = useMemo(() => records.map((r) => r.id), [records]);
+
     return (
+      <RecurrencesBatchProvider listId={listId} recordIds={visibleRecordIds}>
         <div
             // `max-h: calc(100vh - 220px)` mantiene el scroll horizontal
             // (y vertical) DENTRO de este box, así la barra de scroll
@@ -671,6 +678,7 @@ export function TableView({
                 )}
             </table>
         </div>
+      </RecurrencesBatchProvider>
     );
 }
 
