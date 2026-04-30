@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.5
+Stable tag: 0.26.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,37 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.26.6 =
+* Fix: agrupar la tabla (group_by) descartaba los ajustes
+  visuales del flat view (anchos, orden de columnas).
+  `GroupedTableView` ahora acepta `columnSizing` y `columnOrder`
+  como props y los aplica al render: cada `<th>` y `<td>` lleva
+  su `width`/`maxWidth` persistido y las columnas se ordenan
+  según el array de ids guardado. Las columnas no incluidas en
+  `columnOrder` (típicamente nuevas) quedan al final en su
+  orden default. El truncate y `overflow:hidden` también se
+  aplican igual que en el flat view, así long_text/multi_select
+  no desbordan en los grupos.
+* Fix: las celdas de fecha con recurrencia no tenían
+  indicador visual — el user no podía saber qué fechas se
+  repetían sin abrir la celda. Ahora el botón de modo lectura
+  muestra un icon `RefreshCw` verde a la derecha del valor
+  cuando hay una recurrencia activa para ese campo en ese
+  registro. La info viene del mismo query
+  (`useRecurrences`) que ya usaba el editor — React Query
+  dedupea por queryKey, así que no hay overhead extra de red.
+* Fix: el preview de ocurrencias en el calendario solo
+  marcaba 5 fechas hacia adelante. Para una recurrencia
+  mensual desde julio 2025 eso cubría hasta diciembre 2025
+  y al navegar a 2026 no había marcas. Ahora la ventana es
+  proporcional a la frecuencia para cubrir ~10 años:
+   - daily   → 3 650 ocurrencias
+   - weekly  → 520
+   - monthly → 120
+   - yearly  → 10
+  Los 3 650 puntos del peor caso (daily) no impactan el render
+  — el cálculo es aritmética local de fechas en un loop.
 
 = 0.26.5 =
 * Fix import: filas con celdas vacías en columnas mapeadas a
