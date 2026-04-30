@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.27.0
+Stable tag: 0.27.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,43 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.27.1 =
+* Fix: la columna sticky de 0.27.0 era el checkbox de selección,
+  no la columna del nombre — UX inútil. Ahora la primera columna
+  dinámica visible (en el orden actual del user) es la que se
+  queda fija al scrollear horizontal. El checkbox scrollea con
+  el resto. UX equivalente al "row name sticky" de ClickUp.
+* Cambio mayor en el footer: las agregaciones eran auto-show por
+  tipo de campo, lo cual saturaba el footer y no respetaba la
+  preferencia del user. Ahora el footer es **opt-in por columna**
+  estilo ClickUp: cada cell muestra "Calcular ▾" como CTA
+  invisible-hasta-hover, y al click despliega un menú jerárquico
+  con todas las opciones agrupadas:
+   - Recuento → Valores del recuento, Contar valores únicos,
+     Recuento vacío
+   - Porcentual → Porcentaje vacío, Porcentaje no vacío
+   - Números (number/currency) → Suma, Promedio, Mínimo,
+     Máximo, Intervalo
+   - Fechas (date/datetime) → Intervalo, Fecha más antigua,
+     Fecha más reciente
+  La preferencia se persiste por column id en
+  `state.footerAggregates` → `view.config.footer_aggregates` —
+  la próxima visita encuentra los mismos cálculos elegidos.
+  "Quitar cálculo" como item rojo al final del menú cuando ya
+  hay uno seleccionado.
+* Footer con bg igual al body de la tabla — sin separador visual
+  entre contenido y agregaciones (estilo ClickUp).
+* Backend: `RecordAggregator` ahora emite también
+  `count_unique` (`COUNT(DISTINCT col)`) para todos los tipos.
+  `count_empty` se calcula también para number/date (antes solo
+  text/select). Los porcentajes se derivan client-side de
+  `count` / `count_empty` vs `total` para no requerir queries
+  adicionales.
+* Componentes UI nuevos en `dropdown-menu.tsx`:
+  `DropdownMenuSub`, `DropdownMenuSubTrigger`,
+  `DropdownMenuSubContent`, `DropdownMenuLabel` — wrappers de
+  Radix Sub/Label con los estilos del plugin.
 
 = 0.27.0 =
 * **Footer con agregados por columna** (estilo ClickUp/Airtable).
