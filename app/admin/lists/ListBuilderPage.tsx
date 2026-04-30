@@ -18,6 +18,7 @@ import { ApiError } from '@/lib/api';
 import { __, sprintf } from '@/lib/i18n';
 
 import { FieldBuilder } from './FieldBuilder';
+import { MaintenancePanel } from './MaintenancePanel';
 import { SlugEditor } from './SlugEditor';
 
 export function ListBuilderPage(): JSX.Element {
@@ -207,6 +208,8 @@ export function ListBuilderPage(): JSX.Element {
                     <FieldBuilder listId={list.data.id} />
                 </CardContent>
             </Card>
+
+            <MaintenancePanel listId={list.data.id} />
         </div>
     );
 }

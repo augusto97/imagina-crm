@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.0
+Stable tag: 0.30.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,25 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.1 =
+**UI admin para Tier 3**: panel "Mantenimiento y rendimiento" en
+la página de edición de cada lista. Ya no necesitás `curl` para
+gestionar el motor de búsqueda ni los composite indexes.
+
+* **Toggle "Búsqueda avanzada"**. Switch en vivo: activar dispara
+  el reindex inicial vía Action Scheduler y muestra el contador de
+  documentos indexados creciendo (polling cada 5s mientras está
+  activa). Botón "Re-indexar" para forzar full rebuild.
+* **Lista de índices sugeridos**. Renderea las sugerencias de
+  `CompositeIndexSuggester` con razón ("Vista X filtra/ordena por
+  estas columnas"), número de vistas que lo justifican, columnas
+  involucradas. Apply / Quitar con un click. Estado verde cuando
+  ya está aplicado.
+* Hook `useMaintenance.ts` con TanStack Query: `useSearchStatus`,
+  `useEnableSearch`, `useDisableSearch`, `useReindexSearch`,
+  `useIndexSuggestions`, `useApplyIndex`, `useDropIndex`,
+  `useRunPurge`.
 
 = 0.30.0 =
 **Tier 3 — Big data**: tercer y último step del roadmap de
