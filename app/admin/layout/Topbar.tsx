@@ -1,30 +1,27 @@
 import { useLocation } from 'react-router-dom';
-import { ExternalLink, LogOut, Maximize2, Minimize2, Settings } from 'lucide-react';
+import { ExternalLink, LogOut, Settings } from 'lucide-react';
 
 import { NotificationBell } from '@/admin/layout/NotificationBell';
 import { Button } from '@/components/ui/button';
 import { getBootData } from '@/lib/boot';
 import { __ } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
-import { toggleFullscreen, useFullscreen } from '@/stores/shellStore';
 
 /**
  * Topbar inspirada en la app de audit:
  *  - Izquierda: nombre del workspace (boot.user / brand)
- *  - Derecha: search compacto, notif bell, fullscreen toggle,
- *    "Ver herramienta" link al admin de WP, settings + logout iconos
+ *  - Derecha: notif bell, "Ver herramienta" link al admin de WP,
+ *    settings + logout iconos
+ *
+ * El toggle de pantalla completa se eliminó en 0.30.3 — el SPA ya
+ * vive en una URL standalone sin chrome de wp-admin, así que el
+ * botón no tenía nada que ocultar.
  */
 export function Topbar(): JSX.Element {
     useLocation();
     const boot = getBootData();
-    const isFullscreen = useFullscreen();
 
     return (
-        <header
-            className={cn(
-                'imcrm-flex imcrm-h-16 imcrm-shrink-0 imcrm-items-center imcrm-justify-between imcrm-gap-4 imcrm-border-b imcrm-border-border imcrm-bg-background imcrm-px-6',
-            )}
-        >
+        <header className="imcrm-flex imcrm-h-16 imcrm-shrink-0 imcrm-items-center imcrm-justify-between imcrm-gap-4 imcrm-border-b imcrm-border-border imcrm-bg-background imcrm-px-6">
             <div className="imcrm-flex imcrm-min-w-0 imcrm-items-center imcrm-gap-2.5">
                 <h2 className="imcrm-truncate imcrm-text-[15px] imcrm-font-semibold imcrm-text-foreground">
                     {boot.user.displayName || 'Imagina CRM'}
@@ -33,24 +30,6 @@ export function Topbar(): JSX.Element {
 
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
                 <NotificationBell />
-
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleFullscreen}
-                    aria-label={isFullscreen ? __('Salir de pantalla completa') : __('Pantalla completa')}
-                    title={
-                        isFullscreen
-                            ? __('Salir de pantalla completa (Esc)')
-                            : __('Pantalla completa')
-                    }
-                >
-                    {isFullscreen ? (
-                        <Minimize2 className="imcrm-h-4 imcrm-w-4" aria-hidden="true" />
-                    ) : (
-                        <Maximize2 className="imcrm-h-4 imcrm-w-4" aria-hidden="true" />
-                    )}
-                </Button>
 
                 <a
                     href={boot.adminUrl || '/wp-admin'}

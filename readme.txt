@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.2
+Stable tag: 0.30.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,22 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.30.3 =
+**Cleanup**: elimina el toggle de pantalla completa (Maximize2 en
+la topbar). Era residual de cuando el SPA se montaba dentro de
+`/wp-admin/admin.php` y necesitaba ocultar el chrome de WP. Desde
+0.13.0 el SPA vive en URL standalone (`/imagina-crm/`) sin chrome
+de wp-admin → el botón no tenía nada que ocultar.
+
+* Removido `app/stores/shellStore.ts` (booleano + persistencia en
+  localStorage para el toggle).
+* Removido botón Maximize2/Minimize2 del Topbar y atajo Escape.
+* Removidas ~50 líneas de CSS con `!important` en
+  `globals.css` (`html.imcrm-fullscreen-mode #wpadminbar { ... }`,
+  override de z-index para Radix portals, etc.).
+* AdminShell ahora usa layout fijo full-viewport siempre.
+* Bundle baja levemente (-2KB).
 
 = 0.30.2 =
 **Fix UX**: el item del menú "Imagina CRM" ahora abre la URL

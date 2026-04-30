@@ -4,22 +4,10 @@ import { Sidebar } from '@/admin/layout/Sidebar';
 import { SkipLink } from '@/admin/layout/SkipLink';
 import { Topbar } from '@/admin/layout/Topbar';
 import { __ } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
-import { useFullscreen, useFullscreenEscapeKey } from '@/stores/shellStore';
 
 export function AdminShell(): JSX.Element {
-    const isFullscreen = useFullscreen();
-    useFullscreenEscapeKey();
-
     return (
-        <div
-            className={cn(
-                'imcrm-flex imcrm-w-full imcrm-bg-canvas imcrm-text-foreground',
-                isFullscreen
-                    ? 'imcrm-h-screen imcrm-min-h-screen'
-                    : 'imcrm-min-h-[calc(100vh-32px)]',
-            )}
-        >
+        <div className="imcrm-flex imcrm-h-screen imcrm-min-h-screen imcrm-w-full imcrm-bg-canvas imcrm-text-foreground">
             <SkipLink />
             <Sidebar />
             <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col">

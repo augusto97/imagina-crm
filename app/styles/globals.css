@@ -159,69 +159,13 @@
     }
 
     /*
-     * Fullscreen "app mode": cuando el usuario activa el toggle, ocultamos
-     * todo el chrome de WordPress y montamos el SPA root como overlay
-     * fixed full-viewport. La clase `imcrm-fullscreen-mode` se setea en
-     * <html> desde `shellStore.ts` (antes del primer render para evitar
-     * flash). Usamos !important porque varias reglas de wp-admin tienen
-     * mayor especificidad que las nuestras.
+     * El SPA vive standalone en /imagina-crm/ con su propio reset
+     * inline (`StandalonePage::inlineReset()`) que ya cubre el chrome
+     * de wp-admin que pudiera filtrarse. El "fullscreen mode" toggle
+     * se eliminó en 0.30.3 — era residual de cuando el SPA se montaba
+     * en /wp-admin/admin.php (los Radix portals + reglas !important
+     * existían solo para tapar el chrome de WP en ese contexto).
      */
-    html.imcrm-fullscreen-mode #wpadminbar,
-    html.imcrm-fullscreen-mode #adminmenumain,
-    html.imcrm-fullscreen-mode #adminmenuwrap,
-    html.imcrm-fullscreen-mode #adminmenuback,
-    html.imcrm-fullscreen-mode #wpfooter,
-    html.imcrm-fullscreen-mode .update-nag,
-    html.imcrm-fullscreen-mode .notice,
-    html.imcrm-fullscreen-mode #screen-meta,
-    html.imcrm-fullscreen-mode #screen-meta-links {
-        display: none !important;
-    }
-
-    html.imcrm-fullscreen-mode #wpcontent,
-    html.imcrm-fullscreen-mode #wpbody-content,
-    html.imcrm-fullscreen-mode #wpbody {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    html.imcrm-fullscreen-mode html,
-    html.imcrm-fullscreen-mode body {
-        margin: 0 !important;
-        padding: 0 !important;
-        height: 100vh !important;
-        overflow: hidden !important;
-    }
-
-    html.imcrm-fullscreen-mode #wpwrap {
-        height: 100vh !important;
-    }
-
-    html.imcrm-fullscreen-mode #imcrm-root {
-        position: fixed !important;
-        inset: 0 !important;
-        z-index: 99999 !important;
-        height: 100vh !important;
-        min-height: 100vh !important;
-        overflow: auto !important;
-    }
-
-    /*
-     * Cuando fullscreen está activo, #imcrm-root sube a z-99999 para
-     * tapar el chrome de WP. Pero los Radix portals (Dialog, Popover,
-     * DropdownMenu) renderean en <body> como hermanos del root, con
-     * sus propios z-index (50, 60). Sin este override quedarían DEBAJO
-     * del root → dialogs y dropdowns "no funcionan" en fullscreen.
-     *
-     * Targeteamos:
-     *  - .imcrm-fixed.imcrm-z-50 → nuestros Dialog.Overlay / Content.
-     *  - [data-radix-popper-content-wrapper] → wrapper de Popover /
-     *    DropdownMenu / Tooltip / Select (lo inyecta @floating-ui).
-     */
-    html.imcrm-fullscreen-mode .imcrm-fixed.imcrm-z-50,
-    html.imcrm-fullscreen-mode [data-radix-popper-content-wrapper] {
-        z-index: 1000000 !important;
-    }
 
     /*
      * Reset minimal scopeado.
