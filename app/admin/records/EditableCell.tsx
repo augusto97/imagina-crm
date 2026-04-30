@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
@@ -108,7 +108,7 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
                         listId={listId}
                         recordId={recordId}
                         field={field}
-                        value={value}
+                        cellValue={value}
                     />
                 </DateCellEditor>
             );
@@ -371,34 +371,49 @@ function CellEditor({ field, value, onChange, onCommit, onCancel, isPending }: C
  * visual rápido para que el user sepa qué fechas se repiten sin
  * tener que abrir cada celda.
  *
+ * **Importante**: `forwardRef` + spread de props es obligatorio.
+ * Radix `<PopoverTrigger asChild>` inyecta su `ref` y handlers
+ * (onClick, onPointerDown, aria-*) sobre el hijo directo. Si este
+ * componente es una function component sin forward, Radix no puede
+ * adjuntar los handlers al `<button>` real y los clicks no abren
+ * el popover.
+ *
  * `useRecurrences` se llama también dentro de `DateCellEditor`,
  * pero React Query dedupea por queryKey (mismos `listId+recordId`)
  * — sin overhead extra de red.
  */
-function DateCellTrigger({
-    listId,
-    recordId,
-    field,
-    value,
-}: {
-    listId: number;
-    recordId: number;
-    field: FieldEntity;
-    value: unknown;
-}): JSX.Element {
+const DateCellTrigger = forwardRef<
+    HTMLButtonElement,
+    {
+        listId: number;
+        recordId: number;
+        field: FieldEntity;
+        // Renombrado a `cellValue` para no chocar con el `value` propio
+        // de `<button>` en `ButtonHTMLAttributes` (string|number|...).
+        cellValue: unknown;
+    } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'value'>
+>(function DateCellTrigger(
+    { listId, recordId, field, cellValue, ...rest },
+    ref,
+) {
     const recurrences = useRecurrences(listId, recordId);
     const hasRecurrence = (recurrences.data ?? []).some((r) => r.date_field_id === field.id);
 
     return (
         <button
+            ref={ref}
             type="button"
-            className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-1 imcrm-truncate imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40"
+            {...rest}
+            className={cn(
+                'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-1 imcrm-truncate imcrm-text-left imcrm-min-h-[1.5rem] imcrm-rounded imcrm--mx-1 imcrm-px-1 hover:imcrm-bg-accent/40',
+                rest.className,
+            )}
             title={hasRecurrence
                 ? __('Recurrente · click para editar')
                 : __('Editar fecha y recurrencia')}
         >
             <span className="imcrm-min-w-0 imcrm-flex-1 imcrm-truncate">
-                {renderCellValue(field, value)}
+                {renderCellValue(field, cellValue)}
             </span>
             {hasRecurrence && (
                 <RefreshCw
@@ -408,4 +423,4 @@ function DateCellTrigger({
             )}
         </button>
     );
-}
+});
