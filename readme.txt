@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.26.8
+Stable tag: 0.27.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,43 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.27.0 =
+* **Footer con agregados por columna** (estilo ClickUp/Airtable).
+  Bajo cada tabla y bajo cada bucket en la vista agrupada,
+  nueva fila con sum/avg/count/min/max según el tipo del campo:
+   - number / currency → "Suma 12.500"
+   - date / datetime   → "Min YYYY-MM-DD" / "Max YYYY-MM-DD"
+   - checkbox          → "✓ N · ✗ M"
+   - text / select / etc → "N items"
+  Backend: nuevo endpoint
+  `GET /imagina-crm/v1/lists/{list}/records/aggregates?fields=…&filter_tree=…&group_by=…`
+  Devuelve `{totals: {slug: agg}, groups: [{value, aggregates}]}`.
+  Una sola SELECT con N expresiones agregadas por field, respetando
+  el `filter_tree` activo (lo que ves en la pantalla es lo que
+  suma).
+* **Primera columna fija** (sticky-left). Checkbox y el campo
+  marcado como `is_primary` se mantienen visibles al scrollear
+  horizontalmente. Aplica en TableView (flat) y GroupedTableView.
+  z-index calculado para no chocar con el `<thead>` sticky-top.
+* **Botón "+ Agregar columna"** al final del header. Abre el
+  editor de la lista en la sección de campos. UX mucho más
+  rápida que Configurar lista → Campos → Nuevo.
+* **Fila "+ Agregar tarea"** al pie de cada bucket en
+  GroupedTableView y al pie de la tabla flat. Abre el dialog de
+  creación.
+* **Sombra del header solo on scroll**. Antes la sombra era fija;
+  ahora el `<thead sticky>` queda plano cuando el contenedor no
+  tiene scroll vertical (estilo ClickUp), y aparece una sombra
+  suave cuando se scrollea para indicar el contenido pasando por
+  debajo.
+* **Estado de grupos colapsados/expandidos persistido en la
+  vista**. Antes cada vez que cargabas la página, todos los
+  buckets arrancaban cerrados. Ahora `state.collapsedGroups` se
+  guarda en `SavedView.config.collapsed_groups` (array de bucket
+  keys) — la próxima visita los grupos arrancan en el mismo
+  estado que dejaste. El override en sesión es local hasta que
+  el user vuelva a guardar la vista.
 
 = 0.26.8 =
 * Fix: al elegir "Calculado" como tipo de campo en el builder de

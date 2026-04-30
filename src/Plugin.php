@@ -398,6 +398,21 @@ final class Plugin
                 $c->get(\ImaginaCRM\Lists\ListService::class),
             );
         });
+
+        // Footer aggregations (Fase 6).
+        $this->container->bind(\ImaginaCRM\Records\RecordAggregator::class, static function (Container $c): \ImaginaCRM\Records\RecordAggregator {
+            return new \ImaginaCRM\Records\RecordAggregator(
+                $c->get(Database::class),
+                $c->get(FieldRepository::class),
+                $c->get(QueryBuilder::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\AggregatesController::class, static function (Container $c): \ImaginaCRM\REST\AggregatesController {
+            return new \ImaginaCRM\REST\AggregatesController(
+                $c->get(\ImaginaCRM\Records\RecordAggregator::class),
+                $c->get(\ImaginaCRM\Lists\ListService::class),
+            );
+        });
     }
 
     private function register(): void
