@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.30.8
+Stable tag: 0.31.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,39 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.31.0 =
+**Layout CRM panel para registros (opt-in por lista).**
+
+Hasta 0.30.x la página individual de un registro era un form lineal
+con sidebar de Comentarios/Actividad — funcional pero genérica.
+Ahora cada lista puede activar un layout estilo HubSpot/Pipedrive
+desde su configuración.
+
+* **Toggle por lista** en "Editar lista → Apariencia del registro":
+  elegí entre "Lista" (default, form lineal) o "Panel CRM" (header
+  con avatar + sidebar agrupado + timeline). Persiste en
+  `list.settings.record_layout`.
+* **Header CRM** con avatar generado de las iniciales del campo
+  primary (color hash determinístico), badges de estado
+  auto-detectados (campos `select`/`multi_select`/`checkbox` con
+  ≤8 opciones renderean como pills), y botones de acción rápida
+  según tipo de campo (`mailto:` para email, `tel:` para teléfono,
+  abrir URL externa).
+* **Sidebar de propiedades** con grupos colapsables auto-categorizados:
+    - **Contacto**: email, url, teléfono (detectado por slug/label).
+    - **Estado**: select/multi_select/checkbox con pocas opciones.
+    - **Datos clave**: number, currency, date, datetime.
+    - **Asignación**: user fields.
+    - **Otros**: el resto (collapsed by default).
+* **Timeline unificada**: comentarios + activity log mergeados
+  client-side por timestamp, en orden cronológico desc. Composer
+  de comentario al tope (Cmd/Ctrl+Enter para enviar). Filtros:
+  Todo · Comentarios · Cambios. Cada fila con avatar, tiempo
+  relativo ("hace 5 min") y acciones edit/delete cuando aplica.
+* La heurística es conservadora: campos que no se clasifican claro
+  caen en "Otros". El layout clásico sigue siendo default — listas
+  no-CRM (inventario, proyectos) no se ven afectadas.
 
 = 0.30.8 =
 **Búsqueda instantánea para listas chicas (client-side filter).**

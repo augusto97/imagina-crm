@@ -12,6 +12,7 @@ import {
 
 import { ActivityPanel } from '@/admin/activity/ActivityPanel';
 import { CommentsPanel } from '@/admin/comments/CommentsPanel';
+import { RecordCrmLayout } from '@/admin/records/crm/RecordCrmLayout';
 import { RecordFieldsForm } from '@/admin/records/RecordFieldsForm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -103,6 +104,27 @@ export function RecordPage(): JSX.Element {
                     {__('El registro no existe o fue eliminado.')}
                 </p>
             </div>
+        );
+    }
+
+    // Layout opt-in: cuando la lista tiene `settings.record_layout
+    // === 'crm'`, renderea el panel estilo CRM (header con avatar +
+    // sidebar de propiedades + timeline). Default 'classic' = form
+    // lineal de toda la vida.
+    const recordLayout = (list.data.settings as { record_layout?: string })?.record_layout;
+    const useCrmLayout = recordLayout === 'crm';
+
+    if (useCrmLayout && fields.data) {
+        return (
+            <RecordCrmLayout
+                list={list.data}
+                record={record.data}
+                fields={fields.data}
+                currentUserId={boot.user.id}
+                isAdmin={boot.user.capabilities.manage_options === true}
+                onDelete={() => void handleDelete()}
+                deleting={remove.isPending}
+            />
         );
     }
 

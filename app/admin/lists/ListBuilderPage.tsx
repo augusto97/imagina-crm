@@ -17,6 +17,7 @@ import { useDeleteList, useList, useUpdateList } from '@/hooks/useLists';
 import { ApiError } from '@/lib/api';
 import { __, sprintf } from '@/lib/i18n';
 
+import { AppearancePanel } from './AppearancePanel';
 import { FieldBuilder } from './FieldBuilder';
 import { MaintenancePanel } from './MaintenancePanel';
 import { SlugEditor } from './SlugEditor';
@@ -209,6 +210,7 @@ export function ListBuilderPage(): JSX.Element {
                 </CardContent>
             </Card>
 
+            <AppearancePanel list={list.data} />
             <MaintenancePanel listId={list.data.id} />
         </div>
     );
