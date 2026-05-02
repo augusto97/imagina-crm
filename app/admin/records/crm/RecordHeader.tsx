@@ -4,18 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import {
-    categorizeField,
-    colorFromString,
-    initialsFromValue,
-    pickPrimaryField,
-} from '@/lib/recordCategorize';
+import { colorFromString, initialsFromValue } from '@/lib/recordCategorize';
+import type { ResolvedLayout } from '@/lib/crmTemplates';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
 interface RecordHeaderProps {
     record: RecordEntity;
-    fields: FieldEntity[];
+    layout: ResolvedLayout;
     onSave: () => void;
     onDelete: () => void;
     canSave: boolean;
@@ -24,54 +20,36 @@ interface RecordHeaderProps {
 }
 
 /**
- * Header del layout CRM. Muestra avatar (iniciales del primary
- * field), título grande, badges de estado auto-detectados desde
- * fields tipo `select`/`multi_select` con pocas opciones, y quick
- * actions (mailto, tel:, abrir URL) según los campos de contacto
- * presentes en el record.
+ * Header del layout CRM. Lee del `ResolvedLayout` (producido por la
+ * plantilla seleccionada) en lugar de aplicar heurística propia. Así
+ * cada plantilla controla qué campos van como status pills, quick
+ * actions y subtítulo.
  */
 export function RecordHeader({
     record,
-    fields,
+    layout,
     onSave,
     onDelete,
     canSave,
     saving,
     deleting,
 }: RecordHeaderProps): JSX.Element {
-    const primary = pickPrimaryField(fields);
-    const primaryValue =
-        primary && typeof record.fields[primary.slug] === 'string'
-            ? (record.fields[primary.slug] as string)
+    const titleField = layout.titleField;
+    const titleValue =
+        titleField && typeof record.fields[titleField.slug] === 'string'
+            ? (record.fields[titleField.slug] as string)
             : '';
     const title =
-        primaryValue !== ''
-            ? primaryValue
+        titleValue !== ''
+            ? titleValue
             : sprintf(/* translators: %d id */ __('Registro #%d'), record.id);
 
-    const initials = initialsFromValue(primaryValue || String(record.id));
-    const avatarColor = colorFromString(primaryValue || String(record.id));
+    const initials = initialsFromValue(titleValue || String(record.id));
+    const avatarColor = colorFromString(titleValue || String(record.id));
 
-    // Status badges: select / multi_select / checkbox con ≤8 opciones.
-    const statusFields = fields.filter((f) => {
-        const cat = categorizeField(f);
-        return cat.category === 'status';
-    });
-
-    // Quick actions: email, phone, url presentes con valor.
-    type QuickActionItem = {
-        field: FieldEntity;
-        kind: NonNullable<ReturnType<typeof categorizeField>['contactKind']>;
-        value: string;
-    };
-    const contactQuickActions: QuickActionItem[] = [];
-    for (const f of fields) {
-        const cat = categorizeField(f);
-        if (cat.category !== 'contact' || ! cat.contactKind) continue;
-        const v = record.fields[f.slug];
-        if (typeof v !== 'string' || v === '') continue;
-        contactQuickActions.push({ field: f, kind: cat.contactKind, value: v });
-    }
+    const subtitleParts = layout.subtitleFields
+        .map((f) => formatFieldValue(f, record.fields[f.slug]))
+        .filter((s): s is string => s !== null && s !== '');
 
     return (
         <header className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-5">
@@ -91,6 +69,11 @@ export function RecordHeader({
                                 #{record.id}
                             </Badge>
                         </h1>
+                        {subtitleParts.length > 0 && (
+                            <p className="imcrm-text-sm imcrm-text-muted-foreground">
+                                {subtitleParts.join(' · ')}
+                            </p>
+                        )}
                         <p className="imcrm-text-xs imcrm-text-muted-foreground">
                             {sprintf(
                                 /* translators: %s: localized creation date */
@@ -121,21 +104,36 @@ export function RecordHeader({
                 </div>
             </div>
 
-            {(statusFields.length > 0 || contactQuickActions.length > 0) && (
+            {(layout.statusFields.length > 0 || layout.quickActions.length > 0) && (
                 <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-pt-1">
-                    {statusFields.map((f) => (
+                    {layout.statusFields.map((f) => (
                         <StatusPill key={f.id} field={f} value={record.fields[f.slug]} />
                     ))}
-                    {statusFields.length > 0 && contactQuickActions.length > 0 && (
+                    {layout.statusFields.length > 0 && layout.quickActions.length > 0 && (
                         <span aria-hidden className="imcrm-mx-1 imcrm-h-4 imcrm-w-px imcrm-bg-border" />
                     )}
-                    {contactQuickActions.map((a) => (
-                        <QuickAction key={a.field.id} kind={a.kind} value={a.value} label={a.field.label} />
-                    ))}
+                    {layout.quickActions.map(({ field, kind }) => {
+                        const v = record.fields[field.slug];
+                        if (typeof v !== 'string' || v === '') return null;
+                        return (
+                            <QuickAction key={field.id} kind={kind} value={v} label={field.label} />
+                        );
+                    })}
                 </div>
             )}
         </header>
     );
+}
+
+function formatFieldValue(field: FieldEntity, value: unknown): string | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (field.type === 'date' || field.type === 'datetime') {
+        const d = new Date(field.type === 'date' ? String(value) : String(value) + 'Z');
+        if (! Number.isNaN(d.getTime())) return d.toLocaleDateString();
+    }
+    return null;
 }
 
 function StatusPill({ field, value }: { field: FieldEntity; value: unknown }): JSX.Element | null {
@@ -150,9 +148,7 @@ function StatusPill({ field, value }: { field: FieldEntity; value: unknown }): J
                 <span className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide">
                     {field.label}:
                 </span>
-                <span className="imcrm-ml-1 imcrm-font-semibold">
-                    {v ? __('Sí') : __('No')}
-                </span>
+                <span className="imcrm-ml-1 imcrm-font-semibold">{v ? __('Sí') : __('No')}</span>
             </Badge>
         );
     }
@@ -185,7 +181,7 @@ function StatusPill({ field, value }: { field: FieldEntity; value: unknown }): J
 
 function styleFromColor(color: string): React.CSSProperties {
     return {
-        backgroundColor: color + '1a', // ~10% opacity hex
+        backgroundColor: color + '1a',
         borderColor: color + '40',
         color,
     };
@@ -196,7 +192,7 @@ function QuickAction({
     value,
     label,
 }: {
-    kind: string;
+    kind: 'email' | 'phone' | 'url';
     value: string;
     label: string;
 }): JSX.Element {

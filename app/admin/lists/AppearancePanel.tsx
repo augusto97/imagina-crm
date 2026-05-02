@@ -1,8 +1,9 @@
-import { LayoutDashboard, Loader2, UserSquare2 } from 'lucide-react';
+import { Check, LayoutDashboard, Loader2, UserSquare2 } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useUpdateList } from '@/hooks/useLists';
+import { CRM_TEMPLATES, DEFAULT_TEMPLATE_ID } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { ListSummary } from '@/types/list';
@@ -14,39 +15,49 @@ interface AppearancePanelProps {
 type RecordLayout = 'classic' | 'crm';
 
 /**
- * Panel "Apariencia": elige cómo se renderea la página individual
- * de cada registro de esta lista. Persiste en
- * `list.settings.record_layout`.
+ * Panel "Apariencia" del list builder: define cómo se renderea la
+ * página individual de cada registro de esta lista.
  *
- *  - **Lista (default)**: form lineal — todos los campos en orden
- *    de creación, con sidebar de Comentarios/Actividad. Apropiado
- *    para listas tipo base de datos (inventario, productos,
- *    proyectos sin componente social).
- *
- *  - **CRM panel**: header con avatar + badges de estado + acciones
- *    rápidas (mailto/tel) · sidebar con propiedades agrupadas
- *    colapsables · timeline central que mezcla comentarios y
- *    cambios. Apropiado para listas tipo contactos, ventas, leads.
+ * - **Layout** (`settings.record_layout`): `classic` (form lineal) o
+ *   `crm` (header + sidebar agrupado + timeline).
+ * - **Plantilla CRM** (`settings.crm_template_id`): solo se muestra
+ *   cuando el layout es CRM. Define qué campos van en qué slot del
+ *   header / sidebar. Built-ins: auto, contact, deal, task, support.
+ *   Cada plantilla aplica heurísticas distintas para distribuir
+ *   campos — ej. "Venta" pone monto al frente; "Tarea" pone
+ *   fecha como subtítulo.
  */
 export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
     const update = useUpdateList(list.id);
     const toast = useToast();
 
-    const current = (list.settings as { record_layout?: RecordLayout }).record_layout ?? 'classic';
+    const settings = list.settings as { record_layout?: RecordLayout; crm_template_id?: string };
+    const currentLayout = settings.record_layout ?? 'classic';
+    const currentTemplateId = settings.crm_template_id ?? DEFAULT_TEMPLATE_ID;
 
     const setLayout = async (next: RecordLayout): Promise<void> => {
-        if (next === current) return;
+        if (next === currentLayout) return;
         try {
             await update.mutateAsync({
                 settings: { ...list.settings, record_layout: next },
             });
             toast.success(
-                next === 'crm'
-                    ? __('Layout CRM activado')
-                    : __('Layout Lista activado'),
+                next === 'crm' ? __('Layout CRM activado') : __('Layout Lista activado'),
             );
         } catch (err) {
             if (err instanceof Error) toast.error(__('No se pudo cambiar el layout'), err.message);
+        }
+    };
+
+    const setTemplate = async (id: string): Promise<void> => {
+        if (id === currentTemplateId) return;
+        try {
+            await update.mutateAsync({
+                settings: { ...list.settings, crm_template_id: id },
+            });
+            toast.success(__('Plantilla aplicada'));
+        } catch (err) {
+            if (err instanceof Error) toast.error(__('No se pudo cambiar la plantilla'), err.message);
         }
     };
 
@@ -63,10 +74,10 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
                     )}
                 </CardDescription>
             </CardHeader>
-            <CardContent className="imcrm-pt-0">
+            <CardContent className="imcrm-flex imcrm-flex-col imcrm-gap-5 imcrm-pt-0">
                 <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-3 sm:imcrm-grid-cols-2">
                     <LayoutOption
-                        active={current === 'classic'}
+                        active={currentLayout === 'classic'}
                         disabled={update.isPending}
                         title={__('Lista')}
                         description={__('Form lineal con todos los campos. Default.')}
@@ -74,7 +85,7 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
                         onClick={() => void setLayout('classic')}
                     />
                     <LayoutOption
-                        active={current === 'crm'}
+                        active={currentLayout === 'crm'}
                         disabled={update.isPending}
                         title={__('Panel CRM')}
                         description={__('Header con avatar, badges, sidebar colapsable y timeline.')}
@@ -82,8 +93,52 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
                         onClick={() => void setLayout('crm')}
                     />
                 </div>
+
+                {currentLayout === 'crm' && (
+                    <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-4">
+                        <div>
+                            <h4 className="imcrm-text-sm imcrm-font-semibold">
+                                {__('Plantilla')}
+                            </h4>
+                            <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                {__(
+                                    'Define qué campos van en cuál slot del panel CRM. Cada plantilla aplica heurísticas distintas a tu lista — los campos sin clasificar caen en "Otros".',
+                                )}
+                            </p>
+                        </div>
+                        <ul className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                            {CRM_TEMPLATES.map((tpl) => (
+                                <li key={tpl.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => void setTemplate(tpl.id)}
+                                        disabled={update.isPending}
+                                        className={cn(
+                                            'imcrm-flex imcrm-w-full imcrm-items-center imcrm-justify-between imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-px-3 imcrm-py-2.5 imcrm-text-left imcrm-transition-colors',
+                                            currentTemplateId === tpl.id
+                                                ? 'imcrm-border-primary imcrm-bg-primary/5'
+                                                : 'imcrm-border-border imcrm-bg-card hover:imcrm-border-primary/40 hover:imcrm-bg-accent/30',
+                                            update.isPending && 'imcrm-opacity-50 imcrm-cursor-not-allowed',
+                                        )}
+                                    >
+                                        <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-0.5">
+                                            <span className="imcrm-text-sm imcrm-font-medium">{tpl.name}</span>
+                                            <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                                                {tpl.description}
+                                            </span>
+                                        </div>
+                                        {currentTemplateId === tpl.id && (
+                                            <Check className="imcrm-h-4 imcrm-w-4 imcrm-shrink-0 imcrm-text-primary" aria-hidden />
+                                        )}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
                 {update.isPending && (
-                    <p className="imcrm-mt-2 imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-xs imcrm-text-muted-foreground">
+                    <p className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-xs imcrm-text-muted-foreground">
                         <Loader2 className="imcrm-h-3 imcrm-w-3 imcrm-animate-spin" />
                         {__('Guardando…')}
                     </p>

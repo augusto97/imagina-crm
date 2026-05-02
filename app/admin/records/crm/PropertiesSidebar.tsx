@@ -1,97 +1,70 @@
 import { useState } from 'react';
-import {
-    Briefcase,
-    ChevronDown,
-    ChevronRight,
-    CircleUser,
-    Database,
-    Mail,
-    Tag,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { RecordFieldsForm } from '@/admin/records/RecordFieldsForm';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { groupFields, type FieldCategory } from '@/lib/recordCategorize';
+import type { ResolvedLayout, SidebarGroup } from '@/lib/crmTemplates';
+import { OTHER_GROUP_ICON } from '@/lib/crmTemplates';
 import type { FieldEntity } from '@/types/field';
 
 interface PropertiesSidebarProps {
-    fields: FieldEntity[];
+    layout: ResolvedLayout;
     values: Record<string, unknown>;
     onChange: (values: Record<string, unknown>) => void;
     fieldErrors?: Record<string, string>;
 }
 
-interface GroupSpec {
-    key: FieldCategory;
-    label: string;
-    icon: typeof Mail;
-    /** Si true, arranca colapsado por default. */
-    collapsedByDefault?: boolean;
-}
-
-const GROUPS: GroupSpec[] = [
-    { key: 'contact', label: 'Contacto', icon: Mail },
-    { key: 'status', label: 'Estado', icon: Tag },
-    { key: 'key_data', label: 'Datos clave', icon: Briefcase },
-    { key: 'assignment', label: 'Asignación', icon: CircleUser },
-    { key: 'other', label: 'Otros', icon: Database, collapsedByDefault: true },
-];
-
 /**
- * Sidebar de propiedades del layout CRM. Muestra los fields del
- * record agrupados en bloques temáticos (Contacto, Estado, Datos
- * clave, Asignación, Otros) — cada bloque colapsable, con los
- * campos editables inline reusando `RecordFieldsForm`.
+ * Sidebar de propiedades del layout CRM. Renderea los grupos definidos
+ * por la plantilla activa (`ResolvedLayout.sidebarGroups`) y un grupo
+ * "Otros" automático con los fields que la plantilla no asignó.
  *
- * Grupos sin campos NO renderean su card (UI limpia para listas que
- * no usan ese tipo).
+ * Cada bloque colapsable reusa `RecordFieldsForm` para el inline edit
+ * — sin duplicar la lógica de input por tipo de campo.
  */
 export function PropertiesSidebar({
-    fields,
+    layout,
     values,
     onChange,
     fieldErrors,
 }: PropertiesSidebarProps): JSX.Element {
-    const groups = groupFields(fields);
+    const groups: SidebarGroup[] = [...layout.sidebarGroups];
+    if (layout.leftover.length > 0) {
+        groups.push({
+            id: '__leftover',
+            label: __('Otros'),
+            icon: OTHER_GROUP_ICON,
+            fields: layout.leftover,
+            collapsedByDefault: true,
+        });
+    }
 
     return (
         <aside className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            {GROUPS.map((g) => {
-                const groupFieldsList = groups[g.key].map((c) => c.field);
-                if (groupFieldsList.length === 0) return null;
-                return (
-                    <PropertyGroup
-                        key={g.key}
-                        spec={g}
-                        fields={groupFieldsList}
-                        values={values}
-                        onChange={onChange}
-                        fieldErrors={fieldErrors}
-                    />
-                );
-            })}
+            {groups.map((g) => (
+                <PropertyGroup
+                    key={g.id}
+                    group={g}
+                    values={values}
+                    onChange={onChange}
+                    fieldErrors={fieldErrors}
+                />
+            ))}
         </aside>
     );
 }
 
 interface PropertyGroupProps {
-    spec: GroupSpec;
-    fields: FieldEntity[];
+    group: SidebarGroup;
     values: Record<string, unknown>;
     onChange: (values: Record<string, unknown>) => void;
     fieldErrors?: Record<string, string>;
 }
 
-function PropertyGroup({
-    spec,
-    fields,
-    values,
-    onChange,
-    fieldErrors,
-}: PropertyGroupProps): JSX.Element {
-    const [open, setOpen] = useState(! spec.collapsedByDefault);
-    const Icon = spec.icon;
+function PropertyGroup({ group, values, onChange, fieldErrors }: PropertyGroupProps): JSX.Element {
+    const [open, setOpen] = useState(! group.collapsedByDefault);
+    const Icon = group.icon;
 
     return (
         <section className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
@@ -109,15 +82,15 @@ function PropertyGroup({
                 ) : (
                     <ChevronRight className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" />
                 )}
-                <Icon className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" />
-                <span className="imcrm-flex-1">{__(spec.label)}</span>
-                <span className="imcrm-text-xs imcrm-text-muted-foreground">{fields.length}</span>
+                <Icon className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" aria-hidden />
+                <span className="imcrm-flex-1">{__(group.label)}</span>
+                <span className="imcrm-text-xs imcrm-text-muted-foreground">{group.fields.length}</span>
             </button>
 
             {open && (
                 <div className="imcrm-border-t imcrm-border-border imcrm-px-4 imcrm-py-3">
                     <RecordFieldsForm
-                        fields={fields}
+                        fields={group.fields}
                         values={values}
                         onChange={onChange}
                         fieldErrors={fieldErrors}
@@ -127,3 +100,8 @@ function PropertyGroup({
         </section>
     );
 }
+
+/** @deprecated kept for backward import compat — real type comes from crmTemplates. */
+export type SidebarGroupSpec = SidebarGroup;
+/** @deprecated */
+export type SidebarFieldGroup = { fields: FieldEntity[] };

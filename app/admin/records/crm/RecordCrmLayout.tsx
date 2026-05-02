@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
+import { getTemplate } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 import type { ListSummary } from '@/types/list';
@@ -65,6 +66,14 @@ export function RecordCrmLayout({
         setFieldErrors({});
     }, [initialValues]);
 
+    // Resolución de plantilla: la lista guarda el id en
+    // `settings.crm_template_id`. Si no hay flag, cae a 'auto'.
+    const templateId = (list.settings as { crm_template_id?: string }).crm_template_id;
+    const layout = useMemo(
+        () => getTemplate(templateId).resolve(fields),
+        [templateId, fields],
+    );
+
     const dirty = JSON.stringify(values) !== JSON.stringify(initialValues);
 
     const handleSave = async (): Promise<void> => {
@@ -100,7 +109,7 @@ export function RecordCrmLayout({
 
             <RecordHeader
                 record={record}
-                fields={fields}
+                layout={layout}
                 onSave={() => void handleSave()}
                 onDelete={onDelete}
                 canSave={dirty}
@@ -110,7 +119,7 @@ export function RecordCrmLayout({
 
             <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 lg:imcrm-grid-cols-[360px_1fr]">
                 <PropertiesSidebar
-                    fields={fields}
+                    layout={layout}
                     values={values}
                     onChange={setValues}
                     fieldErrors={fieldErrors}

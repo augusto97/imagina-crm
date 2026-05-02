@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.31.0
+Stable tag: 0.32.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,39 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.32.0 =
+**Plantillas para el panel CRM** (paso 1 de 3 hacia el editor visual).
+
+Cada lista en modo CRM ahora puede elegir qué plantilla aplicar
+desde "Editar lista → Apariencia del registro". El sistema separa
+**qué se renderea** (componentes RecordHeader, PropertiesSidebar)
+de **dónde va cada campo** (la plantilla resuelve los slots).
+
+* **Schema `CrmTemplate`** en `app/lib/crmTemplates.ts`. Cada
+  plantilla expone un `resolve(fields) → ResolvedLayout` con:
+    - `titleField`, `subtitleFields`, `statusFields`, `quickActions`
+      (para el header).
+    - `sidebarGroups[]` con id/label/icon/fields/collapsedByDefault
+      (para el sidebar izquierdo).
+    - `leftover[]` (campos sin asignar — caen en "Otros" colapsado).
+* **5 plantillas built-in:**
+    - **Automática** — heurística conservadora (default, equivale al 0.31).
+    - **Contacto** — empresa/rol como subtítulo, email/teléfono al frente.
+    - **Venta / Oportunidad** — etapa + prioridad en pills, monto destacado.
+    - **Tarea** — fecha de vencimiento como subtítulo, programación
+      al tope del sidebar.
+    - **Soporte** — ticket id como subtítulo, prioridad prominente,
+      cliente y SLA agrupados.
+* **Picker** en `AppearancePanel`: cuando elegís "Panel CRM",
+  abajo aparece la lista de plantillas con nombre + descripción +
+  checkmark de la activa. Click cambia y aplica al instante (toast
+  "Plantilla aplicada").
+* **Refactor `RecordHeader` y `PropertiesSidebar`** para consumir
+  `ResolvedLayout` en lugar de ejecutar su propia heurística. Esto
+  prepara el terreno para 0.33 (Phase B: composer multi-modo, right
+  rail, stats) y 0.34 (editor visual drag & drop, cuyo output será
+  un template "custom" persistido — mismo `ResolvedLayout`).
 
 = 0.31.0 =
 **Layout CRM panel para registros (opt-in por lista).**
