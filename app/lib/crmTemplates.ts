@@ -473,6 +473,7 @@ export const CRM_TEMPLATES: CrmTemplate[] = [
 ];
 
 export const DEFAULT_TEMPLATE_ID = 'auto';
+export const CUSTOM_TEMPLATE_ID  = 'custom';
 
 export function getTemplate(id: string | undefined): CrmTemplate {
     return CRM_TEMPLATES.find((t) => t.id === id) ?? autoTemplate;
@@ -480,3 +481,200 @@ export function getTemplate(id: string | undefined): CrmTemplate {
 
 /** Icon helper para el sidebar "Otros" (siempre fallback al final). */
 export const OTHER_GROUP_ICON: IconName = Database;
+
+// --- Custom templates (0.34.0): editor visual --------------------------------
+
+/**
+ * Catálogo de iconos disponibles en el editor visual. Cada slot del
+ * sidebar puede elegir uno. Mantenemos una lista corta y curada para
+ * que el editor sea finite y serializable — nada de free-form lucide
+ * names que cambian entre versiones.
+ */
+export const SIDEBAR_ICON_OPTIONS: Array<{ key: string; icon: IconName; label: string }> = [
+    { key: 'mail', icon: Mail, label: 'Contacto' },
+    { key: 'building', icon: Building2, label: 'Empresa' },
+    { key: 'tag', icon: Tag, label: 'Etiqueta' },
+    { key: 'briefcase', icon: Briefcase, label: 'Trabajo' },
+    { key: 'dollar', icon: DollarSign, label: 'Dinero' },
+    { key: 'calendar', icon: Calendar, label: 'Fechas' },
+    { key: 'user', icon: User, label: 'Persona' },
+    { key: 'circle_user', icon: CircleUser, label: 'Asignación' },
+    { key: 'sticky_note', icon: StickyNote, label: 'Notas' },
+    { key: 'target', icon: Target, label: 'Métricas' },
+    { key: 'lifebuoy', icon: LifeBuoy, label: 'Soporte' },
+    { key: 'database', icon: Database, label: 'Otros' },
+];
+
+export function iconForKey(key: string): IconName {
+    return SIDEBAR_ICON_OPTIONS.find((o) => o.key === key)?.icon ?? Database;
+}
+
+/**
+ * Configuración serializable del template "Personalizada", producida
+ * por el editor visual (0.34.0+) y persistida en
+ * `list.settings.crm_template_custom`.
+ *
+ * Toda referencia a campos es por **slug** (que el SlugManager garantiza
+ * único + tolerante a renames vía slug_history). Slugs faltantes se
+ * skipean silenciosamente al resolver — sin esto, borrar un campo
+ * dejaría la plantilla rota.
+ */
+export interface CustomSidebarGroupConfig {
+    id: string;
+    label: string;
+    icon_key: string;
+    field_slugs: string[];
+    collapsed_by_default: boolean;
+}
+
+export interface CustomTemplateConfig {
+    title_field_slug?: string;
+    subtitle_field_slugs: string[];
+    status_field_slugs: string[];
+    quick_action_field_slugs: string[];
+    sidebar_groups: CustomSidebarGroupConfig[];
+    show_stats: boolean;
+    related_field_slugs: string[];
+}
+
+export function emptyCustomConfig(): CustomTemplateConfig {
+    return {
+        subtitle_field_slugs: [],
+        status_field_slugs: [],
+        quick_action_field_slugs: [],
+        sidebar_groups: [],
+        show_stats: true,
+        related_field_slugs: [],
+    };
+}
+
+/**
+ * Convierte el resultado del resolver de una plantilla built-in en un
+ * `CustomTemplateConfig` serializable. Útil para "duplicar y editar" —
+ * el user empieza desde una plantilla curada y la modifica.
+ */
+export function customConfigFromBuiltin(
+    builtinId: string,
+    fields: FieldEntity[],
+): CustomTemplateConfig {
+    const layout = getTemplate(builtinId).resolve(fields);
+    return {
+        title_field_slug: layout.titleField?.slug,
+        subtitle_field_slugs: layout.subtitleFields.map((f) => f.slug),
+        status_field_slugs: layout.statusFields.map((f) => f.slug),
+        quick_action_field_slugs: layout.quickActions.map((q) => q.field.slug),
+        sidebar_groups: layout.sidebarGroups.map((g, i) => ({
+            id: g.id || `group-${i}`,
+            label: g.label,
+            icon_key: matchIconKey(g.icon),
+            field_slugs: g.fields.map((f) => f.slug),
+            collapsed_by_default: g.collapsedByDefault,
+        })),
+        show_stats: layout.rightRail.some((b) => b.kind === 'stats'),
+        related_field_slugs: layout.rightRail
+            .filter((b): b is { id: string; kind: 'related'; field: FieldEntity } => b.kind === 'related')
+            .map((b) => b.field.slug),
+    };
+}
+
+function matchIconKey(icon: IconName): string {
+    const found = SIDEBAR_ICON_OPTIONS.find((o) => o.icon === icon);
+    return found?.key ?? 'database';
+}
+
+/**
+ * Resuelve un `CustomTemplateConfig` contra los fields actuales de la
+ * lista. Tolerante a slugs faltantes (si el user borró un campo, lo
+ * skipeamos), tolerante a kinds no-aplicables (un slug que apunta a un
+ * field tipo `relation` no debería estar en `quick_action_field_slugs`,
+ * pero si sucede lo ignoramos sin crashear).
+ */
+export function resolveCustomTemplate(
+    config: CustomTemplateConfig,
+    fields: FieldEntity[],
+): ResolvedLayout {
+    const bySlug = new Map(fields.map((f) => [f.slug, f]));
+    const used = new Set<number>();
+
+    const lookup = (slug: string): FieldEntity | null => {
+        const f = bySlug.get(slug);
+        if (! f || used.has(f.id)) return null;
+        used.add(f.id);
+        return f;
+    };
+
+    const titleField = config.title_field_slug ? lookup(config.title_field_slug) : null;
+    const subtitleFields = config.subtitle_field_slugs
+        .map((s) => lookup(s))
+        .filter((f): f is FieldEntity => f !== null);
+    const statusFields = config.status_field_slugs
+        .map((s) => lookup(s))
+        .filter((f): f is FieldEntity => f !== null);
+
+    const quickActions: QuickActionEntry[] = [];
+    for (const slug of config.quick_action_field_slugs) {
+        const f = lookup(slug);
+        if (! f) continue;
+        const kind = f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'phone';
+        quickActions.push({ field: f, kind });
+    }
+
+    const sidebarGroups: SidebarGroup[] = config.sidebar_groups.map((g) => ({
+        id: g.id,
+        label: g.label,
+        icon: iconForKey(g.icon_key),
+        fields: g.field_slugs
+            .map((s) => lookup(s))
+            .filter((f): f is FieldEntity => f !== null),
+        collapsedByDefault: g.collapsed_by_default,
+    }));
+
+    const rightRail: RightRailBlock[] = [];
+    if (config.show_stats) {
+        rightRail.push({ id: 'stats', kind: 'stats' });
+    }
+    for (const slug of config.related_field_slugs) {
+        const f = bySlug.get(slug);
+        if (f && f.type === 'relation') {
+            rightRail.push({ id: `related-${f.id}`, kind: 'related', field: f });
+        }
+    }
+
+    const leftover = fields
+        .filter((f) => ! used.has(f.id) && f.type !== 'relation')
+        .sort((a, b) => a.position - b.position);
+
+    return {
+        titleField,
+        subtitleFields,
+        statusFields,
+        quickActions,
+        sidebarGroups,
+        rightRail,
+        leftover,
+    };
+}
+
+/**
+ * Resolver unificado consumido por `RecordCrmLayout` y la preview del
+ * editor. Si la lista tiene `crm_template_id === 'custom'` y un
+ * `crm_template_custom` válido, usa ese; sino cae a la built-in.
+ */
+export function getResolvedLayout(
+    settings: { crm_template_id?: string; crm_template_custom?: unknown },
+    fields: FieldEntity[],
+): ResolvedLayout {
+    if (settings.crm_template_id === CUSTOM_TEMPLATE_ID && isCustomConfig(settings.crm_template_custom)) {
+        return resolveCustomTemplate(settings.crm_template_custom, fields);
+    }
+    return getTemplate(settings.crm_template_id).resolve(fields);
+}
+
+function isCustomConfig(v: unknown): v is CustomTemplateConfig {
+    return Boolean(
+        v
+            && typeof v === 'object'
+            && Array.isArray((v as CustomTemplateConfig).subtitle_field_slugs)
+            && Array.isArray((v as CustomTemplateConfig).sidebar_groups),
+    );
+}

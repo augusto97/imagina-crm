@@ -1,9 +1,11 @@
-import { Check, LayoutDashboard, Loader2, UserSquare2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Check, LayoutDashboard, Loader2, SlidersHorizontal, Sparkles, UserSquare2 } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useUpdateList } from '@/hooks/useLists';
-import { CRM_TEMPLATES, DEFAULT_TEMPLATE_ID } from '@/lib/crmTemplates';
+import { CRM_TEMPLATES, CUSTOM_TEMPLATE_ID, DEFAULT_TEMPLATE_ID } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { ListSummary } from '@/types/list';
@@ -95,11 +97,9 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
                 </div>
 
                 {currentLayout === 'crm' && (
-                    <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-4">
+                    <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-4">
                         <div>
-                            <h4 className="imcrm-text-sm imcrm-font-semibold">
-                                {__('Plantilla')}
-                            </h4>
+                            <h4 className="imcrm-text-sm imcrm-font-semibold">{__('Plantilla')}</h4>
                             <p className="imcrm-text-xs imcrm-text-muted-foreground">
                                 {__(
                                     'Define qué campos van en cuál slot del panel CRM. Cada plantilla aplica heurísticas distintas a tu lista — los campos sin clasificar caen en "Otros".',
@@ -133,6 +133,39 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
                                     </button>
                                 </li>
                             ))}
+                            <li>
+                                <div
+                                    className={cn(
+                                        'imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-px-3 imcrm-py-2.5',
+                                        currentTemplateId === CUSTOM_TEMPLATE_ID
+                                            ? 'imcrm-border-primary imcrm-bg-primary/5'
+                                            : 'imcrm-border-border imcrm-bg-card',
+                                    )}
+                                >
+                                    <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-0.5">
+                                        <span className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-sm imcrm-font-medium">
+                                            <Sparkles className="imcrm-h-3 imcrm-w-3 imcrm-text-primary" />
+                                            {__('Personalizada')}
+                                        </span>
+                                        <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                                            {__('Diseñada manualmente con el editor visual. Cada slot a tu medida.')}
+                                        </span>
+                                    </div>
+                                    <div className="imcrm-flex imcrm-shrink-0 imcrm-items-center imcrm-gap-2">
+                                        {currentTemplateId === CUSTOM_TEMPLATE_ID && (
+                                            <Check className="imcrm-h-4 imcrm-w-4 imcrm-text-primary" aria-hidden />
+                                        )}
+                                        <Button asChild size="sm" variant="outline" className="imcrm-gap-1.5">
+                                            <Link to={`/lists/${list.slug}/template-editor`}>
+                                                <SlidersHorizontal className="imcrm-h-3 imcrm-w-3" />
+                                                {currentTemplateId === CUSTOM_TEMPLATE_ID
+                                                    ? __('Editar')
+                                                    : __('Crear')}
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </li>
                         </ul>
                     </div>
                 )}

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.33.0
+Stable tag: 0.34.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,49 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.34.0 =
+**Editor visual de plantilla CRM (paso 3 de 3 — el editor que pediste).**
+
+Cierra la trilogía: schema (0.32) → composer + right rail (0.33) →
+editor visual ahora. El user puede diseñar la ficha de cada lista
+slot por slot, con preview en vivo.
+
+* **Nueva ruta** `/lists/:slug/template-editor` — split de 2 columnas:
+    - Izquierda: panel de slots con controles de cada zona del layout.
+    - Derecha: preview en vivo con el `RecordCrmLayout` real, usando
+      el primer record de la lista (o un mock si está vacía).
+  Toggle "Ocultar/Mostrar preview" para ganar espacio si lo necesitás.
+* **Slots configurables (5 secciones colapsables):**
+    - **Encabezado**: título principal · subtítulo · badges de estado ·
+      acciones rápidas. Cada uno filtra los fields elegibles por tipo
+      (status solo acepta select-likes; quick actions solo email/url/
+      phone-likes; etc.).
+    - **Sidebar de propiedades**: agregar/quitar/reordenar grupos
+      colapsables, cada uno con su nombre, icono (catálogo curado de
+      12), si arranca colapsado, y los fields que contiene.
+    - **Right rail**: toggle para "Resumen" + lista de relation fields
+      a renderear como cards de relacionados.
+* **Reorder con flechas ↑↓** en cada lista de campos (sin DnD lib —
+  pragmático y accesible). Botón × para quitar. Selector "+ Agregar
+  campo" filtrado a los todavía no usados.
+* **"Restaurar desde…"** dropdown que clona cualquier built-in
+  (Contacto / Venta / Tarea / Soporte / Auto) como punto de partida
+  editable. Pide confirmación porque sobreescribe lo actual.
+* **Persistencia**: `list.settings.crm_template_custom` con
+  `CustomTemplateConfig` JSON. Toda referencia a fields es por
+  **slug** (que el SlugManager garantiza estable vía slug_history),
+  así que renombres no rompen la plantilla.
+* **`getResolvedLayout(settings, fields)`** — helper unificado que
+  RecordCrmLayout consume: si la lista tiene custom y está activa,
+  usa `resolveCustomTemplate`; sino cae a la built-in. Mismo
+  `ResolvedLayout` interface, así que la capa de render no cambia.
+* Tolerancia: slugs que ya no existen en la lista (campo borrado)
+  se skipean silenciosamente al resolver. La plantilla nunca se
+  rompe — los fields no asignados van a "Otros" como siempre.
+* **AppearancePanel**: nueva opción "Personalizada" en el picker
+  con botón "Crear" (la primera vez) o "Editar" (si ya hay custom
+  guardada) que linkea al editor.
 
 = 0.33.0 =
 **Phase B del panel CRM: composer multi-modo + right rail con stats y relacionados.**

@@ -16,6 +16,7 @@ import { RecordsPage } from '@/admin/records/RecordsPage';
 // descargan solo cuando el user navega a la ruta. Con esto el bundle
 // inicial baja ~40% en sites donde el usuario solo usa records.
 const ListBuilderPage = lazy(() => import('@/admin/lists/ListBuilderPage').then(m => ({ default: m.ListBuilderPage })));
+const TemplateEditorPage = lazy(() => import('@/admin/lists/template-editor/TemplateEditorPage').then(m => ({ default: m.TemplateEditorPage })));
 const AutomationsPage = lazy(() => import('@/admin/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
 const DashboardsIndexPage = lazy(() => import('@/admin/dashboards/DashboardsIndexPage').then(m => ({ default: m.DashboardsIndexPage })));
 const DashboardPage = lazy(() => import('@/admin/dashboards/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -43,6 +44,9 @@ export function App(): JSX.Element {
                 <Route path="lists" element={<ListsIndexPage />} />
                 <Route path="lists/:listSlug/edit" element={
                     <Suspense fallback={<RouteFallback />}><ListBuilderPage /></Suspense>
+                } />
+                <Route path="lists/:listSlug/template-editor" element={
+                    <Suspense fallback={<RouteFallback />}><TemplateEditorPage /></Suspense>
                 } />
                 <Route path="lists/:listSlug/records" element={<RecordsPage />} />
                 <Route path="lists/:listSlug/records/:recordId" element={<RecordPage />} />
