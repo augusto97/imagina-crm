@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Check, LayoutDashboard, Loader2, SlidersHorizontal, Sparkles, UserSquare2 } from 'lucide-react';
 
@@ -5,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useUpdateList } from '@/hooks/useLists';
+import { recordsKeys } from '@/hooks/useRecords';
 import { CRM_TEMPLATES, CUSTOM_TEMPLATE_ID, DEFAULT_TEMPLATE_ID } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -32,6 +34,7 @@ type RecordLayout = 'classic' | 'crm';
 export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
     const update = useUpdateList(list.id);
     const toast = useToast();
+    const qc = useQueryClient();
 
     const settings = list.settings as { record_layout?: RecordLayout; crm_template_id?: string };
     const currentLayout = settings.record_layout ?? 'classic';
@@ -43,6 +46,12 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
             await update.mutateAsync({
                 settings: { ...list.settings, record_layout: next },
             });
+            // Forzamos refetch del cache de records y de la lista para
+            // que cualquier RecordPage abierto en otra tab/ruta pille
+            // el cambio en su próximo render — sin esto la primera
+            // navegación a una ficha podía mostrar el layout viejo
+            // por una fracción de segundo.
+            qc.removeQueries({ queryKey: recordsKeys.forList(list.id) });
             toast.success(
                 next === 'crm' ? __('Layout CRM activado') : __('Layout Lista activado'),
             );
@@ -54,9 +63,20 @@ export function AppearancePanel({ list }: AppearancePanelProps): JSX.Element {
     const setTemplate = async (id: string): Promise<void> => {
         if (id === currentTemplateId) return;
         try {
+            // Mantenemos `crm_template_custom` aunque elijas un
+            // built-in (no destruimos el trabajo del editor visual
+            // si el user picó otra plantilla por error). El resolver
+            // (`getResolvedLayout`) ya ignora el custom cuando
+            // `crm_template_id !== 'custom'`.
             await update.mutateAsync({
                 settings: { ...list.settings, crm_template_id: id },
             });
+            // Forzamos refetch del records cache. Sin esto, una
+            // RecordPage abierta en otra tab podía seguir mostrando
+            // el layout anterior hasta que la query expirase su
+            // staleTime — visualmente confundía como si el cambio
+            // de plantilla "no aplicara".
+            qc.removeQueries({ queryKey: recordsKeys.forList(list.id) });
             toast.success(__('Plantilla aplicada'));
         } catch (err) {
             if (err instanceof Error) toast.error(__('No se pudo cambiar la plantilla'), err.message);

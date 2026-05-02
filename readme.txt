@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.34.0
+Stable tag: 0.34.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.34.1 =
+**Hotfix**: las plantillas built-in (Auto/Contacto/Venta/Tarea/Soporte)
+parecían no aplicarse al elegirlas en el picker. El resolver siempre
+estuvo correcto, pero el cache de records en TanStack Query no se
+invalidaba al cambiar de plantilla — la primera vista de una ficha
+posterior al switch podía mostrar el layout previo hasta que la
+query expirara su staleTime.
+
+* `AppearancePanel.setLayout` y `setTemplate` ahora llaman
+  `qc.removeQueries({ queryKey: recordsKeys.forList(list.id) })`
+  después del PATCH para forzar refetch en cualquier RecordPage
+  abierta. Resultado: el cambio se ve inmediatamente.
+* Se mantiene `crm_template_custom` aunque elijas un built-in
+  (no destruimos tu trabajo del editor visual). El resolver ya
+  ignoraba el custom cuando `crm_template_id !== 'custom'`, así
+  que ambas formas pueden coexistir y switchear entre sí sin
+  perder datos.
 
 = 0.34.0 =
 **Editor visual de plantilla CRM (paso 3 de 3 — el editor que pediste).**
