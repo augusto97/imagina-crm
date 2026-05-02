@@ -105,13 +105,15 @@ final class CommentsController extends AbstractController
         if (! is_array($params)) {
             $params = $request->get_params();
         }
-        $content = isset($params['content']) ? (string) $params['content'] : '';
+        $content  = isset($params['content']) ? (string) $params['content'] : '';
+        $metadata = $params['metadata'] ?? null;
 
         $result = $this->service->update(
             $id,
             get_current_user_id(),
             current_user_can(Plugin::ADMIN_CAPABILITY),
             $content,
+            $metadata,
         );
         if ($result instanceof ValidationResult) {
             return $this->serviceError($result);

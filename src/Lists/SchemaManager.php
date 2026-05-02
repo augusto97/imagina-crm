@@ -440,6 +440,7 @@ final class SchemaManager
             user_id BIGINT UNSIGNED NOT NULL,
             parent_id BIGINT UNSIGNED NULL,
             content LONGTEXT NOT NULL,
+            metadata LONGTEXT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             deleted_at DATETIME NULL,

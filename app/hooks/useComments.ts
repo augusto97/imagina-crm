@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
-import type { CommentEntity, CreateCommentInput } from '@/types/comment';
+import type { CommentEntity, CommentMetadata, CreateCommentInput } from '@/types/comment';
 
 export const commentsKeys = {
     all: ['comments'] as const,
@@ -50,10 +50,18 @@ export function useUpdateComment(
 ) {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async ({ id, content }: { id: number; content: string }) => {
+        mutationFn: async ({
+            id,
+            content,
+            metadata,
+        }: {
+            id: number;
+            content: string;
+            metadata?: CommentMetadata;
+        }) => {
             const res = await api.patch<CommentEntity>(
                 `/lists/${listId}/records/${recordId}/comments/${id}`,
-                { content },
+                { content, ...(metadata !== undefined ? { metadata } : {}) },
             );
             return res.data;
         },

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.32.0
+Stable tag: 0.33.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,43 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.33.0 =
+**Phase B del panel CRM: composer multi-modo + right rail con stats y relacionados.**
+
+* **Composer multi-modo en la timeline.** El composer ahora tiene
+  4 tabs:
+    - **Nota** — comportamiento default, equivale al composer original.
+    - **Llamada** — campos extra: duración (min) y resultado (Hablamos /
+      Buzón / No contestó / Ocupado).
+    - **Email** — campos extra: destinatario y asunto.
+    - **Reunión** — campos extra: asistentes y fecha/hora.
+  Cada modo guarda metadata específica con el comentario, sin afectar
+  comments existentes (que siguen como notas planas).
+* **Render de timeline metadata-aware.** Cada fila muestra un mini
+  badge con icono del kind (📞 ☎ 📧 👥), y el header de la fila resume
+  los datos: "Llamada · 12 min · Hablamos", "Email → carlos@ejemplo.com
+  'Propuesta v3'", "Reunión · Carlos, María · 5/2/2026 14:30".
+* **Right rail (3ra columna del panel CRM).** Cada plantilla declara
+  qué bloques renderear:
+    - **Resumen** — días en sistema, días sin cambios, # comentarios,
+      # cambios.
+    - **Records relacionados** — 1 card por relation field con la lista
+      de records vinculados resueltos a su título, click navega a la
+      ficha del relacionado.
+  Si la lista no tiene relations ni la plantilla pide rail, el grid
+  colapsa a 2 columnas (sidebar + timeline) sin desperdiciar espacio.
+* **DB version → 7.** Nueva columna `metadata LONGTEXT NULL` en
+  `wp_imcrm_comments`. Se aplica automáticamente al cargar admin
+  (dbDelta detecta el ALTER y lo corre).
+* **Backend `CommentService`** acepta y valida `metadata` en
+  create/update — kind whitelist (`note`/`call`/`email`/`meeting`),
+  cap defensivo de 4KB JSON para evitar abuso. Frontend tipado en
+  `CommentMetadata`.
+* **`ResolvedLayout.rightRail`** — extensión del schema de
+  plantillas que declara los bloques del rail. `LayoutBuilder.buildRightRail`
+  genera el array por defecto: 1 stats + 1 related por relation field
+  presente en la lista.
 
 = 0.32.0 =
 **Plantillas para el panel CRM** (paso 1 de 3 hacia el editor visual).

@@ -60,6 +60,15 @@ export interface SidebarGroup {
     collapsedByDefault: boolean;
 }
 
+/**
+ * Bloques del right rail (Phase B 0.33.0). Cada plantilla declara qué
+ * bloques quiere renderear; los componentes que renderean el rail
+ * tipan exhaustivamente el `kind`.
+ */
+export type RightRailBlock =
+    | { id: string; kind: 'stats' }
+    | { id: string; kind: 'related'; field: FieldEntity };
+
 export interface ResolvedLayout {
     /** Campo cuyo valor es el título grande del header. */
     titleField: FieldEntity | null;
@@ -71,6 +80,8 @@ export interface ResolvedLayout {
     quickActions: QuickActionEntry[];
     /** Cards colapsables del sidebar izquierdo. Vacíos no se renderean. */
     sidebarGroups: SidebarGroup[];
+    /** Bloques del right rail (stats, related records). */
+    rightRail: RightRailBlock[];
     /** Fields que NO entraron en ningún slot. Renderea como "Otros" colapsado. */
     leftover: FieldEntity[];
 }
@@ -192,6 +203,28 @@ class LayoutBuilder {
             .filter((f) => this.isAvailable(f))
             .sort((a, b) => a.position - b.position);
     }
+
+    /**
+     * Construye el array de right rail blocks según una receta básica:
+     *   - 1 block de stats (siempre, cuando `withStats=true`).
+     *   - 1 block "related" por cada `relation` field del list.
+     *
+     * Las plantillas pueden invocar este helper o componer los blocks
+     * a mano si necesitan algo distinto.
+     */
+    buildRightRail(opts: { withStats?: boolean } = {}): RightRailBlock[] {
+        const { withStats = true } = opts;
+        const blocks: RightRailBlock[] = [];
+        if (withStats) {
+            blocks.push({ id: 'stats', kind: 'stats' });
+        }
+        for (const f of this.fields) {
+            if (f.type === 'relation') {
+                blocks.push({ id: `related-${f.id}`, kind: 'related', field: f });
+            }
+        }
+        return blocks;
+    }
 }
 
 // --- built-in templates -------------------------------------------------------
@@ -227,6 +260,7 @@ const autoTemplate: CrmTemplate = {
             statusFields,
             quickActions,
             sidebarGroups: groups,
+            rightRail: b.buildRightRail(),
             leftover: b.leftover(),
         };
     },
@@ -276,6 +310,7 @@ const contactTemplate: CrmTemplate = {
             statusFields,
             quickActions,
             sidebarGroups: groups,
+            rightRail: b.buildRightRail(),
             leftover: b.leftover(),
         };
     },
@@ -321,6 +356,7 @@ const dealTemplate: CrmTemplate = {
             statusFields,
             quickActions,
             sidebarGroups: groups,
+            rightRail: b.buildRightRail(),
             leftover: b.leftover(),
         };
     },
@@ -366,6 +402,7 @@ const taskTemplate: CrmTemplate = {
             statusFields,
             quickActions,
             sidebarGroups: groups,
+            rightRail: b.buildRightRail(),
             leftover: b.leftover(),
         };
     },
@@ -419,6 +456,7 @@ const supportTemplate: CrmTemplate = {
             statusFields,
             quickActions,
             sidebarGroups: groups,
+            rightRail: b.buildRightRail(),
             leftover: b.leftover(),
         };
     },

@@ -2,17 +2,24 @@ import { useMemo, useState } from 'react';
 import {
     Activity as ActivityIcon,
     AtSign,
+    CalendarClock,
     Loader2,
+    Mail,
     MessageSquare,
     Pencil,
+    Phone,
     Plus,
     Send,
+    StickyNote,
     Trash2,
+    Users,
 } from 'lucide-react';
 
 import { CommentContent } from '@/admin/comments/CommentContent';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { useRecordActivity } from '@/hooks/useActivity';
@@ -27,7 +34,7 @@ import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { colorFromString, initialsFromValue } from '@/lib/recordCategorize';
 import type { ActivityEntity } from '@/types/activity';
-import type { CommentEntity } from '@/types/comment';
+import type { CommentEntity, CommentKind, CommentMetadata } from '@/types/comment';
 
 interface RecordTimelineProps {
     listId: number;
@@ -45,15 +52,37 @@ interface TimelineItem {
     activity?: ActivityEntity;
 }
 
+// --- mode definitions --------------------------------------------------------
+
+interface ModeConfig {
+    kind: CommentKind;
+    label: string;
+    icon: typeof MessageSquare;
+    placeholder: string;
+    /** Botones de acción rápida cuando el composer no está activo. */
+    quickLabel: string;
+}
+
+const MODES: ModeConfig[] = [
+    { kind: 'note', label: 'Nota', icon: StickyNote, placeholder: 'Escribe una nota o comentario…', quickLabel: 'Nota' },
+    { kind: 'call', label: 'Llamada', icon: Phone, placeholder: 'Resumen de la llamada…', quickLabel: 'Loguear llamada' },
+    { kind: 'email', label: 'Email', icon: Mail, placeholder: 'Resumen del email enviado/recibido…', quickLabel: 'Loguear email' },
+    { kind: 'meeting', label: 'Reunión', icon: Users, placeholder: 'Notas de la reunión…', quickLabel: 'Loguear reunión' },
+];
+
+const CALL_OUTCOMES: Array<{ value: string; label: string }> = [
+    { value: 'connected', label: 'Hablamos' },
+    { value: 'voicemail', label: 'Buzón de voz' },
+    { value: 'no_answer', label: 'No contestó' },
+    { value: 'busy', label: 'Ocupado' },
+];
+
 /**
  * Timeline unificada del layout CRM. Mergea client-side los
  * comentarios y el activity log del record en un solo feed
- * cronológico (desc), con composer de comentario al tope y filtros
- * (Todos / Comentarios / Cambios) al header.
- *
- * Usa los mismos hooks que CommentsPanel/ActivityPanel — los
- * datos están duplicados en cache de TanStack Query, no hay
- * round-trip extra al server por unificarlos visualmente.
+ * cronológico (desc). Composer multi-modo al tope: el operador
+ * puede crear una **Nota**, **Llamada**, **Email** o **Reunión** —
+ * cada una guarda metadata específica (duración, asunto, asistentes).
  */
 export function RecordTimeline({
     listId,
@@ -69,7 +98,12 @@ export function RecordTimeline({
     const toast = useToast();
     const confirm = useConfirm();
 
+    const [mode, setMode] = useState<CommentKind>('note');
     const [draft, setDraft] = useState('');
+    // Per-mode metadata fields. Mantenemos todos juntos en un objeto
+    // para no resetar al cambiar de tab — si el user pegó un asunto
+    // y se cambió a "Llamada" por error, no perdemos lo escrito.
+    const [meta, setMeta] = useState<CommentMetadata>({});
     const [filter, setFilter] = useState<Filter>('all');
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editDraft, setEditDraft] = useState('');
@@ -78,37 +112,45 @@ export function RecordTimeline({
         const result: TimelineItem[] = [];
         if (filter !== 'changes' && comments.data) {
             for (const c of comments.data) {
-                result.push({
-                    kind: 'comment',
-                    timestamp: parseTimestamp(c.created_at),
-                    comment: c,
-                });
+                result.push({ kind: 'comment', timestamp: parseTimestamp(c.created_at), comment: c });
             }
         }
         if (filter !== 'comments' && activity.data) {
             for (const a of activity.data) {
-                // El back-end ya emite `comment.created` — para no
-                // duplicarlo con el comentario en sí, lo filtramos
-                // cuando ya estamos mostrando comments.
                 if (filter === 'all' && a.action.startsWith('comment.')) continue;
-                result.push({
-                    kind: 'activity',
-                    timestamp: parseTimestamp(a.created_at),
-                    activity: a,
-                });
+                result.push({ kind: 'activity', timestamp: parseTimestamp(a.created_at), activity: a });
             }
         }
         result.sort((a, b) => b.timestamp - a.timestamp);
         return result;
     }, [comments.data, activity.data, filter]);
 
-    const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-        e.preventDefault();
+    const handleSubmit = async (e?: React.FormEvent): Promise<void> => {
+        e?.preventDefault();
         const content = draft.trim();
         if (content === '') return;
+
+        // Construimos metadata según el modo. `kind: 'note'` se omite
+        // (es el default) — no ensucia el JSON cuando el user no usa
+        // los modos avanzados.
+        const metadata: CommentMetadata | undefined = (() => {
+            if (mode === 'note' && Object.keys(meta).length === 0) return undefined;
+            const out: CommentMetadata = { ...meta, kind: mode };
+            // Limpia campos vacíos para que el backend los persista NULL.
+            (Object.keys(out) as Array<keyof CommentMetadata>).forEach((k) => {
+                const v = out[k];
+                if (v === '' || v === undefined || v === null) {
+                    delete out[k];
+                }
+            });
+            return out;
+        })();
+
         try {
-            await createComment.mutateAsync({ content });
+            await createComment.mutateAsync({ content, metadata });
             setDraft('');
+            setMeta({});
+            setMode('note');
         } catch (err) {
             const msg = err instanceof ApiError || err instanceof Error ? err.message : 'Error';
             toast.error(__('No se pudo publicar'), msg);
@@ -146,11 +188,12 @@ export function RecordTimeline({
     const handleKeyDown = (e: React.KeyboardEvent): void => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
-            void handleSubmit(e as unknown as React.FormEvent);
+            void handleSubmit();
         }
     };
 
     const isLoading = comments.isLoading || activity.isLoading;
+    const activeMode = MODES.find((m) => m.kind === mode) ?? MODES[0]!;
 
     return (
         <section className="imcrm-flex imcrm-flex-col imcrm-gap-4 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-5">
@@ -160,21 +203,42 @@ export function RecordTimeline({
                     {__('Actividad del registro')}
                 </h2>
                 <div className="imcrm-flex imcrm-gap-1 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/40 imcrm-p-0.5">
-                    <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>
-                        {__('Todo')}
-                    </FilterButton>
-                    <FilterButton active={filter === 'comments'} onClick={() => setFilter('comments')}>
-                        {__('Comentarios')}
-                    </FilterButton>
-                    <FilterButton active={filter === 'changes'} onClick={() => setFilter('changes')}>
-                        {__('Cambios')}
-                    </FilterButton>
+                    <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>{__('Todo')}</FilterButton>
+                    <FilterButton active={filter === 'comments'} onClick={() => setFilter('comments')}>{__('Comentarios')}</FilterButton>
+                    <FilterButton active={filter === 'changes'} onClick={() => setFilter('changes')}>{__('Cambios')}</FilterButton>
                 </div>
             </header>
 
             <form onSubmit={handleSubmit} className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <div role="tablist" aria-label={__('Tipo de entrada')} className="imcrm-flex imcrm-gap-1 imcrm-border-b imcrm-border-border">
+                    {MODES.map((m) => {
+                        const Icon = m.icon;
+                        const active = mode === m.kind;
+                        return (
+                            <button
+                                key={m.kind}
+                                type="button"
+                                role="tab"
+                                aria-selected={active}
+                                onClick={() => setMode(m.kind)}
+                                className={cn(
+                                    'imcrm--mb-px imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-border-b-2 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-font-medium imcrm-transition-colors',
+                                    active
+                                        ? 'imcrm-border-primary imcrm-text-foreground'
+                                        : 'imcrm-border-transparent imcrm-text-muted-foreground hover:imcrm-text-foreground',
+                                )}
+                            >
+                                <Icon className="imcrm-h-3.5 imcrm-w-3.5" />
+                                {__(m.label)}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <ModeFields mode={mode} meta={meta} onChange={setMeta} />
+
                 <Textarea
-                    placeholder={__('Escribe una nota o comentario…')}
+                    placeholder={__(activeMode.placeholder)}
                     rows={3}
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -182,17 +246,8 @@ export function RecordTimeline({
                 />
                 <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-text-xs imcrm-text-muted-foreground">
                     <span>{__('Cmd/Ctrl + Enter para enviar')}</span>
-                    <Button
-                        type="submit"
-                        size="sm"
-                        disabled={draft.trim() === '' || createComment.isPending}
-                        className="imcrm-gap-1.5"
-                    >
-                        {createComment.isPending ? (
-                            <Loader2 className="imcrm-h-3 imcrm-w-3 imcrm-animate-spin" />
-                        ) : (
-                            <Send className="imcrm-h-3 imcrm-w-3" />
-                        )}
+                    <Button type="submit" size="sm" disabled={draft.trim() === '' || createComment.isPending} className="imcrm-gap-1.5">
+                        {createComment.isPending ? <Loader2 className="imcrm-h-3 imcrm-w-3 imcrm-animate-spin" /> : <Send className="imcrm-h-3 imcrm-w-3" />}
                         {__('Publicar')}
                     </Button>
                 </div>
@@ -210,7 +265,7 @@ export function RecordTimeline({
                             ? __('Aún no hay comentarios. Sé el primero arriba.')
                             : filter === 'changes'
                               ? __('Aún no hay cambios registrados.')
-                              : __('Aún no hay actividad. Empieza con un comentario.')}
+                              : __('Aún no hay actividad. Empieza con una nota.')}
                     </p>
                 ) : (
                     <ul className="imcrm-flex imcrm-flex-col imcrm-gap-4">
@@ -247,6 +302,108 @@ export function RecordTimeline({
         </section>
     );
 }
+
+// --- per-mode form fields ----------------------------------------------------
+
+function ModeFields({
+    mode,
+    meta,
+    onChange,
+}: {
+    mode: CommentKind;
+    meta: CommentMetadata;
+    onChange: (next: CommentMetadata) => void;
+}): JSX.Element | null {
+    if (mode === 'note') return null;
+
+    if (mode === 'call') {
+        return (
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <Label htmlFor="call-duration" className="imcrm-text-xs">{__('Duración (min)')}</Label>
+                    <Input
+                        id="call-duration"
+                        type="number"
+                        min={0}
+                        max={999}
+                        value={meta.duration_minutes ?? ''}
+                        onChange={(e) => onChange({ ...meta, duration_minutes: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <Label htmlFor="call-outcome" className="imcrm-text-xs">{__('Resultado')}</Label>
+                    <select
+                        id="call-outcome"
+                        value={meta.outcome ?? ''}
+                        onChange={(e) => onChange({ ...meta, outcome: e.target.value || undefined })}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="">—</option>
+                        {CALL_OUTCOMES.map((o) => (
+                            <option key={o.value} value={o.value}>{__(o.label)}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+        );
+    }
+
+    if (mode === 'email') {
+        return (
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <Label htmlFor="email-to" className="imcrm-text-xs">{__('Para')}</Label>
+                    <Input
+                        id="email-to"
+                        type="text"
+                        placeholder="cliente@empresa.com"
+                        value={meta.to ?? ''}
+                        onChange={(e) => onChange({ ...meta, to: e.target.value })}
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <Label htmlFor="email-subject" className="imcrm-text-xs">{__('Asunto')}</Label>
+                    <Input
+                        id="email-subject"
+                        type="text"
+                        value={meta.subject ?? ''}
+                        onChange={(e) => onChange({ ...meta, subject: e.target.value })}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    if (mode === 'meeting') {
+        return (
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <Label htmlFor="meet-attendees" className="imcrm-text-xs">{__('Asistentes')}</Label>
+                    <Input
+                        id="meet-attendees"
+                        type="text"
+                        placeholder={__('Carlos, María, equipo de ventas…')}
+                        value={meta.attendees ?? ''}
+                        onChange={(e) => onChange({ ...meta, attendees: e.target.value })}
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    <Label htmlFor="meet-when" className="imcrm-text-xs">{__('Cuándo')}</Label>
+                    <Input
+                        id="meet-when"
+                        type="datetime-local"
+                        value={meta.occurred_at ?? ''}
+                        onChange={(e) => onChange({ ...meta, occurred_at: e.target.value })}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    return null;
+}
+
+// --- helpers de render -------------------------------------------------------
 
 function parseTimestamp(s: string | null): number {
     if (! s) return 0;
@@ -291,38 +448,42 @@ function CommentRow({
     const initials = initialsFromValue(userLabel);
     const color = colorFromString(String(comment.user_id));
 
+    const meta = comment.metadata ?? {};
+    const kind = meta.kind ?? 'note';
+    const modeIcon = MODES.find((m) => m.kind === kind)?.icon ?? StickyNote;
+    const KindIcon = modeIcon;
+
     return (
         <li className="imcrm-flex imcrm-gap-3">
             <div
                 aria-hidden
-                className="imcrm-flex imcrm-h-8 imcrm-w-8 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-text-[11px] imcrm-font-semibold imcrm-text-white"
+                className="imcrm-relative imcrm-flex imcrm-h-8 imcrm-w-8 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-text-[11px] imcrm-font-semibold imcrm-text-white"
                 style={{ backgroundColor: color }}
             >
                 {initials}
+                {kind !== 'note' && (
+                    <span
+                        className="imcrm-absolute imcrm--bottom-1 imcrm--right-1 imcrm-flex imcrm-h-4 imcrm-w-4 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-border imcrm-border-card imcrm-bg-card imcrm-text-foreground"
+                    >
+                        <KindIcon className="imcrm-h-2.5 imcrm-w-2.5" />
+                    </span>
+                )}
             </div>
             <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
-                <header className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
+                <header className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-xs">
                     <span className="imcrm-font-medium imcrm-text-foreground">{userLabel}</span>
-                    <span className="imcrm-text-muted-foreground">{relativeTime(ts)}</span>
+                    <span className="imcrm-text-muted-foreground">{describeMode(meta)}</span>
+                    <span className="imcrm-text-muted-foreground">· {relativeTime(ts)}</span>
                     {comment.updated_at !== comment.created_at && (
                         <span className="imcrm-text-muted-foreground">· {__('editado')}</span>
                     )}
                 </header>
                 {editing ? (
                     <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-                        <Textarea
-                            rows={3}
-                            value={editDraft}
-                            onChange={(e) => onChangeEdit(e.target.value)}
-                            autoFocus
-                        />
+                        <Textarea rows={3} value={editDraft} onChange={(e) => onChangeEdit(e.target.value)} autoFocus />
                         <div className="imcrm-flex imcrm-gap-2">
-                            <Button size="sm" onClick={onSubmitEdit} disabled={editDraft.trim() === ''}>
-                                {__('Guardar')}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                                {__('Cancelar')}
-                            </Button>
+                            <Button size="sm" onClick={onSubmitEdit} disabled={editDraft.trim() === ''}>{__('Guardar')}</Button>
+                            <Button size="sm" variant="ghost" onClick={onCancelEdit}>{__('Cancelar')}</Button>
                         </div>
                     </div>
                 ) : (
@@ -332,19 +493,11 @@ function CommentRow({
                 )}
                 {canEdit && ! editing && (
                     <div className="imcrm-flex imcrm-gap-3 imcrm-text-xs imcrm-text-muted-foreground">
-                        <button
-                            type="button"
-                            onClick={onStartEdit}
-                            className="imcrm-flex imcrm-items-center imcrm-gap-1 hover:imcrm-text-foreground"
-                        >
+                        <button type="button" onClick={onStartEdit} className="imcrm-flex imcrm-items-center imcrm-gap-1 hover:imcrm-text-foreground">
                             <Pencil className="imcrm-h-3 imcrm-w-3" />
                             {__('Editar')}
                         </button>
-                        <button
-                            type="button"
-                            onClick={onDelete}
-                            className="imcrm-flex imcrm-items-center imcrm-gap-1 hover:imcrm-text-destructive"
-                        >
+                        <button type="button" onClick={onDelete} className="imcrm-flex imcrm-items-center imcrm-gap-1 hover:imcrm-text-destructive">
                             <Trash2 className="imcrm-h-3 imcrm-w-3" />
                             {__('Eliminar')}
                         </button>
@@ -353,6 +506,36 @@ function CommentRow({
             </div>
         </li>
     );
+}
+
+/**
+ * Devuelve un string corto que resume el modo del comment para el
+ * header de la fila. "Llamada · 12 min · Hablamos", "Email a x@y.com",
+ * "Reunión · Carlos, María", o vacío para nota plana.
+ */
+function describeMode(meta: CommentMetadata): string {
+    if (! meta || ! meta.kind || meta.kind === 'note') return '';
+    const parts: string[] = [];
+    if (meta.kind === 'call') {
+        parts.push(__('Llamada'));
+        if (meta.duration_minutes !== undefined) parts.push(sprintf(__('%d min'), meta.duration_minutes));
+        if (meta.outcome) {
+            const label = CALL_OUTCOMES.find((o) => o.value === meta.outcome)?.label ?? meta.outcome;
+            parts.push(__(label));
+        }
+    } else if (meta.kind === 'email') {
+        parts.push(__('Email'));
+        if (meta.to) parts.push(`→ ${meta.to}`);
+        if (meta.subject) parts.push(`"${meta.subject}"`);
+    } else if (meta.kind === 'meeting') {
+        parts.push(__('Reunión'));
+        if (meta.attendees) parts.push(meta.attendees);
+        if (meta.occurred_at) {
+            const d = new Date(meta.occurred_at);
+            if (! Number.isNaN(d.getTime())) parts.push(d.toLocaleString());
+        }
+    }
+    return '· ' + parts.join(' · ');
 }
 
 function ActivityRow({ activity }: { activity: ActivityEntity }): JSX.Element {
@@ -405,11 +588,7 @@ function describeActivity(a: ActivityEntity): ActivityDescription {
             ? Object.keys(changes.fields)
             : [];
         const label = fieldsChanged.length > 0
-            ? sprintf(
-                  /* translators: %s: comma-separated field labels */
-                  __('Actualizó %s'),
-                  fieldsChanged.join(', '),
-              )
+            ? sprintf(__('Actualizó %s'), fieldsChanged.join(', '))
             : __('Actualizó el registro');
         return {
             Icon: Pencil,
@@ -466,3 +645,6 @@ function FilterButton({
         </button>
     );
 }
+
+// Avoid unused-import warning: reserved for future use (CalendarClock badge in meeting summary).
+void CalendarClock;

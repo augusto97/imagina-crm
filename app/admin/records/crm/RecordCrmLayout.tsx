@@ -8,6 +8,7 @@ import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
 import { getTemplate } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type { ListSummary } from '@/types/list';
 import type { RecordEntity } from '@/types/record';
@@ -15,6 +16,7 @@ import type { RecordEntity } from '@/types/record';
 import { PropertiesSidebar } from './PropertiesSidebar';
 import { RecordHeader } from './RecordHeader';
 import { RecordTimeline } from './RecordTimeline';
+import { RightRail } from './RightRail';
 
 interface RecordCrmLayoutProps {
     list: ListSummary;
@@ -117,7 +119,15 @@ export function RecordCrmLayout({
                 deleting={deleting}
             />
 
-            <div className="imcrm-grid imcrm-grid-cols-1 imcrm-gap-4 lg:imcrm-grid-cols-[360px_1fr]">
+            <div
+                className={cn(
+                    'imcrm-grid imcrm-grid-cols-1 imcrm-gap-4',
+                    // 3 columnas si la plantilla declara right rail; sino 2.
+                    layout.rightRail.length > 0
+                        ? 'lg:imcrm-grid-cols-[300px_minmax(0,1fr)_300px]'
+                        : 'lg:imcrm-grid-cols-[360px_minmax(0,1fr)]',
+                )}
+            >
                 <PropertiesSidebar
                     layout={layout}
                     values={values}
@@ -130,6 +140,7 @@ export function RecordCrmLayout({
                     currentUserId={currentUserId}
                     isAdmin={isAdmin}
                 />
+                <RightRail listId={list.id} record={record} layout={layout} />
             </div>
         </div>
     );
