@@ -55,6 +55,8 @@ final class SchemaManager
             $this->sqlDashboards($charset),
             $this->sqlSavedFilters($charset),
             $this->sqlRecurrences($charset),
+            $this->sqlSearchTokens($charset),
+            $this->sqlSearchDocuments($charset),
         ];
 
         foreach ($statements as $sql) {
@@ -438,6 +440,7 @@ final class SchemaManager
             user_id BIGINT UNSIGNED NOT NULL,
             parent_id BIGINT UNSIGNED NULL,
             content LONGTEXT NOT NULL,
+            metadata LONGTEXT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             deleted_at DATETIME NULL,
@@ -546,6 +549,47 @@ final class SchemaManager
             KEY idx_automation (automation_id),
             KEY idx_status_created (status, created_at),
             KEY idx_record (list_id, record_id)
+        ) {$charset};";
+    }
+
+    /**
+     * Tokens del índice invertido (Tier 3 — 0.30.0). Una fila por
+     * (list, token, record). `tf` es term frequency en ese record;
+     * el query engine multiplica por idf para BM25.
+     *
+     * Identidad por (list_id, token, record_id) — el indexer hace
+     * REPLACE INTO para idempotencia. El primer KEY soporta el filtro
+     * `WHERE list_id = ? AND token IN (...)` que domina el query
+     * engine.
+     */
+    private function sqlSearchTokens(string $charset): string
+    {
+        $table = $this->db->systemTable('search_tokens');
+        return "CREATE TABLE {$table} (
+            list_id BIGINT UNSIGNED NOT NULL,
+            record_id BIGINT UNSIGNED NOT NULL,
+            token VARCHAR(64) NOT NULL,
+            tf SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+            PRIMARY KEY  (list_id, token, record_id),
+            KEY idx_token_lookup (list_id, token),
+            KEY idx_record (list_id, record_id)
+        ) {$charset};";
+    }
+
+    /**
+     * Metadatos por documento: doc_length (suma de tf, usado para
+     * BM25 length normalization) e indexed_at (debugging + UI status).
+     */
+    private function sqlSearchDocuments(string $charset): string
+    {
+        $table = $this->db->systemTable('search_documents');
+        return "CREATE TABLE {$table} (
+            list_id BIGINT UNSIGNED NOT NULL,
+            record_id BIGINT UNSIGNED NOT NULL,
+            doc_length INT UNSIGNED NOT NULL DEFAULT 0,
+            indexed_at DATETIME NOT NULL,
+            PRIMARY KEY  (list_id, record_id),
+            KEY idx_indexed (list_id, indexed_at)
         ) {$charset};";
     }
 

@@ -128,8 +128,9 @@ final class ImportService
      */
     public function run(ListEntity $list, string $csv, array $mapping, array $newFields = []): array
     {
-        $parsed = CsvParser::parse($csv);
-        $rows   = $parsed['rows'];
+        $parsed  = CsvParser::parse($csv);
+        $rows    = $parsed['rows'];
+        $headers = $parsed['headers'] ?? [];
 
         // Crear primero los campos nuevos (si los hay). El user puede
         // haber pedido "crear nuevo" para columnas sin mapping en la
@@ -137,6 +138,7 @@ final class ImportService
         // como filas virtuales con row=0 y la columna como referencia.
         $createdFields = [];
         $errors        = [];
+        $cellWarnings  = []; // celdas con data que no se importaron (silent drops antes)
         foreach ($newFields as $spec) {
             $idx   = (int) ($spec['csv_column_index'] ?? -1);
             $label = trim((string) ($spec['label'] ?? ''));
@@ -196,6 +198,32 @@ final class ImportService
         $imported = 0;
         $skipped  = 0;
 
+        // Detectar columnas del CSV que tienen datos pero NO están en
+        // el mapping — antes se silenciaban completamente. Ahora las
+        // reportamos al user para que sepa que sus datos quedan fuera.
+        $mappedIndices = array_keys($mapping);
+        $unmappedColumnsWithData = [];
+        foreach ($headers as $colIdx => $header) {
+            if (in_array($colIdx, $mappedIndices, true)) continue;
+            $rowsWithData = 0;
+            $sample = '';
+            foreach ($rows as $row) {
+                $cell = trim((string) ($row[$colIdx] ?? ''));
+                if ($cell !== '') {
+                    $rowsWithData++;
+                    if ($sample === '') $sample = mb_substr($cell, 0, 60);
+                }
+            }
+            if ($rowsWithData > 0) {
+                $unmappedColumnsWithData[] = [
+                    'column_index' => $colIdx,
+                    'header'       => (string) $header,
+                    'rows_with_data' => $rowsWithData,
+                    'sample'       => $sample,
+                ];
+            }
+        }
+
         // Stage de filas válidas (no vacías) para procesar en bulk.
         // Mantenemos `originalRowNumber` para reportar errores con
         // el número de fila CSV correcto (1-indexed + header).
@@ -208,12 +236,29 @@ final class ImportService
             foreach ($mapping as $colIdx => $slug) {
                 if (! isset($bySlug[$slug])) continue;
                 $rawCell = $row[$colIdx] ?? '';
-                $coerced = $this->coerceCellValue($rawCell, $bySlug[$slug]);
+                $rawTrimmed = trim((string) $rawCell);
+                $field   = $bySlug[$slug];
+                $coerced = $this->coerceCellValue($rawCell, $field);
                 // Celdas vacías se OMITEN del payload — no se mandan
                 // como null. Eso permite que un campo `is_required`
                 // no rebote contra filas individuales que lo traen
                 // vacío. Validator en partial:true.
                 if ($coerced === null || $coerced === '' || $coerced === []) {
+                    // 0.36.5 fix: si la raw NO estaba vacía pero el
+                    // coerce devolvió null/empty, es un silent drop —
+                    // antes se perdía sin avisar. Ahora lo reportamos.
+                    if ($rawTrimmed !== '') {
+                        $cellWarnings[] = [
+                            'row'         => $rowNumber,
+                            'column_index' => $colIdx,
+                            'header'      => (string) ($headers[$colIdx] ?? ''),
+                            'field_slug'  => $slug,
+                            'field_label' => $field->label,
+                            'field_type'  => $field->type,
+                            'raw'         => mb_substr($rawTrimmed, 0, 100),
+                            'reason'      => 'coerce_empty',
+                        ];
+                    }
                     continue;
                 }
                 $values[$slug] = $coerced;
@@ -275,6 +320,14 @@ final class ImportService
             'truncated'        => $truncated,
             'created_fields'   => $createdFields,
             'expanded_options' => $expandedOptions,
+            // 0.36.5: visibility en silent drops. `cell_warnings`
+            // lista celdas con datos que no se importaron por
+            // coerce_empty (raw no parseable al tipo del field).
+            // `unmapped_columns_with_data` lista columnas del CSV
+            // que el user dejó sin mapping pero traían datos —
+            // antes se descartaban en silencio.
+            'cell_warnings'              => $cellWarnings,
+            'unmapped_columns_with_data' => $unmappedColumnsWithData,
         ];
     }
 

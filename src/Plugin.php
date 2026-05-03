@@ -197,12 +197,62 @@ final class Plugin
                 $c->get(RelationRepository::class),
                 $c->get(RecordValidator::class),
                 $c->get(QueryBuilder::class),
+                $c->get(\ImaginaCRM\Search\SearchService::class),
             );
         });
 
         // RecordsETag — versión por lista para 304 Not Modified.
         $this->container->bind(\ImaginaCRM\Records\RecordsETag::class, static function (): \ImaginaCRM\Records\RecordsETag {
             return new \ImaginaCRM\Records\RecordsETag();
+        });
+
+        // Tier 3 (0.30.0): motor de búsqueda con índice invertido +
+        // composite indexes + purge.
+        $this->container->bind(\ImaginaCRM\Search\Tokenizer::class, static function (): \ImaginaCRM\Search\Tokenizer {
+            return new \ImaginaCRM\Search\Tokenizer();
+        });
+
+        $this->container->bind(\ImaginaCRM\Search\InvertedIndexEngine::class, static function (Container $c): \ImaginaCRM\Search\InvertedIndexEngine {
+            return new \ImaginaCRM\Search\InvertedIndexEngine(
+                $c->get(Database::class),
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Search\Tokenizer::class),
+            );
+        });
+
+        $this->container->bind(\ImaginaCRM\Search\MysqlSearchEngine::class, static function (Container $c): \ImaginaCRM\Search\MysqlSearchEngine {
+            return new \ImaginaCRM\Search\MysqlSearchEngine(
+                $c->get(Database::class),
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+            );
+        });
+
+        $this->container->bind(\ImaginaCRM\Search\SearchService::class, static function (Container $c): \ImaginaCRM\Search\SearchService {
+            return new \ImaginaCRM\Search\SearchService(
+                $c->get(\ImaginaCRM\Search\InvertedIndexEngine::class),
+                $c->get(\ImaginaCRM\Search\MysqlSearchEngine::class),
+                $c->get(ListRepository::class),
+                $c->get(RecordRepository::class),
+            );
+        });
+
+        $this->container->bind(\ImaginaCRM\Search\SearchHooks::class, static function (Container $c): \ImaginaCRM\Search\SearchHooks {
+            return new \ImaginaCRM\Search\SearchHooks($c->get(\ImaginaCRM\Search\SearchService::class));
+        });
+
+        $this->container->bind(\ImaginaCRM\Maintenance\CompositeIndexSuggester::class, static function (Container $c): \ImaginaCRM\Maintenance\CompositeIndexSuggester {
+            return new \ImaginaCRM\Maintenance\CompositeIndexSuggester(
+                $c->get(Database::class),
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(SavedViewRepository::class),
+            );
+        });
+
+        $this->container->bind(\ImaginaCRM\Maintenance\PurgeService::class, static function (Container $c): \ImaginaCRM\Maintenance\PurgeService {
+            return new \ImaginaCRM\Maintenance\PurgeService($c->get(Database::class));
         });
 
         // Saved Views.
@@ -462,6 +512,39 @@ final class Plugin
         $etag = $this->container->get(\ImaginaCRM\Records\RecordsETag::class);
         if ($etag instanceof \ImaginaCRM\Records\RecordsETag) {
             $etag->registerInvalidationHooks();
+        }
+
+        // Tier 3 (0.30.0): hooks del search engine (push + reindex
+        // jobs + cron 6h) y purge automático diario.
+        $searchHooks = $this->container->get(\ImaginaCRM\Search\SearchHooks::class);
+        if ($searchHooks instanceof \ImaginaCRM\Search\SearchHooks) {
+            $searchHooks->register();
+            $searchHooks->ensureResyncScheduled();
+        }
+        $purge = $this->container->get(\ImaginaCRM\Maintenance\PurgeService::class);
+        if ($purge instanceof \ImaginaCRM\Maintenance\PurgeService) {
+            $purge->registerHandler();
+            $purge->ensureScheduled();
+        }
+
+        // Cuando se borra un field de una lista, limpiamos referencias
+        // huérfanas en los widgets de dashboards. Sin esto, los
+        // dashboards quedaban con widgets que referenciaban el field
+        // borrado — el evaluator mostraba placeholder pero el dashboard
+        // mismo quedaba "atascado" si el frontend disparaba un PATCH
+        // y la validación rechazaba (fix paralelo en validateWidgets).
+        $dashboards = $this->container->get(DashboardService::class);
+        if ($dashboards instanceof DashboardService) {
+            add_action(
+                'imagina_crm/field_deleted',
+                static function ($fieldEntity) use ($dashboards): void {
+                    if (is_object($fieldEntity) && property_exists($fieldEntity, 'id')) {
+                        $dashboards->pruneFieldReferences((int) $fieldEntity->id);
+                    }
+                },
+                10,
+                1
+            );
         }
 
         // REST se registra siempre (admin + frontend pueden consumirlo).

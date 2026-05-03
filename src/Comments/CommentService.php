@@ -81,12 +81,18 @@ final class CommentService
             }
         }
 
+        $metadata = $this->validateMetadata($input['metadata'] ?? null);
+        if ($metadata instanceof ValidationResult) {
+            return $metadata;
+        }
+
         $id = $this->comments->insert([
             'list_id'   => $listId,
             'record_id' => $recordId,
             'user_id'   => $userId,
             'parent_id' => $parentId,
             'content'   => $content,
+            'metadata'  => $metadata,
         ]);
         if ($id === 0) {
             return ValidationResult::failWith('database', __('No se pudo crear el comentario.', 'imagina-crm'));
@@ -100,8 +106,13 @@ final class CommentService
         return $created;
     }
 
-    public function update(int $id, int $userId, bool $isAdmin, string $content): CommentEntity|ValidationResult
-    {
+    public function update(
+        int $id,
+        int $userId,
+        bool $isAdmin,
+        string $content,
+        mixed $rawMetadata = null,
+    ): CommentEntity|ValidationResult {
         $existing = $this->comments->find($id);
         if ($existing === null) {
             return ValidationResult::failWith('id', __('El comentario no existe.', 'imagina-crm'));
@@ -125,7 +136,18 @@ final class CommentService
             );
         }
 
-        if (! $this->comments->updateContent($id, $content)) {
+        // metadata: si el caller no la mandó, no la tocamos (pasamos null
+        // al repo). Si la mandó como array vacío, la limpiamos.
+        $metadata = null;
+        if ($rawMetadata !== null) {
+            $validated = $this->validateMetadata($rawMetadata);
+            if ($validated instanceof ValidationResult) {
+                return $validated;
+            }
+            $metadata = $validated;
+        }
+
+        if (! $this->comments->updateContent($id, $content, $metadata)) {
             return ValidationResult::failWith('database', __('No se pudo actualizar.', 'imagina-crm'));
         }
 
@@ -135,6 +157,36 @@ final class CommentService
         }
         do_action('imagina_crm/comment_updated', $updated, $existing);
         return $updated;
+    }
+
+    /**
+     * Valida metadata del composer multi-modo (Nota/Llamada/Email/Reunión).
+     *
+     * - El backend NO entiende qué hacer con cada `kind`; sólo enforza
+     *   shape básico (es array, kind es string permitido, no excede 64
+     *   bytes JSON). El frontend interpreta el resto.
+     * - Lista de kinds permitidos como guard rail anti-typo, no semántica.
+     *
+     * @return array<string, mixed>|ValidationResult
+     */
+    private function validateMetadata(mixed $raw): array|ValidationResult
+    {
+        if ($raw === null || $raw === '' || $raw === []) {
+            return [];
+        }
+        if (! is_array($raw)) {
+            return ValidationResult::failWith('metadata', __('Metadata inválida.', 'imagina-crm'));
+        }
+        $allowed = ['note', 'call', 'email', 'meeting'];
+        if (isset($raw['kind']) && ! in_array($raw['kind'], $allowed, true)) {
+            return ValidationResult::failWith('metadata', __('Tipo de comentario desconocido.', 'imagina-crm'));
+        }
+        // Cap defensivo: 4 KB es más que suficiente para el shape esperado.
+        $encoded = wp_json_encode($raw);
+        if (! is_string($encoded) || strlen($encoded) > 4096) {
+            return ValidationResult::failWith('metadata', __('Metadata demasiado larga.', 'imagina-crm'));
+        }
+        return $raw;
     }
 
     public function delete(int $id, int $userId, bool $isAdmin): ValidationResult

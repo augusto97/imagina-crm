@@ -11,13 +11,13 @@ use ImaginaCRM\Standalone\StandalonePage;
  *
  * Desde 0.13.0 el SPA vive en una página standalone fuera de wp-admin
  * (`/imagina-crm/`) — sin chrome, sin styles bleed, más rápido. El
- * menú de WP lateral sigue existiendo como entry point familiar
- * pero el render callback ya NO monta el SPA inline; redirige al
- * usuario a la URL standalone.
+ * menú lateral de WP es solo un launcher que redirige al SPA.
  *
- * Razón: tener un único mental model — todos los clicks del menú
- * llevan al mismo lugar; los bookmarks viejos a admin.php?page=...
- * también, sin sorpresas de estilos rotos por wp-admin chrome.
+ * El redirect se engancha al hook `load-{hookname}` que dispara WP
+ * ANTES de incluir `admin-header.php` (es decir, antes de cualquier
+ * output). Así `wp_safe_redirect` siempre puede setear headers — sin
+ * caer al fallback HTML "click aquí" como pasaba con render callbacks
+ * tardíos.
  */
 final class AdminMenu
 {
@@ -28,21 +28,26 @@ final class AdminMenu
 
     public function registerMenu(): void
     {
-        add_menu_page(
+        $hook = add_menu_page(
             __('Imagina CRM', 'imagina-crm'),
             __('Imagina CRM', 'imagina-crm'),
             Plugin::ADMIN_CAPABILITY,
             Plugin::ADMIN_PAGE,
-            [$this, 'redirectToStandalone'],
+            '__return_null',           // No-op: el load-hook hace exit antes.
             'dashicons-rest-api',
             58,
         );
+
+        if (is_string($hook) && $hook !== '') {
+            add_action("load-{$hook}", [$this, 'redirectToStandalone']);
+        }
     }
 
     /**
-     * Render callback de la página de wp-admin. NO renderea el SPA;
-     * redirige a la URL standalone. Si por alguna razón el redirect
-     * falla (headers ya enviados, etc.) renderea un link manual.
+     * Engachado a `load-{hookname}`: corre antes de admin-header.php,
+     * así el redirect funciona siempre. Si por alguna razón los
+     * headers ya se enviaron (output buffering raro, plugin que printea
+     * en `init`), caemos al fallback HTML.
      */
     public function redirectToStandalone(): void
     {
@@ -57,12 +62,18 @@ final class AdminMenu
             exit;
         }
 
+        // Fallback defensivo: meta-refresh + JS + link manual. Si
+        // llegamos acá es porque otro plugin printeó algo antes — el
+        // user ve un mensaje breve y rebotamos cliente-side.
         printf(
-            '<div class="wrap"><h1>%s</h1><p>%s <a href="%s">%s</a>.</p></div>',
-            esc_html__('Imagina CRM', 'imagina-crm'),
-            esc_html__('Esta página vive ahora en una URL standalone.', 'imagina-crm'),
+            '<meta http-equiv="refresh" content="0;url=%1$s">'
+            . '<script>window.location.replace(%2$s);</script>'
+            . '<div class="wrap"><h1>%3$s</h1><p><a href="%1$s">%4$s</a></p></div>',
             esc_url($target),
-            esc_html__('Abrir Imagina CRM', 'imagina-crm'),
+            wp_json_encode($target),
+            esc_html__('Abriendo Imagina CRM…', 'imagina-crm'),
+            esc_html__('Click aquí si no eres redirigido', 'imagina-crm'),
         );
+        exit;
     }
 }

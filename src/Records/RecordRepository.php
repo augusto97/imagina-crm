@@ -247,6 +247,32 @@ final class RecordRepository
     }
 
     /**
+     * Trae filas crudas con keyset paginación (id > $afterId), ordenadas
+     * ASC. Pensado para jobs batch (reindex de search, exports, sync
+     * con sistemas externos) donde se quiere recorrer la tabla entera
+     * en lotes sin que OFFSET degrade en deep pages.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function fetchBatchAfter(string $tableSuffix, int $afterId, int $batchSize): array
+    {
+        $table = $this->qualifiedTable($tableSuffix);
+        $wpdb  = $this->db->wpdb();
+        $size  = max(1, min(2000, $batchSize));
+        /** @phpstan-ignore-next-line */
+        $rows  = $wpdb->get_results(
+            /** @phpstan-ignore-next-line */
+            $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE id > %d AND deleted_at IS NULL ORDER BY id ASC LIMIT %d",
+                $afterId,
+                $size,
+            ),
+            ARRAY_A,
+        );
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
      * Devuelve los valores distintos de una columna ordenados por
      * frecuencia descendente, con conteo. Útil para autocomplete en
      * filtros y condiciones de automatización.

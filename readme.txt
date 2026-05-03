@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.29.0
+Stable tag: 0.36.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,702 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.5 =
+**Hotfix crítico: el importador ya no descarta datos en silencio.**
+
+Bug crítico reportado: importar un CSV mostraba "importación correcta" pero
+varios campos quedaban vacíos sin error ni advertencia. Causa: dos rutas de
+descarte silencioso — (1) columnas del CSV sin mapeo, y (2) valores que el
+coercer (`coerceCellValue`) no podía parsear devolvían `null`/`""` y se
+saltaban sin avisar.
+
+Cambios:
+
+* **Backend (`ImportService::run()`):** ahora rastrea dos arrays nuevos en
+  la respuesta — `cell_warnings` (cada celda con valor crudo no vacío que
+  el coerce devolvió vacío, con `row`, `column_index`, `header`,
+  `field_slug`, `field_label`, `field_type`, `raw` truncado a 100 chars,
+  `reason: 'coerce_empty'`) y `unmapped_columns_with_data` (columnas
+  ignoradas por mapping pero con `rows_with_data > 0`, incluye `sample`).
+* **Frontend (`ImportDialog.tsx`):** cuando hay pérdida detectada el banner
+  final cambia de verde "importación exitosa" a amarillo "importación con
+  advertencias". Se listan las columnas/celdas afectadas con encabezado,
+  valor crudo y razón. Adicionalmente en el paso **Map** se muestra una
+  advertencia preventiva con las columnas no mapeadas que tienen datos,
+  para que el usuario pueda corregir el mapeo antes de ejecutar el import.
+
+Sin migración de DB. Solo afecta el flujo de import (preview/run son
+idempotentes en el sentido de que no se modificó qué se inserta — solo se
+hizo visible lo que ya se descartaba).
+
+= 0.36.4 =
+**Plantillas balanceadas: cada columna suma la altura del Timeline.**
+
+Bug en 0.36.3: aunque las columnas vacías se omitían correctamente
+(width redistribuido), las columnas presentes seguían dejando
+espacio vertical vacío bajo el último bloque cuando su altura
+total era menor que el Timeline. Solo Soporte se veía bien (sus
+columnas laterales sumaban exactamente 12, igual al Timeline).
+
+* **Las 4 plantillas restantes ahora suman h=12 por columna** (la
+  altura del Timeline en cada layout) añadiendo bloques Notes
+  pre-cargados que el user puede personalizar:
+    - **Auto**: col der ahora tiene Stats(4) + Notas(8). Antes
+      Stats(4) → 8 row units vacíos.
+    - **Contacto**: col der: Stats(4) + Recordatorios(4) + Próximos
+      pasos(4) = 12. Antes solo 8.
+    - **Venta**: col izq: Cliente(5) + Asignación(3) + Historial(4) = 12.
+      Col der: Fechas(5) + Próximos pasos(4) + Objeciones(3) = 12.
+      Antes ambas en 9.
+    - **Tarea**: col izq: Datos(4) + Stats(4) + Contexto(4) = 12.
+      Col der: Checklist(6) + Bloqueos(6) = 12. Antes 8 y 5.
+* Los Notes adicionales tienen contenido placeholder editable
+  (Historial / Próximos pasos / Objeciones / Contexto / Bloqueos)
+  — útiles incluso si no los modificás.
+
+Resultado: las plantillas built-in ya no muestran espacios verticales
+vacíos en los registros con cualquier set de fields.
+
+= 0.36.3 =
+**`columns()` redistribuye width entre columnas presentes.**
+
+Bug en 0.36.2: cuando una columna entera no producía ningún block
+(porque sus predicados no matcheaban con los fields de la lista),
+su width seguía consumido en el cursor → quedaba una columna VACÍA
+visible y las demás no llenaban los 12 cols. Solo Soporte se veía
+bien porque ahí casi siempre todos los grupos materializaban.
+
+* `columns()` ahora hace **dual-pass**:
+    1. Materializa los blocks de cada columna sin asignar posición.
+    2. Filtra las columnas que tienen ≥1 block.
+    3. Redistribuye los 12 cols proporcionalmente al `declaredWidth`
+       de las columnas presentes (mismo enfoque que `row()` con
+       weights).
+    4. Asigna x/w finales y placea blocks.
+* Min 3 cols por columna, última absorbe leftover/deficit.
+
+Resultado: las plantillas Auto, Contacto, Venta, Tarea ahora se
+ven sin columnas vacías. Si tu lista no tiene fields para "Empresa"
+en Contacto, esa entrada se omite y "Contacto" + "Stats" reparten
+el ancho.
+
+= 0.36.2 =
+**Plantillas: stack vertical en columnas para llenar gaps bajo bloques cortos.**
+
+El fix de 0.36.1 (per-cell heights) resolvió el espacio DENTRO de
+bloques cortos, pero seguía dejando un gap grande BAJO ellos cuando
+estaban junto a Timeline (alto). Ej. en Soporte: Detalles h=5 al
+lado de Timeline h=12 → bajo Detalles había 7 row units de espacio
+vacío hasta que terminaba Timeline y arrancaba la siguiente row.
+
+* **Nuevo `V2Builder.columns()`**: cada columna tiene un `width`
+  fijo (1-12) y blocks apilados verticalmente. Bloques cortos se
+  apilan en su columna sin esperar a que termine el bloque alto
+  de otra columna.
+* **5 plantillas refactorizadas con columns()**:
+    - **Auto** — col izq apila Datos+Contacto+Asignación.
+    - **Contacto** — col der apila Stats+Recordatorios.
+    - **Venta** — col izq apila Cliente+Asignación; col der apila
+      Fechas+Próximos pasos.
+    - **Tarea** — col izq apila Datos+Stats.
+    - **Soporte** — col izq apila Detalles+Runbook; col der apila
+      Fechas+Métricas. Esto soluciona específicamente el gap del
+      screenshot reportado.
+* Si un block dentro de una columna es vacío (predicate sin fields),
+  los siguientes en esa columna se suben para llenar.
+
+Resultado: layouts visualmente densos sin huecos verticales raros.
+El editor visual sigue permitiendo arrastrar bloques libremente
+(la columns() es solo para los templates iniciales — el user puede
+reorganizar después).
+
+= 0.36.1 =
+**Plantillas: altura por bloque para evitar espacios verticales vacíos.**
+
+Bug: cuando una row mezclaba un bloque alto (timeline) con bloques
+cortos (stats, fechas, asignación), todos heredaban la altura de la
+row → los cortos quedaban con MUCHO espacio vacío adentro. Ej. en
+Soporte, "Detalles" con 1 long_text ocupaba 624px de alto solo
+porque compartía row con timeline.
+
+* **Per-cell `height` en `row()`**: cada cell puede declarar su
+  propia altura vertical. Default = altura del row. Cells cortas
+  ya no heredan h grande de cells altas en la misma fila.
+* **`currentY` avanza al MAX(y+h)**: el próximo row arranca cuando
+  termina el cell MÁS ALTO del row anterior, no cuando termina la
+  altura "intencional" del row.
+* **5 plantillas built-in actualizadas**: stats h=4, timeline h=12,
+  notes h=4-5, groups h=4-5 (en lugar de heredar h=10-12 cuando
+  comparten row con timeline).
+* **Grid más compacto**: rowHeight 48→40, margin 16→12 — layouts
+  visualmente más densos sin perder respirabilidad.
+
+Resultado: bloques cortos arriba a la izquierda + timeline largo a
+su derecha. El espacio vertical bajo los bloques cortos queda
+visible (no podemos llenarlo automáticamente sin cambiar la API),
+pero NUNCA hay altura desperdiciada DENTRO de los bloques.
+
+= 0.36.0 =
+**6 nuevos tipos de bloque para el editor visual.**
+
+* **KPI** — número grande con label opcional, formato (number/
+  currency/percent), prefix/suffix custom, y barra de progreso a
+  meta opcional (`goal_value`). Ideal para destacar monto total,
+  ranking, count, etc. Lee de cualquier field number/currency.
+* **Gráfico inline (chart)** — distribución de records relacionados
+  agrupados por un field en la lista destino. Aggregación 100%
+  client-side: tomamos los records que ya trae `useRecords` para
+  el sidebar de relacionados, agrupamos por el field elegido,
+  renderemos barras horizontales con count + % del total. Soporta
+  options con color (select fields). Sin endpoint extra al backend.
+* **Archivos** — muestra los archivos vinculados al record (file
+  fields). Grid de 2 columnas con thumbnail (cuando es imagen) o
+  icono genérico. Click abre el archivo en tab nueva. Resuelve via
+  `/wp-json/wp/v2/media/<id>` con el nonce ya inyectado.
+* **Embed externo** — iframe con sandbox y allowlist (YouTube,
+  Vimeo, Google Maps, Loom, Figma, Calendly). URL puede ser fijo
+  o resolverse desde un field tipo `url` del record (ej. mostrar
+  el ubicación del cliente en Maps si tenés un field "ubicacion").
+* **Botón de acción** — botón configurable con 4 tipos:
+    - URL externa (target=_blank).
+    - Email (mailto:).
+    - Teléfono (tel:).
+    - Copiar al clipboard (toast de confirmación).
+  Variante visual (default/outline/destructive) y label personalizable.
+* **Markdown rich text** — como Notes pero con render markdown
+  ligero: `# heading`, `**bold**`, `*italic*`, listas (`-` y `1.`),
+  inline `code`, `[link](url)`. Auto-escape de HTML para evitar XSS.
+  Sin librería externa — parser inline de ~80 líneas.
+
+Cada bloque tiene su form de configuración propio en el dialog
+del editor (click ✏ sobre el bloque). Los defaults al agregar
+son razonables para que el bloque renderee algo útil al instante.
+
+= 0.35.3 =
+**Plantillas built-in: layout row-based con redistribución de ancho.**
+
+Antes los bloques de cada plantilla tenían posiciones X fijas. Si
+un grupo no tenía fields que matchearan en tu lista (ej. Cliente
+sin email/phone, Monto sin currency), se omitía pero los demás
+bloques NO se movían a llenar el hueco — quedaban gaps en la
+columna izquierda y el layout se veía vacío al inicio.
+
+* **Nueva API `V2Builder.row()`** declara cells con `weight` (peso
+  relativo). Si una cell no se materializa (grupo vacío), las
+  presentes redistribuyen el ancho disponible para llenar los 12
+  cols sin gaps. Ejemplo: row con `[Monto w=8, Stats w=4]` — si
+  Monto está vacío, Stats se expande a w=12.
+* **5 plantillas refactorizadas** con la API row():
+    - **Auto** — Row 1: Timeline + Stats. Row 2: Datos / Contacto / Asignación distribuidos.
+    - **Contacto** — Row 1: Contacto / Empresa / Stats. Row 2: Asignación / Timeline / Notas.
+    - **Venta** — Row 1: Monto + Stats. Row 2: Cliente / Timeline / Fechas. Row 3: Asignación + Próximos pasos.
+    - **Tarea** — Row 1: Programación + Asignación. Row 2: Datos / Timeline / Checklist. Row 3: Stats.
+    - **Soporte** — Row 1: Stats / Cliente / Asignación. Row 2: Detalles / Timeline / Fechas. Row 3: Runbook + Métricas.
+* **Min width 3 cols por cell** + última cell absorbe el rounding
+  para que cada row siempre llene los 12 cols.
+* **`autoRelatedRows()`** crea 1 row por relation field con ancho
+  configurable, después de los rows declarados.
+
+Resultado: cualquier built-in que pongás se ve completo desde
+col 0 sin importar qué fields tiene tu lista.
+
+= 0.35.2 =
+**Built-ins distintas + editor preserva tu custom.**
+
+Dos issues reales:
+
+1. **Built-ins se veían iguales entre sí.** Todas pasaban por el
+   mismo `migrateV1toV2` genérico que apilaba sidebar groups en col
+   izq + timeline centro + stats/related der. Fix: cada built-in
+   ahora declara su propio `resolveV2(fields)` con grid
+   visiblemente distinto:
+    - **Auto** — 3 columnas balanceadas (4-5-3): datos + timeline +
+      stats/related.
+    - **Contacto** — sidebar 3 grupos apilados (Contacto, Empresa,
+      Asignación), centro angosto, panel Notas + relaciones derecha.
+    - **Venta** — ROW 1 monto destacado full-width (8 col) + stats.
+      ROW 2 cliente | timeline | fechas. Énfasis en pipeline.
+    - **Tarea** — ROW 1 programación full-width (8 col) +
+      asignación. Centro timeline + bloque "Checklist" pre-cargado
+      a la derecha.
+    - **Soporte** — ROW 1 stats SLA + cliente + asignación. ROW 2
+      detalles + timeline + fechas. Bloque "Runbook" pre-cargado
+      con pasos plantilla.
+
+2. **Editor reseteaba tu custom al switchear.** Si guardabas una
+   plantilla custom, después picabas "Contacto", y volvías a entrar
+   al editor — perdías tu custom y veías una nueva basada en
+   Contacto. Causa: el useEffect del editor chequeaba
+   `crm_template_id === 'custom'` para cargar la custom guardada;
+   al haber switcheado, ese check fallaba. Fix: el editor SIEMPRE
+   carga `settings.crm_template_custom` si existe, sin importar
+   qué plantilla esté activa. Tu trabajo persiste hasta que
+   explícitamente le des "Restaurar desde…".
+
+Las built-ins generan templates pre-cargados con bloques **Notes**
+en posiciones útiles ("Recordatorios" para contactos, "Checklist"
+para tareas, "Runbook" para soporte) — listos para que personalices
+el contenido sin tener que crearlos desde cero.
+
+= 0.35.1 =
+**Hotfix definitivo para el switch de plantillas.**
+
+El bug reportado en 0.34.x volvió a aparecer en 0.35 por una causa
+distinta: `react-grid-layout/legacy` cachea internamente su layout
+state y NO siempre detecta cambios cuando la prop `layout` se
+reemplaza por una nueva referencia. El resolver siempre estuvo
+correcto y devolvía el layout de la plantilla recién elegida —
+pero el grid no se refrescaba visualmente porque RGL seguía
+mostrando los bloques anteriores.
+
+* `RecordCrmLayout`: `<SizedGrid key={...}>` con un key compuesto
+  por `crm_template_id + ids_de_bloques`. Cuando cambiás de
+  plantilla, el key cambia, RGL se re-monta desde cero, el layout
+  nuevo aparece al instante.
+* `GridEditor`: mismo `key` basado en ids de bloques — el editor
+  refresca correctamente después de "Restaurar desde…".
+
+Sin esto, switchear de "Custom" a "Contacto" (o viceversa) en el
+picker no actualizaba la ficha del registro aunque el estado se
+guardaba bien en DB.
+
+= 0.35.0 =
+**Editor visual rebuilt: grid drag/resize + bloque de notas custom.**
+
+Reemplaza el form-based editor de 0.34 por un grid real (12 cols)
+basado en `react-grid-layout`. Cada bloque del panel CRM (grupo de
+propiedades, timeline, resumen, relacionados, notas) se posiciona,
+mueve y redimensiona libremente dentro del grid.
+
+* **Schema V2** (`CustomTemplateConfigV2`) con `header` fijo +
+  `blocks: V2Block[]`. Cada bloque tiene `{id, type, x, y, w, h,
+  config}`. Tipos:
+    - `properties_group` — grupo de campos colapsable.
+    - `timeline` — feed de comentarios + activity (1 sola permitida).
+    - `stats` — resumen de actividad (1 solo permitido).
+    - `related` — 1 relation field por bloque (multiples permitidos).
+    - **`notes` — texto custom** que el user escribe en el editor;
+      se ve igual en todos los records de la lista. Útil para
+      recordatorios al operador ("siempre confirmar referencia
+      comercial antes de cerrar venta", instrucciones internas, etc.).
+* **Migración V1 → V2** automática al cargar un editor con plantilla
+  vieja: sidebar groups → properties_group blocks columna izquierda,
+  timeline → centro, stats + related → derecha. El user después
+  arrastra a su gusto. Sin pérdida de datos.
+* **GridEditor canvas**: arrastrá bloques para mover, estirá esquinas
+  para redimensionar (1-12 cols). "+ Agregar bloque" dropdown con
+  todos los tipos. Cada bloque tiene overlay al hover con ✏ (config)
+  y 🗑 (eliminar).
+* **BlockConfigDialog** por tipo:
+    - properties_group: nombre + icono + checkbox colapsado +
+      lista de campos editable (add/remove/reorder).
+    - notes: título + textarea de contenido (multiline, saltos
+      respetados).
+    - related: selector del relation field.
+    - timeline / stats: sin opciones (movés/redimensionás solamente).
+* **HeaderEditor** colapsable arriba del Grid: edita los slots del
+  header (título, subtítulo, status, quick actions). El header sigue
+  fijo arriba — moverlo no tendría sentido (es el ancla visual del
+  registro).
+* **RecordCrmLayout** ahora renderea con grid en modo `static`
+  (read-only). "Lo que ves al editar es lo que ves al final" — no
+  hay traducción entre editor y producción.
+* **Built-ins también pasan por el grid**: las plantillas
+  Auto/Contacto/Venta/Tarea/Soporte resuelven a un V2 layout en el
+  vuelo, así el rendering es uniforme.
+
+= 0.34.1 =
+**Hotfix**: las plantillas built-in (Auto/Contacto/Venta/Tarea/Soporte)
+parecían no aplicarse al elegirlas en el picker. El resolver siempre
+estuvo correcto, pero el cache de records en TanStack Query no se
+invalidaba al cambiar de plantilla — la primera vista de una ficha
+posterior al switch podía mostrar el layout previo hasta que la
+query expirara su staleTime.
+
+* `AppearancePanel.setLayout` y `setTemplate` ahora llaman
+  `qc.removeQueries({ queryKey: recordsKeys.forList(list.id) })`
+  después del PATCH para forzar refetch en cualquier RecordPage
+  abierta. Resultado: el cambio se ve inmediatamente.
+* Se mantiene `crm_template_custom` aunque elijas un built-in
+  (no destruimos tu trabajo del editor visual). El resolver ya
+  ignoraba el custom cuando `crm_template_id !== 'custom'`, así
+  que ambas formas pueden coexistir y switchear entre sí sin
+  perder datos.
+
+= 0.34.0 =
+**Editor visual de plantilla CRM (paso 3 de 3 — el editor que pediste).**
+
+Cierra la trilogía: schema (0.32) → composer + right rail (0.33) →
+editor visual ahora. El user puede diseñar la ficha de cada lista
+slot por slot, con preview en vivo.
+
+* **Nueva ruta** `/lists/:slug/template-editor` — split de 2 columnas:
+    - Izquierda: panel de slots con controles de cada zona del layout.
+    - Derecha: preview en vivo con el `RecordCrmLayout` real, usando
+      el primer record de la lista (o un mock si está vacía).
+  Toggle "Ocultar/Mostrar preview" para ganar espacio si lo necesitás.
+* **Slots configurables (5 secciones colapsables):**
+    - **Encabezado**: título principal · subtítulo · badges de estado ·
+      acciones rápidas. Cada uno filtra los fields elegibles por tipo
+      (status solo acepta select-likes; quick actions solo email/url/
+      phone-likes; etc.).
+    - **Sidebar de propiedades**: agregar/quitar/reordenar grupos
+      colapsables, cada uno con su nombre, icono (catálogo curado de
+      12), si arranca colapsado, y los fields que contiene.
+    - **Right rail**: toggle para "Resumen" + lista de relation fields
+      a renderear como cards de relacionados.
+* **Reorder con flechas ↑↓** en cada lista de campos (sin DnD lib —
+  pragmático y accesible). Botón × para quitar. Selector "+ Agregar
+  campo" filtrado a los todavía no usados.
+* **"Restaurar desde…"** dropdown que clona cualquier built-in
+  (Contacto / Venta / Tarea / Soporte / Auto) como punto de partida
+  editable. Pide confirmación porque sobreescribe lo actual.
+* **Persistencia**: `list.settings.crm_template_custom` con
+  `CustomTemplateConfig` JSON. Toda referencia a fields es por
+  **slug** (que el SlugManager garantiza estable vía slug_history),
+  así que renombres no rompen la plantilla.
+* **`getResolvedLayout(settings, fields)`** — helper unificado que
+  RecordCrmLayout consume: si la lista tiene custom y está activa,
+  usa `resolveCustomTemplate`; sino cae a la built-in. Mismo
+  `ResolvedLayout` interface, así que la capa de render no cambia.
+* Tolerancia: slugs que ya no existen en la lista (campo borrado)
+  se skipean silenciosamente al resolver. La plantilla nunca se
+  rompe — los fields no asignados van a "Otros" como siempre.
+* **AppearancePanel**: nueva opción "Personalizada" en el picker
+  con botón "Crear" (la primera vez) o "Editar" (si ya hay custom
+  guardada) que linkea al editor.
+
+= 0.33.0 =
+**Phase B del panel CRM: composer multi-modo + right rail con stats y relacionados.**
+
+* **Composer multi-modo en la timeline.** El composer ahora tiene
+  4 tabs:
+    - **Nota** — comportamiento default, equivale al composer original.
+    - **Llamada** — campos extra: duración (min) y resultado (Hablamos /
+      Buzón / No contestó / Ocupado).
+    - **Email** — campos extra: destinatario y asunto.
+    - **Reunión** — campos extra: asistentes y fecha/hora.
+  Cada modo guarda metadata específica con el comentario, sin afectar
+  comments existentes (que siguen como notas planas).
+* **Render de timeline metadata-aware.** Cada fila muestra un mini
+  badge con icono del kind (📞 ☎ 📧 👥), y el header de la fila resume
+  los datos: "Llamada · 12 min · Hablamos", "Email → carlos@ejemplo.com
+  'Propuesta v3'", "Reunión · Carlos, María · 5/2/2026 14:30".
+* **Right rail (3ra columna del panel CRM).** Cada plantilla declara
+  qué bloques renderear:
+    - **Resumen** — días en sistema, días sin cambios, # comentarios,
+      # cambios.
+    - **Records relacionados** — 1 card por relation field con la lista
+      de records vinculados resueltos a su título, click navega a la
+      ficha del relacionado.
+  Si la lista no tiene relations ni la plantilla pide rail, el grid
+  colapsa a 2 columnas (sidebar + timeline) sin desperdiciar espacio.
+* **DB version → 7.** Nueva columna `metadata LONGTEXT NULL` en
+  `wp_imcrm_comments`. Se aplica automáticamente al cargar admin
+  (dbDelta detecta el ALTER y lo corre).
+* **Backend `CommentService`** acepta y valida `metadata` en
+  create/update — kind whitelist (`note`/`call`/`email`/`meeting`),
+  cap defensivo de 4KB JSON para evitar abuso. Frontend tipado en
+  `CommentMetadata`.
+* **`ResolvedLayout.rightRail`** — extensión del schema de
+  plantillas que declara los bloques del rail. `LayoutBuilder.buildRightRail`
+  genera el array por defecto: 1 stats + 1 related por relation field
+  presente en la lista.
+
+= 0.32.0 =
+**Plantillas para el panel CRM** (paso 1 de 3 hacia el editor visual).
+
+Cada lista en modo CRM ahora puede elegir qué plantilla aplicar
+desde "Editar lista → Apariencia del registro". El sistema separa
+**qué se renderea** (componentes RecordHeader, PropertiesSidebar)
+de **dónde va cada campo** (la plantilla resuelve los slots).
+
+* **Schema `CrmTemplate`** en `app/lib/crmTemplates.ts`. Cada
+  plantilla expone un `resolve(fields) → ResolvedLayout` con:
+    - `titleField`, `subtitleFields`, `statusFields`, `quickActions`
+      (para el header).
+    - `sidebarGroups[]` con id/label/icon/fields/collapsedByDefault
+      (para el sidebar izquierdo).
+    - `leftover[]` (campos sin asignar — caen en "Otros" colapsado).
+* **5 plantillas built-in:**
+    - **Automática** — heurística conservadora (default, equivale al 0.31).
+    - **Contacto** — empresa/rol como subtítulo, email/teléfono al frente.
+    - **Venta / Oportunidad** — etapa + prioridad en pills, monto destacado.
+    - **Tarea** — fecha de vencimiento como subtítulo, programación
+      al tope del sidebar.
+    - **Soporte** — ticket id como subtítulo, prioridad prominente,
+      cliente y SLA agrupados.
+* **Picker** en `AppearancePanel`: cuando elegís "Panel CRM",
+  abajo aparece la lista de plantillas con nombre + descripción +
+  checkmark de la activa. Click cambia y aplica al instante (toast
+  "Plantilla aplicada").
+* **Refactor `RecordHeader` y `PropertiesSidebar`** para consumir
+  `ResolvedLayout` en lugar de ejecutar su propia heurística. Esto
+  prepara el terreno para 0.33 (Phase B: composer multi-modo, right
+  rail, stats) y 0.34 (editor visual drag & drop, cuyo output será
+  un template "custom" persistido — mismo `ResolvedLayout`).
+
+= 0.31.0 =
+**Layout CRM panel para registros (opt-in por lista).**
+
+Hasta 0.30.x la página individual de un registro era un form lineal
+con sidebar de Comentarios/Actividad — funcional pero genérica.
+Ahora cada lista puede activar un layout estilo HubSpot/Pipedrive
+desde su configuración.
+
+* **Toggle por lista** en "Editar lista → Apariencia del registro":
+  elegí entre "Lista" (default, form lineal) o "Panel CRM" (header
+  con avatar + sidebar agrupado + timeline). Persiste en
+  `list.settings.record_layout`.
+* **Header CRM** con avatar generado de las iniciales del campo
+  primary (color hash determinístico), badges de estado
+  auto-detectados (campos `select`/`multi_select`/`checkbox` con
+  ≤8 opciones renderean como pills), y botones de acción rápida
+  según tipo de campo (`mailto:` para email, `tel:` para teléfono,
+  abrir URL externa).
+* **Sidebar de propiedades** con grupos colapsables auto-categorizados:
+    - **Contacto**: email, url, teléfono (detectado por slug/label).
+    - **Estado**: select/multi_select/checkbox con pocas opciones.
+    - **Datos clave**: number, currency, date, datetime.
+    - **Asignación**: user fields.
+    - **Otros**: el resto (collapsed by default).
+* **Timeline unificada**: comentarios + activity log mergeados
+  client-side por timestamp, en orden cronológico desc. Composer
+  de comentario al tope (Cmd/Ctrl+Enter para enviar). Filtros:
+  Todo · Comentarios · Cambios. Cada fila con avatar, tiempo
+  relativo ("hace 5 min") y acciones edit/delete cuando aplica.
+* La heurística es conservadora: campos que no se clasifican claro
+  caen en "Otros". El layout clásico sigue siendo default — listas
+  no-CRM (inventario, proyectos) no se ven afectadas.
+
+= 0.30.8 =
+**Búsqueda instantánea para listas chicas (client-side filter).**
+
+Para 30 registros, el cuello de botella NO era la query SQL (~2ms)
+sino el round-trip completo: WordPress bootstrap (~100-150ms) +
+network RTT (~50-100ms) + auth + REST routing. Cada keystroke
+pagaba ~150-300ms de overhead constante, independiente del tamaño
+de la lista.
+
+* **Modo dual auto-detectado**:
+    - Lista chica (total ≤ per_page): un solo fetch trae TODO sin
+      search. Cualquier búsqueda subsiguiente filtra in-memory en
+      <1ms — sin red, sin overhead. Instantáneo al tipear.
+    - Lista grande: mantiene búsqueda server-side con índice
+      invertido (si está activado) o LIKE.
+* **Helper `clientSideSearch`** que tokeniza igual que el backend
+  (lowercase + ASCII fold + split alfanumérico) y aplica AND-mode
+  sobre los campos searchables (text, long_text, email, url).
+  Soporta acentos: "carlos" matchea "Cárlos".
+* **Debounce bajado** de 300ms → 200ms para listas grandes (donde
+  sí hay round-trip).
+
+= 0.30.7 =
+**Search reactivo + fix grouped view + spinner inline.**
+
+* **Search en vivo (debounced 300ms)**. Ahora podés escribir en
+  el buscador y los resultados se actualizan automáticamente
+  cuando dejás de tipear, sin tener que presionar Enter. El
+  state visible del Input se actualiza instantáneo (responsivo);
+  la query solo se dispara 300ms después del último keystroke,
+  evitando una request por letra. Implementado con un nuevo hook
+  `useDebouncedValue` reutilizable.
+* **Fix: search en vista agrupada**. El bundle endpoint
+  (`/records/grouped-bundle`) recibía `?search=` pero solo lo
+  aplicaba a la meta de buckets — los registros dentro de cada
+  bucket NO se filtraban. Ahora se pasa también a
+  `service->list()` por bucket. Resultado: el buscador funciona
+  igual en table flat, table agrupada, kanban y calendar.
+* **Spinner inline**. Pequeño loader a la derecha del Input
+  mientras la query está en vuelo (incluido durante el debounce).
+  El user ve que el sistema está procesando, sin que aparezca
+  como pantalla congelada.
+
+**Nota sobre performance**: si tu lista tiene >10k registros y la
+primera búsqueda se siente lenta, activá "Búsqueda avanzada" en
+**Editar lista → Mantenimiento y rendimiento**. Reemplaza el LIKE
+%q% (que escanea la tabla) por un índice invertido + BM25
+(O(matches × tokens) — escala a millones). El resultado es
+inmediato, no solo en cargas cacheadas.
+
+= 0.30.6 =
+**UI**: editar nombre y descripción de un dashboard.
+
+* Botón "Editar" en el header de la página del dashboard, junto a
+  "Eliminar" y "Añadir widget".
+* Pencil icon a la derecha del título que aparece on-hover (UX
+  estilo Notion/Linear) — segundo affordance para usuarios que
+  van directo al título.
+* Nuevo `DashboardSettingsDialog` con campos de nombre +
+  descripción. Toast de éxito al guardar.
+
+= 0.30.5 =
+**Fix dashboards atascados + reemplazo de alerts nativos del browser
+por toasts/dialogs in-app.**
+
+* **Bugfix dashboard atascado**: si borrabas una columna que un widget
+  usaba como métrica/agrupación/fecha, el dashboard quedaba "atrapado"
+  — react-grid-layout disparaba `onLayoutChange` al montar, el
+  frontend hacía PATCH y el backend rechazaba con "El campo de
+  métrica debe ser tipo number o currency...". No podías editar
+  layout, agregar widgets, ni siquiera eliminar el dashboard.
+* **Fix backend**: `validateWidgets` ahora tolera referencias rotas.
+  Si el campo o la lista referenciada ya no existe, acepta el save
+  (el widget queda persistido — el evaluator muestra placeholder al
+  renderear). Solo reporta error si la ref existe pero es de tipo
+  incorrecto.
+* **Auto-cleanup**: hook en `imagina_crm/field_deleted` que recorre
+  los dashboards activos y elimina los widgets que referenciaban el
+  campo borrado (`pruneFieldReferences`). Sin esto los dashboards
+  quedaban con widgets huérfanos para siempre.
+* **Toast in-app**: nuevo `<ToastProvider>` con `useToast()`. API
+  Sonner-like: `toast.success/error/warning/info(title, description?)`.
+  Stack apilable bottom-right, auto-cierre 5s (8s para errores),
+  dismiss manual. Portal a `document.body`, z-index 100000.
+* **Confirm in-app**: nuevo `<ConfirmProvider>` con `useConfirm()`
+  que devuelve `Promise<boolean>`. Modal centrado con icono de
+  advertencia para acciones destructivas, label customizable,
+  Escape cancela.
+* **Reemplazo de 16 `window.alert`/`window.confirm`** en
+  DashboardPage, RecordPage, SavedFiltersDropdown, DateCellEditor,
+  EmailSignatureCard, AutomationsPage, CommentsPanel. La app se
+  siente nativa, no como un script de browser.
+
+= 0.30.4 =
+**Hotfix**: el menú "Imagina CRM" abría una pantalla en blanco en
+0.30.2-0.30.3.
+
+* Causa: en 0.30.2 cambié el `menu_slug` a la URL standalone
+  esperando que WP la usara como `href` directo. WordPress no
+  funciona así — generó un link `admin.php?page=<URL%20encoded>`
+  que no resuelve a ninguna página → canvas en blanco.
+* Fix: vuelve al slug normal (`imagina-crm`) pero engancha el
+  redirect en `load-{hookname}`. Ese hook corre ANTES de
+  `admin-header.php` (es decir, antes de cualquier output del
+  admin) → `wp_safe_redirect` siempre puede setear headers. Era
+  el patrón que faltaba en el 0.13.x original (que enganchaba el
+  redirect en el render callback, demasiado tarde).
+* Fallback defensivo si los headers ya se enviaron (por ej. otro
+  plugin printea en `init`): meta-refresh + `window.location.replace`
+  + link manual. El user igual aterriza en el SPA en <100ms.
+
+= 0.30.3 =
+**Cleanup**: elimina el toggle de pantalla completa (Maximize2 en
+la topbar). Era residual de cuando el SPA se montaba dentro de
+`/wp-admin/admin.php` y necesitaba ocultar el chrome de WP. Desde
+0.13.0 el SPA vive en URL standalone (`/imagina-crm/`) sin chrome
+de wp-admin → el botón no tenía nada que ocultar.
+
+* Removido `app/stores/shellStore.ts` (booleano + persistencia en
+  localStorage para el toggle).
+* Removido botón Maximize2/Minimize2 del Topbar y atajo Escape.
+* Removidas ~50 líneas de CSS con `!important` en
+  `globals.css` (`html.imcrm-fullscreen-mode #wpadminbar { ... }`,
+  override de z-index para Radix portals, etc.).
+* AdminShell ahora usa layout fijo full-viewport siempre.
+* Bundle baja levemente (-2KB).
+
+= 0.30.2 =
+**Fix UX**: el item del menú "Imagina CRM" ahora abre la URL
+standalone directamente, sin pantalla intermedia.
+
+* `add_menu_page` recibe la URL standalone como `menu_slug` (con
+  `://` — WP la usa como `href` directo). Antes el callback hacía
+  un `wp_safe_redirect` pero corría tarde en el ciclo del admin
+  (`headers_sent() === true`) y caía al fallback con un link
+  "Abrir Imagina CRM".
+* Backwards compat: `admin_init` redirige las URLs viejas a
+  `admin.php?page=imagina-crm` (bookmarks) hacia la URL standalone.
+  Corre antes de cualquier output del admin.
+
+= 0.30.1 =
+**UI admin para Tier 3**: panel "Mantenimiento y rendimiento" en
+la página de edición de cada lista. Ya no necesitás `curl` para
+gestionar el motor de búsqueda ni los composite indexes.
+
+* **Toggle "Búsqueda avanzada"**. Switch en vivo: activar dispara
+  el reindex inicial vía Action Scheduler y muestra el contador de
+  documentos indexados creciendo (polling cada 5s mientras está
+  activa). Botón "Re-indexar" para forzar full rebuild.
+* **Lista de índices sugeridos**. Renderea las sugerencias de
+  `CompositeIndexSuggester` con razón ("Vista X filtra/ordena por
+  estas columnas"), número de vistas que lo justifican, columnas
+  involucradas. Apply / Quitar con un click. Estado verde cuando
+  ya está aplicado.
+* Hook `useMaintenance.ts` con TanStack Query: `useSearchStatus`,
+  `useEnableSearch`, `useDisableSearch`, `useReindexSearch`,
+  `useIndexSuggestions`, `useApplyIndex`, `useDropIndex`,
+  `useRunPurge`.
+
+= 0.30.0 =
+**Tier 3 — Big data**: tercer y último step del roadmap de
+performance. Habilita uso a 1M+ filas con búsqueda por relevancia,
+índices compuestos auto-sugeridos, y purga automática de tablas
+append-only.
+
+* **Motor de búsqueda con índice invertido propio + BM25**.
+  `src/Search/InvertedIndexEngine` mantiene dos tablas nuevas
+  (`wp_imcrm_search_tokens`, `wp_imcrm_search_documents`) — una
+  fila por (token, record) con term frequency, y una fila por record
+  con doc_length. El query engine tokeniza el `?search=`, hace
+  lookup de tokens y rankea con BM25 (k1=1.5, b=0.75). Costo
+  ~O(matched_docs * tokens_in_query) — escala linealmente con la
+  cardinalidad de matches, no con el tamaño total de la lista.
+  Listas pequeñas/medianas siguen usando LIKE (`MysqlSearchEngine`)
+  vía un flag opt-in por lista (`settings.search_index_enabled`).
+* **Indexación automática**. Push hooks en `record_created`,
+  `record_updated`, `record_deleted` mantienen el índice fresco
+  sin que el caller lo sepa. Cuando el toggle se activa para una
+  lista existente, un job de Action Scheduler reindexa en lotes
+  de 500 records (idempotente, reanudable). Re-sync periódico
+  cada 6h vía cron — defensivo contra writes que evadan los hooks
+  (SQL directo, restores parciales).
+* **Tokenizer multi-idioma**. Lowercase + ASCII fold (sin
+  acentos) + filtro de stopwords ES/EN. Tokens entre 2-64 chars.
+  Suficiente para corpus latinos; iterable a alfabetos no latinos
+  via `mb_*`.
+* **Composite Index Suggester**. `Maintenance\CompositeIndexSuggester`
+  recorre las saved views de una lista y deriva sugerencias de
+  composite indexes (multi-column). Si la vista filtra por A y
+  ordena por B → sugiere `INDEX(A, B)`. El admin decide qué aplicar
+  vía REST (cada índice cuesta storage + writes lentas, no
+  automatizamos la creación). Endpoints: `GET /lists/{id}/indexes/suggest`,
+  `POST /lists/{id}/indexes/apply`, `POST /lists/{id}/indexes/drop`.
+* **Purge automático**. `Maintenance\PurgeService` borra entradas
+  > 1 año de tres tablas append-only: `slug_history` (redirects
+  raros tras un año), `activity` (debugging útil < 1 año), y
+  `automation_runs` (logs de ejecución). Cron diario via Action
+  Scheduler en lotes de 5k filas. Configurable: retention y batch
+  size. También expuesto como endpoint ad-hoc `POST /system/maintenance/purge`.
+* **REST endpoints admin**. Nuevos: `/lists/{id}/search/{status,
+  enable, disable, reindex}` para gestionar el motor invertido
+  por lista.
+* **DB version → 6**. Las tablas nuevas se crean en activación o
+  en updates desde admin (dbDelta automático).
+
+= 0.29.1 =
+**Migración de la vista agrupada al bundle endpoint** (continuación
+del Tier 2 de performance, deferida de 0.29.0).
+
+* `GroupedTableView` ahora consume `/records/grouped-bundle` con un
+  solo hook (`useRecordsGroupedBundle`). Antes hacía 1 + N + N
+  requests (groups meta + records por bucket abierto + aggregates
+  por bucket abierto); ahora hace 1 — el backend devuelve buckets
+  meta + primera página de records de cada bucket expandido +
+  aggregates por bucket en la misma respuesta. En listas con 10
+  buckets visibles esto baja de ~21 round-trips a 1 (y a 2 en el
+  load inicial: 1 para conocer los buckets, 1 para traer expandidos).
+* Fallback automático a `useRecords` cuando el user pagina dentro de
+  un bucket (`page > 1`) — el bundle solo cubre la primera página por
+  bucket, así que la paginación profunda sigue funcionando sin
+  recargar todo el bundle.
+* Convención de keys: el frontend usa `v:<value>` / `__null__` para
+  state local (`collapsedGroups`, `openLocally`) — preserva compat
+  con saved views existentes — y `<value>` / `__null__` (sin prefijo)
+  para hablar con el backend.
+* `keepPreviousData` en el hook mantiene la UI estable mientras la
+  segunda fase del fetch inicial está en vuelo.
 
 = 0.29.0 =
 **Tier 2 — Escala** (5 items): segundo paso del roadmap de

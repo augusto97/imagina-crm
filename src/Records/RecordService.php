@@ -6,6 +6,7 @@ namespace ImaginaCRM\Records;
 use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListEntity;
+use ImaginaCRM\Search\SearchService;
 use ImaginaCRM\Support\ValidationResult;
 
 /**
@@ -23,6 +24,7 @@ final class RecordService
         private readonly RelationRepository $relations,
         private readonly RecordValidator $validator,
         private readonly QueryBuilder $queryBuilder,
+        private readonly ?SearchService $search = null,
     ) {
     }
 
@@ -56,6 +58,23 @@ final class RecordService
     ): array|ValidationResult {
         $listFields = $this->fields->allForList($list->id);
 
+        // Tier 3 (0.30.0): si la lista tiene índice invertido activo,
+        // delegamos el `?search=` al motor BM25 y reemplazamos el
+        // LIKE %s% por una whitelist `id IN (...)`. Si el motor no
+        // matchea nada, salimos temprano con resultado vacío.
+        $idWhitelist     = null;
+        $searchForBuilder = $search;
+        if (
+            $search !== null
+            && trim($search) !== ''
+            && $this->search !== null
+            && $this->search->isIndexed($list)
+        ) {
+            $hits = $this->search->search($list->id, $search, 5000);
+            $idWhitelist = array_keys($hits);
+            $searchForBuilder = null; // Evita el LIKE redundante.
+        }
+
         // Si viene tree, dejamos `$params->filters` vacío para que
         // `buildSelect` use exclusivamente el override del tree-WHERE.
         // El sort/proyección/paginación se siguen sacando de params.
@@ -65,7 +84,7 @@ final class RecordService
             $filterTree !== null ? [] : $filters,
             $sort,
             $fields,
-            $filterTree !== null ? null : $search,
+            $filterTree !== null ? null : $searchForBuilder,
             $page,
             $perPage,
             includeDeleted: false,
@@ -82,7 +101,7 @@ final class RecordService
                 $list->id,
                 $listFields,
                 $filterTree,
-                $search,
+                $searchForBuilder,
                 includeDeleted: false,
             );
         }
@@ -92,6 +111,7 @@ final class RecordService
             $listFields,
             $params,
             $whereOverride,
+            $idWhitelist,
         );
         $result   = $this->records->executeQuery(
             $compiled['sql'],
