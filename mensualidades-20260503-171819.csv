@@ -1,0 +1,52 @@
+﻿Cliente,Status,Contenido,"Fecha de vencimiento","Fecha de inicio","Creado en",Contacto,Correo,ESTADO,"FORMA DE COBRO","Mes facturado","Mes pagado","Metodo de cobro",Notas,"Pagos recientes",SERVICIO,"Sitio web","ULTIMO MES PAGO","VALOR COP","VALOR USD o EUR","Valor adeudado COP","Valor adeudado USD",WhatsApp,"ÚLTIMA FACTURA"
+"CC Fundadores",activo,,,2026-05-01,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+CCM,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,600000,,,,,abril
+Sled,activo,,,2026-04-02,,,,,,16,,,,,vps_en_hetzner,,,90000,,,,,abril
+Edenred,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+NBC,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1300000,,,,,abril
+Binapps,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+Omicron,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,500000,,,,,abril
+Mujeron,activo,,,,,,,,,16,,,,,"gesti_n_sitio_web_2, vps_en_hetzner_2",,,700000,,,,,abril
+TPlus,activo,,,,,,,,,,,,,,"gesti_n_sitio_web_2, vps_en_hetzner_2",,,700000,,,,,abril
+Tiendita,activo,,,,,,,,,15,,,,,gesti_n_sitio_web,,,800000,,,,,marzo
+FullAvante,sin_factura,,,2024-06-14,,,,,,15,,,,,vps_en_hetzner,,,86000,,,,,marzo
+"Total tools",sin_factura,,,2026-05-15,,,,,,15,,,,,gesti_n_sitio_web,,,1450000,,,,,marzo
+"La tienda del pintor",sin_factura,,,,,,,,,15,,,,,gesti_n_sitio_web,,,700000,,,,,marzo
+MultiMax,sin_factura,,,,,,,,,15,,,,,gesti_n_sitio_web,,,700000,,,,,marzo
+Alumar,activo,,,,,,,,,15,,,,,vps_en_hetzner,,,150000,,,,,marzo
+Bioled,activo,,,,,,,,,15,,,,,vps_en_hetzner,,,102000,,,,,marzo
+"Clientes Paola",sin_factura,,,2026-05-21,,,,,,15,,,,,gesti_n_sitio_web,,,600000,,,,,marzo
+"CC Fundadores",activo,,,2026-05-01,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+CCM,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,600000,,,,,abril
+Sled,activo,,,2026-04-02,,,,,,16,,,,,vps_en_hetzner,,,90000,,,,,abril
+Edenred,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+NBC,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1300000,,,,,abril
+Binapps,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+Omicron,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,500000,,,,,abril
+Mujeron,activo,,,,,,,,,16,,,,,"gesti_n_sitio_web_2, vps_en_hetzner_2",,,700000,,,,,abril
+TPlus,activo,,,,,,,,,,,,,,"gesti_n_sitio_web_2, vps_en_hetzner_2",,,700000,,,,,abril
+Tiendita,activo,,,,,,,,,15,,,,,gesti_n_sitio_web,,,800000,,,,,marzo
+FullAvante,sin_factura,,,2024-06-14,,,,,,15,,,,,vps_en_hetzner,,,86000,,,,,marzo
+"Total tools",sin_factura,,,2026-05-15,,,,,,15,,,,,gesti_n_sitio_web,,,1450000,,,,,marzo
+"La tienda del pintor",sin_factura,,,,,,,,,15,,,,,gesti_n_sitio_web,,,700000,,,,,marzo
+MultiMax,sin_factura,,,,,,,,,15,,,,,gesti_n_sitio_web,,,700000,,,,,marzo
+Alumar,activo,,,,,,,,,15,,,,,vps_en_hetzner,,,150000,,,,,marzo
+Bioled,activo,,,,,,,,,15,,,,,vps_en_hetzner,,,102000,,,,,marzo
+"Clientes Paola",sin_factura,,,2026-05-21,,,,,,15,,,,,gesti_n_sitio_web,,,600000,,,,,marzo
+"CC Fundadores",activo,,,2026-05-01,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+CCM,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,600000,,,,,abril
+Sled,activo,,,2026-04-02,,,,,,16,,,,,vps_en_hetzner,,,90000,,,,,abril
+Edenred,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+NBC,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1300000,,,,,abril
+Binapps,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,1000000,,,,,abril
+Omicron,activo,,,,,,,,,16,,,,,gesti_n_sitio_web,,,500000,,,,,abril
+Mujeron,activo,,,,,,,,,16,,,,,"gesti_n_sitio_web_2, vps_en_hetzner_2",,,700000,,,,,abril
+TPlus,activo,,,,,,,,,,,,,,"gesti_n_sitio_web_2, vps_en_hetzner_2",,,700000,,,,,abril
+Tiendita,activo,,,,,,,,,15,,,,,gesti_n_sitio_web,,,800000,,,,,marzo
+FullAvante,sin_factura,,,2024-06-14,,,,,,15,,,,,vps_en_hetzner,,,86000,,,,,marzo
+"Total tools",sin_factura,,,2026-05-15,,,,,,15,,,,,gesti_n_sitio_web,,,1450000,,,,,marzo
+"La tienda del pintor",sin_factura,,,,,,,,,15,,,,,gesti_n_sitio_web,,,700000,,,,,marzo
+MultiMax,sin_factura,,,,,,,,,15,,,,,gesti_n_sitio_web,,,700000,,,,,marzo
+Alumar,activo,,,,,,,,,15,,,,,vps_en_hetzner,,,150000,,,,,marzo
+Bioled,activo,,,,,,,,,15,,,,,vps_en_hetzner,,,102000,,,,,marzo
+"Clientes Paola",sin_factura,,,2026-05-21,,,,,,15,,,,,gesti_n_sitio_web,,,600000,,,,,marzo
