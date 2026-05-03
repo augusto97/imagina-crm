@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.35.1
+Stable tag: 0.35.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,44 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.35.2 =
+**Built-ins distintas + editor preserva tu custom.**
+
+Dos issues reales:
+
+1. **Built-ins se veían iguales entre sí.** Todas pasaban por el
+   mismo `migrateV1toV2` genérico que apilaba sidebar groups en col
+   izq + timeline centro + stats/related der. Fix: cada built-in
+   ahora declara su propio `resolveV2(fields)` con grid
+   visiblemente distinto:
+    - **Auto** — 3 columnas balanceadas (4-5-3): datos + timeline +
+      stats/related.
+    - **Contacto** — sidebar 3 grupos apilados (Contacto, Empresa,
+      Asignación), centro angosto, panel Notas + relaciones derecha.
+    - **Venta** — ROW 1 monto destacado full-width (8 col) + stats.
+      ROW 2 cliente | timeline | fechas. Énfasis en pipeline.
+    - **Tarea** — ROW 1 programación full-width (8 col) +
+      asignación. Centro timeline + bloque "Checklist" pre-cargado
+      a la derecha.
+    - **Soporte** — ROW 1 stats SLA + cliente + asignación. ROW 2
+      detalles + timeline + fechas. Bloque "Runbook" pre-cargado
+      con pasos plantilla.
+
+2. **Editor reseteaba tu custom al switchear.** Si guardabas una
+   plantilla custom, después picabas "Contacto", y volvías a entrar
+   al editor — perdías tu custom y veías una nueva basada en
+   Contacto. Causa: el useEffect del editor chequeaba
+   `crm_template_id === 'custom'` para cargar la custom guardada;
+   al haber switcheado, ese check fallaba. Fix: el editor SIEMPRE
+   carga `settings.crm_template_custom` si existe, sin importar
+   qué plantilla esté activa. Tu trabajo persiste hasta que
+   explícitamente le des "Restaurar desde…".
+
+Las built-ins generan templates pre-cargados con bloques **Notes**
+en posiciones útiles ("Recordatorios" para contactos, "Checklist"
+para tareas, "Runbook" para soporte) — listos para que personalices
+el contenido sin tener que crearlos desde cero.
 
 = 0.35.1 =
 **Hotfix definitivo para el switch de plantillas.**

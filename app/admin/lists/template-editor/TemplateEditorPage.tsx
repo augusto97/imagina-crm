@@ -61,7 +61,13 @@ export function TemplateEditorPage(): JSX.Element {
             crm_template_id?: string;
             crm_template_custom?: unknown;
         };
-        if (settings.crm_template_custom && settings.crm_template_id === CUSTOM_TEMPLATE_ID) {
+        // 0.35.2 fix: priorizamos `crm_template_custom` SIEMPRE que
+        // exista, sin importar qué plantilla esté activa. El custom
+        // es trabajo del user — switchear a una built-in y volver
+        // NO debería borrarlo. Antes el chequeo era
+        // `&& crm_template_id === 'custom'` y al volver del switch
+        // veías un fresh built-in en lugar de tu config personal.
+        if (settings.crm_template_custom) {
             setConfig(ensureV2(settings.crm_template_custom));
         } else {
             setConfig(customConfigV2FromBuiltin(settings.crm_template_id ?? 'auto', fields.data));

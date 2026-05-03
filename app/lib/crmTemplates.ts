@@ -90,7 +90,13 @@ export interface CrmTemplate {
     id: string;
     name: string;
     description: string;
+    /** V1 resolver (legacy, kept para migración de V1 customs viejos). */
     resolve: (fields: FieldEntity[]) => ResolvedLayout;
+    /** V2 resolver: produce el grid layout específico de esta plantilla.
+     *  Las built-ins definen layouts visiblemente distintos (cols, posiciones,
+     *  tamaños) — no son idénticas pasando por la misma migración genérica.
+     *  Si no se define, cae a `migrateV1toV2(layoutToV1Config(resolve(...)))`. */
+    resolveV2?: (fields: FieldEntity[]) => CustomTemplateConfigV2;
 }
 
 // --- helpers compartidos -----------------------------------------------------
@@ -227,12 +233,190 @@ class LayoutBuilder {
     }
 }
 
+// --- V2 builder helpers ------------------------------------------------------
+
+/**
+ * Mini-DSL para construir un `CustomTemplateConfigV2` desde una
+ * plantilla built-in. Evita repetir el boilerplate de pickear
+ * fields, marcar como usados, generar header + blocks. Cada
+ * built-in lo usa dentro de su `resolveV2`.
+ */
+class V2Builder {
+    private used = new Set<number>();
+    private blocks: V2Block[] = [];
+    private headerSpec: CustomTemplateConfigV2['header'] = {
+        subtitle_field_slugs: [],
+        status_field_slugs: [],
+        quick_action_field_slugs: [],
+    };
+
+    constructor(private readonly fields: FieldEntity[]) {}
+
+    private isAvail(f: FieldEntity): boolean {
+        return ! this.used.has(f.id) && f.type !== 'relation';
+    }
+
+    private take(f: FieldEntity): FieldEntity {
+        this.used.add(f.id);
+        return f;
+    }
+
+    /** Pick title (primary or first text). */
+    setAutoTitle(): this {
+        const f = pickPrimaryField(this.fields);
+        if (f) {
+            this.headerSpec.title_field_slug = this.take(f).slug;
+        }
+        return this;
+    }
+
+    /** Subtitle: hasta `limit` fields que matcheen el predicado. */
+    addSubtitleByPattern(predicate: (f: FieldEntity) => boolean, limit = 1): this {
+        for (const f of this.fields) {
+            if (! this.isAvail(f) || ! predicate(f)) continue;
+            this.headerSpec.subtitle_field_slugs.push(this.take(f).slug);
+            if (this.headerSpec.subtitle_field_slugs.length >= limit) break;
+        }
+        return this;
+    }
+
+    /** Status pills: select-likes con ≤8 opciones. */
+    autoStatus(): this {
+        for (const f of [...this.fields].sort((a, b) => a.position - b.position)) {
+            if (! this.isAvail(f) || ! isStatusLike(f)) continue;
+            this.headerSpec.status_field_slugs.push(this.take(f).slug);
+        }
+        return this;
+    }
+
+    /** Quick actions: email/url/phone-like. */
+    autoQuickActions(): this {
+        for (const f of [...this.fields].sort((a, b) => a.position - b.position)) {
+            if (! this.isAvail(f)) continue;
+            if (f.type === 'email' || f.type === 'url' || isPhoneLike(f)) {
+                this.headerSpec.quick_action_field_slugs.push(this.take(f).slug);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Pushea un block de tipo `properties_group`. Toma todos los
+     * fields availables que matcheen el predicado y los mete en el
+     * grupo (los marca como usados para que no se repitan).
+     */
+    propertiesGroup(spec: {
+        id: string;
+        label: string;
+        iconKey: string;
+        x: number; y: number; w: number; h: number;
+        predicate: (f: FieldEntity) => boolean;
+        collapsedByDefault?: boolean;
+    }): this {
+        const fieldSlugs: string[] = [];
+        for (const f of [...this.fields].sort((a, b) => a.position - b.position)) {
+            if (! this.isAvail(f)) continue;
+            if (! spec.predicate(f)) continue;
+            fieldSlugs.push(this.take(f).slug);
+        }
+        // Solo agregamos el grupo si tiene fields — sino el grid
+        // muestra cards vacías que confunden.
+        if (fieldSlugs.length === 0) return this;
+        this.blocks.push({
+            id: spec.id,
+            type: 'properties_group',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h,
+            config: {
+                label: spec.label,
+                icon_key: spec.iconKey,
+                field_slugs: fieldSlugs,
+                collapsed_by_default: spec.collapsedByDefault ?? false,
+            },
+        });
+        return this;
+    }
+
+    /**
+     * Como propertiesGroup pero acepta los campos sobrantes (que no
+     * fueron tomados por nadie). Útil para una "catch-all" group al
+     * final del layout para no perder fields.
+     */
+    leftoverGroup(spec: {
+        id: string;
+        label: string;
+        iconKey: string;
+        x: number; y: number; w: number; h: number;
+        collapsedByDefault?: boolean;
+    }): this {
+        return this.propertiesGroup({
+            ...spec,
+            predicate: () => true,
+        });
+    }
+
+    timeline(spec: { x: number; y: number; w: number; h: number }): this {
+        this.blocks.push({
+            id: 'timeline', type: 'timeline',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h,
+            config: {},
+        });
+        return this;
+    }
+
+    stats(spec: { x: number; y: number; w: number; h: number }): this {
+        this.blocks.push({
+            id: 'stats', type: 'stats',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h,
+            config: {},
+        });
+        return this;
+    }
+
+    /** Un bloque `related` por cada relation field, en columna+y secuencial. */
+    autoRelated(spec: { x: number; startY: number; w: number; h: number }): this {
+        let y = spec.startY;
+        for (const f of this.fields) {
+            if (f.type !== 'relation') continue;
+            this.blocks.push({
+                id: `related-${f.id}`, type: 'related',
+                x: spec.x, y, w: spec.w, h: spec.h,
+                config: { field_slug: f.slug },
+            });
+            y += spec.h;
+        }
+        return this;
+    }
+
+    notes(spec: {
+        id?: string;
+        title: string;
+        content: string;
+        x: number; y: number; w: number; h: number;
+    }): this {
+        this.blocks.push({
+            id: spec.id ?? 'notes',
+            type: 'notes',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h,
+            config: { title: spec.title, content: spec.content },
+        });
+        return this;
+    }
+
+    build(): CustomTemplateConfigV2 {
+        return {
+            v: 2,
+            header: this.headerSpec,
+            blocks: this.blocks,
+        };
+    }
+}
+
 // --- built-in templates -------------------------------------------------------
 
 const autoTemplate: CrmTemplate = {
     id: 'auto',
     name: 'Automática',
-    description: 'Categorización conservadora por tipo de campo. Default.',
+    description: 'Categorización conservadora por tipo de campo. 3 columnas balanceadas.',
     resolve: (fields) => {
         const b = new LayoutBuilder(fields);
         const titleField = b.pickTitle();
@@ -264,6 +448,49 @@ const autoTemplate: CrmTemplate = {
             leftover: b.leftover(),
         };
     },
+    /**
+     * V2 layout: 3 columnas balanceadas. Sidebar izquierdo (4w) con
+     * datos clave + asignación. Centro (5w) con timeline. Derecho
+     * (3w) con stats + relacionados.
+     */
+    resolveV2: (fields) => new V2Builder(fields)
+        .setAutoTitle()
+        .autoStatus()
+        .autoQuickActions()
+        .propertiesGroup({
+            id: 'g-key-data',
+            label: 'Datos clave',
+            iconKey: 'briefcase',
+            x: 0, y: 0, w: 4, h: 6,
+            predicate: (f) =>
+                f.type === 'currency' || f.type === 'number'
+                || f.type === 'date' || f.type === 'datetime',
+        })
+        .propertiesGroup({
+            id: 'g-contact',
+            label: 'Contacto',
+            iconKey: 'mail',
+            x: 0, y: 6, w: 4, h: 4,
+            predicate: (f) => f.type === 'email' || f.type === 'url' || isPhoneLike(f),
+        })
+        .propertiesGroup({
+            id: 'g-assignment',
+            label: 'Asignación',
+            iconKey: 'circle_user',
+            x: 0, y: 10, w: 4, h: 3,
+            predicate: (f) => f.type === 'user',
+        })
+        .timeline({ x: 4, y: 0, w: 5, h: 13 })
+        .stats({ x: 9, y: 0, w: 3, h: 4 })
+        .autoRelated({ x: 9, startY: 4, w: 3, h: 4 })
+        .leftoverGroup({
+            id: 'g-other',
+            label: 'Otros',
+            iconKey: 'database',
+            x: 9, y: 100, w: 3, h: 4,
+            collapsedByDefault: true,
+        })
+        .build(),
 };
 
 const contactTemplate: CrmTemplate = {
@@ -314,6 +541,56 @@ const contactTemplate: CrmTemplate = {
             leftover: b.leftover(),
         };
     },
+    /**
+     * V2 layout: sidebar izquierdo con 3 grupos apilados (Contacto,
+     * Empresa, Asignación). Centro angosto (4w) timeline. Derecho
+     * stats + notas template + relacionados.
+     */
+    resolveV2: (fields) => new V2Builder(fields)
+        .setAutoTitle()
+        .addSubtitleByPattern((f) => f.type === 'text' && matches(f, COMPANY_PATTERNS), 1)
+        .addSubtitleByPattern((f) => f.type === 'text' && matches(f, ROLE_PATTERNS), 1)
+        .autoStatus()
+        .autoQuickActions()
+        .propertiesGroup({
+            id: 'g-contact',
+            label: 'Contacto',
+            iconKey: 'mail',
+            x: 0, y: 0, w: 4, h: 5,
+            predicate: (f) =>
+                f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, ADDRESS_PATTERNS),
+        })
+        .propertiesGroup({
+            id: 'g-company',
+            label: 'Empresa y rol',
+            iconKey: 'building',
+            x: 0, y: 5, w: 4, h: 4,
+            predicate: (f) => f.type === 'text' && (matches(f, COMPANY_PATTERNS) || matches(f, ROLE_PATTERNS)),
+        })
+        .propertiesGroup({
+            id: 'g-assignment',
+            label: 'Asignación',
+            iconKey: 'circle_user',
+            x: 0, y: 9, w: 4, h: 3,
+            predicate: (f) => f.type === 'user',
+        })
+        .timeline({ x: 4, y: 0, w: 4, h: 12 })
+        .stats({ x: 8, y: 0, w: 4, h: 4 })
+        .notes({
+            id: 'notes-default',
+            title: 'Recordatorios',
+            content: 'Notas internas sobre este contacto. Editá el bloque para personalizar.',
+            x: 8, y: 4, w: 4, h: 3,
+        })
+        .autoRelated({ x: 8, startY: 7, w: 4, h: 4 })
+        .leftoverGroup({
+            id: 'g-other',
+            label: 'Otros campos',
+            iconKey: 'database',
+            x: 0, y: 100, w: 4, h: 4,
+            collapsedByDefault: true,
+        })
+        .build(),
 };
 
 const dealTemplate: CrmTemplate = {
@@ -360,6 +637,58 @@ const dealTemplate: CrmTemplate = {
             leftover: b.leftover(),
         };
     },
+    /**
+     * V2 layout: ROW 1 monto destacado al ancho completo + stats al
+     * lado. ROW 2 cliente + timeline + fechas. ROW 3 asignación +
+     * relacionados. Layout horizontal con énfasis en monto y pipeline.
+     */
+    resolveV2: (fields) => new V2Builder(fields)
+        .setAutoTitle()
+        .autoStatus()
+        .autoQuickActions()
+        // Top row: monto destacado al ancho completo + stats.
+        .propertiesGroup({
+            id: 'g-monto',
+            label: 'Monto y métricas',
+            iconKey: 'dollar',
+            x: 0, y: 0, w: 8, h: 4,
+            predicate: (f) => f.type === 'currency' || f.type === 'number',
+        })
+        .stats({ x: 8, y: 0, w: 4, h: 4 })
+        // Middle row: cliente | timeline | fechas.
+        .propertiesGroup({
+            id: 'g-cliente',
+            label: 'Cliente',
+            iconKey: 'user',
+            x: 0, y: 4, w: 4, h: 6,
+            predicate: (f) =>
+                f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
+        })
+        .timeline({ x: 4, y: 4, w: 4, h: 12 })
+        .propertiesGroup({
+            id: 'g-fechas',
+            label: 'Fechas clave',
+            iconKey: 'calendar',
+            x: 8, y: 4, w: 4, h: 5,
+            predicate: (f) => f.type === 'date' || f.type === 'datetime',
+        })
+        // Bottom row: asignación + relacionados.
+        .propertiesGroup({
+            id: 'g-assignment',
+            label: 'Asignación',
+            iconKey: 'circle_user',
+            x: 0, y: 10, w: 4, h: 3,
+            predicate: (f) => f.type === 'user',
+        })
+        .autoRelated({ x: 8, startY: 9, w: 4, h: 4 })
+        .leftoverGroup({
+            id: 'g-other',
+            label: 'Otros',
+            iconKey: 'database',
+            x: 0, y: 100, w: 4, h: 4,
+            collapsedByDefault: true,
+        })
+        .build(),
 };
 
 const taskTemplate: CrmTemplate = {
@@ -406,6 +735,54 @@ const taskTemplate: CrmTemplate = {
             leftover: b.leftover(),
         };
     },
+    /**
+     * V2 layout horizontal con énfasis en programación. ROW 1
+     * programación full-width + asignación. ROW 2 estado + timeline
+     * + checklist (notes). ROW 3 stats + relacionados.
+     */
+    resolveV2: (fields) => new V2Builder(fields)
+        .setAutoTitle()
+        .addSubtitleByPattern((f) => f.type === 'date' || f.type === 'datetime', 1)
+        .autoStatus()
+        .autoQuickActions()
+        .propertiesGroup({
+            id: 'g-programacion',
+            label: 'Programación',
+            iconKey: 'calendar',
+            x: 0, y: 0, w: 8, h: 4,
+            predicate: (f) => f.type === 'date' || f.type === 'datetime',
+        })
+        .propertiesGroup({
+            id: 'g-assignment',
+            label: 'Asignación',
+            iconKey: 'circle_user',
+            x: 8, y: 0, w: 4, h: 4,
+            predicate: (f) => f.type === 'user',
+        })
+        .propertiesGroup({
+            id: 'g-numbers',
+            label: 'Datos',
+            iconKey: 'briefcase',
+            x: 0, y: 4, w: 4, h: 4,
+            predicate: (f) => f.type === 'number' || f.type === 'currency',
+        })
+        .timeline({ x: 4, y: 4, w: 5, h: 10 })
+        .notes({
+            id: 'notes-checklist',
+            title: 'Checklist',
+            content: '- [ ] Sub-tarea 1\n- [ ] Sub-tarea 2\n- [ ] Sub-tarea 3\n\nEditá el bloque para personalizar.',
+            x: 9, y: 4, w: 3, h: 5,
+        })
+        .stats({ x: 9, y: 9, w: 3, h: 4 })
+        .autoRelated({ x: 0, startY: 8, w: 4, h: 4 })
+        .leftoverGroup({
+            id: 'g-other',
+            label: 'Otros',
+            iconKey: 'database',
+            x: 0, y: 100, w: 4, h: 4,
+            collapsedByDefault: true,
+        })
+        .build(),
 };
 
 const supportTemplate: CrmTemplate = {
@@ -460,6 +837,75 @@ const supportTemplate: CrmTemplate = {
             leftover: b.leftover(),
         };
     },
+    /**
+     * V2 layout enfocado en SLA y triage. ROW 1 stats SLA + cliente
+     * + asignación. ROW 2 detalles (long_text/files) + timeline +
+     * fechas. ROW 3 métricas + relacionados + notas runbook.
+     */
+    resolveV2: (fields) => new V2Builder(fields)
+        .setAutoTitle()
+        .addSubtitleByPattern(
+            (f) => (f.type === 'number' || f.type === 'text') && matches(f, TICKET_PATTERNS),
+            1,
+        )
+        .autoStatus()
+        .autoQuickActions()
+        // Top: SLA (stats), cliente, asignación.
+        .stats({ x: 0, y: 0, w: 3, h: 4 })
+        .propertiesGroup({
+            id: 'g-cliente',
+            label: 'Cliente',
+            iconKey: 'user',
+            x: 3, y: 0, w: 5, h: 4,
+            predicate: (f) =>
+                f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
+        })
+        .propertiesGroup({
+            id: 'g-assignment',
+            label: 'Asignación',
+            iconKey: 'circle_user',
+            x: 8, y: 0, w: 4, h: 4,
+            predicate: (f) => f.type === 'user',
+        })
+        // Middle: detalles + timeline + fechas.
+        .propertiesGroup({
+            id: 'g-detalles',
+            label: 'Detalles',
+            iconKey: 'lifebuoy',
+            x: 0, y: 4, w: 3, h: 8,
+            predicate: (f) => f.type === 'long_text' || f.type === 'file',
+        })
+        .timeline({ x: 3, y: 4, w: 5, h: 12 })
+        .propertiesGroup({
+            id: 'g-fechas',
+            label: 'Fechas',
+            iconKey: 'calendar',
+            x: 8, y: 4, w: 4, h: 4,
+        predicate: (f) => f.type === 'date' || f.type === 'datetime',
+        })
+        // Bottom: métricas + relacionados + runbook.
+        .propertiesGroup({
+            id: 'g-numbers',
+            label: 'Métricas',
+            iconKey: 'target',
+            x: 8, y: 8, w: 4, h: 4,
+            predicate: (f) => f.type === 'number' || f.type === 'currency',
+        })
+        .notes({
+            id: 'notes-runbook',
+            title: 'Runbook',
+            content: 'Pasos a seguir para este tipo de ticket.\n\n1. Confirmar con el cliente.\n2. Reproducir el problema.\n3. Documentar en la timeline.',
+            x: 0, y: 12, w: 3, h: 5,
+        })
+        .autoRelated({ x: 8, startY: 12, w: 4, h: 4 })
+        .leftoverGroup({
+            id: 'g-other',
+            label: 'Otros',
+            iconKey: 'database',
+            x: 0, y: 100, w: 4, h: 4,
+            collapsedByDefault: true,
+        })
+        .build(),
 };
 
 // --- registry ----------------------------------------------------------------
@@ -852,14 +1298,20 @@ export function migrateV1toV2(v1: CustomTemplateConfig): CustomTemplateConfigV2 
 }
 
 /**
- * Construye un V2 desde una built-in. Toma el layout resuelto y lo
- * mete en el grid: igual a la migración pero arrancando desde el
- * resolver de la built-in.
+ * Construye un V2 desde una built-in. Si la plantilla declara un
+ * `resolveV2` propio (todas las built-ins ahora lo hacen), lo usa
+ * directo — así cada plantilla genera un grid visiblemente distinto
+ * (Contacto ≠ Venta ≠ Tarea ≠ Soporte). Fallback a la migración V1
+ * genérica solo si una plantilla custom legacy no implementa V2.
  */
 export function customConfigV2FromBuiltin(
     builtinId: string,
     fields: FieldEntity[],
 ): CustomTemplateConfigV2 {
+    const tpl = getTemplate(builtinId);
+    if (tpl.resolveV2) {
+        return tpl.resolveV2(fields);
+    }
     const v1 = customConfigFromBuiltin(builtinId, fields);
     return migrateV1toV2(v1);
 }
@@ -992,12 +1444,16 @@ export function getResolvedV2(
     if (settings.crm_template_id === CUSTOM_TEMPLATE_ID) {
         return resolveV2(ensureV2(settings.crm_template_custom), fields);
     }
-    // Built-in: usamos el resolver V1 antiguo y lo "trasladamos" al
-    // grid default. Eso preserva el comportamiento de las plantillas
-    // built-in pero ya con el rendering basado en grid — uniforme.
-    const v1Layout = getTemplate(settings.crm_template_id).resolve(fields);
-    const v1Config = layoutToV1Config(v1Layout);
-    return resolveV2(migrateV1toV2(v1Config), fields);
+    // Built-in: cada plantilla declara su propio `resolveV2` que
+    // produce un grid visiblemente distinto. Sin esto, todas las
+    // built-ins migraban por el mismo `migrateV1toV2` genérico y
+    // terminaban viéndose casi iguales — el switch entre ellas no
+    // cambiaba nada perceptible.
+    const tpl = getTemplate(settings.crm_template_id);
+    const v2Config = tpl.resolveV2
+        ? tpl.resolveV2(fields)
+        : migrateV1toV2(layoutToV1Config(tpl.resolve(fields)));
+    return resolveV2(v2Config, fields);
 }
 
 /**
