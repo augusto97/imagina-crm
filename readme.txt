@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.3
+Stable tag: 0.36.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,34 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.4 =
+**Plantillas balanceadas: cada columna suma la altura del Timeline.**
+
+Bug en 0.36.3: aunque las columnas vacías se omitían correctamente
+(width redistribuido), las columnas presentes seguían dejando
+espacio vertical vacío bajo el último bloque cuando su altura
+total era menor que el Timeline. Solo Soporte se veía bien (sus
+columnas laterales sumaban exactamente 12, igual al Timeline).
+
+* **Las 4 plantillas restantes ahora suman h=12 por columna** (la
+  altura del Timeline en cada layout) añadiendo bloques Notes
+  pre-cargados que el user puede personalizar:
+    - **Auto**: col der ahora tiene Stats(4) + Notas(8). Antes
+      Stats(4) → 8 row units vacíos.
+    - **Contacto**: col der: Stats(4) + Recordatorios(4) + Próximos
+      pasos(4) = 12. Antes solo 8.
+    - **Venta**: col izq: Cliente(5) + Asignación(3) + Historial(4) = 12.
+      Col der: Fechas(5) + Próximos pasos(4) + Objeciones(3) = 12.
+      Antes ambas en 9.
+    - **Tarea**: col izq: Datos(4) + Stats(4) + Contexto(4) = 12.
+      Col der: Checklist(6) + Bloqueos(6) = 12. Antes 8 y 5.
+* Los Notes adicionales tienen contenido placeholder editable
+  (Historial / Próximos pasos / Objeciones / Contexto / Bloqueos)
+  — útiles incluso si no los modificás.
+
+Resultado: las plantillas built-in ya no muestran espacios verticales
+vacíos en los registros con cualquier set de fields.
 
 = 0.36.3 =
 **`columns()` redistribuye width entre columnas presentes.**

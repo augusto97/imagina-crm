@@ -706,16 +706,18 @@ const autoTemplate: CrmTemplate = {
         .setAutoTitle()
         .autoStatus()
         .autoQuickActions()
-        // 3 columnas con stack vertical en cada una. Los bloques
-        // cortos (stats, contacto, asignación) se apilan en sus
-        // columnas mientras el timeline ocupa toda la altura central.
+        // 3 columnas balanceadas verticalmente (cada col suma h=12).
+        // Bloques cortos (stats, contacto, asignación) se apilan en
+        // sus columnas mientras Timeline ocupa la altura central.
+        // El last block de cada col incluye un filler (notes/leftover)
+        // para que ninguna columna quede más corta que las otras.
         .columns([
             {
                 width: 4,
                 blocks: [
                     {
                         kind: 'group', id: 'g-key-data', label: 'Datos clave', iconKey: 'briefcase',
-                        weight: 1, height: 6,
+                        weight: 1, height: 5,
                         predicate: (f) =>
                             f.type === 'currency' || f.type === 'number'
                             || f.type === 'date' || f.type === 'datetime',
@@ -735,13 +737,18 @@ const autoTemplate: CrmTemplate = {
             {
                 width: 5,
                 blocks: [
-                    { kind: 'timeline', weight: 1, height: 13 },
+                    { kind: 'timeline', weight: 1, height: 12 },
                 ],
             },
             {
                 width: 3,
                 blocks: [
                     { kind: 'stats', weight: 1, height: 4 },
+                    {
+                        kind: 'notes', id: 'notes-default', weight: 1, height: 8,
+                        title: 'Notas',
+                        content: 'Notas internas sobre este registro. Editá el bloque para personalizar.',
+                    },
                 ],
             },
         ])
@@ -823,6 +830,7 @@ const contactTemplate: CrmTemplate = {
         .addSubtitleByPattern((f) => f.type === 'text' && matches(f, ROLE_PATTERNS), 1)
         .autoStatus()
         .autoQuickActions()
+        // 3 cols balanceadas (cada una suma h=12).
         .columns([
             {
                 width: 4,
@@ -857,9 +865,14 @@ const contactTemplate: CrmTemplate = {
                 blocks: [
                     { kind: 'stats', weight: 1, height: 4 },
                     {
-                        kind: 'notes', id: 'notes-default', weight: 1, height: 4,
+                        kind: 'notes', id: 'notes-recordatorios', weight: 1, height: 4,
                         title: 'Recordatorios',
                         content: 'Notas internas sobre este contacto. Editá el bloque para personalizar.',
+                    },
+                    {
+                        kind: 'notes', id: 'notes-proximos', weight: 1, height: 4,
+                        title: 'Próximos pasos',
+                        content: 'Acciones a seguir con este contacto.',
                     },
                 ],
             },
@@ -949,7 +962,7 @@ const dealTemplate: CrmTemplate = {
                 { kind: 'stats', weight: 4, height: 4 },
             ],
         })
-        // Main grid: 3 cols con stack vertical para evitar gaps
+        // Main grid: 3 cols balanceadas (cada una suma h=12).
         .columns([
             {
                 width: 3,
@@ -962,8 +975,13 @@ const dealTemplate: CrmTemplate = {
                     },
                     {
                         kind: 'group', id: 'g-assignment', label: 'Asignación', iconKey: 'circle_user',
-                        weight: 1, height: 4,
+                        weight: 1, height: 3,
                         predicate: (f) => f.type === 'user',
+                    },
+                    {
+                        kind: 'notes', id: 'notes-historial', weight: 1, height: 4,
+                        title: 'Historial',
+                        content: 'Interacciones previas con este cliente.',
                     },
                 ],
             },
@@ -985,6 +1003,11 @@ const dealTemplate: CrmTemplate = {
                         kind: 'notes', id: 'notes-deal', weight: 1, height: 4,
                         title: 'Próximos pasos',
                         content: 'Acciones a seguir para avanzar esta venta. Editá el bloque para personalizar.',
+                    },
+                    {
+                        kind: 'notes', id: 'notes-objeciones', weight: 1, height: 3,
+                        title: 'Objeciones',
+                        content: 'Puntos que el cliente ha mencionado como bloqueos.',
                     },
                 ],
             },
@@ -1079,7 +1102,7 @@ const taskTemplate: CrmTemplate = {
                 },
             ],
         })
-        // Main grid: Datos+Stats apilados | Timeline | Checklist
+        // Main grid: 3 cols balanceadas (cada una suma h=12).
         .columns([
             {
                 width: 3,
@@ -1090,6 +1113,11 @@ const taskTemplate: CrmTemplate = {
                         predicate: (f) => f.type === 'number' || f.type === 'currency',
                     },
                     { kind: 'stats', weight: 1, height: 4 },
+                    {
+                        kind: 'notes', id: 'notes-contexto', weight: 1, height: 4,
+                        title: 'Contexto',
+                        content: 'Background relevante para esta tarea.',
+                    },
                 ],
             },
             {
@@ -1102,9 +1130,14 @@ const taskTemplate: CrmTemplate = {
                 width: 3,
                 blocks: [
                     {
-                        kind: 'notes', id: 'notes-checklist', weight: 1, height: 5,
+                        kind: 'notes', id: 'notes-checklist', weight: 1, height: 6,
                         title: 'Checklist',
                         content: '- [ ] Sub-tarea 1\n- [ ] Sub-tarea 2\n- [ ] Sub-tarea 3\n\nEditá el bloque para personalizar.',
+                    },
+                    {
+                        kind: 'notes', id: 'notes-bloqueos', weight: 1, height: 6,
+                        title: 'Bloqueos',
+                        content: 'Cualquier impedimento o dependencia. Editá el bloque para personalizar.',
                     },
                 ],
             },
