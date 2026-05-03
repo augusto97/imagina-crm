@@ -1,0 +1,1008 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { useFields } from '@/hooks/useFields';
+import { useLists } from '@/hooks/useLists';
+import { __ } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
+import type {
+    ChartTimeBucket,
+    KpiMetric,
+    WidgetPeriod,
+    WidgetSpec,
+    WidgetType,
+} from '@/types/dashboard';
+import {
+    DATE_RANGE_PRESETS,
+    type DateRangePresetId,
+} from '@/admin/records/dateRangePresets';
+import type { FilterTree } from '@/types/record';
+
+import { FiltersPanel } from '@/admin/records/FiltersPanel';
+import {
+    isFlatAndTree,
+    treeFromActiveFilters,
+} from '@/admin/records/filterTree';
+
+interface WidgetFormDialogProps {
+    initial: WidgetSpec | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (widget: WidgetSpec) => void;
+}
+
+const GROUPABLE_TYPES = [
+    'select', 'multi_select',
+    'text', 'email', 'url',
+    'date', 'datetime',
+    'checkbox',
+];
+
+export function WidgetFormDialog({
+    initial,
+    open,
+    onOpenChange,
+    onSave,
+}: WidgetFormDialogProps): JSX.Element {
+    const lists = useLists();
+
+    const [title, setTitle] = useState('');
+    const [type, setType] = useState<WidgetType>('kpi');
+    const [listId, setListId] = useState<number>(0);
+    const [metric, setMetric] = useState<KpiMetric>('count');
+    const [metricFieldId, setMetricFieldId] = useState<number>(0);
+    const [groupByFieldId, setGroupByFieldId] = useState<number>(0);
+    const [dateFieldId, setDateFieldId] = useState<number>(0);
+    const [periodDays, setPeriodDays] = useState<number>(30);
+    const [sortFieldId, setSortFieldId] = useState<number>(0);
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+    const [tableLimit, setTableLimit] = useState<number>(10);
+    const [visibleFieldIds, setVisibleFieldIds] = useState<number[]>([]);
+    const [showAverageLine, setShowAverageLine] = useState<boolean>(false);
+    const [showDataLabels, setShowDataLabels] = useState<boolean>(false);
+    const [showLegend, setShowLegend] = useState<boolean>(false);
+    const [timeBucket, setTimeBucket] = useState<ChartTimeBucket>('month');
+    const [periodFieldId, setPeriodFieldId] = useState<number>(0);
+    const [periodPreset, setPeriodPreset] = useState<DateRangePresetId | ''>('');
+    const [filterTree, setFilterTree] = useState<FilterTree>({
+        type: 'group',
+        logic: 'and',
+        children: [],
+    });
+
+    const fields = useFields(listId === 0 ? undefined : listId);
+
+    // Si cambia la lista (excepto en mount/edit), los filtros referenciaban
+    // campos de la lista anterior y ya no aplican — los reseteamos.
+    const previousListIdRef = useRef<number>(listId);
+    useEffect(() => {
+        if (previousListIdRef.current !== listId && previousListIdRef.current !== 0) {
+            setFilterTree({ type: 'group', logic: 'and', children: [] });
+            // El field_id del período referenciaba un campo de la
+            // lista anterior — invalidamos para que el usuario lo
+            // re-seleccione si lo quiere mantener.
+            setPeriodFieldId(0);
+            setPeriodPreset('');
+        }
+        previousListIdRef.current = listId;
+    }, [listId]);
+    const numericFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type === 'number' || f.type === 'currency'),
+        [fields.data],
+    );
+    const groupableFields = useMemo(
+        () => (fields.data ?? []).filter((f) => GROUPABLE_TYPES.includes(f.type)),
+        [fields.data],
+    );
+    const dateFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type === 'date' || f.type === 'datetime'),
+        [fields.data],
+    );
+    const allUsableFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type !== 'relation'),
+        [fields.data],
+    );
+
+    useEffect(() => {
+        if (!open) return;
+        if (initial) {
+            setTitle(initial.title);
+            setType(initial.type);
+            setListId(initial.list_id);
+            setMetric((initial.config.metric as KpiMetric) ?? 'count');
+            setMetricFieldId((initial.config.metric_field_id as number) ?? 0);
+            setGroupByFieldId((initial.config.group_by_field_id as number) ?? 0);
+            setDateFieldId((initial.config.date_field_id as number) ?? 0);
+            setPeriodDays((initial.config.period_days as number) ?? 30);
+            setSortFieldId((initial.config.sort_field_id as number) ?? 0);
+            setSortDir((initial.config.sort_dir as 'asc' | 'desc') ?? 'desc');
+            setTableLimit((initial.config.limit as number) ?? 10);
+            setVisibleFieldIds(
+                Array.isArray(initial.config.visible_field_ids)
+                    ? (initial.config.visible_field_ids as number[])
+                    : [],
+            );
+            setShowAverageLine(Boolean(initial.config.show_average_line));
+            setShowDataLabels(Boolean(initial.config.show_data_labels));
+            setShowLegend(Boolean(initial.config.show_legend));
+            setTimeBucket(
+                isTimeBucket(initial.config.time_bucket)
+                    ? initial.config.time_bucket
+                    : 'month',
+            );
+            const period = initial.config.period;
+            if (period && typeof period === 'object' && period.field_id > 0) {
+                setPeriodFieldId(period.field_id);
+                setPeriodPreset(period.preset as DateRangePresetId);
+            } else {
+                setPeriodFieldId(0);
+                setPeriodPreset('');
+            }
+            setFilterTree(decodeWidgetFilters(initial.config));
+        } else {
+            setTitle('');
+            setType('kpi');
+            setListId(lists.data?.[0]?.id ?? 0);
+            setMetric('count');
+            setMetricFieldId(0);
+            setGroupByFieldId(0);
+            setDateFieldId(0);
+            setPeriodDays(30);
+            setSortFieldId(0);
+            setSortDir('desc');
+            setTableLimit(10);
+            setVisibleFieldIds([]);
+            setShowAverageLine(false);
+            setShowDataLabels(false);
+            setShowLegend(false);
+            setTimeBucket('month');
+            setPeriodFieldId(0);
+            setPeriodPreset('');
+            setFilterTree({ type: 'group', logic: 'and', children: [] });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initial?.id]);
+
+    const handleSubmit = (e: React.FormEvent): void => {
+        e.preventDefault();
+        const widget: WidgetSpec = {
+            id: initial?.id ?? generateWidgetId(),
+            type,
+            list_id: listId,
+            title: title.trim(),
+            config: buildConfig(type, {
+                metric,
+                metricFieldId,
+                groupByFieldId,
+                dateFieldId,
+                periodDays,
+                sortFieldId,
+                sortDir,
+                tableLimit,
+                visibleFieldIds,
+                filterTree,
+                showAverageLine,
+                showDataLabels,
+                showLegend,
+                timeBucket,
+                period:
+                    periodFieldId > 0 && periodPreset !== ''
+                        ? { field_id: periodFieldId, preset: periodPreset }
+                        : null,
+            }),
+            layout: initial?.layout ?? { x: 0, y: 0, w: 4, h: 3 },
+        };
+        onSave(widget);
+        onOpenChange(false);
+    };
+
+    const canSubmit = useMemo(() => {
+        if (listId <= 0) return false;
+        if (type === 'kpi') {
+            if (metric === 'sum' || metric === 'avg') return metricFieldId > 0;
+            return true;
+        }
+        if (type === 'chart_bar' || type === 'chart_pie') return groupByFieldId > 0;
+        if (type === 'chart_line' || type === 'chart_area') return dateFieldId > 0;
+        if (type === 'stat_delta') {
+            if (dateFieldId <= 0) return false;
+            if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
+            return true;
+        }
+        if (type === 'table') return true;
+        return false;
+    }, [type, listId, metric, metricFieldId, groupByFieldId, dateFieldId]);
+
+    return (
+        <Dialog.Root open={open} onOpenChange={onOpenChange}>
+            <Dialog.Portal>
+                <Dialog.Overlay
+                    className={cn(
+                        'imcrm-fixed imcrm-inset-0 imcrm-z-50 imcrm-bg-black/40 imcrm-backdrop-blur-sm',
+                    )}
+                />
+                <Dialog.Content
+                    className={cn(
+                        'imcrm-fixed imcrm-left-1/2 imcrm-top-1/2 imcrm-z-50 imcrm-w-full imcrm-max-w-2xl',
+                        'imcrm--translate-x-1/2 imcrm--translate-y-1/2',
+                        'imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6 imcrm-shadow-imcrm-lg',
+                        'imcrm-max-h-[90vh] imcrm-overflow-y-auto',
+                    )}
+                >
+                    <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
+                        <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
+                            {initial ? __('Editar widget') : __('Nuevo widget')}
+                        </Dialog.Title>
+                        <Dialog.Close asChild>
+                            <Button variant="ghost" size="icon" aria-label={__('Cerrar')}>
+                                <X className="imcrm-h-4 imcrm-w-4" />
+                            </Button>
+                        </Dialog.Close>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-4">
+                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                            <Label htmlFor="w-title">{__('Título')}</Label>
+                            <Input
+                                id="w-title"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder={__('Ej. Leads activos')}
+                            />
+                        </div>
+
+                        <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                <Label htmlFor="w-type">{__('Tipo')}</Label>
+                                <Select
+                                    id="w-type"
+                                    value={type}
+                                    onChange={(e) => setType(e.target.value as WidgetType)}
+                                >
+                                    <option value="kpi">{__('KPI · Número')}</option>
+                                    <option value="stat_delta">{__('KPI · Delta vs período')}</option>
+                                    <option value="chart_bar">{__('Gráfico de barras')}</option>
+                                    <option value="chart_pie">{__('Gráfico de torta')}</option>
+                                    <option value="chart_line">{__('Línea (tendencia mensual)')}</option>
+                                    <option value="chart_area">{__('Area (tendencia mensual)')}</option>
+                                    <option value="table">{__('Tabla · Top N')}</option>
+                                </Select>
+                            </div>
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                <Label htmlFor="w-list">{__('Lista')}</Label>
+                                <Select
+                                    id="w-list"
+                                    value={listId}
+                                    onChange={(e) => {
+                                        setListId(Number(e.target.value));
+                                        setMetricFieldId(0);
+                                        setGroupByFieldId(0);
+                                        setDateFieldId(0);
+                                        setSortFieldId(0);
+                                        setVisibleFieldIds([]);
+                                    }}
+                                >
+                                    <option value={0}>{__('— Selecciona —')}</option>
+                                    {(lists.data ?? []).map((l) => (
+                                        <option key={l.id} value={l.id}>
+                                            {l.name}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
+                        </div>
+
+                        {listId > 0 && dateFields.length > 0 && (
+                            <PeriodPicker
+                                fields={dateFields}
+                                fieldId={periodFieldId}
+                                preset={periodPreset}
+                                onFieldChange={setPeriodFieldId}
+                                onPresetChange={setPeriodPreset}
+                            />
+                        )}
+
+                        {listId > 0 && fields.data && fields.data.length > 0 && (
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+                                <FiltersPanel
+                                    listId={listId}
+                                    fields={fields.data}
+                                    tree={filterTree}
+                                    onChange={setFilterTree}
+                                    inline
+                                />
+                                <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                                    {__('Restringen los datos del widget. Soportan AND/OR y grupos anidados; para fechas hay rangos rápidos como "este mes".')}
+                                </p>
+                            </div>
+                        )}
+
+                        {type === 'kpi' && (
+                            <KpiConfig
+                                metric={metric}
+                                metricFieldId={metricFieldId}
+                                numericFields={numericFields}
+                                onMetricChange={setMetric}
+                                onMetricFieldChange={setMetricFieldId}
+                            />
+                        )}
+
+                        {(type === 'chart_bar' || type === 'chart_pie') && (
+                            <>
+                                <FieldPicker
+                                    label={__('Agrupar por')}
+                                    value={groupByFieldId}
+                                    fields={groupableFields}
+                                    onChange={setGroupByFieldId}
+                                    emptyHint={__('La lista no tiene campos agrupables (select, multi_select, text, email, url, date, datetime, checkbox).')}
+                                />
+                                {isDateField(fields.data ?? [], groupByFieldId) && (
+                                    <TimeBucketPicker
+                                        value={timeBucket}
+                                        onChange={setTimeBucket}
+                                    />
+                                )}
+                            </>
+                        )}
+
+                        {(type === 'chart_line' || type === 'chart_area') && (
+                            <>
+                                <FieldPicker
+                                    label={__('Campo de fecha')}
+                                    value={dateFieldId}
+                                    fields={dateFields}
+                                    onChange={setDateFieldId}
+                                    emptyHint={__('La lista no tiene campos Date/DateTime.')}
+                                />
+                                <TimeBucketPicker
+                                    value={timeBucket}
+                                    onChange={setTimeBucket}
+                                />
+                            </>
+                        )}
+
+                        {(type === 'chart_bar' || type === 'chart_pie'
+                            || type === 'chart_line' || type === 'chart_area') && (
+                            <PresentationToggles
+                                type={type}
+                                showAverageLine={showAverageLine}
+                                showDataLabels={showDataLabels}
+                                showLegend={showLegend}
+                                onShowAverageLineChange={setShowAverageLine}
+                                onShowDataLabelsChange={setShowDataLabels}
+                                onShowLegendChange={setShowLegend}
+                            />
+                        )}
+
+                        {type === 'stat_delta' && (
+                            <StatDeltaConfig
+                                metric={metric}
+                                metricFieldId={metricFieldId}
+                                dateFieldId={dateFieldId}
+                                periodDays={periodDays}
+                                numericFields={numericFields}
+                                dateFields={dateFields}
+                                onMetricChange={setMetric}
+                                onMetricFieldChange={setMetricFieldId}
+                                onDateFieldChange={setDateFieldId}
+                                onPeriodDaysChange={setPeriodDays}
+                            />
+                        )}
+
+                        {type === 'table' && (
+                            <TableConfig
+                                fields={allUsableFields}
+                                sortFieldId={sortFieldId}
+                                sortDir={sortDir}
+                                limit={tableLimit}
+                                visibleFieldIds={visibleFieldIds}
+                                onSortFieldChange={setSortFieldId}
+                                onSortDirChange={setSortDir}
+                                onLimitChange={setTableLimit}
+                                onVisibleFieldsChange={setVisibleFieldIds}
+                            />
+                        )}
+
+                        <div className="imcrm-flex imcrm-justify-end imcrm-gap-3 imcrm-border-t imcrm-border-border imcrm-pt-5">
+                            <Dialog.Close asChild>
+                                <Button type="button" variant="outline">
+                                    {__('Cancelar')}
+                                </Button>
+                            </Dialog.Close>
+                            <Button type="submit" disabled={!canSubmit}>
+                                {initial ? __('Guardar cambios') : __('Añadir widget')}
+                            </Button>
+                        </div>
+                    </form>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
+    );
+}
+
+interface KpiConfigProps {
+    metric: KpiMetric;
+    metricFieldId: number;
+    numericFields: Array<{ id: number; label: string }>;
+    onMetricChange: (metric: KpiMetric) => void;
+    onMetricFieldChange: (id: number) => void;
+}
+
+function KpiConfig({
+    metric,
+    metricFieldId,
+    numericFields,
+    onMetricChange,
+    onMetricFieldChange,
+}: KpiConfigProps): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-metric">{__('Métrica')}</Label>
+                <Select
+                    id="w-metric"
+                    value={metric}
+                    onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
+                >
+                    <option value="count">{__('Contar registros')}</option>
+                    <option value="sum">{__('Sumar campo')}</option>
+                    <option value="avg">{__('Promediar campo')}</option>
+                </Select>
+            </div>
+            {(metric === 'sum' || metric === 'avg') && (
+                <FieldPicker
+                    label={__('Campo numérico')}
+                    value={metricFieldId}
+                    fields={numericFields}
+                    onChange={onMetricFieldChange}
+                    emptyHint={__('La lista no tiene campos numéricos.')}
+                />
+            )}
+        </div>
+    );
+}
+
+interface StatDeltaConfigProps {
+    metric: KpiMetric;
+    metricFieldId: number;
+    dateFieldId: number;
+    periodDays: number;
+    numericFields: Array<{ id: number; label: string }>;
+    dateFields: Array<{ id: number; label: string }>;
+    onMetricChange: (metric: KpiMetric) => void;
+    onMetricFieldChange: (id: number) => void;
+    onDateFieldChange: (id: number) => void;
+    onPeriodDaysChange: (n: number) => void;
+}
+
+function StatDeltaConfig({
+    metric,
+    metricFieldId,
+    dateFieldId,
+    periodDays,
+    numericFields,
+    dateFields,
+    onMetricChange,
+    onMetricFieldChange,
+    onDateFieldChange,
+    onPeriodDaysChange,
+}: StatDeltaConfigProps): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-sd-metric">{__('Métrica')}</Label>
+                <Select
+                    id="w-sd-metric"
+                    value={metric}
+                    onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
+                >
+                    <option value="count">{__('Contar registros')}</option>
+                    <option value="sum">{__('Sumar campo')}</option>
+                    <option value="avg">{__('Promediar campo')}</option>
+                </Select>
+            </div>
+            {(metric === 'sum' || metric === 'avg') && (
+                <FieldPicker
+                    label={__('Campo numérico')}
+                    value={metricFieldId}
+                    fields={numericFields}
+                    onChange={onMetricFieldChange}
+                    emptyHint={__('La lista no tiene campos numéricos.')}
+                />
+            )}
+            <FieldPicker
+                label={__('Campo de fecha (define períodos)')}
+                value={dateFieldId}
+                fields={dateFields}
+                onChange={onDateFieldChange}
+                emptyHint={__('La lista no tiene campos Date/DateTime.')}
+            />
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-sd-period">{__('Período actual (días)')}</Label>
+                <Select
+                    id="w-sd-period"
+                    value={periodDays}
+                    onChange={(e) => onPeriodDaysChange(Number(e.target.value))}
+                >
+                    <option value={7}>{__('Últimos 7 días')}</option>
+                    <option value={14}>{__('Últimos 14 días')}</option>
+                    <option value={30}>{__('Últimos 30 días')}</option>
+                    <option value={90}>{__('Últimos 90 días')}</option>
+                    <option value={180}>{__('Últimos 180 días')}</option>
+                </Select>
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Compara contra el período anterior de la misma duración.')}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+interface TableConfigProps {
+    fields: Array<{ id: number; label: string }>;
+    sortFieldId: number;
+    sortDir: 'asc' | 'desc';
+    limit: number;
+    visibleFieldIds: number[];
+    onSortFieldChange: (id: number) => void;
+    onSortDirChange: (dir: 'asc' | 'desc') => void;
+    onLimitChange: (n: number) => void;
+    onVisibleFieldsChange: (ids: number[]) => void;
+}
+
+function TableConfig({
+    fields,
+    sortFieldId,
+    sortDir,
+    limit,
+    visibleFieldIds,
+    onSortFieldChange,
+    onSortDirChange,
+    onLimitChange,
+    onVisibleFieldsChange,
+}: TableConfigProps): JSX.Element {
+    const toggleField = (id: number): void => {
+        if (visibleFieldIds.includes(id)) {
+            onVisibleFieldsChange(visibleFieldIds.filter((x) => x !== id));
+        } else {
+            onVisibleFieldsChange([...visibleFieldIds, id]);
+        }
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="w-tb-sort">{__('Ordenar por')}</Label>
+                    <Select
+                        id="w-tb-sort"
+                        value={sortFieldId}
+                        onChange={(e) => onSortFieldChange(Number(e.target.value))}
+                    >
+                        <option value={0}>{__('Más reciente')}</option>
+                        {fields.map((f) => (
+                            <option key={f.id} value={f.id}>
+                                {f.label}
+                            </option>
+                        ))}
+                    </Select>
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="w-tb-dir">{__('Dirección')}</Label>
+                    <Select
+                        id="w-tb-dir"
+                        value={sortDir}
+                        onChange={(e) => onSortDirChange(e.target.value as 'asc' | 'desc')}
+                    >
+                        <option value="desc">{__('Descendente')}</option>
+                        <option value="asc">{__('Ascendente')}</option>
+                    </Select>
+                </div>
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-tb-limit">{__('Cantidad')}</Label>
+                <Select
+                    id="w-tb-limit"
+                    value={limit}
+                    onChange={(e) => onLimitChange(Number(e.target.value))}
+                >
+                    <option value={5}>{__('Top 5')}</option>
+                    <option value={10}>{__('Top 10')}</option>
+                    <option value={20}>{__('Top 20')}</option>
+                    <option value={50}>{__('Top 50')}</option>
+                </Select>
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                <Label>{__('Columnas visibles')}</Label>
+                {fields.length === 0 ? (
+                    <p className="imcrm-text-xs imcrm-text-warning">{__('Esta lista no tiene campos.')}</p>
+                ) : (
+                    <div className="imcrm-flex imcrm-flex-wrap imcrm-gap-1.5">
+                        {fields.map((f) => {
+                            const checked = visibleFieldIds.includes(f.id);
+                            return (
+                                <label
+                                    key={f.id}
+                                    className={cn(
+                                        'imcrm-flex imcrm-cursor-pointer imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-px-2 imcrm-py-1 imcrm-text-[12px] imcrm-transition-colors',
+                                        checked
+                                            ? 'imcrm-border-primary/40 imcrm-bg-primary/10 imcrm-text-primary'
+                                            : 'imcrm-border-border imcrm-bg-card hover:imcrm-bg-canvas',
+                                    )}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleField(f.id)}
+                                    />
+                                    {f.label}
+                                </label>
+                            );
+                        })}
+                    </div>
+                )}
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Si no seleccionas ninguna, mostramos las primeras 4 de la lista.')}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+interface FieldPickerProps {
+    label: string;
+    value: number;
+    fields: Array<{ id: number; label: string }>;
+    onChange: (id: number) => void;
+    emptyHint: string;
+}
+
+interface PeriodPickerProps {
+    fields: Array<{ id: number; label: string }>;
+    fieldId: number;
+    preset: DateRangePresetId | '';
+    onFieldChange: (id: number) => void;
+    onPresetChange: (id: DateRangePresetId | '') => void;
+}
+
+/**
+ * Atajo dedicado para limitar el widget a un rango temporal relativo
+ * (este mes / últimos 7 días / este año / etc.) sin abrir el panel
+ * de filtros. Estilo ClickUp: dos selects compactos arriba del bloque
+ * de filtros, opt-in por widget.
+ *
+ * Si el usuario activa un preset y elige el campo, el backend
+ * (`WidgetEvaluator`) inyecta automáticamente la condición
+ * `between_relative` cuando ejecuta la query — los datos se
+ * recalculan en cada carga sin tocar fechas.
+ */
+function PeriodPicker({
+    fields,
+    fieldId,
+    preset,
+    onFieldChange,
+    onPresetChange,
+}: PeriodPickerProps): JSX.Element {
+    const presets = DATE_RANGE_PRESETS.filter((p) => p.id !== 'custom');
+    const enabled = fieldId > 0 && preset !== '';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+            <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2">
+                <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                    {__('Período')}
+                </Label>
+                {enabled && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onFieldChange(0);
+                            onPresetChange('');
+                        }}
+                        className="imcrm-text-[10px] imcrm-text-muted-foreground hover:imcrm-text-destructive"
+                    >
+                        {__('Quitar')}
+                    </button>
+                )}
+            </div>
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
+                <Select
+                    value={fieldId}
+                    onChange={(e) => onFieldChange(Number(e.target.value))}
+                >
+                    <option value={0}>{__('— Campo de fecha —')}</option>
+                    {fields.map((f) => (
+                        <option key={f.id} value={f.id}>
+                            {f.label}
+                        </option>
+                    ))}
+                </Select>
+                <Select
+                    value={preset}
+                    onChange={(e) => onPresetChange(e.target.value as DateRangePresetId | '')}
+                >
+                    <option value="">{__('— Rango —')}</option>
+                    {presets.map((p) => (
+                        <option key={p.id} value={p.id}>
+                            {p.label}
+                        </option>
+                    ))}
+                </Select>
+            </div>
+            <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                {__('Limita el widget a un rango relativo. Se recalcula en cada carga del dashboard — "este mes" será siempre el mes actual.')}
+            </p>
+        </div>
+    );
+}
+
+interface TimeBucketPickerProps {
+    value: ChartTimeBucket;
+    onChange: (next: ChartTimeBucket) => void;
+}
+
+function TimeBucketPicker({ value, onChange }: TimeBucketPickerProps): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+            <Label htmlFor="w-bucket">{__('Granularidad temporal')}</Label>
+            <Select
+                id="w-bucket"
+                value={value}
+                onChange={(e) => onChange(e.target.value as ChartTimeBucket)}
+            >
+                <option value="day">{__('Día')}</option>
+                <option value="week">{__('Semana')}</option>
+                <option value="month">{__('Mes')}</option>
+                <option value="quarter">{__('Trimestre')}</option>
+                <option value="year">{__('Año')}</option>
+            </Select>
+        </div>
+    );
+}
+
+interface PresentationTogglesProps {
+    type: WidgetType;
+    showAverageLine: boolean;
+    showDataLabels: boolean;
+    showLegend: boolean;
+    onShowAverageLineChange: (next: boolean) => void;
+    onShowDataLabelsChange: (next: boolean) => void;
+    onShowLegendChange: (next: boolean) => void;
+}
+
+function PresentationToggles({
+    type,
+    showAverageLine,
+    showDataLabels,
+    showLegend,
+    onShowAverageLineChange,
+    onShowDataLabelsChange,
+    onShowLegendChange,
+}: PresentationTogglesProps): JSX.Element {
+    // La línea de promedio sólo aplica a charts numéricos con eje
+    // ordenado (bar/line/area). En pie no hay un "eje Y" donde
+    // pintar una línea.
+    const supportsAverage = type !== 'chart_pie';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+            <Label className="imcrm-text-xs imcrm-text-muted-foreground">
+                {__('Mostrar')}
+            </Label>
+            {supportsAverage && (
+                <ToggleRow
+                    label={__('Línea de promedio')}
+                    checked={showAverageLine}
+                    onChange={onShowAverageLineChange}
+                />
+            )}
+            <ToggleRow
+                label={__('Etiquetas de datos')}
+                checked={showDataLabels}
+                onChange={onShowDataLabelsChange}
+            />
+            <ToggleRow
+                label={__('Leyenda')}
+                checked={showLegend}
+                onChange={onShowLegendChange}
+            />
+        </div>
+    );
+}
+
+function ToggleRow({
+    label,
+    checked,
+    onChange,
+}: {
+    label: string;
+    checked: boolean;
+    onChange: (next: boolean) => void;
+}): JSX.Element {
+    return (
+        <label className="imcrm-flex imcrm-cursor-pointer imcrm-items-center imcrm-justify-between imcrm-text-xs">
+            <span className="imcrm-text-foreground">{label}</span>
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
+                className="imcrm-h-4 imcrm-w-4"
+            />
+        </label>
+    );
+}
+
+function isDateField(
+    fields: ReadonlyArray<{ id: number; type: string }>,
+    fieldId: number,
+): boolean {
+    if (fieldId <= 0) return false;
+    const f = fields.find((x) => x.id === fieldId);
+    return f?.type === 'date' || f?.type === 'datetime';
+}
+
+function FieldPicker({ label, value, fields, onChange, emptyHint }: FieldPickerProps): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+            <Label>{label}</Label>
+            {fields.length === 0 ? (
+                <p className="imcrm-text-xs imcrm-text-warning">{emptyHint}</p>
+            ) : (
+                <Select value={value} onChange={(e) => onChange(Number(e.target.value))}>
+                    <option value={0}>{__('— Selecciona —')}</option>
+                    {fields.map((f) => (
+                        <option key={f.id} value={f.id}>
+                            {f.label}
+                        </option>
+                    ))}
+                </Select>
+            )}
+        </div>
+    );
+}
+
+function buildConfig(
+    type: WidgetType,
+    state: {
+        metric: KpiMetric;
+        metricFieldId: number;
+        groupByFieldId: number;
+        dateFieldId: number;
+        periodDays: number;
+        sortFieldId: number;
+        sortDir: 'asc' | 'desc';
+        tableLimit: number;
+        visibleFieldIds: number[];
+        filterTree: FilterTree;
+        showAverageLine: boolean;
+        showDataLabels: boolean;
+        showLegend: boolean;
+        timeBucket: ChartTimeBucket;
+        period: WidgetPeriod | null;
+    },
+): WidgetSpec['config'] {
+    const base = (): WidgetSpec['config'] => {
+        const c: WidgetSpec['config'] = {};
+        if (state.period !== null) {
+            c.period = state.period;
+        }
+        if (state.filterTree.children.length > 0) {
+            // Para árboles AND-planos persistimos también la forma
+            // legacy `filters` (espejo) para que builds anteriores
+            // del backend la sigan leyendo. Para árboles con OR/nested
+            // solo guardamos `filter_tree`.
+            c.filter_tree = state.filterTree;
+            if (isFlatAndTree(state.filterTree)) {
+                const filters: Record<string, Record<string, unknown>> = {};
+                for (const cnd of state.filterTree.children) {
+                    if (cnd.type !== 'condition') continue;
+                    const key = `field_${cnd.field_id}`;
+                    const existing = filters[key] ?? {};
+                    existing[cnd.op] = cnd.value;
+                    filters[key] = existing;
+                }
+                c.filters = filters;
+            }
+        }
+        return c;
+    };
+
+    const presentation = (c: WidgetSpec['config']): WidgetSpec['config'] => {
+        if (state.showAverageLine) c.show_average_line = true;
+        if (state.showDataLabels) c.show_data_labels = true;
+        if (state.showLegend) c.show_legend = true;
+        return c;
+    };
+
+    if (type === 'kpi') {
+        const c = base();
+        c.metric = state.metric;
+        if (state.metric === 'sum' || state.metric === 'avg') {
+            c.metric_field_id = state.metricFieldId;
+        }
+        return c;
+    }
+    if (type === 'chart_bar' || type === 'chart_pie') {
+        return presentation({
+            ...base(),
+            group_by_field_id: state.groupByFieldId,
+            time_bucket: state.timeBucket,
+        });
+    }
+    if (type === 'chart_line' || type === 'chart_area') {
+        return presentation({
+            ...base(),
+            date_field_id: state.dateFieldId,
+            time_bucket: state.timeBucket,
+        });
+    }
+    if (type === 'stat_delta') {
+        const c: WidgetSpec['config'] = {
+            ...base(),
+            metric: state.metric,
+            date_field_id: state.dateFieldId,
+            period_days: state.periodDays,
+        };
+        if (state.metric === 'sum' || state.metric === 'avg') {
+            c.metric_field_id = state.metricFieldId;
+        }
+        return c;
+    }
+    if (type === 'table') {
+        const c: WidgetSpec['config'] = {
+            ...base(),
+            limit: state.tableLimit,
+            sort_dir: state.sortDir,
+            visible_field_ids: state.visibleFieldIds,
+        };
+        if (state.sortFieldId > 0) {
+            c.sort_field_id = state.sortFieldId;
+        }
+        return c;
+    }
+    return base();
+}
+
+/**
+ * Lee filtros del config de un widget en cualquiera de las dos formas:
+ * - `filter_tree` (forma nueva, ClickUp-style con AND/OR/nesting).
+ * - `filters` (legacy plano `{field_<id>: {op: val}}`).
+ *
+ * Si ninguna está, devuelve un árbol vacío.
+ */
+function decodeWidgetFilters(config: WidgetSpec['config']): FilterTree {
+    const tree = config.filter_tree;
+    if (tree && typeof tree === 'object' && (tree as FilterTree).type === 'group') {
+        return tree as FilterTree;
+    }
+    const flat = config.filters;
+    if (flat && typeof flat === 'object') {
+        return treeFromActiveFilters(
+            Object.entries(flat as Record<string, unknown>).flatMap(([key, opMap]) => {
+                if (!key.startsWith('field_') || typeof opMap !== 'object' || opMap === null) {
+                    return [];
+                }
+                const fieldId = Number(key.slice(6));
+                if (!Number.isFinite(fieldId) || fieldId <= 0) return [];
+                return Object.entries(opMap as Record<string, unknown>).map(([op, value]) => ({
+                    field_id: fieldId,
+                    op: op as FilterTree['children'][number] extends { op: infer O } ? O : never,
+                    value,
+                }));
+            }) as Parameters<typeof treeFromActiveFilters>[0],
+        );
+    }
+    return { type: 'group', logic: 'and', children: [] };
+}
+
+function generateWidgetId(): string {
+    return 'w_' + Math.random().toString(36).slice(2, 10);
+}
+
+function isTimeBucket(value: unknown): value is ChartTimeBucket {
+    return value === 'day' || value === 'week' || value === 'month'
+        || value === 'quarter' || value === 'year';
+}
