@@ -513,24 +513,51 @@ class V2Builder {
         width: number;
         blocks: Array<RowCellSpec & { height: number }>;
     }>): this {
-        let xCursor = 0;
-        let maxBottom = this.currentY;
-        for (const col of specs) {
-            const colW = Math.min(col.width, 12 - xCursor);
-            if (colW <= 0) break;
-            let yCursor = this.currentY;
+        // Pass 1: materializar todos los blocks por columna. Si una
+        // columna no produce ningún block (todos los predicados
+        // vacíos), se omite — su width NO cuenta para el reparto.
+        // Esto evita "columnas vacías" cuando la lista del user no
+        // tiene fields que matcheen los grupos de esa columna.
+        const cols = specs.map((col) => {
+            const blocks: Array<{ block: V2Block; height: number }> = [];
             for (const blockSpec of col.blocks) {
                 const block = this.materializeCell(blockSpec);
                 if (! block) continue;
+                blocks.push({ block, height: blockSpec.height });
+            }
+            return { declaredWidth: col.width, blocks };
+        });
+
+        const present = cols.filter((c) => c.blocks.length > 0);
+        if (present.length === 0) return this;
+
+        // Pass 2: redistribuir 12 cols proporcionalmente al
+        // declaredWidth de las columnas presentes (mismo enfoque que
+        // row() con weight). Min 3 cols por columna; última absorbe
+        // leftover/deficit del rounding.
+        const totalDeclared = present.reduce((s, c) => s + c.declaredWidth, 0);
+        let xCursor = 0;
+        let maxBottom = this.currentY;
+        for (let i = 0; i < present.length; i++) {
+            const col = present[i]!;
+            const isLast = i === present.length - 1;
+            let w = Math.max(3, Math.round((col.declaredWidth / totalDeclared) * 12));
+            if (isLast) {
+                w = Math.max(3, 12 - xCursor);
+            } else if (xCursor + w > 12 - 3 * (present.length - 1 - i)) {
+                w = 12 - xCursor - 3 * (present.length - 1 - i);
+            }
+            let yCursor = this.currentY;
+            for (const { block, height } of col.blocks) {
                 block.x = xCursor;
                 block.y = yCursor;
-                block.w = colW;
-                block.h = blockSpec.height;
+                block.w = w;
+                block.h = height;
                 this.blocks.push(block);
-                yCursor += blockSpec.height;
+                yCursor += height;
             }
             maxBottom = Math.max(maxBottom, yCursor);
-            xCursor += colW;
+            xCursor += w;
         }
         this.currentY = maxBottom;
         return this;

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.2
+Stable tag: 0.36.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.3 =
+**`columns()` redistribuye width entre columnas presentes.**
+
+Bug en 0.36.2: cuando una columna entera no producía ningún block
+(porque sus predicados no matcheaban con los fields de la lista),
+su width seguía consumido en el cursor → quedaba una columna VACÍA
+visible y las demás no llenaban los 12 cols. Solo Soporte se veía
+bien porque ahí casi siempre todos los grupos materializaban.
+
+* `columns()` ahora hace **dual-pass**:
+    1. Materializa los blocks de cada columna sin asignar posición.
+    2. Filtra las columnas que tienen ≥1 block.
+    3. Redistribuye los 12 cols proporcionalmente al `declaredWidth`
+       de las columnas presentes (mismo enfoque que `row()` con
+       weights).
+    4. Asigna x/w finales y placea blocks.
+* Min 3 cols por columna, última absorbe leftover/deficit.
+
+Resultado: las plantillas Auto, Contacto, Venta, Tarea ahora se
+ven sin columnas vacías. Si tu lista no tiene fields para "Empresa"
+en Contacto, esa entrada se omite y "Contacto" + "Stats" reparten
+el ancho.
 
 = 0.36.2 =
 **Plantillas: stack vertical en columnas para llenar gaps bajo bloques cortos.**
