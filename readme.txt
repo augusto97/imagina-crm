@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.5
+Stable tag: 0.36.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.6 =
+**Hotfix CRÍTICO: bulkCreate descartaba columnas ausentes en el primer row.**
+
+Causa raíz del bug "el importer dice que importó pero los campos quedan
+vacíos" detectado por usuario en 0.36.5: en
+`RecordRepository::insertBatch()` se construía la lista de columnas del
+INSERT a partir de `$rows[0]` únicamente. Como `RecordValidator::buildRow`
+omite columnas para campos cuyo valor llega vacío en ese row específico,
+si el PRIMER record del batch tenía un campo vacío (ej. CSV donde la
+primera fila no trae ESTADO), esa columna **se eliminaba del INSERT
+para todo el batch** — y los rows siguientes que sí traían ESTADO
+perdían el dato silenciosamente.
+
+Caso real reportado: import de 41 registros desde CSV de ClickUp con
+17 columnas mapeadas → 16 columnas quedaron 100% vacías en el destino.
+Las únicas que sobrevivieron coincidieron exactamente con las que el
+primer row del CSV traía con datos.
+
+Fix: `insertBatch` ahora calcula la **unión** de columnas a través de
+todos los rows del batch. Los rows que no incluyan algún key se rellenan
+con `NULL` en el placeholder loop existente — mismo efecto que tendría
+el INSERT individual omitiendo la columna.
+
+Sin migración. Solo afecta el flujo de bulk insert (imports y APIs
+internas que pasen heterogeneidad de keys).
 
 = 0.36.5 =
 **Hotfix crítico: el importador ya no descarta datos en silencio.**

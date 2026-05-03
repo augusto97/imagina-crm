@@ -99,14 +99,26 @@ final class RecordRepository
         }
         $now = current_time('mysql', true);
         $userId = get_current_user_id();
-        // Normalizar: usamos las columnas del primer row como
-        // contrato. Cada fila se rellena con `created_by/at`
-        // si faltaba.
-        $columns = array_keys($rows[0] + [
-            'created_by' => null,
-            'created_at' => null,
-            'updated_at' => null,
-        ]);
+        // 0.36.6 fix: unión de columnas a través de TODAS las rows.
+        // Antes usábamos solo `$rows[0]` como contrato y silenciosamente
+        // descartábamos cualquier columna ausente en el primer row pero
+        // presente en los siguientes — en imports CSV donde el primer
+        // record dejaba un campo vacío, ese campo se perdía para todos
+        // los rows del batch (silent drop catastrófico). Ahora calculamos
+        // el set completo y los rows que no tengan ese key se rellenan
+        // con NULL en el placeholder loop (mismo efecto que el single
+        // INSERT que omitiría la columna y dejaría el DB default).
+        $columnsSet = [
+            'created_by' => true,
+            'created_at' => true,
+            'updated_at' => true,
+        ];
+        foreach ($rows as $row) {
+            foreach (array_keys($row) as $col) {
+                $columnsSet[$col] = true;
+            }
+        }
+        $columns = array_keys($columnsSet);
         $columnSql = implode(', ', array_map(static fn (string $c): string => '`' . esc_sql($c) . '`', $columns));
 
         $allPlaceholders = [];
