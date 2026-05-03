@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.34.1
+Stable tag: 0.35.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,51 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.35.0 =
+**Editor visual rebuilt: grid drag/resize + bloque de notas custom.**
+
+Reemplaza el form-based editor de 0.34 por un grid real (12 cols)
+basado en `react-grid-layout`. Cada bloque del panel CRM (grupo de
+propiedades, timeline, resumen, relacionados, notas) se posiciona,
+mueve y redimensiona libremente dentro del grid.
+
+* **Schema V2** (`CustomTemplateConfigV2`) con `header` fijo +
+  `blocks: V2Block[]`. Cada bloque tiene `{id, type, x, y, w, h,
+  config}`. Tipos:
+    - `properties_group` — grupo de campos colapsable.
+    - `timeline` — feed de comentarios + activity (1 sola permitida).
+    - `stats` — resumen de actividad (1 solo permitido).
+    - `related` — 1 relation field por bloque (multiples permitidos).
+    - **`notes` — texto custom** que el user escribe en el editor;
+      se ve igual en todos los records de la lista. Útil para
+      recordatorios al operador ("siempre confirmar referencia
+      comercial antes de cerrar venta", instrucciones internas, etc.).
+* **Migración V1 → V2** automática al cargar un editor con plantilla
+  vieja: sidebar groups → properties_group blocks columna izquierda,
+  timeline → centro, stats + related → derecha. El user después
+  arrastra a su gusto. Sin pérdida de datos.
+* **GridEditor canvas**: arrastrá bloques para mover, estirá esquinas
+  para redimensionar (1-12 cols). "+ Agregar bloque" dropdown con
+  todos los tipos. Cada bloque tiene overlay al hover con ✏ (config)
+  y 🗑 (eliminar).
+* **BlockConfigDialog** por tipo:
+    - properties_group: nombre + icono + checkbox colapsado +
+      lista de campos editable (add/remove/reorder).
+    - notes: título + textarea de contenido (multiline, saltos
+      respetados).
+    - related: selector del relation field.
+    - timeline / stats: sin opciones (movés/redimensionás solamente).
+* **HeaderEditor** colapsable arriba del Grid: edita los slots del
+  header (título, subtítulo, status, quick actions). El header sigue
+  fijo arriba — moverlo no tendría sentido (es el ancla visual del
+  registro).
+* **RecordCrmLayout** ahora renderea con grid en modo `static`
+  (read-only). "Lo que ves al editar es lo que ves al final" — no
+  hay traducción entre editor y producción.
+* **Built-ins también pasan por el grid**: las plantillas
+  Auto/Contacto/Venta/Tarea/Soporte resuelven a un V2 layout en el
+  vuelo, así el rendering es uniforme.
 
 = 0.34.1 =
 **Hotfix**: las plantillas built-in (Auto/Contacto/Venta/Tarea/Soporte)

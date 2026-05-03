@@ -670,6 +670,200 @@ export function getResolvedLayout(
     return getTemplate(settings.crm_template_id).resolve(fields);
 }
 
+// --- Custom templates v2: grid-based editor (0.35.0) -------------------------
+
+/**
+ * V2 schema (0.35.0): grid de bloques drag-resize-able. Reemplaza el
+ * V1 form-based donde el sidebar/right-rail tenían posición fija.
+ *
+ * Idea: el header sigue fijo arriba (full-width). Debajo, un grid de
+ * 12 columnas donde cada bloque tiene `{x, y, w, h}` y un `type`
+ * que decide qué se rendera adentro. El user puede arrastrar
+ * cualquier bloque a cualquier posición y resizearlo entre 1-12
+ * columnas. Misma capa de render para el editor (drag-mode) y la
+ * ficha del registro (static-mode). Los datos persistidos también
+ * se usan en static — visual perfectamente igual a la edición.
+ */
+
+export type V2BlockType = 'properties_group' | 'timeline' | 'stats' | 'related' | 'notes';
+
+interface V2BlockBase {
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+export interface V2PropertiesGroupBlock extends V2BlockBase {
+    type: 'properties_group';
+    config: {
+        label: string;
+        icon_key: string;
+        field_slugs: string[];
+        collapsed_by_default: boolean;
+    };
+}
+
+export interface V2TimelineBlock extends V2BlockBase {
+    type: 'timeline';
+    config: Record<string, never>;
+}
+
+export interface V2StatsBlock extends V2BlockBase {
+    type: 'stats';
+    config: Record<string, never>;
+}
+
+export interface V2RelatedBlock extends V2BlockBase {
+    type: 'related';
+    config: { field_slug: string };
+}
+
+/**
+ * Bloque de **notas custom** — texto que el user escribe dentro del
+ * editor. Es STATIC para todos los records de la lista (no es un
+ * field por record): sirve para "recordatorios al operador" tipo
+ * "siempre confirmar referencia comercial antes de cerrar venta".
+ */
+export interface V2NotesBlock extends V2BlockBase {
+    type: 'notes';
+    config: {
+        title: string;
+        content: string; // texto plano, multiline. Markdown ligero (saltos de línea respetados).
+    };
+}
+
+export type V2Block =
+    | V2PropertiesGroupBlock
+    | V2TimelineBlock
+    | V2StatsBlock
+    | V2RelatedBlock
+    | V2NotesBlock;
+
+export interface CustomTemplateConfigV2 {
+    v: 2;
+    header: {
+        title_field_slug?: string;
+        subtitle_field_slugs: string[];
+        status_field_slugs: string[];
+        quick_action_field_slugs: string[];
+    };
+    blocks: V2Block[];
+}
+
+export function emptyCustomConfigV2(): CustomTemplateConfigV2 {
+    return {
+        v: 2,
+        header: {
+            subtitle_field_slugs: [],
+            status_field_slugs: [],
+            quick_action_field_slugs: [],
+        },
+        blocks: [],
+    };
+}
+
+/**
+ * Migra un V1 (sidebar groups + right rail flags) a V2 (grid de
+ * bloques). Layout default después de migrar:
+ *   - Columna izquierda (cols 0-3, w=4): sidebar groups apilados.
+ *   - Columna central (cols 4-8, w=5): timeline.
+ *   - Columna derecha (cols 9-11, w=3): stats arriba + related debajo.
+ *
+ * El user puede después arrastrar cualquier bloque a otro lado, pero
+ * empieza con un layout familiar.
+ */
+export function migrateV1toV2(v1: CustomTemplateConfig): CustomTemplateConfigV2 {
+    const blocks: V2Block[] = [];
+
+    // Columna izquierda: properties groups apilados.
+    let leftY = 0;
+    for (const g of v1.sidebar_groups) {
+        const fieldCount = g.field_slugs.length;
+        // Altura estimada: 1 fila para el header + 1.5 filas por field
+        // (visualmente un input mediano). Min 3.
+        const h = Math.max(3, Math.ceil(1 + fieldCount * 1.5));
+        blocks.push({
+            id: g.id || `group-${blocks.length}`,
+            type: 'properties_group',
+            x: 0,
+            y: leftY,
+            w: 4,
+            h,
+            config: {
+                label: g.label,
+                icon_key: g.icon_key,
+                field_slugs: g.field_slugs,
+                collapsed_by_default: g.collapsed_by_default,
+            },
+        });
+        leftY += h;
+    }
+
+    // Columna central: timeline (alta).
+    blocks.push({
+        id: 'timeline',
+        type: 'timeline',
+        x: 4,
+        y: 0,
+        w: 5,
+        h: Math.max(leftY, 12),
+        config: {},
+    });
+
+    // Columna derecha: stats arriba + related debajo.
+    let rightY = 0;
+    if (v1.show_stats) {
+        blocks.push({
+            id: 'stats',
+            type: 'stats',
+            x: 9,
+            y: rightY,
+            w: 3,
+            h: 4,
+            config: {},
+        });
+        rightY += 4;
+    }
+    for (const slug of v1.related_field_slugs) {
+        blocks.push({
+            id: `related-${slug}`,
+            type: 'related',
+            x: 9,
+            y: rightY,
+            w: 3,
+            h: 4,
+            config: { field_slug: slug },
+        });
+        rightY += 4;
+    }
+
+    return {
+        v: 2,
+        header: {
+            title_field_slug: v1.title_field_slug,
+            subtitle_field_slugs: v1.subtitle_field_slugs,
+            status_field_slugs: v1.status_field_slugs,
+            quick_action_field_slugs: v1.quick_action_field_slugs,
+        },
+        blocks,
+    };
+}
+
+/**
+ * Construye un V2 desde una built-in. Toma el layout resuelto y lo
+ * mete en el grid: igual a la migración pero arrancando desde el
+ * resolver de la built-in.
+ */
+export function customConfigV2FromBuiltin(
+    builtinId: string,
+    fields: FieldEntity[],
+): CustomTemplateConfigV2 {
+    const v1 = customConfigFromBuiltin(builtinId, fields);
+    return migrateV1toV2(v1);
+}
+
 function isCustomConfig(v: unknown): v is CustomTemplateConfig {
     return Boolean(
         v
@@ -677,4 +871,156 @@ function isCustomConfig(v: unknown): v is CustomTemplateConfig {
             && Array.isArray((v as CustomTemplateConfig).subtitle_field_slugs)
             && Array.isArray((v as CustomTemplateConfig).sidebar_groups),
     );
+}
+
+function isV2Config(v: unknown): v is CustomTemplateConfigV2 {
+    return Boolean(
+        v
+            && typeof v === 'object'
+            && (v as CustomTemplateConfigV2).v === 2
+            && Array.isArray((v as CustomTemplateConfigV2).blocks),
+    );
+}
+
+/**
+ * Asegura que el config esté en V2. Acepta V1 (legacy del 0.34.x) y
+ * lo migra silenciosamente. Si no es ninguno de los dos, devuelve
+ * un V2 vacío (defensivo — no crashea).
+ */
+export function ensureV2(config: unknown): CustomTemplateConfigV2 {
+    if (isV2Config(config)) return config;
+    if (isCustomConfig(config)) return migrateV1toV2(config);
+    return emptyCustomConfigV2();
+}
+
+/**
+ * Resuelve un V2 contra los fields actuales de la lista en una shape
+ * que el RecordCrmLayout puede consumir directamente: el header
+ * resuelto + array de bloques (ya con FieldEntity inflados, no slugs).
+ */
+export interface ResolvedV2 {
+    header: {
+        titleField: FieldEntity | null;
+        subtitleFields: FieldEntity[];
+        statusFields: FieldEntity[];
+        quickActions: QuickActionEntry[];
+    };
+    blocks: ResolvedV2Block[];
+}
+
+export type ResolvedV2Block =
+    | { id: string; type: 'properties_group'; x: number; y: number; w: number; h: number;
+        config: { label: string; icon: IconName; fields: FieldEntity[]; collapsedByDefault: boolean } }
+    | { id: string; type: 'timeline'; x: number; y: number; w: number; h: number }
+    | { id: string; type: 'stats'; x: number; y: number; w: number; h: number }
+    | { id: string; type: 'related'; x: number; y: number; w: number; h: number;
+        config: { field: FieldEntity } }
+    | { id: string; type: 'notes'; x: number; y: number; w: number; h: number;
+        config: { title: string; content: string } };
+
+export function resolveV2(
+    config: CustomTemplateConfigV2,
+    fields: FieldEntity[],
+): ResolvedV2 {
+    const bySlug = new Map(fields.map((f) => [f.slug, f]));
+    const lookupOne = (slug: string | undefined): FieldEntity | null =>
+        slug ? bySlug.get(slug) ?? null : null;
+    const lookupMany = (slugs: string[]): FieldEntity[] =>
+        slugs.map((s) => bySlug.get(s)).filter((f): f is FieldEntity => f !== undefined);
+
+    const blocks: ResolvedV2Block[] = [];
+    for (const b of config.blocks) {
+        const base = { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h };
+        if (b.type === 'properties_group') {
+            blocks.push({
+                ...base,
+                type: 'properties_group',
+                config: {
+                    label: b.config.label,
+                    icon: iconForKey(b.config.icon_key),
+                    fields: lookupMany(b.config.field_slugs),
+                    collapsedByDefault: b.config.collapsed_by_default,
+                },
+            });
+        } else if (b.type === 'timeline') {
+            blocks.push({ ...base, type: 'timeline' });
+        } else if (b.type === 'stats') {
+            blocks.push({ ...base, type: 'stats' });
+        } else if (b.type === 'related') {
+            const f = bySlug.get(b.config.field_slug);
+            if (f && f.type === 'relation') {
+                blocks.push({ ...base, type: 'related', config: { field: f } });
+            }
+        } else if (b.type === 'notes') {
+            blocks.push({
+                ...base,
+                type: 'notes',
+                config: { title: b.config.title, content: b.config.content },
+            });
+        }
+    }
+
+    const quickActions: QuickActionEntry[] = [];
+    for (const slug of config.header.quick_action_field_slugs) {
+        const f = bySlug.get(slug);
+        if (! f) continue;
+        const kind = f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'phone';
+        quickActions.push({ field: f, kind });
+    }
+
+    return {
+        header: {
+            titleField: lookupOne(config.header.title_field_slug),
+            subtitleFields: lookupMany(config.header.subtitle_field_slugs),
+            statusFields: lookupMany(config.header.status_field_slugs),
+            quickActions,
+        },
+        blocks,
+    };
+}
+
+/**
+ * Helper para que el RecordCrmLayout decida entre V2 custom o
+ * built-in (que se renderea con el grid default migrando V1→V2 al
+ * vuelo). Devuelve `null` cuando la lista no está en modo CRM o
+ * cuando no se puede resolver (e.g. fields aún cargando).
+ */
+export function getResolvedV2(
+    settings: { crm_template_id?: string; crm_template_custom?: unknown },
+    fields: FieldEntity[],
+): ResolvedV2 {
+    if (settings.crm_template_id === CUSTOM_TEMPLATE_ID) {
+        return resolveV2(ensureV2(settings.crm_template_custom), fields);
+    }
+    // Built-in: usamos el resolver V1 antiguo y lo "trasladamos" al
+    // grid default. Eso preserva el comportamiento de las plantillas
+    // built-in pero ya con el rendering basado en grid — uniforme.
+    const v1Layout = getTemplate(settings.crm_template_id).resolve(fields);
+    const v1Config = layoutToV1Config(v1Layout);
+    return resolveV2(migrateV1toV2(v1Config), fields);
+}
+
+/**
+ * Convierte un `ResolvedLayout` (V1 builtin) a `CustomTemplateConfig`
+ * V1 — para luego pasarlo a migrateV1toV2. Es la pieza que hace que
+ * los built-ins también pasen por el sistema de grid.
+ */
+function layoutToV1Config(layout: ResolvedLayout): CustomTemplateConfig {
+    return {
+        title_field_slug: layout.titleField?.slug,
+        subtitle_field_slugs: layout.subtitleFields.map((f) => f.slug),
+        status_field_slugs: layout.statusFields.map((f) => f.slug),
+        quick_action_field_slugs: layout.quickActions.map((q) => q.field.slug),
+        sidebar_groups: layout.sidebarGroups.map((g, i) => ({
+            id: g.id || `group-${i}`,
+            label: g.label,
+            icon_key: matchIconKey(g.icon),
+            field_slugs: g.fields.map((f) => f.slug),
+            collapsed_by_default: g.collapsedByDefault,
+        })),
+        show_stats: layout.rightRail.some((b) => b.kind === 'stats'),
+        related_field_slugs: layout.rightRail
+            .filter((b): b is { id: string; kind: 'related'; field: FieldEntity } => b.kind === 'related')
+            .map((b) => b.field.slug),
+    };
 }

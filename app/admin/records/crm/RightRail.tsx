@@ -67,7 +67,7 @@ function Block({
 
 // --- Stats -------------------------------------------------------------------
 
-function StatsBlock({ listId, record }: { listId: number; record: RecordEntity }): JSX.Element {
+export function StatsBlock({ listId, record }: { listId: number; record: RecordEntity }): JSX.Element {
     const comments = useComments(listId, record.id);
     const activity = useRecordActivity(listId, record.id);
 
@@ -132,7 +132,7 @@ function Stat({
 
 // --- Related -----------------------------------------------------------------
 
-function RelatedBlock({
+export function RelatedBlock({
     field,
     record,
 }: {

@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
+import type { LayoutItem } from 'react-grid-layout';
+
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
-import { getResolvedLayout } from '@/lib/crmTemplates';
+import { getResolvedV2 } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type { ListSummary } from '@/types/list';
 import type { RecordEntity } from '@/types/record';
 
-import { PropertiesSidebar } from './PropertiesSidebar';
+import { BlockRenderer } from './BlockRenderer';
 import { RecordHeader } from './RecordHeader';
-import { RecordTimeline } from './RecordTimeline';
-import { RightRail } from './RightRail';
+
+const SizedGrid = WidthProvider(GridLayout);
 
 interface RecordCrmLayoutProps {
     list: ListSummary;
@@ -32,17 +36,16 @@ interface RecordCrmLayoutProps {
  * Layout estilo CRM panel (HubSpot/Pipedrive). Activado opt-in
  * cuando la lista tiene `settings.record_layout === 'crm'`.
  *
- * Estructura:
- *   ┌────────────────────────────────────────────────────────┐
- *   │ Header: avatar + título + status badges + acciones      │
- *   ├──────────────────┬─────────────────────────────────────┤
- *   │  Sidebar izq.    │   Timeline                           │
- *   │  (props          │   (composer + comments + activity   │
- *   │   colapsables)   │    merged feed)                      │
- *   └──────────────────┴─────────────────────────────────────┘
+ * 0.35.0: rendering basado en grid de 12 columnas usando
+ * `react-grid-layout` en modo static (read-only). El header sigue
+ * fijo arriba (full width); todo lo demás (properties groups,
+ * timeline, stats, related, notes) son bloques en el grid con
+ * posiciones declaradas por la plantilla activa (built-in o custom
+ * del editor visual).
  *
- * El form lineal del layout classic queda reemplazado por
- * `PropertiesSidebar` con grupos auto-categorizados.
+ * El editor visual (`/lists/:slug/template-editor`) muestra el mismo
+ * grid en modo `isDraggable + isResizable`, así "lo que ves al editar
+ * es lo que ves en la ficha".
  */
 export function RecordCrmLayout({
     list,
@@ -68,12 +71,38 @@ export function RecordCrmLayout({
         setFieldErrors({});
     }, [initialValues]);
 
-    // Resolución de plantilla: el helper unificado decide entre
-    // built-in (auto/contact/deal/task/support) o custom (editor
-    // visual) según `settings.crm_template_id`.
-    const layout = useMemo(
-        () => getResolvedLayout(list.settings as Parameters<typeof getResolvedLayout>[0], fields),
+    const resolved = useMemo(
+        () => getResolvedV2(list.settings as Parameters<typeof getResolvedV2>[0], fields),
         [list.settings, fields],
+    );
+
+    // Header layout simple para alimentar al `<RecordHeader>` (sigue
+    // consumiendo el `ResolvedLayout` V1; le pasamos un objeto
+    // compat con sólo los slots de header poblados).
+    const headerLayoutCompat = useMemo(
+        () => ({
+            titleField: resolved.header.titleField,
+            subtitleFields: resolved.header.subtitleFields,
+            statusFields: resolved.header.statusFields,
+            quickActions: resolved.header.quickActions,
+            sidebarGroups: [],
+            rightRail: [],
+            leftover: [],
+        }),
+        [resolved.header],
+    );
+
+    const gridLayout: LayoutItem[] = useMemo(
+        () =>
+            resolved.blocks.map((b) => ({
+                i: b.id,
+                x: b.x,
+                y: b.y,
+                w: b.w,
+                h: b.h,
+                static: true,
+            })),
+        [resolved.blocks],
     );
 
     const dirty = JSON.stringify(values) !== JSON.stringify(initialValues);
@@ -111,7 +140,7 @@ export function RecordCrmLayout({
 
             <RecordHeader
                 record={record}
-                layout={layout}
+                layout={headerLayoutCompat}
                 onSave={() => void handleSave()}
                 onDelete={onDelete}
                 canSave={dirty}
@@ -119,29 +148,39 @@ export function RecordCrmLayout({
                 deleting={deleting}
             />
 
-            <div
-                className={cn(
-                    'imcrm-grid imcrm-grid-cols-1 imcrm-gap-4',
-                    // 3 columnas si la plantilla declara right rail; sino 2.
-                    layout.rightRail.length > 0
-                        ? 'lg:imcrm-grid-cols-[300px_minmax(0,1fr)_300px]'
-                        : 'lg:imcrm-grid-cols-[360px_minmax(0,1fr)]',
-                )}
-            >
-                <PropertiesSidebar
-                    layout={layout}
-                    values={values}
-                    onChange={setValues}
-                    fieldErrors={fieldErrors}
-                />
-                <RecordTimeline
-                    listId={list.id}
-                    recordId={record.id}
-                    currentUserId={currentUserId}
-                    isAdmin={isAdmin}
-                />
-                <RightRail listId={list.id} record={record} layout={layout} />
-            </div>
+            {resolved.blocks.length === 0 ? (
+                <p className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-4 imcrm-py-8 imcrm-text-center imcrm-text-sm imcrm-text-muted-foreground">
+                    {__('La plantilla activa no tiene bloques. Editá la plantilla en "Editar lista → Apariencia del registro".')}
+                </p>
+            ) : (
+                <SizedGrid
+                    className="imcrm-record-grid"
+                    cols={12}
+                    rowHeight={48}
+                    margin={[16, 16]}
+                    containerPadding={[0, 0]}
+                    layout={gridLayout}
+                    isDraggable={false}
+                    isResizable={false}
+                    compactType="vertical"
+                >
+                    {resolved.blocks.map((b) => (
+                        <div key={b.id} className="imcrm-record-block">
+                            <BlockRenderer
+                                block={b}
+                                listId={list.id}
+                                recordId={record.id}
+                                currentUserId={currentUserId}
+                                isAdmin={isAdmin}
+                                values={values}
+                                onChange={setValues}
+                                fieldErrors={fieldErrors}
+                                record={record}
+                            />
+                        </div>
+                    ))}
+                </SizedGrid>
+            )}
         </div>
     );
 }
