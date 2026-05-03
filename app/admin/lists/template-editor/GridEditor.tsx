@@ -221,7 +221,7 @@ export function GridEditor({
                         key={config.blocks.map((b) => b.id).join(',')}
                         className="imcrm-template-editor-grid"
                         cols={12}
-                        rowHeight={48}
+                        rowHeight={40}
                         margin={[12, 12]}
                         containerPadding={[0, 0]}
                         layout={gridLayout}

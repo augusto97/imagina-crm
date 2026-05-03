@@ -165,8 +165,8 @@ export function RecordCrmLayout({
                     key={`${(list.settings as { crm_template_id?: string }).crm_template_id ?? 'auto'}-${resolved.blocks.map((b) => b.id).join(',')}`}
                     className="imcrm-record-grid"
                     cols={12}
-                    rowHeight={48}
-                    margin={[16, 16]}
+                    rowHeight={40}
+                    margin={[12, 12]}
                     containerPadding={[0, 0]}
                     layout={gridLayout}
                     isDraggable={false}

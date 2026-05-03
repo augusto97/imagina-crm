@@ -237,20 +237,30 @@ class LayoutBuilder {
 
 /**
  * Cells declarables para `V2Builder.row()`. Cada cell tiene `weight`
- * (peso relativo dentro del row, ~12 sumando si querés ocupar todo).
+ * (peso relativo dentro del row, ~12 sumando si querés ocupar todo)
+ * y opcionalmente `height` (filas verticales — default = altura del
+ * row).
+ *
  * Si una cell no se materializa (ej. `group` con 0 fields), se omite
  * y el resto de cells redistribuyen su weight para llenar el row sin
  * dejar gaps en col 0.
+ *
+ * `height` per-cell evita que bloques cortos (stats, notes, groups
+ * con pocos fields) hereden una altura grande del row solo porque
+ * comparten fila con un bloque alto (timeline). Cuando los cells
+ * tienen alturas mixtas, `currentY` avanza al MAX de (y + h) de las
+ * cells presentes — la row siguiente arranca recién cuando termina
+ * el cell más alto.
  */
 export type RowCellSpec =
-    | { kind: 'group'; id: string; label: string; iconKey: string; weight: number;
+    | { kind: 'group'; id: string; label: string; iconKey: string; weight: number; height?: number;
         predicate: (f: FieldEntity) => boolean; collapsedByDefault?: boolean }
-    | { kind: 'leftover-group'; id: string; label: string; iconKey: string; weight: number;
+    | { kind: 'leftover-group'; id: string; label: string; iconKey: string; weight: number; height?: number;
         collapsedByDefault?: boolean }
-    | { kind: 'stats'; weight: number }
-    | { kind: 'timeline'; weight: number }
-    | { kind: 'notes'; id?: string; weight: number; title: string; content: string }
-    | { kind: 'related'; weight: number; fieldSlug: string };
+    | { kind: 'stats'; weight: number; height?: number }
+    | { kind: 'timeline'; weight: number; height?: number }
+    | { kind: 'notes'; id?: string; weight: number; height?: number; title: string; content: string }
+    | { kind: 'related'; weight: number; height?: number; fieldSlug: string };
 
 /**
  * Mini-DSL para construir un `CustomTemplateConfigV2` desde una
@@ -435,19 +445,27 @@ class V2Builder {
      * lista del user.
      */
     row(spec: { height: number; cells: RowCellSpec[] }): this {
-        const placed: Array<{ block: V2Block; weight: number }> = [];
+        const placed: Array<{ block: V2Block; weight: number; height: number }> = [];
         for (const cell of spec.cells) {
             const block = this.materializeCell(cell);
             if (block !== null) {
-                placed.push({ block, weight: Math.max(1, cell.weight) });
+                placed.push({
+                    block,
+                    weight: Math.max(1, cell.weight),
+                    // Per-cell height fallback al row's height. Ej.
+                    // stats con h=4 dentro de row con h=12 (timeline)
+                    // → stats solo ocupa 4 verticales; timeline 12.
+                    height: cell.height ?? spec.height,
+                });
             }
         }
         if (placed.length === 0) return this;
 
         const totalWeight = placed.reduce((s, p) => s + p.weight, 0);
         let x = 0;
+        let maxBottom = this.currentY;
         for (let i = 0; i < placed.length; i++) {
-            const { block, weight } = placed[i]!;
+            const { block, weight, height } = placed[i]!;
             const isLast = i === placed.length - 1;
             // Min width: 3 cols. Última cell absorbe leftover/deficit
             // del rounding para que el row siempre llene los 12 cols.
@@ -460,11 +478,15 @@ class V2Builder {
             block.x = x;
             block.y = this.currentY;
             block.w = w;
-            block.h = spec.height;
+            block.h = height;
             this.blocks.push(block);
             x += w;
+            maxBottom = Math.max(maxBottom, this.currentY + height);
         }
-        this.currentY += spec.height;
+        // El próximo row empieza donde termina el cell más alto, no
+        // donde termina el row "intended". Esto compacta verticalmente
+        // cuando todas las cells son cortas.
+        this.currentY = maxBottom;
         return this;
     }
 
@@ -611,12 +633,12 @@ const autoTemplate: CrmTemplate = {
         .setAutoTitle()
         .autoStatus()
         .autoQuickActions()
-        // Row 1: timeline (peso mayor) + stats (panel derecho).
+        // Row 1: timeline (alta) + stats (compact, no hereda h=12).
         .row({
-            height: 10,
+            height: 12,
             cells: [
-                { kind: 'timeline', weight: 9 },
-                { kind: 'stats', weight: 3 },
+                { kind: 'timeline', weight: 9, height: 12 },
+                { kind: 'stats', weight: 3, height: 4 },
             ],
         })
         // Row 2: grupos auto-categorizados side-by-side.
@@ -629,6 +651,7 @@ const autoTemplate: CrmTemplate = {
                     label: 'Datos clave',
                     iconKey: 'briefcase',
                     weight: 4,
+                    height: 5,
                     predicate: (f) =>
                         f.type === 'currency' || f.type === 'number'
                         || f.type === 'date' || f.type === 'datetime',
@@ -639,6 +662,7 @@ const autoTemplate: CrmTemplate = {
                     label: 'Contacto',
                     iconKey: 'mail',
                     weight: 4,
+                    height: 5,
                     predicate: (f) => f.type === 'email' || f.type === 'url' || isPhoneLike(f),
                 },
                 {
@@ -647,6 +671,7 @@ const autoTemplate: CrmTemplate = {
                     label: 'Asignación',
                     iconKey: 'circle_user',
                     weight: 4,
+                    height: 4,
                     predicate: (f) => f.type === 'user',
                 },
             ],
@@ -738,6 +763,7 @@ const contactTemplate: CrmTemplate = {
                     label: 'Contacto',
                     iconKey: 'mail',
                     weight: 4,
+                    height: 5,
                     predicate: (f) =>
                         f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, ADDRESS_PATTERNS),
                 },
@@ -747,14 +773,15 @@ const contactTemplate: CrmTemplate = {
                     label: 'Empresa y rol',
                     iconKey: 'building',
                     weight: 4,
+                    height: 5,
                     predicate: (f) =>
                         f.type === 'text' && (matches(f, COMPANY_PATTERNS) || matches(f, ROLE_PATTERNS)),
                 },
-                { kind: 'stats', weight: 4 },
+                { kind: 'stats', weight: 4, height: 4 },
             ],
         })
         .row({
-            height: 10,
+            height: 12,
             cells: [
                 {
                     kind: 'group',
@@ -762,15 +789,17 @@ const contactTemplate: CrmTemplate = {
                     label: 'Asignación',
                     iconKey: 'circle_user',
                     weight: 3,
+                    height: 4,
                     predicate: (f) => f.type === 'user',
                 },
-                { kind: 'timeline', weight: 6 },
+                { kind: 'timeline', weight: 6, height: 12 },
                 {
                     kind: 'notes',
                     id: 'notes-default',
                     title: 'Recordatorios',
                     content: 'Notas internas sobre este contacto. Editá el bloque para personalizar.',
                     weight: 3,
+                    height: 4,
                 },
             ],
         })
@@ -856,13 +885,14 @@ const dealTemplate: CrmTemplate = {
                     label: 'Monto y métricas',
                     iconKey: 'dollar',
                     weight: 8,
+                    height: 4,
                     predicate: (f) => f.type === 'currency' || f.type === 'number',
                 },
-                { kind: 'stats', weight: 4 },
+                { kind: 'stats', weight: 4, height: 4 },
             ],
         })
         .row({
-            height: 10,
+            height: 12,
             cells: [
                 {
                     kind: 'group',
@@ -870,16 +900,18 @@ const dealTemplate: CrmTemplate = {
                     label: 'Cliente',
                     iconKey: 'user',
                     weight: 3,
+                    height: 5,
                     predicate: (f) =>
                         f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
                 },
-                { kind: 'timeline', weight: 6 },
+                { kind: 'timeline', weight: 6, height: 12 },
                 {
                     kind: 'group',
                     id: 'g-fechas',
                     label: 'Fechas clave',
                     iconKey: 'calendar',
                     weight: 3,
+                    height: 5,
                     predicate: (f) => f.type === 'date' || f.type === 'datetime',
                 },
             ],
@@ -893,6 +925,7 @@ const dealTemplate: CrmTemplate = {
                     label: 'Asignación',
                     iconKey: 'circle_user',
                     weight: 4,
+                    height: 4,
                     predicate: (f) => f.type === 'user',
                 },
                 {
@@ -901,6 +934,7 @@ const dealTemplate: CrmTemplate = {
                     title: 'Próximos pasos',
                     content: 'Acciones a seguir para avanzar esta venta. Editá el bloque para personalizar.',
                     weight: 8,
+                    height: 4,
                 },
             ],
         })
@@ -987,6 +1021,7 @@ const taskTemplate: CrmTemplate = {
                     label: 'Programación',
                     iconKey: 'calendar',
                     weight: 8,
+                    height: 4,
                     predicate: (f) => f.type === 'date' || f.type === 'datetime',
                 },
                 {
@@ -995,12 +1030,13 @@ const taskTemplate: CrmTemplate = {
                     label: 'Asignación',
                     iconKey: 'circle_user',
                     weight: 4,
+                    height: 4,
                     predicate: (f) => f.type === 'user',
                 },
             ],
         })
         .row({
-            height: 10,
+            height: 12,
             cells: [
                 {
                     kind: 'group',
@@ -1008,21 +1044,23 @@ const taskTemplate: CrmTemplate = {
                     label: 'Datos',
                     iconKey: 'briefcase',
                     weight: 3,
+                    height: 4,
                     predicate: (f) => f.type === 'number' || f.type === 'currency',
                 },
-                { kind: 'timeline', weight: 6 },
+                { kind: 'timeline', weight: 6, height: 12 },
                 {
                     kind: 'notes',
                     id: 'notes-checklist',
                     title: 'Checklist',
                     content: '- [ ] Sub-tarea 1\n- [ ] Sub-tarea 2\n- [ ] Sub-tarea 3\n\nEditá el bloque para personalizar.',
                     weight: 3,
+                    height: 5,
                 },
             ],
         })
         .row({
             height: 4,
-            cells: [{ kind: 'stats', weight: 12 }],
+            cells: [{ kind: 'stats', weight: 12, height: 4 }],
         })
         .autoRelatedRows({ width: 12, height: 4 })
         .row({
@@ -1112,13 +1150,14 @@ const supportTemplate: CrmTemplate = {
         .row({
             height: 4,
             cells: [
-                { kind: 'stats', weight: 3 },
+                { kind: 'stats', weight: 3, height: 4 },
                 {
                     kind: 'group',
                     id: 'g-cliente',
                     label: 'Cliente',
                     iconKey: 'user',
                     weight: 5,
+                    height: 4,
                     predicate: (f) =>
                         f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
                 },
@@ -1128,12 +1167,13 @@ const supportTemplate: CrmTemplate = {
                     label: 'Asignación',
                     iconKey: 'circle_user',
                     weight: 4,
+                    height: 4,
                     predicate: (f) => f.type === 'user',
                 },
             ],
         })
         .row({
-            height: 10,
+            height: 12,
             cells: [
                 {
                     kind: 'group',
@@ -1141,15 +1181,17 @@ const supportTemplate: CrmTemplate = {
                     label: 'Detalles',
                     iconKey: 'lifebuoy',
                     weight: 3,
+                    height: 5,
                     predicate: (f) => f.type === 'long_text' || f.type === 'file',
                 },
-                { kind: 'timeline', weight: 6 },
+                { kind: 'timeline', weight: 6, height: 12 },
                 {
                     kind: 'group',
                     id: 'g-fechas',
                     label: 'Fechas',
                     iconKey: 'calendar',
                     weight: 3,
+                    height: 5,
                     predicate: (f) => f.type === 'date' || f.type === 'datetime',
                 },
             ],
@@ -1163,6 +1205,7 @@ const supportTemplate: CrmTemplate = {
                     title: 'Runbook',
                     content: 'Pasos a seguir para este tipo de ticket.\n\n1. Confirmar con el cliente.\n2. Reproducir el problema.\n3. Documentar en la timeline.',
                     weight: 6,
+                    height: 5,
                 },
                 {
                     kind: 'group',
@@ -1170,6 +1213,7 @@ const supportTemplate: CrmTemplate = {
                     label: 'Métricas',
                     iconKey: 'target',
                     weight: 6,
+                    height: 4,
                     predicate: (f) => f.type === 'number' || f.type === 'currency',
                 },
             ],

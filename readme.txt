@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.0
+Stable tag: 0.36.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.1 =
+**Plantillas: altura por bloque para evitar espacios verticales vacíos.**
+
+Bug: cuando una row mezclaba un bloque alto (timeline) con bloques
+cortos (stats, fechas, asignación), todos heredaban la altura de la
+row → los cortos quedaban con MUCHO espacio vacío adentro. Ej. en
+Soporte, "Detalles" con 1 long_text ocupaba 624px de alto solo
+porque compartía row con timeline.
+
+* **Per-cell `height` en `row()`**: cada cell puede declarar su
+  propia altura vertical. Default = altura del row. Cells cortas
+  ya no heredan h grande de cells altas en la misma fila.
+* **`currentY` avanza al MAX(y+h)**: el próximo row arranca cuando
+  termina el cell MÁS ALTO del row anterior, no cuando termina la
+  altura "intencional" del row.
+* **5 plantillas built-in actualizadas**: stats h=4, timeline h=12,
+  notes h=4-5, groups h=4-5 (en lugar de heredar h=10-12 cuando
+  comparten row con timeline).
+* **Grid más compacto**: rowHeight 48→40, margin 16→12 — layouts
+  visualmente más densos sin perder respirabilidad.
+
+Resultado: bloques cortos arriba a la izquierda + timeline largo a
+su derecha. El espacio vertical bajo los bloques cortos queda
+visible (no podemos llenarlo automáticamente sin cambiar la API),
+pero NUNCA hay altura desperdiciada DENTRO de los bloques.
 
 = 0.36.0 =
 **6 nuevos tipos de bloque para el editor visual.**
