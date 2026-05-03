@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileUp, Loader2, Plus, X } from 'lucide-react';
+import { CheckCircle2, FileUp, Loader2, Plus, TriangleAlert, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +49,33 @@ interface RunResponse {
      * Map de `field_slug → [{value, label}, …]`.
      */
     expanded_options: Record<string, Array<{ value: string; label: string }>>;
+    /**
+     * 0.36.5: celdas con datos que NO se importaron por silent drop
+     * (raw no parseable al tipo del field — ej. fecha en formato
+     * raro, multi_select con todos items vacíos). Antes se perdían
+     * sin avisar al user.
+     */
+    cell_warnings: Array<{
+        row: number;
+        column_index: number;
+        header: string;
+        field_slug: string;
+        field_label: string;
+        field_type: string;
+        raw: string;
+        reason: 'coerce_empty';
+    }>;
+    /**
+     * 0.36.5: columnas del CSV que el user dejó SIN mapping pero
+     * traían datos. Estos datos no se importaron — antes el dialog
+     * decía "X registros importados" sin avisar.
+     */
+    unmapped_columns_with_data: Array<{
+        column_index: number;
+        header: string;
+        rows_with_data: number;
+        sample: string;
+    }>;
 }
 
 /** Tipos disponibles para la UI de "crear campo nuevo". Coinciden con los slugs del FieldTypeRegistry. */
@@ -415,6 +442,24 @@ function MapStep({
         (f) => f.is_required && !mappedSlugs.has(f.slug),
     );
 
+    // Columnas sin mapping NI marcadas como "crear nuevo" que tienen
+    // datos en el sample → advertencia para que el user no pierda
+    // datos sin darse cuenta.
+    const unmappedWithData = preview.headers.reduce<Array<{ idx: number; header: string; sample: string }>>(
+        (acc, header, idx) => {
+            if (mapping[idx] !== undefined) return acc;
+            if (newFields[idx] !== undefined) return acc;
+            const firstNonEmpty = preview.sample
+                .map((row) => (row[idx] ?? '').trim())
+                .find((v) => v !== '');
+            if (firstNonEmpty && firstNonEmpty !== '') {
+                acc.push({ idx, header, sample: firstNonEmpty });
+            }
+            return acc;
+        },
+        [],
+    );
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-text-xs imcrm-text-muted-foreground">
@@ -432,6 +477,26 @@ function MapStep({
                 </span>
                 <span>{__('Mapea o crea campos nuevos. "—" ignora la columna.')}</span>
             </div>
+
+            {unmappedWithData.length > 0 && (
+                <div className="imcrm-rounded-md imcrm-border imcrm-border-warning/50 imcrm-bg-warning/10 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-foreground">
+                    <span className="imcrm-font-medium imcrm-text-warning">
+                        ⚠ {__('Atención — columnas con datos sin mapear:')}
+                    </span>{' '}
+                    {__('los datos de estas columnas se PERDERÁN si seguís así. Mapealas a un campo existente o usá "Crear campo nuevo".')}
+                    <ul className="imcrm-mt-1 imcrm-flex imcrm-flex-col imcrm-gap-0.5">
+                        {unmappedWithData.map((c) => (
+                            <li key={c.idx}>
+                                <span className="imcrm-font-medium">{c.header || `#${c.idx}`}</span>
+                                {' — '}
+                                <span className="imcrm-italic imcrm-text-muted-foreground">
+                                    "{c.sample}"
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             {unmappedRequired.length > 0 && (
                 <div className="imcrm-rounded-md imcrm-border imcrm-border-warning/50 imcrm-bg-warning/10 imcrm-px-3 imcrm-py-2 imcrm-text-xs imcrm-text-foreground">
@@ -544,10 +609,24 @@ function MapStep({
 }
 
 function DoneStep({ result }: { result: RunResponse }): JSX.Element {
+    const hasDataLoss =
+        (result.cell_warnings?.length ?? 0) > 0
+        || (result.unmapped_columns_with_data?.length ?? 0) > 0;
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-success/40 imcrm-bg-success/10 imcrm-p-3 imcrm-text-sm imcrm-text-foreground">
-                <CheckCircle2 className="imcrm-h-5 imcrm-w-5 imcrm-text-success" />
+            <div
+                className={
+                    hasDataLoss
+                        ? 'imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-warning/40 imcrm-bg-warning/10 imcrm-p-3 imcrm-text-sm imcrm-text-foreground'
+                        : 'imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-success/40 imcrm-bg-success/10 imcrm-p-3 imcrm-text-sm imcrm-text-foreground'
+                }
+            >
+                {hasDataLoss ? (
+                    <TriangleAlert className="imcrm-h-5 imcrm-w-5 imcrm-text-warning" />
+                ) : (
+                    <CheckCircle2 className="imcrm-h-5 imcrm-w-5 imcrm-text-success" />
+                )}
                 <span>
                     {result.imported.toLocaleString()} {__('registros importados')}
                     {result.skipped > 0 && (
@@ -558,8 +637,78 @@ function DoneStep({ result }: { result: RunResponse }): JSX.Element {
                             </span>
                         </>
                     )}
+                    {hasDataLoss && (
+                        <>
+                            {' · '}
+                            <span className="imcrm-font-medium imcrm-text-warning">
+                                {__('Hay datos perdidos — revisá abajo')}
+                            </span>
+                        </>
+                    )}
                 </span>
             </div>
+
+            {result.unmapped_columns_with_data && result.unmapped_columns_with_data.length > 0 && (
+                <div className="imcrm-rounded-md imcrm-border imcrm-border-warning/40 imcrm-bg-warning/5 imcrm-p-3 imcrm-text-xs">
+                    <p className="imcrm-mb-1.5 imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-font-medium imcrm-text-warning">
+                        <TriangleAlert className="imcrm-h-3.5 imcrm-w-3.5" />
+                        {__('Columnas del CSV con datos que NO se importaron (sin mapping):')}
+                    </p>
+                    <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                        {result.unmapped_columns_with_data.map((c) => (
+                            <li key={c.column_index} className="imcrm-text-foreground">
+                                <span className="imcrm-font-medium">{c.header || `#${c.column_index}`}</span>
+                                {' — '}
+                                <span className="imcrm-text-muted-foreground">
+                                    {c.rows_with_data.toLocaleString()} {__('filas con datos')}
+                                </span>
+                                {c.sample && (
+                                    <>
+                                        {' · '}
+                                        <span className="imcrm-text-muted-foreground imcrm-italic">
+                                            "{c.sample}"
+                                        </span>
+                                    </>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="imcrm-mt-2 imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Para importar estos datos: volvé a empezar y mapealas a un campo existente o pedí "Crear campo nuevo".')}
+                    </p>
+                </div>
+            )}
+
+            {result.cell_warnings && result.cell_warnings.length > 0 && (
+                <details className="imcrm-rounded-md imcrm-border imcrm-border-warning/40 imcrm-bg-warning/5 imcrm-p-3 imcrm-text-xs">
+                    <summary className="imcrm-cursor-pointer imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-font-medium imcrm-text-warning">
+                        <TriangleAlert className="imcrm-h-3.5 imcrm-w-3.5" />
+                        {result.cell_warnings.length.toLocaleString()} {__('celdas con datos NO importadas (click para detalles)')}
+                    </summary>
+                    <p className="imcrm-mt-2 imcrm-text-muted-foreground">
+                        {__('Estos valores no pudieron convertirse al tipo del campo. Comunes: fechas en formato no reconocido, multi_select con items vacíos, números con caracteres no numéricos.')}
+                    </p>
+                    <ul className="imcrm-mt-2 imcrm-flex imcrm-max-h-64 imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-tabular-nums imcrm-text-muted-foreground">
+                        {result.cell_warnings.slice(0, 100).map((w, i) => (
+                            <li key={i}>
+                                <span className="imcrm-font-medium">{__('Fila')} {w.row}:</span>{' '}
+                                <span className="imcrm-text-foreground">{w.field_label}</span>
+                                {' ('}
+                                <span className="imcrm-italic">{w.field_type}</span>
+                                {') '}
+                                {__('valor "')}
+                                <span className="imcrm-italic imcrm-text-foreground">{w.raw}</span>
+                                {__('" no se pudo procesar')}
+                            </li>
+                        ))}
+                        {result.cell_warnings.length > 100 && (
+                            <li className="imcrm-italic">
+                                +{result.cell_warnings.length - 100} {__('más')}
+                            </li>
+                        )}
+                    </ul>
+                </details>
+            )}
             {result.created_fields && result.created_fields.length > 0 && (
                 <div className="imcrm-rounded-md imcrm-border imcrm-border-primary/30 imcrm-bg-primary/5 imcrm-p-3 imcrm-text-xs">
                     <p className="imcrm-mb-1.5 imcrm-font-medium imcrm-text-foreground">

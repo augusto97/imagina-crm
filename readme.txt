@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.4
+Stable tag: 0.36.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,34 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.5 =
+**Hotfix crítico: el importador ya no descarta datos en silencio.**
+
+Bug crítico reportado: importar un CSV mostraba "importación correcta" pero
+varios campos quedaban vacíos sin error ni advertencia. Causa: dos rutas de
+descarte silencioso — (1) columnas del CSV sin mapeo, y (2) valores que el
+coercer (`coerceCellValue`) no podía parsear devolvían `null`/`""` y se
+saltaban sin avisar.
+
+Cambios:
+
+* **Backend (`ImportService::run()`):** ahora rastrea dos arrays nuevos en
+  la respuesta — `cell_warnings` (cada celda con valor crudo no vacío que
+  el coerce devolvió vacío, con `row`, `column_index`, `header`,
+  `field_slug`, `field_label`, `field_type`, `raw` truncado a 100 chars,
+  `reason: 'coerce_empty'`) y `unmapped_columns_with_data` (columnas
+  ignoradas por mapping pero con `rows_with_data > 0`, incluye `sample`).
+* **Frontend (`ImportDialog.tsx`):** cuando hay pérdida detectada el banner
+  final cambia de verde "importación exitosa" a amarillo "importación con
+  advertencias". Se listan las columnas/celdas afectadas con encabezado,
+  valor crudo y razón. Adicionalmente en el paso **Map** se muestra una
+  advertencia preventiva con las columnas no mapeadas que tienen datos,
+  para que el usuario pueda corregir el mapeo antes de ejecutar el import.
+
+Sin migración de DB. Solo afecta el flujo de import (preview/run son
+idempotentes en el sentido de que no se modificó qué se inserta — solo se
+hizo visible lo que ya se descartaba).
 
 = 0.36.4 =
 **Plantillas balanceadas: cada columna suma la altura del Timeline.**
