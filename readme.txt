@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.35.2
+Stable tag: 0.35.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,34 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.35.3 =
+**Plantillas built-in: layout row-based con redistribución de ancho.**
+
+Antes los bloques de cada plantilla tenían posiciones X fijas. Si
+un grupo no tenía fields que matchearan en tu lista (ej. Cliente
+sin email/phone, Monto sin currency), se omitía pero los demás
+bloques NO se movían a llenar el hueco — quedaban gaps en la
+columna izquierda y el layout se veía vacío al inicio.
+
+* **Nueva API `V2Builder.row()`** declara cells con `weight` (peso
+  relativo). Si una cell no se materializa (grupo vacío), las
+  presentes redistribuyen el ancho disponible para llenar los 12
+  cols sin gaps. Ejemplo: row con `[Monto w=8, Stats w=4]` — si
+  Monto está vacío, Stats se expande a w=12.
+* **5 plantillas refactorizadas** con la API row():
+    - **Auto** — Row 1: Timeline + Stats. Row 2: Datos / Contacto / Asignación distribuidos.
+    - **Contacto** — Row 1: Contacto / Empresa / Stats. Row 2: Asignación / Timeline / Notas.
+    - **Venta** — Row 1: Monto + Stats. Row 2: Cliente / Timeline / Fechas. Row 3: Asignación + Próximos pasos.
+    - **Tarea** — Row 1: Programación + Asignación. Row 2: Datos / Timeline / Checklist. Row 3: Stats.
+    - **Soporte** — Row 1: Stats / Cliente / Asignación. Row 2: Detalles / Timeline / Fechas. Row 3: Runbook + Métricas.
+* **Min width 3 cols por cell** + última cell absorbe el rounding
+  para que cada row siempre llene los 12 cols.
+* **`autoRelatedRows()`** crea 1 row por relation field con ancho
+  configurable, después de los rows declarados.
+
+Resultado: cualquier built-in que pongás se ve completo desde
+col 0 sin importar qué fields tiene tu lista.
 
 = 0.35.2 =
 **Built-ins distintas + editor preserva tu custom.**

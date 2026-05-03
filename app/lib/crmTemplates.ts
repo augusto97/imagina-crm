@@ -236,6 +236,23 @@ class LayoutBuilder {
 // --- V2 builder helpers ------------------------------------------------------
 
 /**
+ * Cells declarables para `V2Builder.row()`. Cada cell tiene `weight`
+ * (peso relativo dentro del row, ~12 sumando si querés ocupar todo).
+ * Si una cell no se materializa (ej. `group` con 0 fields), se omite
+ * y el resto de cells redistribuyen su weight para llenar el row sin
+ * dejar gaps en col 0.
+ */
+export type RowCellSpec =
+    | { kind: 'group'; id: string; label: string; iconKey: string; weight: number;
+        predicate: (f: FieldEntity) => boolean; collapsedByDefault?: boolean }
+    | { kind: 'leftover-group'; id: string; label: string; iconKey: string; weight: number;
+        collapsedByDefault?: boolean }
+    | { kind: 'stats'; weight: number }
+    | { kind: 'timeline'; weight: number }
+    | { kind: 'notes'; id?: string; weight: number; title: string; content: string }
+    | { kind: 'related'; weight: number; fieldSlug: string };
+
+/**
  * Mini-DSL para construir un `CustomTemplateConfigV2` desde una
  * plantilla built-in. Evita repetir el boilerplate de pickear
  * fields, marcar como usados, generar header + blocks. Cada
@@ -244,6 +261,8 @@ class LayoutBuilder {
 class V2Builder {
     private used = new Set<number>();
     private blocks: V2Block[] = [];
+    /** Cursor Y para `row()` y `autoRelatedRows()` — auto-incrementa. */
+    private currentY = 0;
     private headerSpec: CustomTemplateConfigV2['header'] = {
         subtitle_field_slugs: [],
         status_field_slugs: [],
@@ -402,6 +421,140 @@ class V2Builder {
         return this;
     }
 
+    /**
+     * Row-based placement (0.35.3+): declarás cells con `weight`
+     * (relativo, normalmente sumando ~12). El builder:
+     *   1. Materializa cada cell — si una `group` no tiene fields
+     *      disponibles, SE OMITE.
+     *   2. Calcula widths proporcionales SOLO entre las cells
+     *      presentes — sin huecos en col 0.
+     *   3. Asigna y/h del row, x secuencial, w proporcional.
+     *
+     * Esto reemplaza el modelo de "posiciones fijas" que dejaba
+     * columnas vacías cuando un grupo del template no aplicaba a la
+     * lista del user.
+     */
+    row(spec: { height: number; cells: RowCellSpec[] }): this {
+        const placed: Array<{ block: V2Block; weight: number }> = [];
+        for (const cell of spec.cells) {
+            const block = this.materializeCell(cell);
+            if (block !== null) {
+                placed.push({ block, weight: Math.max(1, cell.weight) });
+            }
+        }
+        if (placed.length === 0) return this;
+
+        const totalWeight = placed.reduce((s, p) => s + p.weight, 0);
+        let x = 0;
+        for (let i = 0; i < placed.length; i++) {
+            const { block, weight } = placed[i]!;
+            const isLast = i === placed.length - 1;
+            // Min width: 3 cols. Última cell absorbe leftover/deficit
+            // del rounding para que el row siempre llene los 12 cols.
+            let w = Math.max(3, Math.round((weight / totalWeight) * 12));
+            if (isLast) {
+                w = Math.max(3, 12 - x);
+            } else if (x + w > 12 - 3 * (placed.length - 1 - i)) {
+                w = 12 - x - 3 * (placed.length - 1 - i);
+            }
+            block.x = x;
+            block.y = this.currentY;
+            block.w = w;
+            block.h = spec.height;
+            this.blocks.push(block);
+            x += w;
+        }
+        this.currentY += spec.height;
+        return this;
+    }
+
+    /**
+     * Helper para placement vertical de relacionados (1 block por
+     * relation field). Se llama después de los `row()`s — ocupa
+     * la zona inferior con un ancho fijo. Si querés relacionados
+     * inline en una row, usá `cell.kind === 'related'`.
+     */
+    autoRelatedRows(spec: { width: number; height: number }): this {
+        for (const f of this.fields) {
+            if (f.type !== 'relation') continue;
+            const w = Math.min(12, Math.max(3, spec.width));
+            this.blocks.push({
+                id: `related-${f.id}`,
+                type: 'related',
+                x: 0, y: this.currentY, w, h: spec.height,
+                config: { field_slug: f.slug },
+            });
+            this.currentY += spec.height;
+        }
+        return this;
+    }
+
+    private materializeCell(cell: RowCellSpec): V2Block | null {
+        if (cell.kind === 'group') {
+            const fieldSlugs: string[] = [];
+            for (const f of [...this.fields].sort((a, b) => a.position - b.position)) {
+                if (! this.isAvail(f) || ! cell.predicate(f)) continue;
+                fieldSlugs.push(this.take(f).slug);
+            }
+            if (fieldSlugs.length === 0) return null;
+            return {
+                id: cell.id,
+                type: 'properties_group',
+                x: 0, y: 0, w: 0, h: 0,
+                config: {
+                    label: cell.label,
+                    icon_key: cell.iconKey,
+                    field_slugs: fieldSlugs,
+                    collapsed_by_default: cell.collapsedByDefault ?? false,
+                },
+            };
+        }
+        if (cell.kind === 'leftover-group') {
+            const fieldSlugs: string[] = [];
+            for (const f of [...this.fields].sort((a, b) => a.position - b.position)) {
+                if (! this.isAvail(f)) continue;
+                fieldSlugs.push(this.take(f).slug);
+            }
+            if (fieldSlugs.length === 0) return null;
+            return {
+                id: cell.id,
+                type: 'properties_group',
+                x: 0, y: 0, w: 0, h: 0,
+                config: {
+                    label: cell.label,
+                    icon_key: cell.iconKey,
+                    field_slugs: fieldSlugs,
+                    collapsed_by_default: cell.collapsedByDefault ?? true,
+                },
+            };
+        }
+        if (cell.kind === 'stats') {
+            return { id: 'stats', type: 'stats', x: 0, y: 0, w: 0, h: 0, config: {} };
+        }
+        if (cell.kind === 'timeline') {
+            return { id: 'timeline', type: 'timeline', x: 0, y: 0, w: 0, h: 0, config: {} };
+        }
+        if (cell.kind === 'notes') {
+            return {
+                id: cell.id ?? 'notes',
+                type: 'notes',
+                x: 0, y: 0, w: 0, h: 0,
+                config: { title: cell.title, content: cell.content },
+            };
+        }
+        if (cell.kind === 'related') {
+            const f = this.fields.find((x) => x.slug === cell.fieldSlug);
+            if (! f || f.type !== 'relation') return null;
+            return {
+                id: `related-${f.id}`,
+                type: 'related',
+                x: 0, y: 0, w: 0, h: 0,
+                config: { field_slug: f.slug },
+            };
+        }
+        return null;
+    }
+
     build(): CustomTemplateConfigV2 {
         return {
             v: 2,
@@ -449,46 +602,68 @@ const autoTemplate: CrmTemplate = {
         };
     },
     /**
-     * V2 layout: 3 columnas balanceadas. Sidebar izquierdo (4w) con
-     * datos clave + asignación. Centro (5w) con timeline. Derecho
-     * (3w) con stats + relacionados.
+     * V2 layout (row-based): timeline + stats arriba; abajo grupos.
+     * Cuando un grupo no aplica (ej. lista sin user fields →
+     * Asignación vacío), las cells presentes redistribuyen el row
+     * para no dejar gaps en col 0.
      */
     resolveV2: (fields) => new V2Builder(fields)
         .setAutoTitle()
         .autoStatus()
         .autoQuickActions()
-        .propertiesGroup({
-            id: 'g-key-data',
-            label: 'Datos clave',
-            iconKey: 'briefcase',
-            x: 0, y: 0, w: 4, h: 6,
-            predicate: (f) =>
-                f.type === 'currency' || f.type === 'number'
-                || f.type === 'date' || f.type === 'datetime',
+        // Row 1: timeline (peso mayor) + stats (panel derecho).
+        .row({
+            height: 10,
+            cells: [
+                { kind: 'timeline', weight: 9 },
+                { kind: 'stats', weight: 3 },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-contact',
-            label: 'Contacto',
-            iconKey: 'mail',
-            x: 0, y: 6, w: 4, h: 4,
-            predicate: (f) => f.type === 'email' || f.type === 'url' || isPhoneLike(f),
+        // Row 2: grupos auto-categorizados side-by-side.
+        .row({
+            height: 5,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-key-data',
+                    label: 'Datos clave',
+                    iconKey: 'briefcase',
+                    weight: 4,
+                    predicate: (f) =>
+                        f.type === 'currency' || f.type === 'number'
+                        || f.type === 'date' || f.type === 'datetime',
+                },
+                {
+                    kind: 'group',
+                    id: 'g-contact',
+                    label: 'Contacto',
+                    iconKey: 'mail',
+                    weight: 4,
+                    predicate: (f) => f.type === 'email' || f.type === 'url' || isPhoneLike(f),
+                },
+                {
+                    kind: 'group',
+                    id: 'g-assignment',
+                    label: 'Asignación',
+                    iconKey: 'circle_user',
+                    weight: 4,
+                    predicate: (f) => f.type === 'user',
+                },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-assignment',
-            label: 'Asignación',
-            iconKey: 'circle_user',
-            x: 0, y: 10, w: 4, h: 3,
-            predicate: (f) => f.type === 'user',
-        })
-        .timeline({ x: 4, y: 0, w: 5, h: 13 })
-        .stats({ x: 9, y: 0, w: 3, h: 4 })
-        .autoRelated({ x: 9, startY: 4, w: 3, h: 4 })
-        .leftoverGroup({
-            id: 'g-other',
-            label: 'Otros',
-            iconKey: 'database',
-            x: 9, y: 100, w: 3, h: 4,
-            collapsedByDefault: true,
+        .autoRelatedRows({ width: 12, height: 4 })
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'leftover-group',
+                    id: 'g-other',
+                    label: 'Otros',
+                    iconKey: 'database',
+                    weight: 12,
+                    collapsedByDefault: true,
+                },
+            ],
         })
         .build(),
 };
@@ -542,9 +717,11 @@ const contactTemplate: CrmTemplate = {
         };
     },
     /**
-     * V2 layout: sidebar izquierdo con 3 grupos apilados (Contacto,
-     * Empresa, Asignación). Centro angosto (4w) timeline. Derecho
-     * stats + notas template + relacionados.
+     * V2 layout (row-based):
+     *  - Row 1 (h=5): Contacto + Empresa-rol + Stats.
+     *  - Row 2 (h=10): Asignación + Timeline + Notes recordatorios.
+     *  - Row 3+: relacionados (1 por row).
+     *  - Row N: Otros (catch-all colapsado).
      */
     resolveV2: (fields) => new V2Builder(fields)
         .setAutoTitle()
@@ -552,43 +729,64 @@ const contactTemplate: CrmTemplate = {
         .addSubtitleByPattern((f) => f.type === 'text' && matches(f, ROLE_PATTERNS), 1)
         .autoStatus()
         .autoQuickActions()
-        .propertiesGroup({
-            id: 'g-contact',
-            label: 'Contacto',
-            iconKey: 'mail',
-            x: 0, y: 0, w: 4, h: 5,
-            predicate: (f) =>
-                f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, ADDRESS_PATTERNS),
+        .row({
+            height: 5,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-contact',
+                    label: 'Contacto',
+                    iconKey: 'mail',
+                    weight: 4,
+                    predicate: (f) =>
+                        f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, ADDRESS_PATTERNS),
+                },
+                {
+                    kind: 'group',
+                    id: 'g-company',
+                    label: 'Empresa y rol',
+                    iconKey: 'building',
+                    weight: 4,
+                    predicate: (f) =>
+                        f.type === 'text' && (matches(f, COMPANY_PATTERNS) || matches(f, ROLE_PATTERNS)),
+                },
+                { kind: 'stats', weight: 4 },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-company',
-            label: 'Empresa y rol',
-            iconKey: 'building',
-            x: 0, y: 5, w: 4, h: 4,
-            predicate: (f) => f.type === 'text' && (matches(f, COMPANY_PATTERNS) || matches(f, ROLE_PATTERNS)),
+        .row({
+            height: 10,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-assignment',
+                    label: 'Asignación',
+                    iconKey: 'circle_user',
+                    weight: 3,
+                    predicate: (f) => f.type === 'user',
+                },
+                { kind: 'timeline', weight: 6 },
+                {
+                    kind: 'notes',
+                    id: 'notes-default',
+                    title: 'Recordatorios',
+                    content: 'Notas internas sobre este contacto. Editá el bloque para personalizar.',
+                    weight: 3,
+                },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-assignment',
-            label: 'Asignación',
-            iconKey: 'circle_user',
-            x: 0, y: 9, w: 4, h: 3,
-            predicate: (f) => f.type === 'user',
-        })
-        .timeline({ x: 4, y: 0, w: 4, h: 12 })
-        .stats({ x: 8, y: 0, w: 4, h: 4 })
-        .notes({
-            id: 'notes-default',
-            title: 'Recordatorios',
-            content: 'Notas internas sobre este contacto. Editá el bloque para personalizar.',
-            x: 8, y: 4, w: 4, h: 3,
-        })
-        .autoRelated({ x: 8, startY: 7, w: 4, h: 4 })
-        .leftoverGroup({
-            id: 'g-other',
-            label: 'Otros campos',
-            iconKey: 'database',
-            x: 0, y: 100, w: 4, h: 4,
-            collapsedByDefault: true,
+        .autoRelatedRows({ width: 12, height: 4 })
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'leftover-group',
+                    id: 'g-other',
+                    label: 'Otros campos',
+                    iconKey: 'database',
+                    weight: 12,
+                    collapsedByDefault: true,
+                },
+            ],
         })
         .build(),
 };
@@ -638,55 +836,87 @@ const dealTemplate: CrmTemplate = {
         };
     },
     /**
-     * V2 layout: ROW 1 monto destacado al ancho completo + stats al
-     * lado. ROW 2 cliente + timeline + fechas. ROW 3 asignación +
-     * relacionados. Layout horizontal con énfasis en monto y pipeline.
+     * V2 layout (row-based):
+     *  - Row 1 (h=4): Monto (peso grande) + Stats.
+     *  - Row 2 (h=10): Cliente + Timeline + Fechas.
+     *  - Row 3 (h=4): Asignación.
+     *  - Row 4+: relacionados.
+     *  - Row N: Otros.
      */
     resolveV2: (fields) => new V2Builder(fields)
         .setAutoTitle()
         .autoStatus()
         .autoQuickActions()
-        // Top row: monto destacado al ancho completo + stats.
-        .propertiesGroup({
-            id: 'g-monto',
-            label: 'Monto y métricas',
-            iconKey: 'dollar',
-            x: 0, y: 0, w: 8, h: 4,
-            predicate: (f) => f.type === 'currency' || f.type === 'number',
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-monto',
+                    label: 'Monto y métricas',
+                    iconKey: 'dollar',
+                    weight: 8,
+                    predicate: (f) => f.type === 'currency' || f.type === 'number',
+                },
+                { kind: 'stats', weight: 4 },
+            ],
         })
-        .stats({ x: 8, y: 0, w: 4, h: 4 })
-        // Middle row: cliente | timeline | fechas.
-        .propertiesGroup({
-            id: 'g-cliente',
-            label: 'Cliente',
-            iconKey: 'user',
-            x: 0, y: 4, w: 4, h: 6,
-            predicate: (f) =>
-                f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
+        .row({
+            height: 10,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-cliente',
+                    label: 'Cliente',
+                    iconKey: 'user',
+                    weight: 3,
+                    predicate: (f) =>
+                        f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
+                },
+                { kind: 'timeline', weight: 6 },
+                {
+                    kind: 'group',
+                    id: 'g-fechas',
+                    label: 'Fechas clave',
+                    iconKey: 'calendar',
+                    weight: 3,
+                    predicate: (f) => f.type === 'date' || f.type === 'datetime',
+                },
+            ],
         })
-        .timeline({ x: 4, y: 4, w: 4, h: 12 })
-        .propertiesGroup({
-            id: 'g-fechas',
-            label: 'Fechas clave',
-            iconKey: 'calendar',
-            x: 8, y: 4, w: 4, h: 5,
-            predicate: (f) => f.type === 'date' || f.type === 'datetime',
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-assignment',
+                    label: 'Asignación',
+                    iconKey: 'circle_user',
+                    weight: 4,
+                    predicate: (f) => f.type === 'user',
+                },
+                {
+                    kind: 'notes',
+                    id: 'notes-deal',
+                    title: 'Próximos pasos',
+                    content: 'Acciones a seguir para avanzar esta venta. Editá el bloque para personalizar.',
+                    weight: 8,
+                },
+            ],
         })
-        // Bottom row: asignación + relacionados.
-        .propertiesGroup({
-            id: 'g-assignment',
-            label: 'Asignación',
-            iconKey: 'circle_user',
-            x: 0, y: 10, w: 4, h: 3,
-            predicate: (f) => f.type === 'user',
-        })
-        .autoRelated({ x: 8, startY: 9, w: 4, h: 4 })
-        .leftoverGroup({
-            id: 'g-other',
-            label: 'Otros',
-            iconKey: 'database',
-            x: 0, y: 100, w: 4, h: 4,
-            collapsedByDefault: true,
+        .autoRelatedRows({ width: 12, height: 4 })
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'leftover-group',
+                    id: 'g-other',
+                    label: 'Otros',
+                    iconKey: 'database',
+                    weight: 12,
+                    collapsedByDefault: true,
+                },
+            ],
         })
         .build(),
 };
@@ -736,51 +966,77 @@ const taskTemplate: CrmTemplate = {
         };
     },
     /**
-     * V2 layout horizontal con énfasis en programación. ROW 1
-     * programación full-width + asignación. ROW 2 estado + timeline
-     * + checklist (notes). ROW 3 stats + relacionados.
+     * V2 layout (row-based):
+     *  - Row 1 (h=4): Programación + Asignación.
+     *  - Row 2 (h=10): Datos + Timeline + Checklist (notes).
+     *  - Row 3 (h=4): Stats.
+     *  - Row 4+: relacionados.
+     *  - Row N: Otros.
      */
     resolveV2: (fields) => new V2Builder(fields)
         .setAutoTitle()
         .addSubtitleByPattern((f) => f.type === 'date' || f.type === 'datetime', 1)
         .autoStatus()
         .autoQuickActions()
-        .propertiesGroup({
-            id: 'g-programacion',
-            label: 'Programación',
-            iconKey: 'calendar',
-            x: 0, y: 0, w: 8, h: 4,
-            predicate: (f) => f.type === 'date' || f.type === 'datetime',
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-programacion',
+                    label: 'Programación',
+                    iconKey: 'calendar',
+                    weight: 8,
+                    predicate: (f) => f.type === 'date' || f.type === 'datetime',
+                },
+                {
+                    kind: 'group',
+                    id: 'g-assignment',
+                    label: 'Asignación',
+                    iconKey: 'circle_user',
+                    weight: 4,
+                    predicate: (f) => f.type === 'user',
+                },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-assignment',
-            label: 'Asignación',
-            iconKey: 'circle_user',
-            x: 8, y: 0, w: 4, h: 4,
-            predicate: (f) => f.type === 'user',
+        .row({
+            height: 10,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-numbers',
+                    label: 'Datos',
+                    iconKey: 'briefcase',
+                    weight: 3,
+                    predicate: (f) => f.type === 'number' || f.type === 'currency',
+                },
+                { kind: 'timeline', weight: 6 },
+                {
+                    kind: 'notes',
+                    id: 'notes-checklist',
+                    title: 'Checklist',
+                    content: '- [ ] Sub-tarea 1\n- [ ] Sub-tarea 2\n- [ ] Sub-tarea 3\n\nEditá el bloque para personalizar.',
+                    weight: 3,
+                },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-numbers',
-            label: 'Datos',
-            iconKey: 'briefcase',
-            x: 0, y: 4, w: 4, h: 4,
-            predicate: (f) => f.type === 'number' || f.type === 'currency',
+        .row({
+            height: 4,
+            cells: [{ kind: 'stats', weight: 12 }],
         })
-        .timeline({ x: 4, y: 4, w: 5, h: 10 })
-        .notes({
-            id: 'notes-checklist',
-            title: 'Checklist',
-            content: '- [ ] Sub-tarea 1\n- [ ] Sub-tarea 2\n- [ ] Sub-tarea 3\n\nEditá el bloque para personalizar.',
-            x: 9, y: 4, w: 3, h: 5,
-        })
-        .stats({ x: 9, y: 9, w: 3, h: 4 })
-        .autoRelated({ x: 0, startY: 8, w: 4, h: 4 })
-        .leftoverGroup({
-            id: 'g-other',
-            label: 'Otros',
-            iconKey: 'database',
-            x: 0, y: 100, w: 4, h: 4,
-            collapsedByDefault: true,
+        .autoRelatedRows({ width: 12, height: 4 })
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'leftover-group',
+                    id: 'g-other',
+                    label: 'Otros',
+                    iconKey: 'database',
+                    weight: 12,
+                    collapsedByDefault: true,
+                },
+            ],
         })
         .build(),
 };
@@ -838,9 +1094,12 @@ const supportTemplate: CrmTemplate = {
         };
     },
     /**
-     * V2 layout enfocado en SLA y triage. ROW 1 stats SLA + cliente
-     * + asignación. ROW 2 detalles (long_text/files) + timeline +
-     * fechas. ROW 3 métricas + relacionados + notas runbook.
+     * V2 layout (row-based):
+     *  - Row 1 (h=4): Stats (SLA) + Cliente + Asignación.
+     *  - Row 2 (h=10): Detalles + Timeline + Fechas.
+     *  - Row 3 (h=5): Runbook (notes) + Métricas.
+     *  - Row 4+: relacionados.
+     *  - Row N: Otros.
      */
     resolveV2: (fields) => new V2Builder(fields)
         .setAutoTitle()
@@ -850,60 +1109,84 @@ const supportTemplate: CrmTemplate = {
         )
         .autoStatus()
         .autoQuickActions()
-        // Top: SLA (stats), cliente, asignación.
-        .stats({ x: 0, y: 0, w: 3, h: 4 })
-        .propertiesGroup({
-            id: 'g-cliente',
-            label: 'Cliente',
-            iconKey: 'user',
-            x: 3, y: 0, w: 5, h: 4,
-            predicate: (f) =>
-                f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
+        .row({
+            height: 4,
+            cells: [
+                { kind: 'stats', weight: 3 },
+                {
+                    kind: 'group',
+                    id: 'g-cliente',
+                    label: 'Cliente',
+                    iconKey: 'user',
+                    weight: 5,
+                    predicate: (f) =>
+                        f.type === 'email' || f.type === 'url' || isPhoneLike(f) || matches(f, COMPANY_PATTERNS),
+                },
+                {
+                    kind: 'group',
+                    id: 'g-assignment',
+                    label: 'Asignación',
+                    iconKey: 'circle_user',
+                    weight: 4,
+                    predicate: (f) => f.type === 'user',
+                },
+            ],
         })
-        .propertiesGroup({
-            id: 'g-assignment',
-            label: 'Asignación',
-            iconKey: 'circle_user',
-            x: 8, y: 0, w: 4, h: 4,
-            predicate: (f) => f.type === 'user',
+        .row({
+            height: 10,
+            cells: [
+                {
+                    kind: 'group',
+                    id: 'g-detalles',
+                    label: 'Detalles',
+                    iconKey: 'lifebuoy',
+                    weight: 3,
+                    predicate: (f) => f.type === 'long_text' || f.type === 'file',
+                },
+                { kind: 'timeline', weight: 6 },
+                {
+                    kind: 'group',
+                    id: 'g-fechas',
+                    label: 'Fechas',
+                    iconKey: 'calendar',
+                    weight: 3,
+                    predicate: (f) => f.type === 'date' || f.type === 'datetime',
+                },
+            ],
         })
-        // Middle: detalles + timeline + fechas.
-        .propertiesGroup({
-            id: 'g-detalles',
-            label: 'Detalles',
-            iconKey: 'lifebuoy',
-            x: 0, y: 4, w: 3, h: 8,
-            predicate: (f) => f.type === 'long_text' || f.type === 'file',
+        .row({
+            height: 5,
+            cells: [
+                {
+                    kind: 'notes',
+                    id: 'notes-runbook',
+                    title: 'Runbook',
+                    content: 'Pasos a seguir para este tipo de ticket.\n\n1. Confirmar con el cliente.\n2. Reproducir el problema.\n3. Documentar en la timeline.',
+                    weight: 6,
+                },
+                {
+                    kind: 'group',
+                    id: 'g-numbers',
+                    label: 'Métricas',
+                    iconKey: 'target',
+                    weight: 6,
+                    predicate: (f) => f.type === 'number' || f.type === 'currency',
+                },
+            ],
         })
-        .timeline({ x: 3, y: 4, w: 5, h: 12 })
-        .propertiesGroup({
-            id: 'g-fechas',
-            label: 'Fechas',
-            iconKey: 'calendar',
-            x: 8, y: 4, w: 4, h: 4,
-        predicate: (f) => f.type === 'date' || f.type === 'datetime',
-        })
-        // Bottom: métricas + relacionados + runbook.
-        .propertiesGroup({
-            id: 'g-numbers',
-            label: 'Métricas',
-            iconKey: 'target',
-            x: 8, y: 8, w: 4, h: 4,
-            predicate: (f) => f.type === 'number' || f.type === 'currency',
-        })
-        .notes({
-            id: 'notes-runbook',
-            title: 'Runbook',
-            content: 'Pasos a seguir para este tipo de ticket.\n\n1. Confirmar con el cliente.\n2. Reproducir el problema.\n3. Documentar en la timeline.',
-            x: 0, y: 12, w: 3, h: 5,
-        })
-        .autoRelated({ x: 8, startY: 12, w: 4, h: 4 })
-        .leftoverGroup({
-            id: 'g-other',
-            label: 'Otros',
-            iconKey: 'database',
-            x: 0, y: 100, w: 4, h: 4,
-            collapsedByDefault: true,
+        .autoRelatedRows({ width: 12, height: 4 })
+        .row({
+            height: 4,
+            cells: [
+                {
+                    kind: 'leftover-group',
+                    id: 'g-other',
+                    label: 'Otros',
+                    iconKey: 'database',
+                    weight: 12,
+                    collapsedByDefault: true,
+                },
+            ],
         })
         .build(),
 };
