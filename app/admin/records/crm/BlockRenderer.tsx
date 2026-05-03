@@ -6,6 +6,14 @@ import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { ResolvedV2Block } from '@/lib/crmTemplates';
 
+import { ChartBlockView } from './blocks/ChartBlockView';
+import { KpiBlockView } from './blocks/KpiBlockView';
+import {
+    ActionButtonView,
+    EmbedBlockView,
+    FilesBlockView,
+    MarkdownBlockView,
+} from './blocks/SimpleBlockViews';
 import { RecordTimeline } from './RecordTimeline';
 import { RelatedBlock as RelatedBlockView, StatsBlock as StatsBlockView } from './RightRail';
 
@@ -55,6 +63,24 @@ export function BlockRenderer({
     }
     if (block.type === 'related') {
         return <RelatedBlockView field={block.config.field} record={record} />;
+    }
+    if (block.type === 'kpi') {
+        return <KpiBlockView block={block} record={record} />;
+    }
+    if (block.type === 'chart') {
+        return <ChartBlockView block={block} record={record} />;
+    }
+    if (block.type === 'files') {
+        return <FilesBlockView block={block} record={record} />;
+    }
+    if (block.type === 'embed') {
+        return <EmbedBlockView block={block} record={record} />;
+    }
+    if (block.type === 'action_button') {
+        return <ActionButtonView block={block} />;
+    }
+    if (block.type === 'markdown') {
+        return <MarkdownBlockView block={block} />;
     }
     if (block.type === 'notes') {
         return <NotesView title={block.config.title} content={block.config.content} />;

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.35.3
+Stable tag: 0.36.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,42 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.0 =
+**6 nuevos tipos de bloque para el editor visual.**
+
+* **KPI** — número grande con label opcional, formato (number/
+  currency/percent), prefix/suffix custom, y barra de progreso a
+  meta opcional (`goal_value`). Ideal para destacar monto total,
+  ranking, count, etc. Lee de cualquier field number/currency.
+* **Gráfico inline (chart)** — distribución de records relacionados
+  agrupados por un field en la lista destino. Aggregación 100%
+  client-side: tomamos los records que ya trae `useRecords` para
+  el sidebar de relacionados, agrupamos por el field elegido,
+  renderemos barras horizontales con count + % del total. Soporta
+  options con color (select fields). Sin endpoint extra al backend.
+* **Archivos** — muestra los archivos vinculados al record (file
+  fields). Grid de 2 columnas con thumbnail (cuando es imagen) o
+  icono genérico. Click abre el archivo en tab nueva. Resuelve via
+  `/wp-json/wp/v2/media/<id>` con el nonce ya inyectado.
+* **Embed externo** — iframe con sandbox y allowlist (YouTube,
+  Vimeo, Google Maps, Loom, Figma, Calendly). URL puede ser fijo
+  o resolverse desde un field tipo `url` del record (ej. mostrar
+  el ubicación del cliente en Maps si tenés un field "ubicacion").
+* **Botón de acción** — botón configurable con 4 tipos:
+    - URL externa (target=_blank).
+    - Email (mailto:).
+    - Teléfono (tel:).
+    - Copiar al clipboard (toast de confirmación).
+  Variante visual (default/outline/destructive) y label personalizable.
+* **Markdown rich text** — como Notes pero con render markdown
+  ligero: `# heading`, `**bold**`, `*italic*`, listas (`-` y `1.`),
+  inline `code`, `[link](url)`. Auto-escape de HTML para evitar XSS.
+  Sin librería externa — parser inline de ~80 líneas.
+
+Cada bloque tiene su form de configuración propio en el dialog
+del editor (click ✏ sobre el bloque). Los defaults al agregar
+son razonables para que el bloque renderee algo útil al instante.
 
 = 0.35.3 =
 **Plantillas built-in: layout row-based con redistribución de ancho.**

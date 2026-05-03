@@ -86,6 +86,46 @@ export function BlockConfigDialog({
                                 {__('Este bloque no tiene opciones configurables. Movelo o cambiá su tamaño con el grid.')}
                             </p>
                         )}
+                        {block.type === 'kpi' && (
+                            <KpiForm
+                                block={block}
+                                fields={fields}
+                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                            />
+                        )}
+                        {block.type === 'chart' && (
+                            <ChartForm
+                                block={block}
+                                fields={fields}
+                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                            />
+                        )}
+                        {block.type === 'files' && (
+                            <FilesForm
+                                block={block}
+                                fields={fields}
+                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                            />
+                        )}
+                        {block.type === 'embed' && (
+                            <EmbedForm
+                                block={block}
+                                fields={fields}
+                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                            />
+                        )}
+                        {block.type === 'action_button' && (
+                            <ActionButtonForm
+                                block={block}
+                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                            />
+                        )}
+                        {block.type === 'markdown' && (
+                            <MarkdownForm
+                                block={block}
+                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                            />
+                        )}
                     </div>
 
                     <div className="imcrm-mt-5 imcrm-flex imcrm-justify-end">
@@ -101,31 +141,33 @@ export function BlockConfigDialog({
 
 function titleForType(type: V2Block['type']): string {
     switch (type) {
-        case 'properties_group':
-            return __('Editar grupo de propiedades');
-        case 'notes':
-            return __('Editar bloque de notas');
-        case 'related':
-            return __('Editar bloque de relacionados');
-        case 'timeline':
-            return __('Bloque Timeline');
-        case 'stats':
-            return __('Bloque Resumen');
+        case 'properties_group': return __('Editar grupo de propiedades');
+        case 'notes':            return __('Editar bloque de notas');
+        case 'related':          return __('Editar bloque de relacionados');
+        case 'timeline':         return __('Bloque Timeline');
+        case 'stats':            return __('Bloque Resumen');
+        case 'kpi':              return __('Editar KPI');
+        case 'chart':            return __('Editar gráfico');
+        case 'files':            return __('Editar bloque de archivos');
+        case 'embed':            return __('Editar embed');
+        case 'action_button':    return __('Editar botón de acción');
+        case 'markdown':         return __('Editar markdown');
     }
 }
 
 function descriptionForType(type: V2Block['type']): string {
     switch (type) {
-        case 'properties_group':
-            return __('Nombre, icono y campos de este grupo.');
-        case 'notes':
-            return __('Texto custom que se mostrará a todos los users en cada record de la lista.');
-        case 'related':
-            return __('Elegí qué relation field se renderea en este bloque.');
-        case 'timeline':
-            return __('Feed de actividad y comentarios. Configuración fija.');
-        case 'stats':
-            return __('Resumen del record (días, # comentarios, # cambios). Configuración fija.');
+        case 'properties_group': return __('Nombre, icono y campos de este grupo.');
+        case 'notes':            return __('Texto custom que se mostrará a todos los users en cada record de la lista.');
+        case 'related':          return __('Elegí qué relation field se renderea en este bloque.');
+        case 'timeline':         return __('Feed de actividad y comentarios. Configuración fija.');
+        case 'stats':            return __('Resumen del record (días, # comentarios, # cambios). Configuración fija.');
+        case 'kpi':              return __('Número grande con label opcional y barra de progreso a meta.');
+        case 'chart':            return __('Distribución de records relacionados agrupados por un field destino.');
+        case 'files':            return __('Archivos adjuntos del record (file fields).');
+        case 'embed':            return __('iframe externo (YouTube, Vimeo, Maps, Loom, Figma, Calendly).');
+        case 'action_button':    return __('Botón configurable: URL externa, mailto, tel o copy al clipboard.');
+        case 'markdown':         return __('Texto rich con headings, listas, negrita, links, código.');
     }
 }
 
@@ -364,6 +406,421 @@ function RelatedForm({
                     </option>
                 ))}
             </select>
+        </div>
+    );
+}
+
+// --- KPI form ----------------------------------------------------------------
+
+function KpiForm({
+    block,
+    fields,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'kpi' }>;
+    fields: FieldEntity[];
+    onUpdate: (patch: { config: typeof block.config }) => void;
+}): JSX.Element {
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+    const numericFields = fields.filter((f) => f.type === 'number' || f.type === 'currency');
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="kpi-field" className="imcrm-text-xs">{__('Campo numérico')}</Label>
+                <select
+                    id="kpi-field"
+                    value={block.config.field_slug}
+                    onChange={(e) => updateConfig({ field_slug: e.target.value })}
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="">{__('— Sin field —')}</option>
+                    {numericFields.map((f) => (
+                        <option key={f.id} value={f.slug}>{f.label} ({f.type})</option>
+                    ))}
+                </select>
+            </div>
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="kpi-label" className="imcrm-text-xs">{__('Label (opcional)')}</Label>
+                    <Input
+                        id="kpi-label"
+                        value={block.config.label ?? ''}
+                        onChange={(e) => updateConfig({ label: e.target.value || undefined })}
+                        placeholder={__('Ej. "Monto total"')}
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="kpi-format" className="imcrm-text-xs">{__('Formato')}</Label>
+                    <select
+                        id="kpi-format"
+                        value={block.config.format ?? 'number'}
+                        onChange={(e) => updateConfig({ format: e.target.value as 'number' | 'currency' | 'percent' })}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="number">{__('Número')}</option>
+                        <option value="currency">{__('Moneda')}</option>
+                        <option value="percent">{__('Porcentaje')}</option>
+                    </select>
+                </div>
+            </div>
+            <div className="imcrm-grid imcrm-grid-cols-3 imcrm-gap-3">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="kpi-prefix" className="imcrm-text-xs">{__('Prefijo')}</Label>
+                    <Input
+                        id="kpi-prefix"
+                        value={block.config.prefix ?? ''}
+                        onChange={(e) => updateConfig({ prefix: e.target.value || undefined })}
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="kpi-suffix" className="imcrm-text-xs">{__('Sufijo')}</Label>
+                    <Input
+                        id="kpi-suffix"
+                        value={block.config.suffix ?? ''}
+                        onChange={(e) => updateConfig({ suffix: e.target.value || undefined })}
+                    />
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="kpi-goal" className="imcrm-text-xs">{__('Meta (opcional)')}</Label>
+                    <Input
+                        id="kpi-goal"
+                        type="number"
+                        value={block.config.goal_value ?? ''}
+                        onChange={(e) => updateConfig({ goal_value: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- Chart form --------------------------------------------------------------
+
+function ChartForm({
+    block,
+    fields,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'chart' }>;
+    fields: FieldEntity[];
+    onUpdate: (patch: { config: typeof block.config }) => void;
+}): JSX.Element {
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+    const relations = fields.filter((f) => f.type === 'relation');
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="chart-rel" className="imcrm-text-xs">{__('Relation field')}</Label>
+                <select
+                    id="chart-rel"
+                    value={block.config.relation_field_slug}
+                    onChange={(e) => updateConfig({ relation_field_slug: e.target.value })}
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="">{__('— Elegí —')}</option>
+                    {relations.map((f) => (
+                        <option key={f.id} value={f.slug}>{f.label}</option>
+                    ))}
+                </select>
+                {relations.length === 0 && (
+                    <p className="imcrm-text-[11px] imcrm-text-warning">
+                        {__('Esta lista no tiene relation fields. Creá uno primero.')}
+                    </p>
+                )}
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="chart-group" className="imcrm-text-xs">{__('Field de agrupación (slug en lista destino)')}</Label>
+                <Input
+                    id="chart-group"
+                    value={block.config.group_by_field_slug}
+                    onChange={(e) => updateConfig({ group_by_field_slug: e.target.value })}
+                    placeholder={__('Ej. status, etapa, prioridad')}
+                />
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Slug del field en la lista destino por el cual agrupar (ideal: select / multi_select).')}
+                </p>
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="chart-title" className="imcrm-text-xs">{__('Título (opcional)')}</Label>
+                <Input
+                    id="chart-title"
+                    value={block.config.title ?? ''}
+                    onChange={(e) => updateConfig({ title: e.target.value || undefined })}
+                />
+            </div>
+        </div>
+    );
+}
+
+// --- Files form --------------------------------------------------------------
+
+function FilesForm({
+    block,
+    fields,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'files' }>;
+    fields: FieldEntity[];
+    onUpdate: (patch: { config: typeof block.config }) => void;
+}): JSX.Element {
+    const fileFields = fields.filter((f) => f.type === 'file');
+
+    if (fileFields.length === 0) {
+        return (
+            <p className="imcrm-text-xs imcrm-text-warning">
+                {__('Esta lista no tiene fields de tipo file. Creá uno primero.')}
+            </p>
+        );
+    }
+
+    const toggle = (slug: string): void => {
+        const current = block.config.file_field_slugs;
+        const next = current.includes(slug)
+            ? current.filter((s) => s !== slug)
+            : [...current, slug];
+        onUpdate({ config: { ...block.config, file_field_slugs: next } });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="files-title" className="imcrm-text-xs">{__('Título')}</Label>
+                <Input
+                    id="files-title"
+                    value={block.config.title ?? ''}
+                    onChange={(e) => onUpdate({ config: { ...block.config, title: e.target.value || undefined } })}
+                    placeholder={__('Archivos')}
+                />
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label className="imcrm-text-xs">{__('Fields a mostrar')}</Label>
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Vacío = todos los file fields. Seleccioná específicos para limitar.')}
+                </p>
+                <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                    {fileFields.map((f) => (
+                        <li key={f.id}>
+                            <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
+                                <input
+                                    type="checkbox"
+                                    checked={block.config.file_field_slugs.includes(f.slug)}
+                                    onChange={() => toggle(f.slug)}
+                                />
+                                {f.label}
+                            </label>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    );
+}
+
+// --- Embed form --------------------------------------------------------------
+
+function EmbedForm({
+    block,
+    fields,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'embed' }>;
+    fields: FieldEntity[];
+    onUpdate: (patch: { config: typeof block.config }) => void;
+}): JSX.Element {
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+    const urlFields = fields.filter((f) => f.type === 'url');
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label className="imcrm-text-xs">{__('Fuente del URL')}</Label>
+                <div className="imcrm-flex imcrm-gap-3 imcrm-text-xs">
+                    <label className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
+                        <input
+                            type="radio"
+                            name="embed-source"
+                            checked={block.config.source === 'literal'}
+                            onChange={() => updateConfig({ source: 'literal' })}
+                        />
+                        {__('URL fijo')}
+                    </label>
+                    <label className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
+                        <input
+                            type="radio"
+                            name="embed-source"
+                            checked={block.config.source === 'field'}
+                            onChange={() => updateConfig({ source: 'field' })}
+                        />
+                        {__('Desde un field URL del record')}
+                    </label>
+                </div>
+            </div>
+            {block.config.source === 'literal' ? (
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="embed-url" className="imcrm-text-xs">{__('URL')}</Label>
+                    <Input
+                        id="embed-url"
+                        value={block.config.url ?? ''}
+                        onChange={(e) => updateConfig({ url: e.target.value })}
+                        placeholder="https://www.youtube.com/embed/..."
+                    />
+                    <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Solo se permiten: YouTube, Vimeo, Google Maps, Loom, Figma, Calendly.')}
+                    </p>
+                </div>
+            ) : (
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="embed-field" className="imcrm-text-xs">{__('Field URL')}</Label>
+                    <select
+                        id="embed-field"
+                        value={block.config.field_slug ?? ''}
+                        onChange={(e) => updateConfig({ field_slug: e.target.value })}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="">{__('— Elegí —')}</option>
+                        {urlFields.map((f) => (
+                            <option key={f.id} value={f.slug}>{f.label}</option>
+                        ))}
+                    </select>
+                    {urlFields.length === 0 && (
+                        <p className="imcrm-text-[11px] imcrm-text-warning">
+                            {__('No hay fields tipo url en esta lista.')}
+                        </p>
+                    )}
+                </div>
+            )}
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="embed-title" className="imcrm-text-xs">{__('Título (opcional)')}</Label>
+                <Input
+                    id="embed-title"
+                    value={block.config.title ?? ''}
+                    onChange={(e) => updateConfig({ title: e.target.value || undefined })}
+                />
+            </div>
+        </div>
+    );
+}
+
+// --- Action button form ------------------------------------------------------
+
+function ActionButtonForm({
+    block,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'action_button' }>;
+    onUpdate: (patch: { config: typeof block.config }) => void;
+}): JSX.Element {
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="ab-label" className="imcrm-text-xs">{__('Label del botón')}</Label>
+                <Input
+                    id="ab-label"
+                    value={block.config.label}
+                    onChange={(e) => updateConfig({ label: e.target.value })}
+                    placeholder={__('Ej. "Llamar"')}
+                />
+            </div>
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="ab-action" className="imcrm-text-xs">{__('Tipo')}</Label>
+                    <select
+                        id="ab-action"
+                        value={block.config.action_type}
+                        onChange={(e) => updateConfig({ action_type: e.target.value as 'url' | 'mailto' | 'tel' | 'copy' })}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="url">{__('URL externa')}</option>
+                        <option value="mailto">{__('Email (mailto:)')}</option>
+                        <option value="tel">{__('Teléfono (tel:)')}</option>
+                        <option value="copy">{__('Copiar al clipboard')}</option>
+                    </select>
+                </div>
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                    <Label htmlFor="ab-variant" className="imcrm-text-xs">{__('Variante')}</Label>
+                    <select
+                        id="ab-variant"
+                        value={block.config.variant ?? 'default'}
+                        onChange={(e) => updateConfig({ variant: e.target.value as 'default' | 'outline' | 'destructive' })}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="default">{__('Primario')}</option>
+                        <option value="outline">{__('Outline')}</option>
+                        <option value="destructive">{__('Destructivo')}</option>
+                    </select>
+                </div>
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="ab-target" className="imcrm-text-xs">{__('Target')}</Label>
+                <Input
+                    id="ab-target"
+                    value={block.config.target}
+                    onChange={(e) => updateConfig({ target: e.target.value })}
+                    placeholder={
+                        block.config.action_type === 'url' ? 'https://…' :
+                        block.config.action_type === 'mailto' ? 'foo@bar.com' :
+                        block.config.action_type === 'tel' ? '+57 300 1234567' :
+                        __('Texto a copiar')
+                    }
+                />
+            </div>
+        </div>
+    );
+}
+
+// --- Markdown form -----------------------------------------------------------
+
+function MarkdownForm({
+    block,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'markdown' }>;
+    onUpdate: (patch: { config: typeof block.config }) => void;
+}): JSX.Element {
+    const [draft, setDraft] = useState(block.config);
+
+    useEffect(() => {
+        setDraft(block.config);
+    }, [block.config]);
+
+    const commit = (): void => onUpdate({ config: draft });
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="md-title" className="imcrm-text-xs">{__('Título')}</Label>
+                <Input
+                    id="md-title"
+                    value={draft.title}
+                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                    onBlur={commit}
+                />
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="md-content" className="imcrm-text-xs">{__('Contenido (markdown)')}</Label>
+                <Textarea
+                    id="md-content"
+                    rows={8}
+                    value={draft.content}
+                    onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                    onBlur={commit}
+                    placeholder={'# Título\n## Sub\n- item\n**bold** *itálica* `code` [link](https://...)'}
+                />
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Markdown ligero: # ## ### · - · 1. · **bold** · *italic* · `code` · [link](url)')}
+                </p>
+            </div>
         </div>
     );
 }

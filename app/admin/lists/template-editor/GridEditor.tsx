@@ -4,8 +4,14 @@ import type { Layout, LayoutItem } from 'react-grid-layout';
 import {
     Activity,
     BarChart3,
+    FileText,
+    Hash,
+    MousePointerClick,
     Network,
+    Paperclip,
     Pencil,
+    PieChart,
+    Play,
     Plus,
     StickyNote as StickyNoteIcon,
     Tag,
@@ -171,6 +177,30 @@ export function GridEditor({
                             <Network className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
                             {__('Records relacionados')}
                         </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleAddBlock('kpi')}>
+                            <Hash className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('KPI (número grande)')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleAddBlock('chart')}>
+                            <PieChart className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('Gráfico inline (relacionados)')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleAddBlock('files')}>
+                            <Paperclip className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('Archivos')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleAddBlock('embed')}>
+                            <Play className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('Embed externo')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleAddBlock('action_button')}>
+                            <MousePointerClick className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('Botón de acción')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleAddBlock('markdown')}>
+                            <FileText className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
+                            {__('Markdown rich text')}
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -294,6 +324,47 @@ function createBlock(
         const firstRelation = fields.find((f) => f.type === 'relation');
         if (! firstRelation) return null;
         return { ...base, w: 4, h: 4, type, config: { field_slug: firstRelation.slug } };
+    }
+    if (type === 'kpi') {
+        const firstNumeric = fields.find((f) => f.type === 'currency' || f.type === 'number');
+        return {
+            ...base,
+            w: 3, h: 3,
+            type,
+            config: {
+                field_slug: firstNumeric?.slug ?? '',
+                format: firstNumeric?.type === 'currency' ? 'currency' : 'number',
+            },
+        };
+    }
+    if (type === 'chart') {
+        const firstRelation = fields.find((f) => f.type === 'relation');
+        return {
+            ...base,
+            w: 5, h: 5,
+            type,
+            config: {
+                relation_field_slug: firstRelation?.slug ?? '',
+                group_by_field_slug: '',
+            },
+        };
+    }
+    if (type === 'files') {
+        return { ...base, w: 4, h: 5, type, config: { file_field_slugs: [] } };
+    }
+    if (type === 'embed') {
+        return { ...base, w: 6, h: 6, type, config: { source: 'literal', url: '' } };
+    }
+    if (type === 'action_button') {
+        return {
+            ...base,
+            w: 3, h: 2,
+            type,
+            config: { label: __('Acción'), action_type: 'url', target: '' },
+        };
+    }
+    if (type === 'markdown') {
+        return { ...base, w: 4, h: 4, type, config: { title: __('Notas'), content: '' } };
     }
     return null;
 }

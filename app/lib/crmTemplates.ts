@@ -1414,7 +1414,18 @@ export function getResolvedLayout(
  * se usan en static — visual perfectamente igual a la edición.
  */
 
-export type V2BlockType = 'properties_group' | 'timeline' | 'stats' | 'related' | 'notes';
+export type V2BlockType =
+    | 'properties_group'
+    | 'timeline'
+    | 'stats'
+    | 'related'
+    | 'notes'
+    | 'kpi'
+    | 'chart'
+    | 'files'
+    | 'embed'
+    | 'action_button'
+    | 'markdown';
 
 interface V2BlockBase {
     id: string;
@@ -1463,12 +1474,107 @@ export interface V2NotesBlock extends V2BlockBase {
     };
 }
 
+/**
+ * KPI: número grande con label opcional. Ideal para destacar
+ * monto, count, ranking, etc. Soporta formato (number/currency/
+ * percent), prefix/suffix custom, y opcional `goal_value` que
+ * renderea una barra de progreso debajo del número.
+ */
+export interface V2KpiBlock extends V2BlockBase {
+    type: 'kpi';
+    config: {
+        field_slug: string;
+        label?: string;
+        format?: 'number' | 'currency' | 'percent';
+        prefix?: string;
+        suffix?: string;
+        goal_value?: number;
+    };
+}
+
+/**
+ * Chart inline: distribución de records relacionados agrupados por
+ * un field en la lista destino. Ej. "Tareas por estado" cuando el
+ * record es un cliente y hay relation field a Tareas.
+ */
+export interface V2ChartBlock extends V2BlockBase {
+    type: 'chart';
+    config: {
+        relation_field_slug: string;
+        group_by_field_slug: string;
+        title?: string;
+    };
+}
+
+/**
+ * Files: muestra los archivos vinculados al record. Si
+ * `file_field_slugs` está vacío, muestra todos los `file` fields
+ * disponibles. Soporta thumbnail (cuando es imagen) o icono
+ * genérico para otros tipos.
+ */
+export interface V2FilesBlock extends V2BlockBase {
+    type: 'files';
+    config: {
+        file_field_slugs: string[];
+        title?: string;
+    };
+}
+
+/**
+ * Embed externo (iframe). El URL puede ser literal o resolverse
+ * desde un field tipo `url` del record. Embeds restringidos a
+ * sources whitelist (Google Maps, YouTube, Vimeo, Loom, Figma,
+ * Calendly) por seguridad — sandbox al iframe.
+ */
+export interface V2EmbedBlock extends V2BlockBase {
+    type: 'embed';
+    config: {
+        source: 'literal' | 'field';
+        url?: string;            // cuando source === 'literal'
+        field_slug?: string;     // cuando source === 'field'
+        title?: string;
+    };
+}
+
+/**
+ * Botón de acción: dispara una automatización, abre URL externa,
+ * mailto, tel, o copia un valor. Configurable por tipo.
+ */
+export interface V2ActionButtonBlock extends V2BlockBase {
+    type: 'action_button';
+    config: {
+        label: string;
+        action_type: 'url' | 'mailto' | 'tel' | 'copy';
+        target: string;          // URL, email, phone, o text para copy
+        variant?: 'default' | 'outline' | 'destructive';
+    };
+}
+
+/**
+ * Markdown rich text: como `notes` pero renderea markdown ligero
+ * (headings #, bullet -, números, negrita **x**, itálica *x*,
+ * inline `code`, links [text](url)).
+ */
+export interface V2MarkdownBlock extends V2BlockBase {
+    type: 'markdown';
+    config: {
+        title: string;
+        content: string;
+    };
+}
+
 export type V2Block =
     | V2PropertiesGroupBlock
     | V2TimelineBlock
     | V2StatsBlock
     | V2RelatedBlock
-    | V2NotesBlock;
+    | V2NotesBlock
+    | V2KpiBlock
+    | V2ChartBlock
+    | V2FilesBlock
+    | V2EmbedBlock
+    | V2ActionButtonBlock
+    | V2MarkdownBlock;
 
 export interface CustomTemplateConfigV2 {
     v: 2;
@@ -1643,15 +1749,53 @@ export interface ResolvedV2 {
     blocks: ResolvedV2Block[];
 }
 
+interface ResolvedBase {
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
 export type ResolvedV2Block =
-    | { id: string; type: 'properties_group'; x: number; y: number; w: number; h: number;
-        config: { label: string; icon: IconName; fields: FieldEntity[]; collapsedByDefault: boolean } }
-    | { id: string; type: 'timeline'; x: number; y: number; w: number; h: number }
-    | { id: string; type: 'stats'; x: number; y: number; w: number; h: number }
-    | { id: string; type: 'related'; x: number; y: number; w: number; h: number;
-        config: { field: FieldEntity } }
-    | { id: string; type: 'notes'; x: number; y: number; w: number; h: number;
-        config: { title: string; content: string } };
+    | (ResolvedBase & { type: 'properties_group';
+        config: { label: string; icon: IconName; fields: FieldEntity[]; collapsedByDefault: boolean } })
+    | (ResolvedBase & { type: 'timeline' })
+    | (ResolvedBase & { type: 'stats' })
+    | (ResolvedBase & { type: 'related'; config: { field: FieldEntity } })
+    | (ResolvedBase & { type: 'notes'; config: { title: string; content: string } })
+    | (ResolvedBase & { type: 'kpi';
+        config: {
+            field: FieldEntity | null;
+            label?: string;
+            format?: 'number' | 'currency' | 'percent';
+            prefix?: string;
+            suffix?: string;
+            goalValue?: number;
+        } })
+    | (ResolvedBase & { type: 'chart';
+        config: {
+            relationField: FieldEntity | null;
+            groupByFieldSlug: string;
+            title?: string;
+        } })
+    | (ResolvedBase & { type: 'files';
+        config: { fileFields: FieldEntity[]; title?: string } })
+    | (ResolvedBase & { type: 'embed';
+        config: {
+            source: 'literal' | 'field';
+            url?: string;          // literal URL
+            fieldSlug?: string;    // slug de field tipo url para resolver al render
+            title?: string;
+        } })
+    | (ResolvedBase & { type: 'action_button';
+        config: {
+            label: string;
+            actionType: 'url' | 'mailto' | 'tel' | 'copy';
+            target: string;
+            variant?: 'default' | 'outline' | 'destructive';
+        } })
+    | (ResolvedBase & { type: 'markdown'; config: { title: string; content: string } });
 
 export function resolveV2(
     config: CustomTemplateConfigV2,
@@ -1690,6 +1834,68 @@ export function resolveV2(
             blocks.push({
                 ...base,
                 type: 'notes',
+                config: { title: b.config.title, content: b.config.content },
+            });
+        } else if (b.type === 'kpi') {
+            blocks.push({
+                ...base,
+                type: 'kpi',
+                config: {
+                    field: bySlug.get(b.config.field_slug) ?? null,
+                    label: b.config.label,
+                    format: b.config.format,
+                    prefix: b.config.prefix,
+                    suffix: b.config.suffix,
+                    goalValue: b.config.goal_value,
+                },
+            });
+        } else if (b.type === 'chart') {
+            const rel = bySlug.get(b.config.relation_field_slug);
+            blocks.push({
+                ...base,
+                type: 'chart',
+                config: {
+                    relationField: rel && rel.type === 'relation' ? rel : null,
+                    groupByFieldSlug: b.config.group_by_field_slug,
+                    title: b.config.title,
+                },
+            });
+        } else if (b.type === 'files') {
+            // file_field_slugs vacío = todos los fields tipo `file`.
+            const fileFields = b.config.file_field_slugs.length > 0
+                ? lookupMany(b.config.file_field_slugs).filter((f) => f.type === 'file')
+                : fields.filter((f) => f.type === 'file');
+            blocks.push({
+                ...base,
+                type: 'files',
+                config: { fileFields, title: b.config.title },
+            });
+        } else if (b.type === 'embed') {
+            blocks.push({
+                ...base,
+                type: 'embed',
+                config: {
+                    source: b.config.source,
+                    url: b.config.url,
+                    fieldSlug: b.config.field_slug,
+                    title: b.config.title,
+                },
+            });
+        } else if (b.type === 'action_button') {
+            blocks.push({
+                ...base,
+                type: 'action_button',
+                config: {
+                    label: b.config.label,
+                    actionType: b.config.action_type,
+                    target: b.config.target,
+                    variant: b.config.variant,
+                },
+            });
+        } else if (b.type === 'markdown') {
+            blocks.push({
+                ...base,
+                type: 'markdown',
                 config: { title: b.config.title, content: b.config.content },
             });
         }
