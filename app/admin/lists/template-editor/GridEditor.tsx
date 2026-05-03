@@ -184,6 +184,11 @@ export function GridEditor({
             ) : (
                 <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/10 imcrm-p-3">
                     <SizedGrid
+                        // Re-mount cuando cambian los ids de bloques
+                        // (ej. después de "Restaurar desde…" que regenera
+                        // todo el set). Ver comentario equivalente en
+                        // RecordCrmLayout.
+                        key={config.blocks.map((b) => b.id).join(',')}
                         className="imcrm-template-editor-grid"
                         cols={12}
                         rowHeight={48}

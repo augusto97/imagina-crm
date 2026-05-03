@@ -154,6 +154,15 @@ export function RecordCrmLayout({
                 </p>
             ) : (
                 <SizedGrid
+                    // Key basado en el template id activo + ids de bloques.
+                    // `react-grid-layout/legacy` cachea internamente y a
+                    // veces no detecta cambios del prop `layout` cuando
+                    // las identidades de bloques cambian. Forzar
+                    // re-mount con `key` lo arregla — sin esto, switchear
+                    // entre plantillas (ej. "Contacto" → "Venta") no
+                    // refrescaba el grid visible aunque el resolver
+                    // ya devolvía el layout nuevo.
+                    key={`${(list.settings as { crm_template_id?: string }).crm_template_id ?? 'auto'}-${resolved.blocks.map((b) => b.id).join(',')}`}
                     className="imcrm-record-grid"
                     cols={12}
                     rowHeight={48}

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.35.0
+Stable tag: 0.35.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,28 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.35.1 =
+**Hotfix definitivo para el switch de plantillas.**
+
+El bug reportado en 0.34.x volvió a aparecer en 0.35 por una causa
+distinta: `react-grid-layout/legacy` cachea internamente su layout
+state y NO siempre detecta cambios cuando la prop `layout` se
+reemplaza por una nueva referencia. El resolver siempre estuvo
+correcto y devolvía el layout de la plantilla recién elegida —
+pero el grid no se refrescaba visualmente porque RGL seguía
+mostrando los bloques anteriores.
+
+* `RecordCrmLayout`: `<SizedGrid key={...}>` con un key compuesto
+  por `crm_template_id + ids_de_bloques`. Cuando cambiás de
+  plantilla, el key cambia, RGL se re-monta desde cero, el layout
+  nuevo aparece al instante.
+* `GridEditor`: mismo `key` basado en ids de bloques — el editor
+  refresca correctamente después de "Restaurar desde…".
+
+Sin esto, switchear de "Custom" a "Contacto" (o viceversa) en el
+picker no actualizaba la ficha del registro aunque el estado se
+guardaba bien en DB.
 
 = 0.35.0 =
 **Editor visual rebuilt: grid drag/resize + bloque de notas custom.**
