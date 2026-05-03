@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.1
+Stable tag: 0.36.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,36 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.2 =
+**Plantillas: stack vertical en columnas para llenar gaps bajo bloques cortos.**
+
+El fix de 0.36.1 (per-cell heights) resolvió el espacio DENTRO de
+bloques cortos, pero seguía dejando un gap grande BAJO ellos cuando
+estaban junto a Timeline (alto). Ej. en Soporte: Detalles h=5 al
+lado de Timeline h=12 → bajo Detalles había 7 row units de espacio
+vacío hasta que terminaba Timeline y arrancaba la siguiente row.
+
+* **Nuevo `V2Builder.columns()`**: cada columna tiene un `width`
+  fijo (1-12) y blocks apilados verticalmente. Bloques cortos se
+  apilan en su columna sin esperar a que termine el bloque alto
+  de otra columna.
+* **5 plantillas refactorizadas con columns()**:
+    - **Auto** — col izq apila Datos+Contacto+Asignación.
+    - **Contacto** — col der apila Stats+Recordatorios.
+    - **Venta** — col izq apila Cliente+Asignación; col der apila
+      Fechas+Próximos pasos.
+    - **Tarea** — col izq apila Datos+Stats.
+    - **Soporte** — col izq apila Detalles+Runbook; col der apila
+      Fechas+Métricas. Esto soluciona específicamente el gap del
+      screenshot reportado.
+* Si un block dentro de una columna es vacío (predicate sin fields),
+  los siguientes en esa columna se suben para llenar.
+
+Resultado: layouts visualmente densos sin huecos verticales raros.
+El editor visual sigue permitiendo arrastrar bloques libremente
+(la columns() es solo para los templates iniciales — el user puede
+reorganizar después).
 
 = 0.36.1 =
 **Plantillas: altura por bloque para evitar espacios verticales vacíos.**
