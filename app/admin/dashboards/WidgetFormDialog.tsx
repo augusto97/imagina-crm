@@ -454,6 +454,90 @@ export function WidgetFormDialog({
     );
 }
 
+/**
+ * 0.36.8: dropdown único con todas las combinaciones (métrica × campo)
+ * en una sola lista — como Airtable / Notion. Antes era un picker
+ * anidado: primero `metric` (count/sum/avg), después si era sum/avg
+ * aparecía abajo un FieldPicker para la columna. Resultado: usuarios
+ * con `count` por default no veían cómo elegir una columna; las
+ * opciones "Sumar campo / Promediar campo" parecían etiquetas vacías.
+ *
+ * Ahora cada opción del dropdown representa una métrica completa
+ * (`metric` + `metric_field_id`). El value se codifica como
+ * `count` | `sum:<fieldId>` | `avg:<fieldId>` para round-trip al
+ * estado.
+ */
+interface FlatMetricPickerProps {
+    label: string;
+    metric: KpiMetric;
+    metricFieldId: number;
+    numericFields: Array<{ id: number; label: string }>;
+    onChange: (metric: KpiMetric, fieldId: number) => void;
+}
+
+function encodeMetric(metric: KpiMetric, fieldId: number): string {
+    if (metric === 'count') return 'count';
+    return metric + ':' + String(fieldId);
+}
+
+function decodeMetric(value: string): { metric: KpiMetric; fieldId: number } {
+    if (value === 'count') return { metric: 'count', fieldId: 0 };
+    const [m, idStr] = value.split(':');
+    const id = Number(idStr ?? 0);
+    if (m === 'sum' || m === 'avg') {
+        return { metric: m, fieldId: Number.isFinite(id) ? id : 0 };
+    }
+    return { metric: 'count', fieldId: 0 };
+}
+
+function FlatMetricPicker({
+    label,
+    metric,
+    metricFieldId,
+    numericFields,
+    onChange,
+}: FlatMetricPickerProps): JSX.Element {
+    const value = encodeMetric(metric, metricFieldId);
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+            <Label htmlFor="w-metric-flat">{label}</Label>
+            <Select
+                id="w-metric-flat"
+                value={value}
+                onChange={(e) => {
+                    const next = decodeMetric(e.target.value);
+                    onChange(next.metric, next.fieldId);
+                }}
+            >
+                <option value="count">{__('Contar registros')}</option>
+                {numericFields.length > 0 && (
+                    <optgroup label={__('Sumar campo')}>
+                        {numericFields.map((f) => (
+                            <option key={'sum-' + f.id} value={'sum:' + f.id}>
+                                {f.label}
+                            </option>
+                        ))}
+                    </optgroup>
+                )}
+                {numericFields.length > 0 && (
+                    <optgroup label={__('Promediar campo')}>
+                        {numericFields.map((f) => (
+                            <option key={'avg-' + f.id} value={'avg:' + f.id}>
+                                {f.label}
+                            </option>
+                        ))}
+                    </optgroup>
+                )}
+            </Select>
+            {numericFields.length === 0 && (
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Para sumar o promediar añade un campo numérico (number / currency) a la lista.')}
+                </p>
+            )}
+        </div>
+    );
+}
+
 interface KpiConfigProps {
     metric: KpiMetric;
     metricFieldId: number;
@@ -470,38 +554,23 @@ function KpiConfig({
     onMetricFieldChange,
 }: KpiConfigProps): JSX.Element {
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="w-metric">{__('Métrica')}</Label>
-                <Select
-                    id="w-metric"
-                    value={metric}
-                    onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
-                >
-                    <option value="count">{__('Contar registros')}</option>
-                    <option value="sum">{__('Sumar campo')}</option>
-                    <option value="avg">{__('Promediar campo')}</option>
-                </Select>
-            </div>
-            {(metric === 'sum' || metric === 'avg') && (
-                <FieldPicker
-                    label={__('Campo numérico')}
-                    value={metricFieldId}
-                    fields={numericFields}
-                    onChange={onMetricFieldChange}
-                    emptyHint={__('La lista no tiene campos numéricos.')}
-                />
-            )}
-        </div>
+        <FlatMetricPicker
+            label={__('Métrica')}
+            metric={metric}
+            metricFieldId={metricFieldId}
+            numericFields={numericFields}
+            onChange={(m, id) => {
+                onMetricChange(m);
+                onMetricFieldChange(id);
+            }}
+        />
     );
 }
 
 /**
- * Métrica para charts (bar/pie/line/area). Misma UI que KpiConfig pero
- * con copy distinto — en charts se aplica per-bucket: "qué medir en
- * cada barra/segmento/punto". Antes los charts solo soportaban contar
- * registros; con esto el usuario puede pedir, por ejemplo, "suma de
- * VALOR COP por mes" en un bar chart.
+ * Métrica para charts (bar/pie/line/area). Mismo dropdown plano que
+ * KpiConfig — wrapper que adapta los handlers separados a la API
+ * unificada de FlatMetricPicker.
  */
 interface ChartMetricConfigProps {
     metric: KpiMetric;
@@ -519,29 +588,16 @@ function ChartMetricConfig({
     onMetricFieldChange,
 }: ChartMetricConfigProps): JSX.Element {
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="w-chart-metric">{__('Qué medir')}</Label>
-                <Select
-                    id="w-chart-metric"
-                    value={metric}
-                    onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
-                >
-                    <option value="count">{__('Contar registros')}</option>
-                    <option value="sum">{__('Sumar campo')}</option>
-                    <option value="avg">{__('Promediar campo')}</option>
-                </Select>
-            </div>
-            {(metric === 'sum' || metric === 'avg') && (
-                <FieldPicker
-                    label={__('Campo numérico')}
-                    value={metricFieldId}
-                    fields={numericFields}
-                    onChange={onMetricFieldChange}
-                    emptyHint={__('La lista no tiene campos numéricos.')}
-                />
-            )}
-        </div>
+        <FlatMetricPicker
+            label={__('Qué medir')}
+            metric={metric}
+            metricFieldId={metricFieldId}
+            numericFields={numericFields}
+            onChange={(m, id) => {
+                onMetricChange(m);
+                onMetricFieldChange(id);
+            }}
+        />
     );
 }
 
@@ -572,27 +628,16 @@ function StatDeltaConfig({
 }: StatDeltaConfigProps): JSX.Element {
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="w-sd-metric">{__('Métrica')}</Label>
-                <Select
-                    id="w-sd-metric"
-                    value={metric}
-                    onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
-                >
-                    <option value="count">{__('Contar registros')}</option>
-                    <option value="sum">{__('Sumar campo')}</option>
-                    <option value="avg">{__('Promediar campo')}</option>
-                </Select>
-            </div>
-            {(metric === 'sum' || metric === 'avg') && (
-                <FieldPicker
-                    label={__('Campo numérico')}
-                    value={metricFieldId}
-                    fields={numericFields}
-                    onChange={onMetricFieldChange}
-                    emptyHint={__('La lista no tiene campos numéricos.')}
-                />
-            )}
+            <FlatMetricPicker
+                label={__('Métrica')}
+                metric={metric}
+                metricFieldId={metricFieldId}
+                numericFields={numericFields}
+                onChange={(m, id) => {
+                    onMetricChange(m);
+                    onMetricFieldChange(id);
+                }}
+            />
             <FieldPicker
                 label={__('Campo de fecha (define períodos)')}
                 value={dateFieldId}
