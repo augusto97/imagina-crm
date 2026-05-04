@@ -1,0 +1,2 @@
+import{u as r,a as u,b as n}from"./main-CCPrQIg7.js";import{l as t}from"./main-CMcb1jDT.js";const s=["me","email-signature"];function c(){return r({queryKey:s,queryFn:async()=>(await t.get("/me/email-signature")).data.signature,staleTime:6e4})}function g(){const a=u();return n({mutationFn:async e=>(await t.patch("/me/email-signature",{signature:e})).data.signature,onSuccess:e=>{a.setQueryData(s,e)}})}export{g as a,c as u};
+//# sourceMappingURL=useEmailSignature-Blz5ap5R.js.map

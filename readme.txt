@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.7
+Stable tag: 0.36.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,38 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.8 =
+**Fix UX widget: dropdown de métrica plano (estilo Airtable).**
+
+Reporte usuario: en 0.36.7 al elegir KPI / Bar Chart aparecía
+"Qué medir" con count/sum/avg, pero las opciones "Sumar campo" /
+"Promediar campo" se veían como etiquetas vacías — había que primero
+elegirlas, cerrar el dropdown, y abajo aparecía un *segundo* dropdown
+"Campo numérico" para elegir la columna. UX confusa: usuarios con
+default `count` no veían cómo elegir una columna y pensaban que la
+opción no existía.
+
+Fix: nuevo componente `FlatMetricPicker` que aplana todo en un solo
+dropdown con `<optgroup>`:
+
+  Contar registros
+  ── Sumar campo ──
+    VALOR COP
+    Mes facturado
+    ...
+  ── Promediar campo ──
+    VALOR COP
+    Mes facturado
+    ...
+
+Una sola lista con todas las combinaciones. El value se codifica
+internamente como `count` | `sum:<fieldId>` | `avg:<fieldId>` y se
+decodifica al estado `metric` + `metric_field_id` que ya usaba el
+backend. Sin cambios de schema ni del WidgetEvaluator.
+
+Aplicado en KPI, StatDelta y Charts (bar/pie/line/area) — todos
+reusan el mismo picker.
 
 = 0.36.7 =
 **Performance: bajamos CPU del navegador en sesiones largas + reorden del form de widgets + métrica en charts.**
