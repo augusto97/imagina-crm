@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
@@ -129,33 +130,33 @@ export function useRecords(listId: string | number | undefined, query: RecordsQu
     // distinto, así que cuando el user scrollea o avanza de página,
     // los datos ya están listos. Cero pausa visible.
     //
-    // Solo aplica cuando hay paginación activa y `next_cursor` o
-    // page < total_pages. Sin filtros pesados ni fetch extra inútil
-    // — `staleTime` de React Query lo coloca en cache aunque no se
-    // use.
+    // 0.36.7: ahora dentro de useEffect — antes vivía en el cuerpo
+    // del hook y se ejecutaba en cada render (efecto durante render
+    // viola las reglas de React y hacía trabajo redundante en sesiones
+    // largas con re-renders frecuentes). prefetchQuery sigue siendo
+    // idempotente; sólo cambia que ahora corre cuando la fila/página
+    // cambia, no en cada render.
     const meta = result.data?.meta;
-    if (
+    const currentPage = (query.page as number | undefined) ?? 1;
+    const totalPages = (meta as { total_pages?: number } | undefined)?.total_pages ?? 1;
+    const shouldPrefetch =
         listId !== undefined && listId !== '' &&
-        meta !== undefined &&
-        result.isSuccess
-    ) {
-        const currentPage = (query.page as number | undefined) ?? 1;
-        const totalPages = (meta as { total_pages?: number }).total_pages ?? 1;
-        if (currentPage < totalPages) {
-            const nextQuery: RecordsQuery = { ...query, page: currentPage + 1 };
-            // prefetchQuery es idempotente — si la key ya está
-            // cacheada, no re-fetcha.
-            void qc.prefetchQuery({
-                queryKey: recordsKeys.list(listId, nextQuery),
-                queryFn: async () => {
-                    const res = await api.get<RecordEntity[]>(`/lists/${listId}/records`, {
-                        query: nextQuery as Record<string, unknown>,
-                    });
-                    return { data: res.data, meta: res.meta } as unknown as RecordListResponse;
-                },
-            });
-        }
-    }
+        result.isSuccess &&
+        currentPage < totalPages;
+
+    useEffect(() => {
+        if (! shouldPrefetch) return;
+        const nextQuery: RecordsQuery = { ...query, page: currentPage + 1 };
+        void qc.prefetchQuery({
+            queryKey: recordsKeys.list(listId as string | number, nextQuery),
+            queryFn: async () => {
+                const res = await api.get<RecordEntity[]>(`/lists/${listId}/records`, {
+                    query: nextQuery as Record<string, unknown>,
+                });
+                return { data: res.data, meta: res.meta } as unknown as RecordListResponse;
+            },
+        });
+    }, [shouldPrefetch, listId, currentPage, totalPages]);
 
     return result;
 }

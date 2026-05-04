@@ -207,8 +207,16 @@ export function WidgetFormDialog({
             if (metric === 'sum' || metric === 'avg') return metricFieldId > 0;
             return true;
         }
-        if (type === 'chart_bar' || type === 'chart_pie') return groupByFieldId > 0;
-        if (type === 'chart_line' || type === 'chart_area') return dateFieldId > 0;
+        if (type === 'chart_bar' || type === 'chart_pie') {
+            if (groupByFieldId <= 0) return false;
+            if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
+            return true;
+        }
+        if (type === 'chart_line' || type === 'chart_area') {
+            if (dateFieldId <= 0) return false;
+            if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
+            return true;
+        }
         if (type === 'stat_delta') {
             if (dateFieldId <= 0) return false;
             if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
@@ -297,30 +305,12 @@ export function WidgetFormDialog({
                             </div>
                         </div>
 
-                        {listId > 0 && dateFields.length > 0 && (
-                            <PeriodPicker
-                                fields={dateFields}
-                                fieldId={periodFieldId}
-                                preset={periodPreset}
-                                onFieldChange={setPeriodFieldId}
-                                onPresetChange={setPeriodPreset}
-                            />
-                        )}
-
-                        {listId > 0 && fields.data && fields.data.length > 0 && (
-                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
-                                <FiltersPanel
-                                    listId={listId}
-                                    fields={fields.data}
-                                    tree={filterTree}
-                                    onChange={setFilterTree}
-                                    inline
-                                />
-                                <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
-                                    {__('Restringen los datos del widget. Soportan AND/OR y grupos anidados; para fechas hay rangos rápidos como "este mes".')}
-                                </p>
-                            </div>
-                        )}
+                        {/* 0.36.7: la config específica del tipo viene PRIMERO,
+                            antes del período y los filtros. Así cuando el usuario
+                            elige "KPI" o "Gráfico de barras" ve inmediatamente las
+                            opciones que más importan (métrica, agrupar por, etc.)
+                            sin tener que scrollear pasando el panel de filtros que
+                            ocupa mucho espacio cuando se expande. */}
 
                         {type === 'kpi' && (
                             <KpiConfig
@@ -334,6 +324,13 @@ export function WidgetFormDialog({
 
                         {(type === 'chart_bar' || type === 'chart_pie') && (
                             <>
+                                <ChartMetricConfig
+                                    metric={metric}
+                                    metricFieldId={metricFieldId}
+                                    numericFields={numericFields}
+                                    onMetricChange={setMetric}
+                                    onMetricFieldChange={setMetricFieldId}
+                                />
                                 <FieldPicker
                                     label={__('Agrupar por')}
                                     value={groupByFieldId}
@@ -352,6 +349,13 @@ export function WidgetFormDialog({
 
                         {(type === 'chart_line' || type === 'chart_area') && (
                             <>
+                                <ChartMetricConfig
+                                    metric={metric}
+                                    metricFieldId={metricFieldId}
+                                    numericFields={numericFields}
+                                    onMetricChange={setMetric}
+                                    onMetricFieldChange={setMetricFieldId}
+                                />
                                 <FieldPicker
                                     label={__('Campo de fecha')}
                                     value={dateFieldId}
@@ -408,6 +412,31 @@ export function WidgetFormDialog({
                             />
                         )}
 
+                        {listId > 0 && dateFields.length > 0 && (
+                            <PeriodPicker
+                                fields={dateFields}
+                                fieldId={periodFieldId}
+                                preset={periodPreset}
+                                onFieldChange={setPeriodFieldId}
+                                onPresetChange={setPeriodPreset}
+                            />
+                        )}
+
+                        {listId > 0 && fields.data && fields.data.length > 0 && (
+                            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
+                                <FiltersPanel
+                                    listId={listId}
+                                    fields={fields.data}
+                                    tree={filterTree}
+                                    onChange={setFilterTree}
+                                    inline
+                                />
+                                <p className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                                    {__('Restringen los datos del widget. Soportan AND/OR y grupos anidados; para fechas hay rangos rápidos como "este mes".')}
+                                </p>
+                            </div>
+                        )}
+
                         <div className="imcrm-flex imcrm-justify-end imcrm-gap-3 imcrm-border-t imcrm-border-border imcrm-pt-5">
                             <Dialog.Close asChild>
                                 <Button type="button" variant="outline">
@@ -446,6 +475,55 @@ function KpiConfig({
                 <Label htmlFor="w-metric">{__('Métrica')}</Label>
                 <Select
                     id="w-metric"
+                    value={metric}
+                    onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
+                >
+                    <option value="count">{__('Contar registros')}</option>
+                    <option value="sum">{__('Sumar campo')}</option>
+                    <option value="avg">{__('Promediar campo')}</option>
+                </Select>
+            </div>
+            {(metric === 'sum' || metric === 'avg') && (
+                <FieldPicker
+                    label={__('Campo numérico')}
+                    value={metricFieldId}
+                    fields={numericFields}
+                    onChange={onMetricFieldChange}
+                    emptyHint={__('La lista no tiene campos numéricos.')}
+                />
+            )}
+        </div>
+    );
+}
+
+/**
+ * Métrica para charts (bar/pie/line/area). Misma UI que KpiConfig pero
+ * con copy distinto — en charts se aplica per-bucket: "qué medir en
+ * cada barra/segmento/punto". Antes los charts solo soportaban contar
+ * registros; con esto el usuario puede pedir, por ejemplo, "suma de
+ * VALOR COP por mes" en un bar chart.
+ */
+interface ChartMetricConfigProps {
+    metric: KpiMetric;
+    metricFieldId: number;
+    numericFields: Array<{ id: number; label: string }>;
+    onMetricChange: (metric: KpiMetric) => void;
+    onMetricFieldChange: (id: number) => void;
+}
+
+function ChartMetricConfig({
+    metric,
+    metricFieldId,
+    numericFields,
+    onMetricChange,
+    onMetricFieldChange,
+}: ChartMetricConfigProps): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-chart-metric">{__('Qué medir')}</Label>
+                <Select
+                    id="w-chart-metric"
                     value={metric}
                     onChange={(e) => onMetricChange(e.target.value as KpiMetric)}
                 >
@@ -926,18 +1004,28 @@ function buildConfig(
         return c;
     }
     if (type === 'chart_bar' || type === 'chart_pie') {
-        return presentation({
+        const c: WidgetSpec['config'] = {
             ...base(),
             group_by_field_id: state.groupByFieldId,
             time_bucket: state.timeBucket,
-        });
+            metric: state.metric,
+        };
+        if (state.metric === 'sum' || state.metric === 'avg') {
+            c.metric_field_id = state.metricFieldId;
+        }
+        return presentation(c);
     }
     if (type === 'chart_line' || type === 'chart_area') {
-        return presentation({
+        const c: WidgetSpec['config'] = {
             ...base(),
             date_field_id: state.dateFieldId,
             time_bucket: state.timeBucket,
-        });
+            metric: state.metric,
+        };
+        if (state.metric === 'sum' || state.metric === 'avg') {
+            c.metric_field_id = state.metricFieldId;
+        }
+        return presentation(c);
     }
     if (type === 'stat_delta') {
         const c: WidgetSpec['config'] = {

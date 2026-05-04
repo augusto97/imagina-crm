@@ -10,6 +10,12 @@ import { api } from '@/lib/api';
 export interface SearchStatus {
     enabled: boolean;
     doc_count: number;
+    /**
+     * Si el backend reporta que hay un re-index activo (Action Scheduler
+     * con jobs pendientes), pollemos. Si no, no hay razón de seguir
+     * golpeando el endpoint.
+     */
+    reindexing?: boolean;
 }
 
 export interface IndexSuggestion {
@@ -33,11 +39,15 @@ export function useSearchStatus(listId: number | string | undefined) {
             return res.data;
         },
         enabled: listId !== undefined && listId !== '',
-        // Polling suave mientras hay re-index activo: si doc_count crece
-        // entre fetches, el user ve el progreso sin recargar la página.
+        // 0.36.7: solo polleamos mientras hay un re-index activo en curso
+        // (`reindexing: true` reportado por el backend). Antes el
+        // condicional era `enabled` — quedaba poleando cada 5s
+        // indefinidamente con el panel abierto, aunque no hubiera trabajo
+        // pendiente. Eso era 12 requests/min permanentes solo por dejar
+        // la pestaña del builder abierta.
         refetchInterval: (query) => {
             const data = query.state.data as SearchStatus | undefined;
-            return data?.enabled ? 5000 : false;
+            return data?.reindexing === true ? 5000 : false;
         },
     });
 }

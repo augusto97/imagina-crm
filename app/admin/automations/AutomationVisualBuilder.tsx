@@ -134,19 +134,22 @@ function Inner({
         [selected],
     );
 
-    // Layout recursivo de toda la cadena (incluye el árbol de cualquier
-    // if_else nested). Devuelve nodos con posiciones + edges con labels
-    // "Sí"/"No" en los handles del if_else.
+    // 0.36.7: layoutChain ahora se computa SIN selectedKey para que
+    // los nodos estructurales se memoizen estables entre selecciones.
+    // El highlight de selección se aplica abajo en un map liviano —
+    // antes cada click recomputaba todo el árbol + nodos + posiciones
+    // y disparaba `setNodes(initialNodes)` reseteando zoom/pan de XYFlow.
     const treeData = useMemo(
         () =>
             layoutChain(actions, 0, NODE_GAP_Y, [], {
                 catalog: actionsCatalog,
-                selectedKey,
+                selectedKey: null,
             }),
         [actions, actionsCatalog, selectedKey],
     );
 
-    const initialNodes = useMemo<Node[]>(() => {
+    const triggerSelected = selected?.kind === 'trigger';
+    const structuralNodes = useMemo<Node[]>(() => {
         const triggerNode: Node = {
             id: 'trigger',
             type: 'trigger',
@@ -155,11 +158,31 @@ function Inner({
             data: {
                 label: triggerMeta?.label ?? __('Trigger sin definir'),
                 event: triggerMeta?.event ?? '',
-                selected: selected?.kind === 'trigger',
+                selected: false,
             } satisfies TriggerNodeData,
         };
         return [triggerNode, ...treeData.nodes];
-    }, [treeData.nodes, triggerMeta, selected]);
+    }, [treeData.nodes, triggerMeta]);
+
+    // Aplica el highlight de selección en un map liviano. Sólo cambia
+    // el `data.selected` flag del nodo afectado — XYFlow conserva
+    // posiciones/zoom porque las referencias de los demás nodos no
+    // cambian (objeto idéntico pasa por reference equality).
+    const initialNodes = useMemo<Node[]>(() => {
+        if (selected === null) return structuralNodes;
+        return structuralNodes.map((n) => {
+            if (n.id === 'trigger' && triggerSelected) {
+                return { ...n, data: { ...(n.data as TriggerNodeData), selected: true } };
+            }
+            if (n.type === 'action' && selectedKey !== null) {
+                const data = n.data as ActionNodeData;
+                if (pathKey(data.path) === selectedKey) {
+                    return { ...n, data: { ...data, selected: true } };
+                }
+            }
+            return n;
+        });
+    }, [structuralNodes, triggerSelected, selectedKey, selected]);
 
     const edges = useMemo<Edge[]>(() => {
         const all = [...treeData.edges];

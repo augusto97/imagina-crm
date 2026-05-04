@@ -32,11 +32,14 @@ export function NotificationBell(): JSX.Element {
             });
             return res.data;
         },
-        // Refresca cada minuto: no es chat real-time, pero suficiente
-        // para que las menciones aparezcan razonablemente rápido sin
-        // martillar el back.
-        refetchInterval: 60 * 1000,
-        staleTime: 30 * 1000,
+        // 0.36.7: subimos a 5 minutos. Las menciones no son chat
+        // real-time; con 60s eran 60 fetches/hora dejando la app
+        // abierta — peso desproporcionado al uso real. TanStack Query
+        // ya pausa polling cuando la pestaña está en background
+        // (`refetchIntervalInBackground: false` default), así que con
+        // 5 min en foreground el costo es razonable.
+        refetchInterval: 5 * 60 * 1000,
+        staleTime: 60 * 1000,
     });
 
     const items = mentions.data ?? [];

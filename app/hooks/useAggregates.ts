@@ -75,8 +75,13 @@ export function useAggregates({
             return res.data;
         },
         enabled: listSlug !== undefined && fieldIds.length > 0,
-        // Stale para que cambios en records inviden rápido (mismo
-        // patrón que useRecords).
-        staleTime: 0,
+        // 0.36.7: alineado con el resto de hooks (useRecords, useDashboards,
+        // useFields → 30s). Antes estaba en 0 y refetcheaba el endpoint
+        // pesado de aggregates cada vez que se invalidaba records — en
+        // sesiones largas eso quemaba CPU del front (parsing JSON +
+        // reconcile React) y golpeaba al backend con SUM/AVG repetidos.
+        // 30s es suficiente para que ediciones inline reflejen en el
+        // footer rápido sin thrashing.
+        staleTime: 30_000,
     });
 }
