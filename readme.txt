@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.6
+Stable tag: 0.36.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,68 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.7 =
+**Performance: bajamos CPU del navegador en sesiones largas + reorden del form de widgets + métrica en charts.**
+
+Auditoría disparada por reporte de usuario: laptop calentándose después
+de varios minutos con la SPA abierta. Cinco anti-patterns identificados
+y arreglados.
+
+**Performance:**
+
+* `useAggregates`: `staleTime` 0 → 30s. Antes los agregados de footer
+  (sum/avg/count) se refetcheaban inmediatamente cada vez que se
+  invalidaba `recordsKeys` (ediciones inline, filtros, paginación).
+  En sesiones largas eso era trabajo continuo en backend (queries SQL
+  pesadas) y front (parse + reconcile React).
+* `useRecords`: el prefetch de la página siguiente vivía en el cuerpo
+  del hook y se ejecutaba en cada render. Movido a `useEffect` con
+  deps reales — antes era side-effect durante render (anti-pattern
+  React) y hacía trabajo redundante en re-renders frecuentes.
+* `useSearchStatus`: polling cada 5s mientras `enabled === true` →
+  ahora cada 5s sólo mientras hay un re-index activo
+  (`reindexing === true` reportado por `SearchAdminController`).
+  Antes la pestaña del ListBuilder hacía 12 requests/min permanentes.
+* `NotificationBell`: polling 60s → 5min. TanStack Query ya pausa
+  polling cuando la pestaña está en background; con 5 min en
+  foreground el costo es razonable para menciones (no-realtime).
+* `AutomationVisualBuilder`: `layoutChain` se computaba con
+  `selectedKey` de input, así que cada click recomputaba el árbol y
+  disparaba `setNodes(initialNodes)` reseteando zoom/pan de XYFlow.
+  Ahora el cálculo estructural es estable entre selecciones; el
+  highlight de selección se aplica en un map liviano sobre los nodos
+  resultantes.
+
+**Dashboards — form de widgets:**
+
+* Reordenado: la config específica del tipo (Métrica para KPI,
+  "Agrupar por" para barras/pie, "Campo de fecha" para línea/area)
+  ahora aparece **antes** del Período y de los Filtros. Antes esos
+  bloques quedaban debajo del FiltersPanel que ocupa mucho espacio
+  cuando se expande, dando la sensación de que las opciones no
+  existían.
+* **Métrica en charts (bar/pie/line/area)**: antes los charts sólo
+  contaban registros — no se podía hacer "suma de VALOR COP por mes"
+  ni "promedio de tiempo de cierre por etapa". Ahora cada chart tiene
+  selector de métrica (Contar / Sumar / Promediar) + campo numérico
+  (cuando aplica), igual que los KPIs. Soporta `multi_select` con
+  sum/avg (acumulando el valor de cada row a cada tag de su array).
+
+Backend
+-------
+
+* `WidgetEvaluator::resolveChartMetric()`: nuevo helper que valida y
+  devuelve la expresión SQL del agregado (`COUNT(*)` o `SUM/AVG`).
+* `evaluateChartBar()` y `evaluateChartLine()`: usan el helper.
+  Configs antiguas sin `metric` caen a `count` (back-compat).
+* `SearchAdminController::getSearchStatus()`: incluye flag
+  `reindexing` consultando Action Scheduler por jobs pendientes
+  del hook `imagina_crm/search_reindex_batch`.
+
+Sin migración. La transient cache de widgets ya invalida por config
+hash, así que cambiar la métrica de un chart hace cache miss
+automático.
 
 = 0.36.6 =
 **Hotfix CRÍTICO: bulkCreate descartaba columnas ausentes en el primer row.**

@@ -236,6 +236,16 @@ final class WidgetEvaluator
             return ValidationResult::failWith('group_by_field_id', __('Columna de agrupación inválida.', 'imagina-crm'));
         }
 
+        // 0.36.7: la métrica del bar chart era hardcoded a COUNT(*). Ahora
+        // soporta count/sum/avg sobre un campo numérico — mismo patrón
+        // que KPI. `resolveChartMetric()` valida y devuelve la expresión
+        // SQL del agregado (`COUNT(*)` o `SUM(\`col\`)` / `AVG(\`col\`)`).
+        $metricSql = $this->resolveChartMetric($listId, $config);
+        if ($metricSql instanceof ValidationResult) {
+            return $metricSql;
+        }
+        [$aggSql, $isCount] = $metricSql;
+
         $table = $this->dataTable($tableSuffix);
         $col   = '`' . $field->columnName . '`';
         $limit = 25; // hard cap para no devolver charts enormes con text fields
@@ -249,18 +259,22 @@ final class WidgetEvaluator
             return is_array($rows) ? $rows : [];
         };
 
+        $castValue = static function (mixed $v) use ($isCount): int|float {
+            return $isCount ? (int) $v : (float) ($v ?? 0);
+        };
+
         // multi_select: la columna almacena JSON. Hacemos UNNEST en PHP
         // — fetch all distinct arrays + decode + acumular.
         if ($field->type === 'multi_select') {
             $rows = $runQuery(
-                'SELECT ' . $col . ' AS bucket, COUNT(*) AS total FROM ' . $table
+                'SELECT ' . $col . ' AS bucket, ' . $aggSql . ' AS total FROM ' . $table
                 . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                 . ' GROUP BY ' . $col,
             );
-            $counts = [];
+            $totals = [];
             foreach ($rows as $row) {
                 $raw   = $row['bucket'] ?? null;
-                $total = (int) ($row['total'] ?? 0);
+                $total = $castValue($row['total'] ?? 0);
                 $arr   = is_string($raw) ? json_decode($raw, true) : null;
                 if (! is_array($arr)) {
                     continue;
@@ -269,16 +283,21 @@ final class WidgetEvaluator
                     if (! is_string($v) || $v === '') {
                         continue;
                     }
-                    $counts[$v] = ($counts[$v] ?? 0) + $total;
+                    // Para sum: acumulamos; para avg: el promedio per-tag
+                    // no es matemáticamente exacto si una row tiene
+                    // múltiples tags (la asignamos completa a cada uno),
+                    // pero es la interpretación natural del usuario:
+                    // "promedio de VALOR para registros etiquetados X".
+                    $totals[$v] = ($totals[$v] ?? 0) + $total;
                 }
             }
             $labelByValue = $this->labelMapForSelect($field);
-            arsort($counts);
+            arsort($totals);
             $data = [];
-            foreach (array_slice($counts, 0, $limit, true) as $value => $total) {
+            foreach (array_slice($totals, 0, $limit, true) as $value => $total) {
                 $data[] = [
                     'label' => $labelByValue[$value] ?? $value,
-                    'value' => $total,
+                    'value' => $isCount ? (int) $total : (float) $total,
                 ];
             }
             return ['data' => $data];
@@ -289,18 +308,18 @@ final class WidgetEvaluator
         if ($field->type === 'date' || $field->type === 'datetime') {
             $bucket = $this->bucketExpression($col, (string) ($config['time_bucket'] ?? 'month'));
             $rows = $runQuery(
-                'SELECT ' . $bucket . ' AS bucket, COUNT(*) AS total'
+                'SELECT ' . $bucket . ' AS bucket, ' . $aggSql . ' AS total'
                 . ' FROM ' . $table
                 . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                 . ' GROUP BY bucket ORDER BY bucket DESC LIMIT ' . $limit,
             );
-            return $this->bucketsAsData($rows);
+            return $this->bucketsAsData($rows, $isCount);
         }
 
         // checkbox: 0/1. Mapeamos a labels reconocibles.
         if ($field->type === 'checkbox') {
             $rows = $runQuery(
-                'SELECT ' . $col . ' AS bucket, COUNT(*) AS total FROM ' . $table
+                'SELECT ' . $col . ' AS bucket, ' . $aggSql . ' AS total FROM ' . $table
                 . ' ' . $where
                 . ' GROUP BY ' . $col,
             );
@@ -309,14 +328,14 @@ final class WidgetEvaluator
                 $v = $row['bucket'] ?? null;
                 $label = $v === '1' || $v === 1 ? __('Sí', 'imagina-crm')
                     : ($v === '0' || $v === 0 ? __('No', 'imagina-crm') : __('(sin valor)', 'imagina-crm'));
-                $data[] = ['label' => $label, 'value' => (int) ($row['total'] ?? 0)];
+                $data[] = ['label' => $label, 'value' => $castValue($row['total'] ?? 0)];
             }
             return ['data' => $data];
         }
 
         // text / email / url / select: top N distintos por frecuencia.
         $rows = $runQuery(
-            'SELECT ' . $col . ' AS bucket, COUNT(*) AS total FROM ' . $table
+            'SELECT ' . $col . ' AS bucket, ' . $aggSql . ' AS total FROM ' . $table
             . ' ' . $where
             . ' GROUP BY ' . $col
             . ' ORDER BY total DESC, bucket ASC LIMIT ' . $limit,
@@ -331,17 +350,52 @@ final class WidgetEvaluator
                 : ($labelByValue[(string) $value] ?? (string) $value);
             $data[] = [
                 'label' => $label,
-                'value' => (int) ($row['total'] ?? 0),
+                'value' => $castValue($row['total'] ?? 0),
             ];
         }
         return ['data' => $data];
     }
 
     /**
+     * Resuelve la métrica del chart. Devuelve `[aggregateSql, isCount]`
+     * — para count el agregado es `COUNT(*)` y los valores se
+     * castean a int; para sum/avg es `SUM(\`col\`)` / `AVG(\`col\`)` y
+     * los valores se castean a float.
+     *
+     * Si la métrica está mal configurada devuelve `ValidationResult`.
+     * Si no se especifica (config legacy sin `metric`) cae a `count`.
+     *
+     * @param array<string, mixed> $config
+     * @return array{0: string, 1: bool}|ValidationResult
+     */
+    private function resolveChartMetric(int $listId, array $config): array|ValidationResult
+    {
+        $metric = isset($config['metric']) ? (string) $config['metric'] : 'count';
+        if (! in_array($metric, ['count', 'sum', 'avg'], true)) {
+            return ValidationResult::failWith('metric', __('Métrica desconocida.', 'imagina-crm'));
+        }
+        if ($metric === 'count') {
+            return ['COUNT(*)', true];
+        }
+        $metricFieldId = isset($config['metric_field_id']) ? (int) $config['metric_field_id'] : 0;
+        $metricField   = $this->fields->find($metricFieldId);
+        if (
+            $metricField === null
+            || $metricField->listId !== $listId
+            || ! $this->validIdent($metricField->columnName)
+            || ! in_array($metricField->type, ['number', 'currency'], true)
+        ) {
+            return ValidationResult::failWith('metric_field_id', __('Campo de métrica inválido.', 'imagina-crm'));
+        }
+        $sqlFn = $metric === 'sum' ? 'SUM' : 'AVG';
+        return [$sqlFn . '(`' . $metricField->columnName . '`)', false];
+    }
+
+    /**
      * @param mixed $rows
      * @return array<string, mixed>
      */
-    private function bucketsAsData(mixed $rows): array
+    private function bucketsAsData(mixed $rows, bool $isCount = true): array
     {
         $data = [];
         foreach (is_array($rows) ? $rows : [] as $row) {
@@ -349,9 +403,10 @@ final class WidgetEvaluator
             if ($bucket === null) {
                 continue;
             }
+            $rawTotal = $row['total'] ?? 0;
             $data[] = [
                 'label' => (string) $bucket,
-                'value' => (int) ($row['total'] ?? 0),
+                'value' => $isCount ? (int) $rawTotal : (float) $rawTotal,
             ];
         }
         return ['data' => $data];
@@ -377,12 +432,19 @@ final class WidgetEvaluator
             return ValidationResult::failWith('date_field_id', __('Columna de fecha inválida.', 'imagina-crm'));
         }
 
+        // 0.36.7: line/area también soporta count/sum/avg (paridad con bar).
+        $metricSql = $this->resolveChartMetric($listId, $config);
+        if ($metricSql instanceof ValidationResult) {
+            return $metricSql;
+        }
+        [$aggSql, $isCount] = $metricSql;
+
         $col   = '`' . $field->columnName . '`';
         $where = $filterCtx['where'];
         $args  = $filterCtx['args'];
         $wpdb  = $this->db->wpdb();
         $bucket = $this->bucketExpression($col, (string) ($config['time_bucket'] ?? 'month'));
-        $sql   = 'SELECT ' . $bucket . ' AS bucket, COUNT(*) AS total'
+        $sql   = 'SELECT ' . $bucket . ' AS bucket, ' . $aggSql . ' AS total'
                . ' FROM ' . $this->dataTable($tableSuffix)
                . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                . ' GROUP BY bucket ORDER BY bucket ASC';
@@ -395,9 +457,10 @@ final class WidgetEvaluator
             if ($bucket === null) {
                 continue;
             }
+            $rawTotal = $row['total'] ?? 0;
             $data[] = [
                 'label' => (string) $bucket,
-                'value' => (int) ($row['total'] ?? 0),
+                'value' => $isCount ? (int) $rawTotal : (float) $rawTotal,
             ];
         }
         return ['data' => $data];

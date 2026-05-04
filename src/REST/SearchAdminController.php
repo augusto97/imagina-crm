@@ -99,10 +99,27 @@ final class SearchAdminController extends AbstractController
         if ($list === null) {
             return $this->notFound();
         }
+        // 0.36.7: reportamos `reindexing` para que el frontend solo
+        // pollee mientras hay trabajo activo. Antes el frontend
+        // pollaba cada 5s indefinidamente con el panel abierto, aunque
+        // no hubiera reindex pendiente. Action Scheduler enqueue cada
+        // batch con `after_id` distinto, así que filtramos por hook +
+        // grupo + status pendiente — los args cambian entre batches.
+        $reindexing = false;
+        if (function_exists('as_get_scheduled_actions')) {
+            $pending = as_get_scheduled_actions([
+                'hook'     => 'imagina_crm/search_reindex_batch',
+                'group'    => 'imagina-crm-search',
+                'status'   => ['pending', 'in-progress'],
+                'per_page' => 1,
+            ], 'ids');
+            $reindexing = is_array($pending) && count($pending) > 0;
+        }
         return new WP_REST_Response([
             'data' => [
-                'enabled'   => $this->search->isIndexed($list),
-                'doc_count' => $this->invertedEngine->documentCount($list->id),
+                'enabled'    => $this->search->isIndexed($list),
+                'doc_count'  => $this->invertedEngine->documentCount($list->id),
+                'reindexing' => $reindexing,
             ],
         ]);
     }
