@@ -175,37 +175,135 @@ final class WidgetEvaluator
      */
     private function evaluateKpi(string $tableSuffix, int $listId, array $config, array $filterCtx): array|ValidationResult
     {
-        unset($listId); // declarado por consistencia de firma; no se usa aquí
-        $metric = isset($config['metric']) ? (string) $config['metric'] : '';
-        $table  = $this->dataTable($tableSuffix);
-        $where  = $filterCtx['where'];
-        $args   = $filterCtx['args'];
+        $resolved = $this->resolveMetric($listId, $config);
+        if ($resolved instanceof ValidationResult) {
+            return $resolved;
+        }
+        ['expr' => $aggSql, 'metric' => $metric, 'kind' => $kind] = $resolved;
+        $table = $this->dataTable($tableSuffix);
+        $where = $filterCtx['where'];
+        $args  = $filterCtx['args'];
+        $sql   = 'SELECT ' . $aggSql . ' FROM ' . $table . ' ' . $where;
+        $prepared = $args === [] ? $sql : (string) $this->db->wpdb()->prepare($sql, $args);
+        $raw = $this->db->wpdb()->get_var($prepared);
+        return [
+            'value'  => $this->castMetricValue($raw, $kind),
+            'metric' => $metric,
+        ];
+    }
 
-        if ($metric === 'count') {
-            $sql = 'SELECT COUNT(*) FROM ' . $table . ' ' . $where;
-            $prepared = $args === [] ? $sql : (string) $this->db->wpdb()->prepare($sql, $args);
-            return ['value' => (int) $this->db->wpdb()->get_var($prepared), 'metric' => 'count'];
+    /**
+     * Resuelve la expresión SQL del agregado de un widget. Soporta el
+     * set completo de métricas que ya calcula `RecordAggregator`
+     * (footer aggregations) — espejo de aquella matriz por tipo de
+     * campo:
+     *
+     *   - `count`  + field_id=0 → `COUNT(*)`
+     *   - `count`  + field_id>0 → `COUNT(col)` (no-null)
+     *   - `count_unique`        → `COUNT(DISTINCT col)`
+     *   - `count_empty`         → `SUM(CASE WHEN col IS NULL [OR =''] THEN 1 ELSE 0 END)`
+     *   - `sum`/`avg`/`min`/`max` → la función SQL homónima
+     *   - `count_true` (checkbox) → `SUM(CASE WHEN col=1 THEN 1 ELSE 0 END)`
+     *   - `count_false` (checkbox) → `SUM(CASE WHEN col=0 THEN 1 ELSE 0 END)`
+     *
+     * Valida que la métrica sea aplicable al tipo del campo
+     * (`sum`/`avg` requieren number/currency; `count_true/false`
+     * requieren checkbox). Si no, devuelve ValidationResult.
+     *
+     * Devuelve `['expr' => string, 'metric' => string, 'kind' => 'int'|'float'|'string']`.
+     * El `kind` indica cómo castear el resultado en el caller.
+     *
+     * @param array<string, mixed> $config
+     * @return array{expr:string, metric:string, kind:string}|ValidationResult
+     */
+    private function resolveMetric(int $listId, array $config): array|ValidationResult
+    {
+        $metric = isset($config['metric']) ? (string) $config['metric'] : 'count';
+        $allowed = [
+            'count', 'count_unique', 'count_empty',
+            'sum', 'avg', 'min', 'max',
+            'count_true', 'count_false',
+        ];
+        if (! in_array($metric, $allowed, true)) {
+            return ValidationResult::failWith('metric', __('Métrica desconocida.', 'imagina-crm'));
         }
 
-        if ($metric === 'sum' || $metric === 'avg') {
-            $fieldId = isset($config['metric_field_id']) ? (int) $config['metric_field_id'] : 0;
-            $field   = $this->fields->find($fieldId);
-            if ($field === null || ! $this->validIdent($field->columnName)) {
-                return ValidationResult::failWith('metric_field_id', __('Campo de métrica inválido.', 'imagina-crm'));
-            }
-            $col   = '`' . $field->columnName . '`';
-            $sqlFn = $metric === 'sum' ? 'SUM' : 'AVG';
-            $sql   = 'SELECT ' . $sqlFn . '(' . $col . ') FROM ' . $table . ' ' . $where;
-            $prepared = $args === [] ? $sql : (string) $this->db->wpdb()->prepare($sql, $args);
-            $raw   = $this->db->wpdb()->get_var($prepared);
-            // SUM/AVG sobre una tabla vacía devuelve NULL; lo
-            // normalizamos a 0 para que el frontend pueda renderizar
-            // sin guards.
-            $value = $raw === null ? 0.0 : (float) $raw;
-            return ['value' => $value, 'metric' => $metric];
+        $fieldId = isset($config['metric_field_id']) ? (int) $config['metric_field_id'] : 0;
+
+        // count + sin campo = COUNT(*) sobre todos los registros.
+        if ($metric === 'count' && $fieldId === 0) {
+            return ['expr' => 'COUNT(*)', 'metric' => 'count', 'kind' => 'int'];
         }
 
-        return ValidationResult::failWith('metric', __('Métrica desconocida.', 'imagina-crm'));
+        $field = $this->fields->find($fieldId);
+        if (
+            $field === null
+            || $field->listId !== $listId
+            || ! $this->validIdent($field->columnName)
+        ) {
+            return ValidationResult::failWith('metric_field_id', __('Campo de métrica inválido.', 'imagina-crm'));
+        }
+
+        // Validar que la métrica sea aplicable al tipo. Espejo del
+        // catálogo `metricsForFieldType()` del frontend.
+        $type = $field->type;
+        $isNumeric = in_array($type, ['number', 'currency'], true);
+        $isDate    = in_array($type, ['date', 'datetime'], true);
+        $isCheckbox = $type === 'checkbox';
+
+        $applicable = match ($metric) {
+            'sum', 'avg'                  => $isNumeric,
+            'min', 'max'                  => $isNumeric || $isDate,
+            'count_true', 'count_false'   => $isCheckbox,
+            default                       => true, // count, count_unique, count_empty para todo
+        };
+        if (! $applicable) {
+            return ValidationResult::failWith('metric', sprintf(
+                /* translators: 1: metric kind, 2: field type */
+                __('La métrica "%1$s" no aplica a campos de tipo %2$s.', 'imagina-crm'),
+                $metric,
+                $type,
+            ));
+        }
+
+        $col = '`' . $field->columnName . '`';
+        return match ($metric) {
+            'count'        => ['expr' => 'COUNT(' . $col . ')',          'metric' => 'count',        'kind' => 'int'],
+            'count_unique' => ['expr' => 'COUNT(DISTINCT ' . $col . ')', 'metric' => 'count_unique', 'kind' => 'int'],
+            'count_empty'  => [
+                // text/url/email guardan '' como vacío; el resto solo NULL.
+                'expr'   => 'SUM(CASE WHEN ' . $col . ' IS NULL'
+                    . (in_array($type, ['text', 'email', 'url'], true) ? " OR " . $col . " = ''" : '')
+                    . ' THEN 1 ELSE 0 END)',
+                'metric' => 'count_empty',
+                'kind'   => 'int',
+            ],
+            'sum'          => ['expr' => 'SUM(' . $col . ')', 'metric' => 'sum', 'kind' => 'float'],
+            'avg'          => ['expr' => 'AVG(' . $col . ')', 'metric' => 'avg', 'kind' => 'float'],
+            'min'          => ['expr' => 'MIN(' . $col . ')', 'metric' => 'min', 'kind' => $isDate ? 'string' : 'float'],
+            'max'          => ['expr' => 'MAX(' . $col . ')', 'metric' => 'max', 'kind' => $isDate ? 'string' : 'float'],
+            'count_true'   => ['expr' => 'SUM(CASE WHEN ' . $col . ' = 1 THEN 1 ELSE 0 END)', 'metric' => 'count_true',  'kind' => 'int'],
+            'count_false'  => ['expr' => 'SUM(CASE WHEN ' . $col . ' = 0 THEN 1 ELSE 0 END)', 'metric' => 'count_false', 'kind' => 'int'],
+        };
+    }
+
+    /**
+     * Cast del valor crudo del agregado al tipo correcto según `kind`.
+     * SUM/AVG/MIN/MAX sobre tabla vacía devuelven NULL — los
+     * normalizamos a 0/'' para que el frontend pueda renderizar sin
+     * guards.
+     */
+    private function castMetricValue(mixed $raw, string $kind): int|float|string
+    {
+        if ($raw === null) {
+            return $kind === 'string' ? '' : ($kind === 'float' ? 0.0 : 0);
+        }
+        return match ($kind) {
+            'int'    => (int) $raw,
+            'float'  => (float) $raw,
+            'string' => (string) $raw,
+            default  => (int) $raw,
+        };
     }
 
     /** Tipos de campo que se pueden usar como dimensión en chart_bar / chart_pie. */
@@ -236,15 +334,17 @@ final class WidgetEvaluator
             return ValidationResult::failWith('group_by_field_id', __('Columna de agrupación inválida.', 'imagina-crm'));
         }
 
-        // 0.36.7: la métrica del bar chart era hardcoded a COUNT(*). Ahora
-        // soporta count/sum/avg sobre un campo numérico — mismo patrón
-        // que KPI. `resolveChartMetric()` valida y devuelve la expresión
-        // SQL del agregado (`COUNT(*)` o `SUM(\`col\`)` / `AVG(\`col\`)`).
-        $metricSql = $this->resolveChartMetric($listId, $config);
-        if ($metricSql instanceof ValidationResult) {
-            return $metricSql;
+        // 0.36.9: el set de métricas del chart se amplió al mismo que
+        // RecordAggregator soporta (count/count_unique/count_empty + sum/avg/
+        // min/max + count_true/false según tipo del campo de métrica).
+        // resolveMetric() valida y devuelve la expresión SQL del agregado
+        // junto con el `kind` para castear la salida.
+        $resolved = $this->resolveMetric($listId, $config);
+        if ($resolved instanceof ValidationResult) {
+            return $resolved;
         }
-        [$aggSql, $isCount] = $metricSql;
+        $aggSql = $resolved['expr'];
+        $kind   = $resolved['kind'];
 
         $table = $this->dataTable($tableSuffix);
         $col   = '`' . $field->columnName . '`';
@@ -259,13 +359,22 @@ final class WidgetEvaluator
             return is_array($rows) ? $rows : [];
         };
 
-        $castValue = static function (mixed $v) use ($isCount): int|float {
-            return $isCount ? (int) $v : (float) ($v ?? 0);
-        };
+        $castValue = fn (mixed $v): int|float|string => $this->castMetricValue($v, $kind);
 
-        // multi_select: la columna almacena JSON. Hacemos UNNEST en PHP
-        // — fetch all distinct arrays + decode + acumular.
+        // multi_select: la columna almacena JSON. Hacemos UNNEST en PHP.
+        // El acumulador `+=` funciona matemáticamente para count y sum
+        // (additivos). Para avg/min/max/count_unique no es exacto cuando
+        // una row tiene múltiples tags, pero el resultado sigue siendo
+        // útil como aproximación. Para min/max sobre fechas (kind=string)
+        // bloqueamos porque no se puede sumar: forzamos al usuario a
+        // elegir otra métrica para multi_select.
         if ($field->type === 'multi_select') {
+            if ($kind === 'string') {
+                return ValidationResult::failWith(
+                    'metric',
+                    __('Mín/Máx de fecha no soportado al agrupar por un campo multi_select. Elige otra métrica o agrupa por otro campo.', 'imagina-crm'),
+                );
+            }
             $rows = $runQuery(
                 'SELECT ' . $col . ' AS bucket, ' . $aggSql . ' AS total FROM ' . $table
                 . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
@@ -274,21 +383,17 @@ final class WidgetEvaluator
             $totals = [];
             foreach ($rows as $row) {
                 $raw   = $row['bucket'] ?? null;
-                $total = $castValue($row['total'] ?? 0);
+                $total = $row['total'] ?? 0;
                 $arr   = is_string($raw) ? json_decode($raw, true) : null;
                 if (! is_array($arr)) {
                     continue;
                 }
+                $num = is_numeric($total) ? (float) $total : 0.0;
                 foreach ($arr as $v) {
                     if (! is_string($v) || $v === '') {
                         continue;
                     }
-                    // Para sum: acumulamos; para avg: el promedio per-tag
-                    // no es matemáticamente exacto si una row tiene
-                    // múltiples tags (la asignamos completa a cada uno),
-                    // pero es la interpretación natural del usuario:
-                    // "promedio de VALOR para registros etiquetados X".
-                    $totals[$v] = ($totals[$v] ?? 0) + $total;
+                    $totals[$v] = ($totals[$v] ?? 0.0) + $num;
                 }
             }
             $labelByValue = $this->labelMapForSelect($field);
@@ -297,7 +402,7 @@ final class WidgetEvaluator
             foreach (array_slice($totals, 0, $limit, true) as $value => $total) {
                 $data[] = [
                     'label' => $labelByValue[$value] ?? $value,
-                    'value' => $isCount ? (int) $total : (float) $total,
+                    'value' => $kind === 'int' ? (int) $total : (float) $total,
                 ];
             }
             return ['data' => $data];
@@ -313,7 +418,7 @@ final class WidgetEvaluator
                 . ' ' . $where . ' AND ' . $col . ' IS NOT NULL'
                 . ' GROUP BY bucket ORDER BY bucket DESC LIMIT ' . $limit,
             );
-            return $this->bucketsAsData($rows, $isCount);
+            return $this->bucketsAsData($rows, $kind);
         }
 
         // checkbox: 0/1. Mapeamos a labels reconocibles.
@@ -357,45 +462,10 @@ final class WidgetEvaluator
     }
 
     /**
-     * Resuelve la métrica del chart. Devuelve `[aggregateSql, isCount]`
-     * — para count el agregado es `COUNT(*)` y los valores se
-     * castean a int; para sum/avg es `SUM(\`col\`)` / `AVG(\`col\`)` y
-     * los valores se castean a float.
-     *
-     * Si la métrica está mal configurada devuelve `ValidationResult`.
-     * Si no se especifica (config legacy sin `metric`) cae a `count`.
-     *
-     * @param array<string, mixed> $config
-     * @return array{0: string, 1: bool}|ValidationResult
-     */
-    private function resolveChartMetric(int $listId, array $config): array|ValidationResult
-    {
-        $metric = isset($config['metric']) ? (string) $config['metric'] : 'count';
-        if (! in_array($metric, ['count', 'sum', 'avg'], true)) {
-            return ValidationResult::failWith('metric', __('Métrica desconocida.', 'imagina-crm'));
-        }
-        if ($metric === 'count') {
-            return ['COUNT(*)', true];
-        }
-        $metricFieldId = isset($config['metric_field_id']) ? (int) $config['metric_field_id'] : 0;
-        $metricField   = $this->fields->find($metricFieldId);
-        if (
-            $metricField === null
-            || $metricField->listId !== $listId
-            || ! $this->validIdent($metricField->columnName)
-            || ! in_array($metricField->type, ['number', 'currency'], true)
-        ) {
-            return ValidationResult::failWith('metric_field_id', __('Campo de métrica inválido.', 'imagina-crm'));
-        }
-        $sqlFn = $metric === 'sum' ? 'SUM' : 'AVG';
-        return [$sqlFn . '(`' . $metricField->columnName . '`)', false];
-    }
-
-    /**
      * @param mixed $rows
      * @return array<string, mixed>
      */
-    private function bucketsAsData(mixed $rows, bool $isCount = true): array
+    private function bucketsAsData(mixed $rows, string $kind = 'int'): array
     {
         $data = [];
         foreach (is_array($rows) ? $rows : [] as $row) {
@@ -403,10 +473,9 @@ final class WidgetEvaluator
             if ($bucket === null) {
                 continue;
             }
-            $rawTotal = $row['total'] ?? 0;
             $data[] = [
                 'label' => (string) $bucket,
-                'value' => $isCount ? (int) $rawTotal : (float) $rawTotal,
+                'value' => $this->castMetricValue($row['total'] ?? null, $kind),
             ];
         }
         return ['data' => $data];
@@ -432,12 +501,15 @@ final class WidgetEvaluator
             return ValidationResult::failWith('date_field_id', __('Columna de fecha inválida.', 'imagina-crm'));
         }
 
-        // 0.36.7: line/area también soporta count/sum/avg (paridad con bar).
-        $metricSql = $this->resolveChartMetric($listId, $config);
-        if ($metricSql instanceof ValidationResult) {
-            return $metricSql;
+        // 0.36.9: line/area soporta el set completo de métricas
+        // (paridad con KPI / bar). resolveMetric() valida y devuelve la
+        // expresión SQL del agregado más el `kind` para castear.
+        $resolved = $this->resolveMetric($listId, $config);
+        if ($resolved instanceof ValidationResult) {
+            return $resolved;
         }
-        [$aggSql, $isCount] = $metricSql;
+        $aggSql = $resolved['expr'];
+        $kind   = $resolved['kind'];
 
         $col   = '`' . $field->columnName . '`';
         $where = $filterCtx['where'];
@@ -457,10 +529,9 @@ final class WidgetEvaluator
             if ($bucket === null) {
                 continue;
             }
-            $rawTotal = $row['total'] ?? 0;
             $data[] = [
                 'label' => (string) $bucket,
-                'value' => $isCount ? (int) $rawTotal : (float) $rawTotal,
+                'value' => $this->castMetricValue($row['total'] ?? null, $kind),
             ];
         }
         return ['data' => $data];
@@ -481,10 +552,15 @@ final class WidgetEvaluator
      */
     private function evaluateStatDelta(string $tableSuffix, int $listId, array $config, array $filterCtx): array|ValidationResult
     {
-        $metric = isset($config['metric']) ? (string) $config['metric'] : 'count';
-        if (! in_array($metric, ['count', 'sum', 'avg'], true)) {
-            return ValidationResult::failWith('metric', __('Métrica desconocida.', 'imagina-crm'));
+        // 0.36.9: stat_delta también soporta el set completo de métricas.
+        $resolved = $this->resolveMetric($listId, $config);
+        if ($resolved instanceof ValidationResult) {
+            return $resolved;
         }
+        $aggSql = $resolved['expr'];
+        $kind   = $resolved['kind'];
+        $metric = $resolved['metric'];
+
         $periodDays = max(1, min(365, (int) ($config['period_days'] ?? 30)));
 
         $dateFieldId = isset($config['date_field_id']) ? (int) $config['date_field_id'] : 0;
@@ -498,22 +574,6 @@ final class WidgetEvaluator
             return ValidationResult::failWith('date_field_id', __('Campo de fecha inválido.', 'imagina-crm'));
         }
 
-        $metricCol = '*';
-        $sqlFn     = 'COUNT';
-        if ($metric === 'sum' || $metric === 'avg') {
-            $metricFieldId = isset($config['metric_field_id']) ? (int) $config['metric_field_id'] : 0;
-            $metricField   = $this->fields->find($metricFieldId);
-            if (
-                $metricField === null
-                || $metricField->listId !== $listId
-                || ! $this->validIdent($metricField->columnName)
-            ) {
-                return ValidationResult::failWith('metric_field_id', __('Campo de métrica inválido.', 'imagina-crm'));
-            }
-            $metricCol = '`' . $metricField->columnName . '`';
-            $sqlFn     = $metric === 'sum' ? 'SUM' : 'AVG';
-        }
-
         $table   = $this->dataTable($tableSuffix);
         $dateCol = '`' . $dateField->columnName . '`';
         $wpdb    = $this->db->wpdb();
@@ -525,9 +585,9 @@ final class WidgetEvaluator
         // el WHERE de los filtros del widget — los args se duplican
         // porque cada subquery los consume independientemente.
         $sql = 'SELECT'
-            . ' (SELECT ' . $sqlFn . '(' . $metricCol . ') FROM ' . $table
+            . ' (SELECT ' . $aggSql . ' FROM ' . $table
                 . ' ' . $where . ' AND ' . $dateCol . ' >= DATE_SUB(NOW(), INTERVAL %d DAY)) AS curr,'
-            . ' (SELECT ' . $sqlFn . '(' . $metricCol . ') FROM ' . $table
+            . ' (SELECT ' . $aggSql . ' FROM ' . $table
                 . ' ' . $where . ' AND ' . $dateCol . ' >= DATE_SUB(NOW(), INTERVAL %d DAY)'
                 . ' AND ' . $dateCol . ' < DATE_SUB(NOW(), INTERVAL %d DAY)) AS prev';
 
@@ -540,16 +600,24 @@ final class WidgetEvaluator
         $prepared = (string) $wpdb->prepare($sql, $args);
         $row      = $wpdb->get_row($prepared, ARRAY_A);
 
-        $curr = is_array($row) ? ($row['curr'] ?? 0) : 0;
-        $prev = is_array($row) ? ($row['prev'] ?? 0) : 0;
-        $currVal = $metric === 'count' ? (int) $curr : (float) $curr;
-        $prevVal = $metric === 'count' ? (int) $prev : (float) $prev;
+        $currRaw = is_array($row) ? ($row['curr'] ?? null) : null;
+        $prevRaw = is_array($row) ? ($row['prev'] ?? null) : null;
+        $currVal = $this->castMetricValue($currRaw, $kind);
+        $prevVal = $this->castMetricValue($prevRaw, $kind);
 
+        // delta_pct sólo aplica a métricas numéricas. Para métricas
+        // string (min/max de fecha) lo dejamos null — el widget de
+        // delta no tiene sentido conceptual para "fecha más reciente
+        // del período".
         $deltaPct = null;
-        if ($prevVal != 0) {
-            $deltaPct = (($currVal - $prevVal) / abs($prevVal)) * 100.0;
-        } elseif ($currVal != 0) {
-            $deltaPct = 100.0;
+        if (is_numeric($currVal) && is_numeric($prevVal)) {
+            $currNum = (float) $currVal;
+            $prevNum = (float) $prevVal;
+            if ($prevNum != 0.0) {
+                $deltaPct = (($currNum - $prevNum) / abs($prevNum)) * 100.0;
+            } elseif ($currNum != 0.0) {
+                $deltaPct = 100.0;
+            }
         }
 
         return [

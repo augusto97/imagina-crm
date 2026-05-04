@@ -46,7 +46,7 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
                         {__('Error')}
                     </div>
                 ) : data.data && 'data' in data.data && data.data.data.length > 0 ? (
-                    <BarRows rows={data.data.data} showAvg={showAvg} />
+                    <BarRows rows={data.data.data.map((r) => ({ label: r.label, value: toNumber(r.value) }))} showAvg={showAvg} />
                 ) : (
                     <p className="imcrm-text-center imcrm-text-xs imcrm-text-muted-foreground">
                         {__('Sin datos.')}
@@ -55,6 +55,19 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
             </div>
         </div>
     );
+}
+
+/**
+ * 0.36.9: las nuevas métricas min/max de fecha devuelven string ISO en
+ * lugar de número. Las charts no las pueden representar como barra
+ * proporcional, así que parseamos a timestamp; si no es fecha válida
+ * cae a 0. En la práctica el usuario no debería elegir min/max de
+ * fecha para un bar chart, pero evita crashes de TS.
+ */
+function toNumber(v: number | string): number {
+    if (typeof v === 'number') return v;
+    const ts = Date.parse(v);
+    return Number.isFinite(ts) ? ts : 0;
 }
 
 function BarRows({

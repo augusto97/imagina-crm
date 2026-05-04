@@ -53,7 +53,7 @@ export function LineChartWidget({ dashboardId, widget, area }: LineChartWidgetPr
                     </div>
                 ) : data.data && 'data' in data.data && data.data.data.length > 0 ? (
                     <SparkLine
-                        rows={data.data.data}
+                        rows={data.data.data.map((r) => ({ label: r.label, value: typeof r.value === 'number' ? r.value : Date.parse(r.value) || 0 }))}
                         area={area ?? false}
                         showAvg={showAvg}
                         showLabels={showLabels}

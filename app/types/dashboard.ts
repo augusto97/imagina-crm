@@ -7,7 +7,33 @@ export type WidgetType =
     | 'stat_delta'
     | 'table';
 
-export type KpiMetric = 'count' | 'sum' | 'avg';
+/**
+ * Agregaciones soportadas para widgets de dashboard. Mismo set que
+ * `RecordAggregator.php` (footer aggregations) — el backend ya las
+ * sabía calcular per-tipo de campo, ahora también las exponemos en
+ * widgets:
+ *
+ *  - `count`         → COUNT(*) si field_id=0; COUNT(col) si field_id>0
+ *  - `count_unique`  → COUNT(DISTINCT col) — valores distintos
+ *  - `count_empty`   → registros con la columna vacía / null
+ *  - `sum`, `avg`    → solo numeric/currency
+ *  - `min`, `max`    → numeric o date/datetime (más antiguo / más reciente)
+ *  - `count_true`    → solo checkbox
+ *  - `count_false`   → solo checkbox
+ *
+ * El picker filtra qué métricas mostrar según el tipo del campo
+ * elegido (ver `metricsForFieldType` en WidgetFormDialog).
+ */
+export type KpiMetric =
+    | 'count'
+    | 'count_unique'
+    | 'count_empty'
+    | 'sum'
+    | 'avg'
+    | 'min'
+    | 'max'
+    | 'count_true'
+    | 'count_false';
 
 export interface WidgetLayout {
     x: number;
@@ -117,12 +143,12 @@ export interface UpdateDashboardInput {
 }
 
 export type WidgetData =
-    | { value: number; metric: KpiMetric }
-    | { data: Array<{ label: string; value: number }> }
+    | { value: number | string; metric: KpiMetric }
+    | { data: Array<{ label: string; value: number | string }> }
     | {
-          /** stat_delta */
-          value: number;
-          previous: number;
+          /** stat_delta — value/previous pueden ser string para min/max de fecha */
+          value: number | string;
+          previous: number | string;
           delta_pct: number | null;
           period_days: number;
           metric: KpiMetric;

@@ -91,10 +91,6 @@ export function WidgetFormDialog({
         }
         previousListIdRef.current = listId;
     }, [listId]);
-    const numericFields = useMemo(
-        () => (fields.data ?? []).filter((f) => f.type === 'number' || f.type === 'currency'),
-        [fields.data],
-    );
     const groupableFields = useMemo(
         () => (fields.data ?? []).filter((f) => GROUPABLE_TYPES.includes(f.type)),
         [fields.data],
@@ -105,6 +101,16 @@ export function WidgetFormDialog({
     );
     const allUsableFields = useMemo(
         () => (fields.data ?? []).filter((f) => f.type !== 'relation'),
+        [fields.data],
+    );
+    // 0.36.9: cualquier field excepto relation/computed se puede usar
+    // como metric en KPI/Charts/StatDelta — RecordAggregator soporta
+    // count/count_unique/count_empty para todos, sum/avg/min/max/etc
+    // según tipo. El picker filtra qué cálculos se ofrecen.
+    const aggregatableFields = useMemo<FieldOpt[]>(
+        () => (fields.data ?? [])
+            .filter((f) => f.type !== 'relation' && f.type !== 'computed')
+            .map((f) => ({ id: f.id, label: f.label, type: f.type })),
         [fields.data],
     );
 
@@ -201,30 +207,34 @@ export function WidgetFormDialog({
         onOpenChange(false);
     };
 
+    // 0.36.9: con la matriz expandida, cualquier métrica que NO sea
+    // count sobre todos los registros requiere un field_id. La única
+    // configuración válida sin campo es metric=count + field_id=0
+    // (= COUNT(*)).
+    const metricNeedsField = metric !== 'count' || metricFieldId > 0
+        ? metricFieldId > 0
+        : true;
+
     const canSubmit = useMemo(() => {
         if (listId <= 0) return false;
         if (type === 'kpi') {
-            if (metric === 'sum' || metric === 'avg') return metricFieldId > 0;
-            return true;
+            return metricNeedsField;
         }
         if (type === 'chart_bar' || type === 'chart_pie') {
             if (groupByFieldId <= 0) return false;
-            if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
-            return true;
+            return metricNeedsField;
         }
         if (type === 'chart_line' || type === 'chart_area') {
             if (dateFieldId <= 0) return false;
-            if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
-            return true;
+            return metricNeedsField;
         }
         if (type === 'stat_delta') {
             if (dateFieldId <= 0) return false;
-            if ((metric === 'sum' || metric === 'avg') && metricFieldId <= 0) return false;
-            return true;
+            return metricNeedsField;
         }
         if (type === 'table') return true;
         return false;
-    }, [type, listId, metric, metricFieldId, groupByFieldId, dateFieldId]);
+    }, [type, listId, metricNeedsField, groupByFieldId, dateFieldId]);
 
     return (
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -316,7 +326,7 @@ export function WidgetFormDialog({
                             <KpiConfig
                                 metric={metric}
                                 metricFieldId={metricFieldId}
-                                numericFields={numericFields}
+                                aggregatableFields={aggregatableFields}
                                 onMetricChange={setMetric}
                                 onMetricFieldChange={setMetricFieldId}
                             />
@@ -327,7 +337,7 @@ export function WidgetFormDialog({
                                 <ChartMetricConfig
                                     metric={metric}
                                     metricFieldId={metricFieldId}
-                                    numericFields={numericFields}
+                                    aggregatableFields={aggregatableFields}
                                     onMetricChange={setMetric}
                                     onMetricFieldChange={setMetricFieldId}
                                 />
@@ -352,7 +362,7 @@ export function WidgetFormDialog({
                                 <ChartMetricConfig
                                     metric={metric}
                                     metricFieldId={metricFieldId}
-                                    numericFields={numericFields}
+                                    aggregatableFields={aggregatableFields}
                                     onMetricChange={setMetric}
                                     onMetricFieldChange={setMetricFieldId}
                                 />
@@ -389,7 +399,7 @@ export function WidgetFormDialog({
                                 metricFieldId={metricFieldId}
                                 dateFieldId={dateFieldId}
                                 periodDays={periodDays}
-                                numericFields={numericFields}
+                                aggregatableFields={aggregatableFields}
                                 dateFields={dateFields}
                                 onMetricChange={setMetric}
                                 onMetricFieldChange={setMetricFieldId}
@@ -455,85 +465,148 @@ export function WidgetFormDialog({
 }
 
 /**
- * 0.36.8: dropdown único con todas las combinaciones (métrica × campo)
- * en una sola lista — como Airtable / Notion. Antes era un picker
- * anidado: primero `metric` (count/sum/avg), después si era sum/avg
- * aparecía abajo un FieldPicker para la columna. Resultado: usuarios
- * con `count` por default no veían cómo elegir una columna; las
- * opciones "Sumar campo / Promediar campo" parecían etiquetas vacías.
+ * 0.36.9: dos dropdowns. PRIMERO el campo (cualquier tipo), DESPUÉS
+ * el cálculo — filtrado por tipo del campo. Antes el picker estaba
+ * limitado a num/currency con sum/avg/count; ahora soporta todas las
+ * agregaciones que ya calcula `RecordAggregator` per-tipo:
  *
- * Ahora cada opción del dropdown representa una métrica completa
- * (`metric` + `metric_field_id`). El value se codifica como
- * `count` | `sum:<fieldId>` | `avg:<fieldId>` para round-trip al
- * estado.
+ *   - number/currency → sum, avg, min, max, count, count_unique, count_empty
+ *   - date/datetime   → min (más antiguo), max (más reciente), count, count_unique, count_empty
+ *   - checkbox        → count_true (sí), count_false (no), count
+ *   - text/select/multi_select/email/url/user/file → count, count_unique, count_empty
+ *
+ * El campo "(Todos los registros)" es un caso especial: field_id = 0 con
+ * metric = 'count' → COUNT(*) sin filtrar columna.
  */
+interface FieldOpt {
+    id: number;
+    label: string;
+    type: string;
+}
+
+interface MetricOpt {
+    value: KpiMetric;
+    label: string;
+}
+
+/**
+ * Catálogo de métricas válidas por tipo de campo. Espejo de
+ * `RecordAggregator::aggregateExprs()` en PHP — si actualizas uno,
+ * actualiza el otro.
+ */
+function metricsForFieldType(type: string): MetricOpt[] {
+    switch (type) {
+        case 'number':
+        case 'currency':
+            return [
+                { value: 'sum',          label: __('Suma') },
+                { value: 'avg',          label: __('Promedio') },
+                { value: 'min',          label: __('Mínimo') },
+                { value: 'max',          label: __('Máximo') },
+                { value: 'count',        label: __('Contar valores') },
+                { value: 'count_unique', label: __('Valores únicos') },
+                { value: 'count_empty',  label: __('Vacíos') },
+            ];
+        case 'date':
+        case 'datetime':
+            return [
+                { value: 'min',          label: __('Más antiguo') },
+                { value: 'max',          label: __('Más reciente') },
+                { value: 'count',        label: __('Contar valores') },
+                { value: 'count_unique', label: __('Valores únicos') },
+                { value: 'count_empty',  label: __('Vacíos') },
+            ];
+        case 'checkbox':
+            return [
+                { value: 'count_true',  label: __('Cantidad de sí') },
+                { value: 'count_false', label: __('Cantidad de no') },
+                { value: 'count',       label: __('Contar valores') },
+            ];
+        default:
+            // text / select / multi_select / email / url / user / file
+            return [
+                { value: 'count',        label: __('Contar valores') },
+                { value: 'count_unique', label: __('Valores únicos') },
+                { value: 'count_empty',  label: __('Vacíos') },
+            ];
+    }
+}
+
 interface FlatMetricPickerProps {
     label: string;
     metric: KpiMetric;
     metricFieldId: number;
-    numericFields: Array<{ id: number; label: string }>;
+    aggregatableFields: FieldOpt[];
     onChange: (metric: KpiMetric, fieldId: number) => void;
-}
-
-function encodeMetric(metric: KpiMetric, fieldId: number): string {
-    if (metric === 'count') return 'count';
-    return metric + ':' + String(fieldId);
-}
-
-function decodeMetric(value: string): { metric: KpiMetric; fieldId: number } {
-    if (value === 'count') return { metric: 'count', fieldId: 0 };
-    const [m, idStr] = value.split(':');
-    const id = Number(idStr ?? 0);
-    if (m === 'sum' || m === 'avg') {
-        return { metric: m, fieldId: Number.isFinite(id) ? id : 0 };
-    }
-    return { metric: 'count', fieldId: 0 };
 }
 
 function FlatMetricPicker({
     label,
     metric,
     metricFieldId,
-    numericFields,
+    aggregatableFields,
     onChange,
 }: FlatMetricPickerProps): JSX.Element {
-    const value = encodeMetric(metric, metricFieldId);
+    const selectedField = aggregatableFields.find((f) => f.id === metricFieldId) ?? null;
+
+    // Métricas válidas para el campo elegido. Si no hay campo (field_id=0)
+    // sólo queda "Contar registros".
+    const metricsForField: MetricOpt[] =
+        selectedField === null
+            ? [{ value: 'count', label: __('Contar registros') }]
+            : metricsForFieldType(selectedField.type);
+
+    // Si la métrica actual no aplica al campo elegido (cambio de tipo),
+    // caemos a la primera válida — el usuario ve un default sensato sin
+    // estados rotos.
+    const effectiveMetric: KpiMetric = metricsForField.some((m) => m.value === metric)
+        ? metric
+        : metricsForField[0]!.value;
+
+    const handleFieldChange = (idStr: string): void => {
+        const id = Number(idStr) || 0;
+        const newField = aggregatableFields.find((f) => f.id === id) ?? null;
+        // Default sensato según el tipo del nuevo campo.
+        const defaultMetric: KpiMetric =
+            newField === null ? 'count' : metricsForFieldType(newField.type)[0]!.value;
+        onChange(defaultMetric, id);
+    };
+
+    const handleMetricChange = (next: KpiMetric): void => {
+        onChange(next, metricFieldId);
+    };
+
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-            <Label htmlFor="w-metric-flat">{label}</Label>
-            <Select
-                id="w-metric-flat"
-                value={value}
-                onChange={(e) => {
-                    const next = decodeMetric(e.target.value);
-                    onChange(next.metric, next.fieldId);
-                }}
-            >
-                <option value="count">{__('Contar registros')}</option>
-                {numericFields.length > 0 && (
-                    <optgroup label={__('Sumar campo')}>
-                        {numericFields.map((f) => (
-                            <option key={'sum-' + f.id} value={'sum:' + f.id}>
-                                {f.label}
-                            </option>
-                        ))}
-                    </optgroup>
-                )}
-                {numericFields.length > 0 && (
-                    <optgroup label={__('Promediar campo')}>
-                        {numericFields.map((f) => (
-                            <option key={'avg-' + f.id} value={'avg:' + f.id}>
-                                {f.label}
-                            </option>
-                        ))}
-                    </optgroup>
-                )}
-            </Select>
-            {numericFields.length === 0 && (
-                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                    {__('Para sumar o promediar añade un campo numérico (number / currency) a la lista.')}
-                </p>
-            )}
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-metric-field">{label}</Label>
+                <Select
+                    id="w-metric-field"
+                    value={metricFieldId}
+                    onChange={(e) => handleFieldChange(e.target.value)}
+                >
+                    <option value={0}>{__('(Todos los registros)')}</option>
+                    {aggregatableFields.map((f) => (
+                        <option key={f.id} value={f.id}>
+                            {f.label}
+                        </option>
+                    ))}
+                </Select>
+            </div>
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label htmlFor="w-metric-kind">{__('Cálculo')}</Label>
+                <Select
+                    id="w-metric-kind"
+                    value={effectiveMetric}
+                    onChange={(e) => handleMetricChange(e.target.value as KpiMetric)}
+                >
+                    {metricsForField.map((m) => (
+                        <option key={m.value} value={m.value}>
+                            {m.label}
+                        </option>
+                    ))}
+                </Select>
+            </div>
         </div>
     );
 }
@@ -541,7 +614,7 @@ function FlatMetricPicker({
 interface KpiConfigProps {
     metric: KpiMetric;
     metricFieldId: number;
-    numericFields: Array<{ id: number; label: string }>;
+    aggregatableFields: FieldOpt[];
     onMetricChange: (metric: KpiMetric) => void;
     onMetricFieldChange: (id: number) => void;
 }
@@ -549,16 +622,16 @@ interface KpiConfigProps {
 function KpiConfig({
     metric,
     metricFieldId,
-    numericFields,
+    aggregatableFields,
     onMetricChange,
     onMetricFieldChange,
 }: KpiConfigProps): JSX.Element {
     return (
         <FlatMetricPicker
-            label={__('Métrica')}
+            label={__('Campo')}
             metric={metric}
             metricFieldId={metricFieldId}
-            numericFields={numericFields}
+            aggregatableFields={aggregatableFields}
             onChange={(m, id) => {
                 onMetricChange(m);
                 onMetricFieldChange(id);
@@ -575,7 +648,7 @@ function KpiConfig({
 interface ChartMetricConfigProps {
     metric: KpiMetric;
     metricFieldId: number;
-    numericFields: Array<{ id: number; label: string }>;
+    aggregatableFields: FieldOpt[];
     onMetricChange: (metric: KpiMetric) => void;
     onMetricFieldChange: (id: number) => void;
 }
@@ -583,16 +656,16 @@ interface ChartMetricConfigProps {
 function ChartMetricConfig({
     metric,
     metricFieldId,
-    numericFields,
+    aggregatableFields,
     onMetricChange,
     onMetricFieldChange,
 }: ChartMetricConfigProps): JSX.Element {
     return (
         <FlatMetricPicker
-            label={__('Qué medir')}
+            label={__('Campo a medir')}
             metric={metric}
             metricFieldId={metricFieldId}
-            numericFields={numericFields}
+            aggregatableFields={aggregatableFields}
             onChange={(m, id) => {
                 onMetricChange(m);
                 onMetricFieldChange(id);
@@ -606,7 +679,7 @@ interface StatDeltaConfigProps {
     metricFieldId: number;
     dateFieldId: number;
     periodDays: number;
-    numericFields: Array<{ id: number; label: string }>;
+    aggregatableFields: FieldOpt[];
     dateFields: Array<{ id: number; label: string }>;
     onMetricChange: (metric: KpiMetric) => void;
     onMetricFieldChange: (id: number) => void;
@@ -619,7 +692,7 @@ function StatDeltaConfig({
     metricFieldId,
     dateFieldId,
     periodDays,
-    numericFields,
+    aggregatableFields,
     dateFields,
     onMetricChange,
     onMetricFieldChange,
@@ -629,10 +702,10 @@ function StatDeltaConfig({
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <FlatMetricPicker
-                label={__('Métrica')}
+                label={__('Campo')}
                 metric={metric}
                 metricFieldId={metricFieldId}
-                numericFields={numericFields}
+                aggregatableFields={aggregatableFields}
                 onChange={(m, id) => {
                     onMetricChange(m);
                     onMetricFieldChange(id);
@@ -1043,7 +1116,7 @@ function buildConfig(
     if (type === 'kpi') {
         const c = base();
         c.metric = state.metric;
-        if (state.metric === 'sum' || state.metric === 'avg') {
+        if (state.metricFieldId > 0) {
             c.metric_field_id = state.metricFieldId;
         }
         return c;
@@ -1055,7 +1128,7 @@ function buildConfig(
             time_bucket: state.timeBucket,
             metric: state.metric,
         };
-        if (state.metric === 'sum' || state.metric === 'avg') {
+        if (state.metricFieldId > 0) {
             c.metric_field_id = state.metricFieldId;
         }
         return presentation(c);
@@ -1067,7 +1140,7 @@ function buildConfig(
             time_bucket: state.timeBucket,
             metric: state.metric,
         };
-        if (state.metric === 'sum' || state.metric === 'avg') {
+        if (state.metricFieldId > 0) {
             c.metric_field_id = state.metricFieldId;
         }
         return presentation(c);
@@ -1079,7 +1152,7 @@ function buildConfig(
             date_field_id: state.dateFieldId,
             period_days: state.periodDays,
         };
-        if (state.metric === 'sum' || state.metric === 'avg') {
+        if (state.metricFieldId > 0) {
             c.metric_field_id = state.metricFieldId;
         }
         return c;

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.8
+Stable tag: 0.36.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,62 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.36.9 =
+**Widget metric: campo primero + cálculos según el tipo (todos los tipos de campo).**
+
+Reporte usuario tras 0.36.8: el dropdown plano (count / sum:VALOR / avg:VALOR)
+estaba al revés y limitaba mucho — sólo permitía estadísticas sobre campos
+numéricos. Pedía:
+1. Primero elegir el campo, luego el cálculo
+2. Soportar todos los tipos de campo, no sólo number/currency
+   ("contar campos de texto", "más reciente fecha", "cantidad de sí en checkboxes",
+    etc.)
+
+Fix: dos dropdowns secuenciales, con cálculos filtrados por tipo del campo
+seleccionado. Espejo del catálogo que `RecordAggregator` ya implementaba
+para los footers de tabla, expuesto ahora también en widgets.
+
+Frontend
+--------
+
+* Nuevo `metricsForFieldType()` con la matriz por tipo:
+    - number/currency → Suma, Promedio, Mínimo, Máximo, Contar valores,
+                         Valores únicos, Vacíos
+    - date/datetime   → Más antiguo, Más reciente, Contar valores,
+                         Valores únicos, Vacíos
+    - checkbox        → Cantidad de sí, Cantidad de no, Contar valores
+    - text/select/multi_select/email/url/user/file
+                       → Contar valores, Valores únicos, Vacíos
+* `FlatMetricPicker` reescrito: dropdown 1 = "Campo" (todos los aggregables
+   + opción "(Todos los registros)" para COUNT(*)); dropdown 2 = "Cálculo"
+   filtrado por el tipo del campo elegido. Al cambiar de campo se aplica
+   el cálculo default sensato (nunca queda en estado roto).
+* `KpiWidget.labelForMetric()`: copy para todos los nuevos kinds.
+* Widgets de chart (Bar/Line/Pie) coercen `value` numérico para min/max
+   de fecha (parsean a timestamp).
+
+Backend
+-------
+
+* Nuevo helper `WidgetEvaluator::resolveMetric()` que devuelve la
+   expresión SQL del agregado según `(metric, metric_field_id)` y
+   un `kind` (`int`/`float`/`string`) para castear la salida.
+* `evaluateKpi()`, `evaluateChartBar()`, `evaluateChartLine()` y
+   `evaluateStatDelta()` reusan el helper — todos soportan el set
+   completo. Configs antiguas con `metric: 'count'` y sin field_id
+   siguen funcionando (COUNT(*)).
+* `count_empty` aplica `IS NULL OR =''` para text/email/url; sólo
+   `IS NULL` para los demás (espejo de RecordAggregator).
+* `evaluateStatDelta()` con métricas tipo string (min/max fecha)
+   devuelve `delta_pct: null` — comparar fechas como % no tiene
+   sentido conceptual.
+* Multi_select group_by + min/max de fecha como métrica: bloqueado
+   con error claro (no se puede unnest matemáticamente). Sum/count
+   funcionan.
+
+Sin migración. La transient cache de widgets ya invalida por config
+hash.
 
 = 0.36.8 =
 **Fix UX widget: dropdown de métrica plano (estilo Airtable).**

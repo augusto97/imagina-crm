@@ -52,7 +52,9 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
     );
 }
 
-function formatValue(value: number, metric: string): string {
+function formatValue(value: number | string, metric: string): string {
+    // 0.36.9: min/max sobre fechas devuelve string ISO; el resto numérico.
+    if (typeof value === 'string') return value;
     if (metric === 'avg') {
         return value.toFixed(2);
     }
@@ -64,13 +66,15 @@ function formatValue(value: number, metric: string): string {
 
 function labelForMetric(metric: string): string {
     switch (metric) {
-        case 'count':
-            return __('Conteo');
-        case 'sum':
-            return __('Suma');
-        case 'avg':
-            return __('Promedio');
-        default:
-            return metric;
+        case 'count':         return __('Conteo');
+        case 'count_unique':  return __('Únicos');
+        case 'count_empty':   return __('Vacíos');
+        case 'count_true':    return __('Sí');
+        case 'count_false':   return __('No');
+        case 'sum':           return __('Suma');
+        case 'avg':           return __('Promedio');
+        case 'min':           return __('Mínimo');
+        case 'max':           return __('Máximo');
+        default:              return metric;
     }
 }

@@ -37,8 +37,8 @@ export function StatDeltaWidget({ dashboardId, widget }: StatDeltaWidgetProps): 
                     </span>
                 ) : data.data && 'previous' in data.data ? (
                     <Body
-                        value={data.data.value as number}
-                        previous={data.data.previous as number}
+                        value={data.data.value}
+                        previous={data.data.previous}
                         deltaPct={data.data.delta_pct as number | null}
                         periodDays={data.data.period_days as number}
                     />
@@ -54,8 +54,8 @@ function Body({
     deltaPct,
     periodDays,
 }: {
-    value: number;
-    previous: number;
+    value: number | string;
+    previous: number | string;
     deltaPct: number | null;
     periodDays: number;
 }): JSX.Element {
@@ -99,7 +99,8 @@ function Body({
     );
 }
 
-function format(v: number): string {
+function format(v: number | string): string {
+    if (typeof v === 'string') return v;
     if (Number.isInteger(v)) return v.toLocaleString();
     return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }

@@ -48,7 +48,7 @@ export function PieChartWidget({ dashboardId, widget }: PieChartWidgetProps): JS
                     </span>
                 ) : data.data && 'data' in data.data && data.data.data.length > 0 ? (
                     <Donut
-                        rows={data.data.data}
+                        rows={data.data.data.map((r) => ({ label: r.label, value: typeof r.value === 'number' ? r.value : Date.parse(r.value) || 0 }))}
                         showLabels={showLabels}
                         showLegend={showLegend}
                     />
