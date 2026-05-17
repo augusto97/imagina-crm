@@ -145,9 +145,17 @@ final class Plugin
         });
 
         // PermissionsController: REST `/lists/{id}/permissions` + `/roles`.
+        // Roles custom (Fase 10): service + binding del RoleInstaller
+        // que ya existía desde Fase 7.
+        $this->container->bind(\ImaginaCRM\Permissions\CustomRoleService::class, static function (): \ImaginaCRM\Permissions\CustomRoleService {
+            return new \ImaginaCRM\Permissions\CustomRoleService();
+        });
+
         $this->container->bind(\ImaginaCRM\REST\PermissionsController::class, static function (Container $c): \ImaginaCRM\REST\PermissionsController {
             return new \ImaginaCRM\REST\PermissionsController(
                 $c->get(ListService::class),
+                $c->get(\ImaginaCRM\Permissions\CustomRoleService::class),
+                $c->get(RoleInstaller::class),
             );
         });
 

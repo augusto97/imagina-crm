@@ -1,6 +1,7 @@
 import { getBootData } from '@/lib/boot';
 import { __ } from '@/lib/i18n';
 
+import { CustomRolesCard } from './CustomRolesCard';
 import { EmailSignatureCard } from './EmailSignatureCard';
 import { LicenseCard } from './LicenseCard';
 
@@ -21,6 +22,8 @@ export function SettingsPage(): JSX.Element {
             <LicenseCard />
 
             <EmailSignatureCard />
+
+            <CustomRolesCard />
 
             <section className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                 <h2 className="imcrm-text-base imcrm-font-semibold">{__('Entorno')}</h2>

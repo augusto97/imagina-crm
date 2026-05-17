@@ -4,6 +4,37 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.40.3] — 2026-05-17
+
+**Roles personalizados** (Fase 10 — pulidos · **CIERRE DE FASE 10**).
+Con este release el plan multi-stakeholder completo (Fases 7-10)
+queda cerrado.
+
+### Añadido
+
+- `src/Permissions/CustomRoleService.php` — CRUD de roles custom en
+  `wp_options.imcrm_custom_roles`. Slug saneado a `[a-z0-9_]`, caps
+  filtradas a SOLO `imcrm_*`.
+- `RoleInstaller::syncCustomRoles()` sincroniza con wp_roles tras
+  cada save/delete y remueve roles obsoletos.
+- Endpoints REST:
+    * `GET /roles` ahora incluye `custom_roles` + `capabilities`.
+    * `POST /roles` crea/actualiza un rol custom.
+    * `DELETE /roles/{slug}` borra.
+- UI: `CustomRolesCard.tsx` en Settings con lista + form de
+  crear/editar con checkboxes de caps.
+- 15 tests nuevos en `CustomRoleServiceTest`.
+- Stub `wp_roles()` en `tests/bootstrap.php`.
+
+### Plan multi-stakeholder COMPLETO
+
+| Fase | Versiones | Estado |
+|------|-----------|--------|
+| 7 — Roles y permisos | 0.37.0-0.37.3 | ✅ |
+| 8 — Listas públicas | 0.38.0-0.38.4 | ✅ |
+| 9 — Portal cliente | 0.39.0-0.39.9 | ✅ |
+| 10 — Pulidos | 0.40.0-0.40.3 | ✅ |
+
 ## [0.40.2] — 2026-05-17
 
 **Permalinks dedicados** (Fase 10 — pulidos). Una lista pública con

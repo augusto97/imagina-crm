@@ -31,6 +31,7 @@ final class RoleInstaller
     {
         $this->syncPluginRoles();
         $this->grantAdministratorCaps();
+        $this->syncCustomRoles();
     }
 
     /**
@@ -100,6 +101,74 @@ final class RoleInstaller
             foreach (array_keys($capsMap) as $cap) {
                 if (! isset($existing->capabilities[$cap]) || $existing->capabilities[$cap] !== true) {
                     $existing->add_cap($cap);
+                }
+            }
+        }
+    }
+
+    /**
+     * Sincroniza roles personalizados desde wp_options (Fase 10).
+     *
+     * - Crea roles nuevos con prefijo `crm_custom_`.
+     * - Actualiza caps si el shape cambió.
+     * - Remueve roles que ya no figuran en options (admin los borró
+     *   desde la UI).
+     *
+     * Detección de "obsoletos": iteramos `get_roles()` (todos los WP
+     * roles) buscando los que tienen prefijo `crm_custom_`. Si alguno
+     * no está en `$declaredSet` actual, lo removemos.
+     */
+    private function syncCustomRoles(): void
+    {
+        // Importamos via global para no introducir nueva dep en el ctor
+        // — el RoleInstaller es stateless, mantengamoslo así. El service
+        // se instancia directamente porque su shape es trivial.
+        $service = new CustomRoleService();
+        $custom = $service->all();
+
+        // 1. Sincronizar declarados: crear/actualizar.
+        $declaredSet = [];
+        foreach ($custom as $entry) {
+            $wpSlug = $service->wpRoleSlug($entry['slug']);
+            $declaredSet[$wpSlug] = true;
+
+            $capsMap = ['read' => true];
+            foreach ($entry['capabilities'] as $cap) {
+                $capsMap[$cap] = true;
+            }
+
+            $existing = get_role($wpSlug);
+            if ($existing === null) {
+                add_role($wpSlug, $entry['label'], $capsMap);
+                continue;
+            }
+
+            // Quitar caps `imcrm_*` obsoletas que ya no figuran en
+            // declared. NO tocamos otros prefijos (defensa idéntica a
+            // syncPluginRoles).
+            $declared = array_fill_keys(array_keys($capsMap), true);
+            foreach (array_keys($existing->capabilities) as $cap) {
+                if (! is_string($cap)) continue;
+                if (str_starts_with($cap, 'imcrm_') && ! isset($declared[$cap])) {
+                    $existing->remove_cap($cap);
+                }
+            }
+            foreach (array_keys($capsMap) as $cap) {
+                if (! isset($existing->capabilities[$cap]) || $existing->capabilities[$cap] !== true) {
+                    $existing->add_cap($cap);
+                }
+            }
+        }
+
+        // 2. Eliminar roles custom que ya no están en options.
+        // Iteramos los WP roles directamente buscando el prefijo.
+        if (function_exists('wp_roles')) {
+            $allRoles = wp_roles()->roles;
+            foreach (array_keys($allRoles) as $wpSlug) {
+                if (! is_string($wpSlug)) continue;
+                if (! str_starts_with($wpSlug, CustomRoleService::SLUG_PREFIX)) continue;
+                if (! isset($declaredSet[$wpSlug])) {
+                    remove_role($wpSlug);
                 }
             }
         }

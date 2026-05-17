@@ -5,7 +5,9 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
+use ImaginaCRM\Permissions\CustomRoleService;
 use ImaginaCRM\Permissions\ListPermissions;
+use ImaginaCRM\Permissions\RoleInstaller;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -34,8 +36,11 @@ final class PermissionsController extends AbstractController
 {
     private const VALID_OPS = ['view', 'edit', 'delete'];
 
-    public function __construct(private readonly ListService $lists)
-    {
+    public function __construct(
+        private readonly ListService $lists,
+        private readonly CustomRoleService $customRoles,
+        private readonly RoleInstaller $roleInstaller,
+    ) {
         parent::__construct();
     }
 
@@ -73,9 +78,29 @@ final class PermissionsController extends AbstractController
         ]);
 
         register_rest_route($this->namespace, '/roles', [
-            'methods'             => WP_REST_Server::READABLE,
-            'callback'            => [$this, 'listRoles'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'listRoles'],
+                'permission_callback' => [$this, 'checkAdminPermissions'],
+            ],
+            [
+                // POST crea un rol custom nuevo o actualiza uno
+                // existente con el mismo slug. Cap: manage_lists.
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'saveCustomRole'],
+                'permission_callback' => [$this, 'checkManageListsPermission'],
+                'args'                => [
+                    'slug'         => ['type' => 'string', 'required' => true],
+                    'label'        => ['type' => 'string', 'required' => true],
+                    'capabilities' => ['type' => 'array', 'required' => true],
+                ],
+            ],
+        ]);
+
+        register_rest_route($this->namespace, '/roles/(?P<slug>[a-z0-9_]+)', [
+            'methods'             => WP_REST_Server::DELETABLE,
+            'callback'            => [$this, 'deleteCustomRole'],
+            'permission_callback' => [$this, 'checkManageListsPermission'],
         ]);
     }
 
@@ -192,8 +217,61 @@ final class PermissionsController extends AbstractController
     {
         unset($request);
         return new WP_REST_Response([
-            'data' => $this->rolesShape(),
+            'data'         => $this->rolesShape(),
+            'custom_roles' => $this->customRoles->all(),
+            'capabilities' => CapabilityRegistry::allCapabilities(),
         ]);
+    }
+
+    /**
+     * POST /imagina-crm/v1/roles
+     *
+     * Crea o actualiza un rol personalizado (Fase 10). Después de
+     * persistir, llama a `RoleInstaller::sync()` para que el rol
+     * exista en wp_roles inmediatamente.
+     */
+    public function saveCustomRole(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $params = $request->get_json_params();
+        if (! is_array($params)) {
+            $params = $request->get_params();
+        }
+        $slug = isset($params['slug']) && is_string($params['slug']) ? $params['slug'] : '';
+        $label = isset($params['label']) && is_string($params['label']) ? $params['label'] : '';
+        $caps = isset($params['capabilities']) && is_array($params['capabilities'])
+            ? $params['capabilities']
+            : [];
+
+        $result = $this->customRoles->save($slug, $label, $caps);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+
+        // Resync: hace add_role/update inmediato para que el rol esté
+        // listo para asignarse a users desde wp-admin → Users.
+        $this->roleInstaller->sync();
+
+        return new WP_REST_Response([
+            'data' => $this->customRoles->all(),
+        ]);
+    }
+
+    /**
+     * DELETE /imagina-crm/v1/roles/{slug}
+     *
+     * Borra un rol custom. Resync remueve el WP role del registry.
+     * Los users que tenían ese rol pierden las caps pero NO se
+     * desactivan — el admin los gestiona manualmente.
+     */
+    public function deleteCustomRole(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $slug = (string) $request->get_param('slug');
+        $result = $this->customRoles->delete($slug);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+        $this->roleInstaller->sync();
+        return new WP_REST_Response(['data' => $this->customRoles->all()]);
     }
 
     /**

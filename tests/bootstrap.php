@@ -366,6 +366,29 @@ if (! function_exists('remove_role')) {
     }
 }
 
+if (! function_exists('wp_roles')) {
+    /**
+     * Stub minimalista de wp_roles(). Devuelve un objeto con
+     * `$roles` = array `[slug => ['name' => string]]`. Suficiente
+     * para `RoleInstaller::syncCustomRoles` que solo lee
+     * `array_keys($wp_roles->roles)`.
+     */
+    function wp_roles(): object
+    {
+        return new class () {
+            /** @var array<string, array<string, mixed>> */
+            public array $roles;
+            public function __construct()
+            {
+                $this->roles = [];
+                foreach ($GLOBALS['imcrm_test_roles'] ?? [] as $slug => $role) {
+                    $this->roles[$slug] = ['name' => is_object($role) ? ($role->name ?? $slug) : $slug];
+                }
+            }
+        };
+    }
+}
+
 /**
  * Stub minimalista de `WP_User`. Los tests instancian con el constructor
  * (ID + roles). `user_can()` consulta las caps agregadas a los roles que

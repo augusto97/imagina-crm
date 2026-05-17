@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.40.2
+Stable tag: 0.40.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,152 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.40.3 =
+**Fase 10 — Roles personalizados (CIERRE DE FASE 10).**
+
+Última pieza de la Fase 10. El admin puede crear roles custom con
+sus propios sets de capabilities `imcrm_*`. Útil cuando los 5 roles
+built-in no cubren el caso de uso — por ejemplo "Vendedor Senior"
+(manager + bulk_actions sin manage_lists) o "Soporte Cliente"
+(view + comments sin nada más).
+
+Con este release la Fase 10 (y por extensión todo el plan
+multi-stakeholder de las Fases 7-10) queda cerrada.
+
+Sin cambios de schema — los roles custom viven en
+`wp_options.imcrm_custom_roles`.
+
+CustomRoleService
+-----------------
+src/Permissions/CustomRoleService.php
+
+API:
+- all(): list de roles custom desde wp_options. Filtra entries con
+  shape inválido (defensa contra option tampered manualmente).
+- save(slug, label, caps): crea o actualiza. Validaciones:
+    * Slug saneado a `[a-z0-9_]`, length 3-50 chars.
+    * Label requerido, max 100 chars.
+    * Caps filtradas a SOLO las del plugin (`imcrm_*`) — admin no
+      puede asignar `manage_options` ni caps WP core.
+    * No permite override de slugs built-in.
+- delete(slug): remueve del wp_options.
+- wpRoleSlug(slug): prefija con `crm_custom_` para evitar choques
+  con slugs built-in y con WP nativos.
+
+RoleInstaller extendido
+-----------------------
+src/Permissions/RoleInstaller.php — sync() ahora también sincroniza
+roles custom (nuevo método `syncCustomRoles`):
+
+1. Para cada rol custom en options: add_role si no existe, o update
+   caps si existe. Quita caps `imcrm_*` obsoletas que no están en
+   la declaración actual (drift de versiones anteriores).
+
+2. Itera wp_roles() buscando roles con prefijo `crm_custom_` que NO
+   están en options actual → remove_role. Cubre el caso "admin
+   borró un rol desde la UI".
+
+Endpoints REST
+--------------
+PermissionsController ahora maneja CRUD de roles custom (cap:
+manage_lists).
+
+GET /imagina-crm/v1/roles
+- Devuelve roles built-in + custom_roles + capabilities catalog.
+
+POST /imagina-crm/v1/roles
+- Body: { slug, label, capabilities: [...] }.
+- Crea/actualiza el rol custom.
+- Después de persistir, llama RoleInstaller::sync() para que el
+  rol esté listo para asignar a users desde wp-admin → Users
+  inmediatamente.
+
+DELETE /imagina-crm/v1/roles/{slug}
+- Borra del options + resync.
+- Los users que tenían ese rol pierden las caps. NO se desactivan
+  — el admin los gestiona desde wp-admin → Users.
+
+UI: CustomRolesCard
+-------------------
+app/admin/settings/CustomRolesCard.tsx en Settings (después de
+LicenseCard + EmailSignatureCard).
+
+UI:
+- Lista de roles custom existentes como cards clickeables.
+- Cada card: label + slug prefijado + count de caps + botón
+  eliminar (con confirm).
+- Click en una card → expande inline a form de edición.
+- Botón "Agregar rol" → form inline para crear nuevo.
+- Form:
+    * Input slug (disabled si edita un rol existente — slug es la
+      llave inmutable).
+    * Input label.
+    * Grid de checkboxes para cada cap `imcrm_*` (las 17 declaradas
+      en CapabilityRegistry).
+    * Validación client-side: slug saneado en onChange + length
+      mínima de 3.
+- Errores del backend se muestran inline en el form.
+
+Saneo client-side mirror del backend:
+- Slug: lowercase + replace `[^a-z0-9_]` + slice 50.
+- Label: trim + maxLength 100.
+
+Cómo usarlo end-to-end
+----------------------
+1. Admin va a Ajustes → card "Roles personalizados".
+2. Click "Agregar rol" → llena slug + label + marca caps.
+3. Guarda → backend persiste + RoleInstaller crea wp_role
+   `crm_custom_<slug>` con las caps marcadas + cap `read`.
+4. Admin va a wp-admin → Users → Edita un user → ve el nuevo rol
+   en el dropdown de roles disponibles.
+5. Asigna el rol al user → user obtiene las caps.
+
+Tests (15 nuevos)
+-----------------
+tests/Unit/Permissions/CustomRoleServiceTest.php:
+
+- all() devuelve [] sin roles persistidos.
+- save() crea + actualiza (mismo slug no duplica).
+- save() saneo: "Bad-Slug!" → "badslug".
+- save() rechaza slug que post-saneo es vacío.
+- save() rechaza slug too short / too long.
+- save() rechaza label vacío.
+- save() strip de caps NO `imcrm_*` (`manage_options`, fake_caps).
+- save() deduplica caps repetidas.
+- save() saneo case: "Mixed_CASE" → "mixed_case".
+- delete() remueve + rechaza unknown slug.
+- wpRoleSlug() prefija correctamente.
+- all() filtra entries con shape inválido (option tampered).
+
+Stub `wp_roles()` nuevo en tests/bootstrap.php (reutilizable):
+devuelve objeto con `$roles` = array `[slug => ['name' => string]]`
+suficiente para RoleInstaller::syncCustomRoles.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 438 tests, +15 nuevos pasan, 0 errores nuevos.
+TypeScript build: limpio.
+SettingsPage chunk: 4.59 KB gzip (incluye el nuevo CustomRolesCard).
+
+Fase 10 cerrada — resumen
+-------------------------
+| Pieza                       | Versión | Tests nuevos |
+|-----------------------------|---------|--------------|
+| Per-field permissions       | 0.40.0  | 0 (lógica existía) |
+| Magic links                 | 0.40.1  | 15           |
+| Permalinks dedicados        | 0.40.2  | 7            |
+| Roles personalizados        | 0.40.3  | 15           |
+
+Plan multi-stakeholder COMPLETO
+-------------------------------
+Fases 7-10 del docs/multi-stakeholder-design.md están todas cerradas:
+
+- Fase 7 (0.37.0-0.37.3): Roles y permisos básicos.
+- Fase 8 (0.38.0-0.38.4): Listas públicas.
+- Fase 9 (0.39.0-0.39.6 + pulidos en 0.39.7-0.39.9): Portal cliente.
+- Fase 10 (0.40.0-0.40.3): Pulidos del sistema completo.
 
 = 0.40.2 =
 **Fase 10 — Permalinks dedicados para listas públicas.**
