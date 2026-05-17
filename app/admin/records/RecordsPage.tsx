@@ -11,6 +11,7 @@ import { useRecord, useRecords } from '@/hooks/useRecords';
 import { useSavedViews } from '@/hooks/useSavedViews';
 import { clientSideSearch } from '@/lib/clientSearch';
 import { __, sprintf } from '@/lib/i18n';
+import { CAP, useCan } from '@/lib/permissions';
 import type { RecordEntity } from '@/types/record';
 import type { SavedViewEntity } from '@/types/view';
 
@@ -133,6 +134,18 @@ export function RecordsPage(): JSX.Element {
     }, [hasSearch, isSmallList, baseRecords, serverSearch, state.search, fields.data]);
     const [createOpen, setCreateOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
+
+    // Capability gating (Fase 7 — 1.E). El backend ya rechaza acciones
+    // sin cap; aquí solo ocultamos los botones para evitar UX de
+    // 403-en-click. La edición/eliminación per-record (TableView,
+    // bulk actions) se gatea via prop drilling en una iteración futura
+    // — por ahora dejamos esos paths abiertos y confiamos en el 403
+    // del backend si un viewer intenta editar.
+    const canManageList = useCan(CAP.MANAGE_LISTS);
+    const canManageAutomations = useCan(CAP.MANAGE_AUTOMATIONS);
+    const canImportRecords = useCan(CAP.IMPORT_RECORDS);
+    const canExportRecords = useCan(CAP.EXPORT_RECORDS);
+    const canCreateRecords = useCan(CAP.CREATE_RECORDS);
     const [saveViewOpen, setSaveViewOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [drawerRecordId, setDrawerRecordId] = useState<number | null>(null);
@@ -278,40 +291,50 @@ export function RecordsPage(): JSX.Element {
                     </h1>
                 </div>
                 <div className="imcrm-flex imcrm-gap-2">
-                    <Button asChild variant="outline" className="imcrm-gap-2">
-                        <Link to={`/lists/${list.data.slug}/automations`}>
-                            <Zap className="imcrm-h-4 imcrm-w-4" />
-                            {__('Automatizaciones')}
-                        </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="imcrm-gap-2">
-                        <Link to={`/lists/${list.data.slug}/edit`}>
-                            <Settings className="imcrm-h-4 imcrm-w-4" />
-                            {__('Configurar lista')}
-                        </Link>
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => setImportOpen(true)}
-                        disabled={!fields.data || fields.data.length === 0}
-                        className="imcrm-gap-2"
-                    >
-                        <FileUp className="imcrm-h-4 imcrm-w-4" />
-                        {__('Importar')}
-                    </Button>
-                    <ExportButton
-                        listSlug={list.data.slug}
-                        filterTree={state.filterTree}
-                        disabled={!fields.data || fields.data.length === 0}
-                    />
-                    <Button
-                        onClick={() => setCreateOpen(true)}
-                        disabled={!fields.data || fields.data.length === 0}
-                        className="imcrm-gap-2"
-                    >
-                        <Plus className="imcrm-h-4 imcrm-w-4" />
-                        {__('Nuevo registro')}
-                    </Button>
+                    {canManageAutomations && (
+                        <Button asChild variant="outline" className="imcrm-gap-2">
+                            <Link to={`/lists/${list.data.slug}/automations`}>
+                                <Zap className="imcrm-h-4 imcrm-w-4" />
+                                {__('Automatizaciones')}
+                            </Link>
+                        </Button>
+                    )}
+                    {canManageList && (
+                        <Button asChild variant="outline" className="imcrm-gap-2">
+                            <Link to={`/lists/${list.data.slug}/edit`}>
+                                <Settings className="imcrm-h-4 imcrm-w-4" />
+                                {__('Configurar lista')}
+                            </Link>
+                        </Button>
+                    )}
+                    {canImportRecords && (
+                        <Button
+                            variant="outline"
+                            onClick={() => setImportOpen(true)}
+                            disabled={!fields.data || fields.data.length === 0}
+                            className="imcrm-gap-2"
+                        >
+                            <FileUp className="imcrm-h-4 imcrm-w-4" />
+                            {__('Importar')}
+                        </Button>
+                    )}
+                    {canExportRecords && (
+                        <ExportButton
+                            listSlug={list.data.slug}
+                            filterTree={state.filterTree}
+                            disabled={!fields.data || fields.data.length === 0}
+                        />
+                    )}
+                    {canCreateRecords && (
+                        <Button
+                            onClick={() => setCreateOpen(true)}
+                            disabled={!fields.data || fields.data.length === 0}
+                            className="imcrm-gap-2"
+                        >
+                            <Plus className="imcrm-h-4 imcrm-w-4" />
+                            {__('Nuevo registro')}
+                        </Button>
+                    )}
                 </div>
             </header>
 

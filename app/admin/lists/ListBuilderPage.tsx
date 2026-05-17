@@ -20,6 +20,7 @@ import { __, sprintf } from '@/lib/i18n';
 import { AppearancePanel } from './AppearancePanel';
 import { FieldBuilder } from './FieldBuilder';
 import { MaintenancePanel } from './MaintenancePanel';
+import { PermissionsPanel } from './PermissionsPanel';
 import { SlugEditor } from './SlugEditor';
 
 export function ListBuilderPage(): JSX.Element {
@@ -211,6 +212,7 @@ export function ListBuilderPage(): JSX.Element {
             </Card>
 
             <AppearancePanel list={list.data} />
+            <PermissionsPanel listId={list.data.id} />
             <MaintenancePanel listId={list.data.id} />
         </div>
     );

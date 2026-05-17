@@ -13,6 +13,7 @@ import {
 import { useDashboards } from '@/hooks/useDashboards';
 import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
+import { CAP, useCan } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
 /**
@@ -27,6 +28,13 @@ export function Sidebar(): JSX.Element {
     const lists = useLists();
     const dashboards = useDashboards();
     const [collapsed, setCollapsed] = useState(false);
+
+    // Gating del sidebar por capability (Fase 7 — 1.E).
+    // El backend ya filtra GET /lists a las visibles para el user, así
+    // que la sección "Tus listas" se auto-recorta. Aquí controlamos los
+    // items de nivel superior que dependen de caps específicas.
+    const canSeeDashboards = useCan(CAP.MANAGE_DASHBOARDS) || useCan(CAP.ACCESS_ADMIN);
+    const canSeeSettings = useCan(CAP.MANAGE_LISTS) || useCan('manage_options');
 
     return (
         <aside
@@ -71,9 +79,11 @@ export function Sidebar(): JSX.Element {
                     <NavItem to="/lists" end icon={Database} collapsed={collapsed}>
                         {__('Listas')}
                     </NavItem>
-                    <NavItem to="/dashboards" icon={BarChart3} collapsed={collapsed}>
-                        {__('Dashboards')}
-                    </NavItem>
+                    {canSeeDashboards && (
+                        <NavItem to="/dashboards" icon={BarChart3} collapsed={collapsed}>
+                            {__('Dashboards')}
+                        </NavItem>
+                    )}
                 </Section>
 
                 {!collapsed && lists.data && lists.data.length > 0 && (
@@ -139,11 +149,13 @@ export function Sidebar(): JSX.Element {
                     </div>
                 )}
 
-                <Section label={__('Configuración')} hideLabel={collapsed}>
-                    <NavItem to="/settings" icon={Settings} collapsed={collapsed}>
-                        {__('Ajustes')}
-                    </NavItem>
-                </Section>
+                {canSeeSettings && (
+                    <Section label={__('Configuración')} hideLabel={collapsed}>
+                        <NavItem to="/settings" icon={Settings} collapsed={collapsed}>
+                            {__('Ajustes')}
+                        </NavItem>
+                    </Section>
+                )}
             </nav>
 
             {/* Footer: collapse toggle */}

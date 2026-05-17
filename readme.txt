@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.37.2
+Stable tag: 0.37.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,64 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.37.3 =
+**Fase 7 — Roles y permisos (iteración 1.E: Frontend gating + tab "Permisos") · CIERRE DE LA FASE 7.**
+
+Última iteración de la Fase 7. Trae al frontend el sistema de permisos
+construido en 1.A-1.D: hooks para consumir capabilities, gating de
+botones/secciones que el usuario no puede usar, y un panel completo
+para que el admin de cada lista configure quién puede hacer qué.
+
+Después de esta iteración la Fase 7 queda 100% cerrada. La base de
+permisos está lista para las Fases 8 (listas públicas) y 9 (portal
+del cliente).
+
+Frontend
+--------
+- `app/lib/permissions.ts`:
+    * Constantes `CAP.*` (espejo de `CapabilityRegistry` en PHP).
+    * Hook `useCan(cap)`: bool de si el user actual tiene la cap.
+    * Hook `useCanAny(...caps)`: OR de varias caps.
+    * Hook `useIsPluginAdmin()`: shortcut para "puedo todo".
+    * Constantes `ROLES.*` de los 5 roles del plugin.
+- Sidebar: oculta "Dashboards" para usuarios sin manage_dashboards;
+  oculta "Configuración" para usuarios sin manage_lists.
+- ListsIndexPage: botón "Nueva lista" + acción del EmptyState solo
+  visibles con manage_lists. Texto del empty state cambia según rol.
+- RecordsPage header: "Automatizaciones" requiere manage_automations,
+  "Configurar lista" requiere manage_lists, "Importar" requiere
+  import_records, "Export" requiere export_records, "Nuevo registro"
+  requiere create_records. Si el user no tiene ninguno, el header
+  queda limpio.
+
+Tab Permisos (List Builder)
+---------------------------
+- `app/admin/lists/PermissionsPanel.tsx`: matriz editable rol × operación
+  con dropdowns de scope (Todos/Asignados/Propios/Ninguno) por
+  view/edit/delete y checkbox para create.
+- Aparece sólo para `crm_manager`/`crm_agent`/`crm_viewer` — `crm_admin`
+  y `crm_client` se ignoran (no se configura su comportamiento).
+- Cuando alguna celda usa scope=Asignados, aparece automáticamente un
+  selector "Campo de asignación" listando los campos de tipo Usuario de
+  la lista. Si no hay ninguno, muestra warning amber explicando que el
+  scope no funcionará hasta agregar uno.
+- `useListPermissions(idOrSlug)` + `useUpdateListPermissions(idOrSlug)`
+  + `useRoles()` en `app/hooks/usePermissions.ts`. Patrón TanStack
+  Query consistente con el resto del front.
+
+Limitaciones conocidas
+----------------------
+- Gating de edición inline (TableView, BulkActionsToolbar) sigue dependiendo
+  del 403 del backend si un viewer intenta editar. Pasarle prop `canEdit`/
+  `canDelete` a esos componentes queda como mejora UX de seguimiento.
+- El tab Permisos no implementa `fields_hidden` todavía (el shape ya
+  existe en el JSON persistido y en el value object PHP, pero la UI
+  de checkboxes per-campo es para fase 10).
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 336 tests, 0 errores nuevos.
+TypeScript build: limpio.
 
 = 0.37.2 =
 **Fase 7 — Roles y permisos (iteración 1.C+D fusionada: REST gating + scope SQL).**

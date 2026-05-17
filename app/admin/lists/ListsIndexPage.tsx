@@ -15,11 +15,13 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { StatTile } from '@/components/ui/stat-tile';
 import { useLists } from '@/hooks/useLists';
 import { __, sprintf } from '@/lib/i18n';
+import { CAP, useCan } from '@/lib/permissions';
 import { ListCreateDialog } from '@/admin/lists/ListCreateDialog';
 
 export function ListsIndexPage(): JSX.Element {
     const lists = useLists();
     const [dialogOpen, setDialogOpen] = useState(false);
+    const canCreateList = useCan(CAP.MANAGE_LISTS);
 
     const stats = useMemo(() => {
         const all = lists.data ?? [];
@@ -47,10 +49,12 @@ export function ListsIndexPage(): JSX.Element {
                         {__('Click en una lista para abrirla. Cada una es un contenedor de registros con campos y vistas configurables.')}
                     </p>
                 </div>
-                <Button className="imcrm-gap-1.5" onClick={() => setDialogOpen(true)}>
-                    <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                    {__('Nueva lista')}
-                </Button>
+                {canCreateList && (
+                    <Button className="imcrm-gap-1.5" onClick={() => setDialogOpen(true)}>
+                        <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
+                        {__('Nueva lista')}
+                    </Button>
+                )}
             </header>
 
             {/* StatTiles */}
@@ -175,16 +179,23 @@ function SkeletonGrid(): JSX.Element {
 }
 
 function ListsEmpty({ onCreate }: { onCreate: () => void }): JSX.Element {
+    const canCreate = useCan(CAP.MANAGE_LISTS);
     return (
         <EmptyState
             icon={Database}
             title={__('Aún no hay listas')}
-            description={__('Crea tu primera lista para empezar a capturar registros.')}
+            description={
+                canCreate
+                    ? __('Crea tu primera lista para empezar a capturar registros.')
+                    : __('Tu rol no tiene listas asignadas todavía. Contacta al administrador.')
+            }
             action={
-                <Button onClick={onCreate} className="imcrm-gap-2">
-                    <Plus className="imcrm-h-4 imcrm-w-4" />
-                    {__('Nueva lista')}
-                </Button>
+                canCreate ? (
+                    <Button onClick={onCreate} className="imcrm-gap-2">
+                        <Plus className="imcrm-h-4 imcrm-w-4" />
+                        {__('Nueva lista')}
+                    </Button>
+                ) : undefined
             }
         />
     );

@@ -4,6 +4,49 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.37.3] — 2026-05-17
+
+**Cierre de la Fase 7.** Última iteración (1.E): frontend gating +
+tab "Permisos" en el List Builder. La base de permisos queda completa
+y lista para las Fases 8 (listas públicas) y 9 (portal del cliente).
+
+### Añadido
+
+- `app/lib/permissions.ts`: constantes `CAP.*` espejo del backend +
+  hooks `useCan(cap)`, `useCanAny(...caps)`, `useIsPluginAdmin()`.
+  Constantes `ROLES.*` de los 5 roles del plugin.
+- `app/hooks/usePermissions.ts`: `useListPermissions`,
+  `useUpdateListPermissions`, `useRoles`.
+- `app/types/permissions.ts`: tipos `Scope`, `RolePermissions`,
+  `ListPermissionsDoc`, `PluginRole`.
+- `app/admin/lists/PermissionsPanel.tsx`: matriz editable
+  `rol × operación` con scope dropdowns por view/edit/delete + checkbox
+  para create. Selector dinámico de "Campo de asignación" cuando se
+  usa scope=Asignados.
+
+### Cambiado
+
+- Sidebar: items condicionados por capability.
+- ListsIndexPage: botón "Nueva lista" + EmptyState gateados por
+  `manage_lists`. Texto adaptativo según permisos.
+- RecordsPage header: cada botón requiere su cap específica
+  (Automatizaciones, Configurar lista, Importar, Exportar, Nuevo registro).
+
+### Limitaciones conocidas
+
+- Gating per-cell en TableView no implementado todavía — depende del
+  403 del backend si un viewer intenta editar.
+- `fields_hidden` (per-field ACL) reservado para Fase 10.
+
+### Fase 7 cerrada
+
+| Iteración | Versión | Qué entregó |
+|-----------|---------|-------------|
+| 1.A       | 0.37.0  | CapabilityRegistry + RoleInstaller (foundation) |
+| 1.B       | 0.37.1  | PermissionService + ACL por lista + REST de permisos |
+| 1.C+D     | 0.37.2  | Gating REST + scope SQL en records |
+| 1.E       | 0.37.3  | Frontend gating + tab Permisos |
+
 ## [0.37.2] — 2026-05-17
 
 Continuación de la **Fase 7 — Roles y permisos** (iteración 1.C+D
