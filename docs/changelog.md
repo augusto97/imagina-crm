@@ -4,6 +4,32 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-05-17
+
+Arranque de la **Fase 10 — Pulidos** (per-field permissions). Cierra
+el ciclo de `fields_hidden` que existía en el shape de ListPermissions
+desde 0.37.1 pero no estaba enforced server-side ni configurable
+visualmente.
+
+### Añadido
+
+- Enforcement server-side en `RecordsController`:
+    * GET /records → strip de slugs ocultos antes de serializar.
+    * GET /records/{id} → mismo strip per-record.
+    * PATCH /records/{id} → 403 con lista de slugs no editables si
+      el body intenta tocar campos ocultos.
+- Helpers `stripHiddenFields()` y `stripHiddenFieldsFromRow()` en
+  `RecordsController`.
+- Sección "Campos ocultos por rol" en `PermissionsPanel` — tabla
+  `campo × rol` con checkboxes, colapsable con `<details>`.
+- Setter `toggleHiddenField(role, slug, hide)`.
+
+### Comportamiento
+
+`PermissionService::hiddenFieldSlugs(user, list)` ya existía y devuelve
+la INTERSECCIÓN de slugs ocultos en todos los roles del user — si AL
+MENOS UN rol revela el campo, queda visible. Admins tienen bypass total.
+
 ## [0.39.9] — 2026-05-17
 
 Editor visual del template del portal del cliente. Reemplaza el

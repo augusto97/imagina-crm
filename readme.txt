@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.9
+Stable tag: 0.40.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,83 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.40.0 =
+**Fase 10 — Pulidos (parte 1: per-field permissions).**
+
+Arranque de la Fase 10 del plan original. Esta primera entrega cierra
+el ciclo de `fields_hidden` que existía en el shape de ListPermissions
+desde 0.37.1 pero no estaba enforced server-side ni configurable
+visualmente. Ahora el admin puede ocultar campos específicos por rol
+y el backend rechaza intentos de leer o editar esos campos.
+
+Backend
+-------
+src/REST/RecordsController.php — tres puntos nuevos de enforcement
+basados en `PermissionService::hiddenFieldSlugs(user, list)` (que ya
+existía desde 0.37.1 pero solo se consumía en el frontend):
+
+1. GET /lists/{slug}/records → strip de slugs ocultos del array
+   `fields` y `relations` de cada record antes de serializar.
+2. GET /lists/{slug}/records/{id} → mismo strip per-record.
+3. PATCH /lists/{slug}/records/{id} → si el body tiene algún slug
+   en `hiddenFieldSlugs`, devuelve 403 con lista de slugs no
+   editables. Defensa contra escritura de campos que ni siquiera
+   puede leer.
+
+Helpers privados nuevos:
+- `stripHiddenFields(records, hidden)` — itera array.
+- `stripHiddenFieldsFromRow(row, hidden)` — para un solo record.
+
+Ambos respetan tanto `fields` como `relations` (los hidden_slugs
+aplican a ambos shapes).
+
+Frontend (panel admin)
+----------------------
+app/admin/lists/PermissionsPanel.tsx — nueva sección
+"Campos ocultos por rol" en formato `<details>` colapsable bajo
+la matriz principal:
+
+- Tabla con `campo × rol`: cada celda un checkbox.
+- Marcar checkbox → agrega el slug a `permissions[rol].fields_hidden`.
+- Desmarcar → remueve.
+- La sección solo aparece si la lista tiene fields (`allFields.length > 0`).
+- Texto explicativo: "El backend lo remueve de las respuestas REST
+  y rechaza intentos de edición. Si un campo se oculta para TODOS
+  los roles del user, no aparece en su tabla."
+
+Setter: `toggleHiddenField(role, slug, hide)` actualiza el array
+inmutablemente preservando el resto del shape del rol.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 16.95 KB gzip (+0.46 KB vs 0.39.9 por la
+nueva sección).
+
+Comportamiento end-to-end
+-------------------------
+1. Admin marca campos como ocultos para roles específicos en la
+   tab Permisos.
+2. crm_agent que tenga TODOS sus roles ocultando "precio_costo"
+   no ve esa columna en TableView (porque hiddenFieldSlugs intersect
+   devuelve el slug).
+3. Si solo UNO de sus roles oculta el campo, sigue visible
+   (intersección de todos los roles del user).
+4. crm_admin/administrator: bypass total — siempre ve todos los
+   campos (PermissionService::hiddenFieldSlugs devuelve [] para ellos).
+5. Si el agent intenta PATCH con un campo oculto:
+   `{ fields: { precio_costo: 99 } }` → 403 con mensaje específico.
+
+Próximas piezas de Fase 10
+--------------------------
+- Magic links — login sin password para clientes del portal.
+- Permalinks dedicados para listas públicas — `/precios/` en lugar
+  del shortcode.
+- Roles personalizados — admin define sus propios roles con caps
+  custom.
 
 = 0.39.9 =
 **Editor visual del template del portal del cliente.**

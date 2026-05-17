@@ -91,6 +91,22 @@ export function PermissionsPanel({ listId }: Props): JSX.Element {
         setDirty(true);
     };
 
+    const toggleHiddenField = (role: string, slug: string, hide: boolean): void => {
+        setPerms((prev) => {
+            const current = prev[role] ?? blankRolePermissions();
+            const hiddenSet = new Set(current.fields_hidden);
+            if (hide) hiddenSet.add(slug);
+            else hiddenSet.delete(slug);
+            return {
+                ...prev,
+                [role]: { ...current, fields_hidden: Array.from(hiddenSet) },
+            };
+        });
+        setDirty(true);
+    };
+
+    const allFields = fields.data ?? [];
+
     const handleSave = async (): Promise<void> => {
         setSubmitError(null);
         try {
@@ -205,6 +221,80 @@ export function PermissionsPanel({ listId }: Props): JSX.Element {
                         </tbody>
                     </table>
                 </div>
+
+                {allFields.length > 0 && (
+                    <details className="imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-px-3 imcrm-py-2">
+                        <summary className="imcrm-cursor-pointer imcrm-text-sm imcrm-font-medium">
+                            {__('Campos ocultos por rol')}
+                            <span className="imcrm-ml-2 imcrm-text-xs imcrm-text-muted-foreground">
+                                {__('(opcional — Fase 10)')}
+                            </span>
+                        </summary>
+                        <p className="imcrm-mt-2 imcrm-text-xs imcrm-text-muted-foreground">
+                            {__(
+                                'Marca un campo para OCULTARLO al rol. El backend lo remueve de las respuestas REST y rechaza intentos de edición. Si un campo se oculta para TODOS los roles del user, no aparece en su tabla.',
+                            )}
+                        </p>
+                        <div className="imcrm-mt-3 imcrm-overflow-x-auto">
+                            <table className="imcrm-w-full imcrm-border-collapse imcrm-text-sm">
+                                <thead>
+                                    <tr className="imcrm-border-b imcrm-border-border imcrm-text-left imcrm-text-xs imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                                        <th className="imcrm-py-2 imcrm-pr-3 imcrm-font-medium">
+                                            {__('Campo')}
+                                        </th>
+                                        {configurableRoles.map((role) => (
+                                            <th
+                                                key={role.slug}
+                                                className="imcrm-px-2 imcrm-py-2 imcrm-text-center imcrm-font-medium"
+                                            >
+                                                {role.label}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {allFields.map((field) => (
+                                        <tr
+                                            key={field.id}
+                                            className="imcrm-border-b imcrm-border-border/60 last:imcrm-border-b-0"
+                                        >
+                                            <td className="imcrm-py-2 imcrm-pr-3">
+                                                <span className="imcrm-font-medium">{field.label}</span>
+                                                <span className="imcrm-ml-1 imcrm-text-xs imcrm-text-muted-foreground imcrm-font-mono">
+                                                    ({field.slug})
+                                                </span>
+                                            </td>
+                                            {configurableRoles.map((role) => {
+                                                const p = perms[role.slug];
+                                                const isHidden = p?.fields_hidden.includes(field.slug) ?? false;
+                                                return (
+                                                    <td
+                                                        key={role.slug}
+                                                        className="imcrm-px-2 imcrm-py-2 imcrm-text-center"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isHidden}
+                                                            onChange={(e) =>
+                                                                toggleHiddenField(
+                                                                    role.slug,
+                                                                    field.slug,
+                                                                    e.target.checked,
+                                                                )
+                                                            }
+                                                            className="imcrm-h-4 imcrm-w-4 imcrm-rounded imcrm-border-input"
+                                                            aria-label={`${__('Ocultar')} ${field.label} ${__('a')} ${role.label}`}
+                                                        />
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                )}
 
                 {usesAssigned && (
                     <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-3">

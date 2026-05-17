@@ -216,6 +216,16 @@ final class RecordsController extends AbstractController
             return $this->validationError($result);
         }
 
+        // Filtrado per-field por rol (Fase 10 — fields_hidden).
+        // Si el ACL declara campos ocultos para el rol del user, los
+        // removemos del payload antes de serializar. Defensa adicional
+        // al gating client-side: si el user mira la network tab o
+        // hace fetch directo al endpoint, no recibe los slugs ocultos.
+        $hidden = $this->permissions->hiddenFieldSlugs(wp_get_current_user(), $list);
+        if ($hidden !== []) {
+            $result['data'] = $this->stripHiddenFields($result['data'], $hidden);
+        }
+
         $response = new WP_REST_Response($result);
         $response->header('ETag', $etagHeader);
         $response->header('Cache-Control', 'private, must-revalidate');
@@ -270,6 +280,11 @@ final class RecordsController extends AbstractController
         if (! $this->permissions->userCanViewRecord($user, $list, $record)) {
             return $this->notFound();
         }
+        // Filtrado per-field (Fase 10).
+        $hidden = $this->permissions->hiddenFieldSlugs($user, $list);
+        if ($hidden !== []) {
+            $record = $this->stripHiddenFieldsFromRow($record, $hidden);
+        }
         return new WP_REST_Response(['data' => $record]);
     }
 
@@ -319,6 +334,22 @@ final class RecordsController extends AbstractController
         }
 
         $values = $this->extractValues($request);
+
+        // Validación per-field (Fase 10): si el user pide editar un slug
+        // que está en `fields_hidden` para sus roles → 403. Defensa
+        // contra escritura de campos que ni siquiera puede leer.
+        $hidden = $this->permissions->hiddenFieldSlugs($user, $list);
+        if ($hidden !== []) {
+            $touched = array_intersect(array_keys($values), $hidden);
+            if ($touched !== []) {
+                return $this->forbidden(sprintf(
+                    /* translators: %s: comma-separated field slugs */
+                    __('No tienes permiso para editar los campos: %s', 'imagina-crm'),
+                    implode(', ', $touched),
+                ));
+            }
+        }
+
         $result = $this->service->update($list, $id, $values);
         if ($result instanceof ValidationResult) {
             return $this->validationError($result);
@@ -652,6 +683,43 @@ final class RecordsController extends AbstractController
             $result['denied_ids'] = $deniedIds;
         }
         return new WP_REST_Response(['data' => $result]);
+    }
+
+    /**
+     * Remueve los slugs hidden del array `fields` (y `relations`) de
+     * cada record antes de serializar al cliente (Fase 10).
+     *
+     * @param list<array<string, mixed>> $records
+     * @param list<string>               $hidden
+     * @return list<array<string, mixed>>
+     */
+    private function stripHiddenFields(array $records, array $hidden): array
+    {
+        if ($hidden === []) {
+            return $records;
+        }
+        $out = [];
+        foreach ($records as $row) {
+            $out[] = $this->stripHiddenFieldsFromRow($row, $hidden);
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string>         $hidden
+     * @return array<string, mixed>
+     */
+    private function stripHiddenFieldsFromRow(array $row, array $hidden): array
+    {
+        $hiddenSet = array_flip($hidden);
+        if (isset($row['fields']) && is_array($row['fields'])) {
+            $row['fields'] = array_diff_key($row['fields'], $hiddenSet);
+        }
+        if (isset($row['relations']) && is_array($row['relations'])) {
+            $row['relations'] = array_diff_key($row['relations'], $hiddenSet);
+        }
+        return $row;
     }
 
     /**
