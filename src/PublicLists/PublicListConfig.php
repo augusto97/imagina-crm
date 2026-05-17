@@ -56,6 +56,14 @@ final class PublicListConfig
         public readonly int $perPage,
         public readonly bool $searchEnabled,
         public readonly int $cacheTtl,
+        /**
+         * Slug del permalink dedicado para esta lista en el frontend
+         * (Fase 10 — pulidos). Cuando está seteado, el plugin registra
+         * un rewrite rule `^{permalinkBase}/?$` → render automático
+         * con shortcode. Null = solo accesible via shortcode/bloque
+         * manual del admin.
+         */
+        public readonly ?string $permalinkBase,
     ) {
     }
 
@@ -119,6 +127,10 @@ final class PublicListConfig
             : self::DEFAULT_TTL;
         $cacheTtl = max(self::MIN_TTL, min(self::MAX_TTL, $cacheTtl));
 
+        $permalinkBase = isset($raw['permalink_base']) && is_string($raw['permalink_base'])
+            ? self::sanitizePermalink($raw['permalink_base'])
+            : null;
+
         return new self(
             enabled:              $enabled,
             visibleFieldSlugs:    $visible,
@@ -129,7 +141,24 @@ final class PublicListConfig
             perPage:              $perPage,
             searchEnabled:        (bool) ($raw['search_enabled'] ?? true),
             cacheTtl:             $cacheTtl,
+            permalinkBase:        $permalinkBase,
         );
+    }
+
+    /**
+     * Saneamiento del permalink_base: solo `a-z0-9-` permitidos, max 64
+     * chars (que cumple con SEO best practices y evita choque con
+     * reserved slugs de WP). Retorna null si el resultado es vacío.
+     */
+    public static function sanitizePermalink(string $raw): ?string
+    {
+        $clean = strtolower(trim($raw));
+        $clean = preg_replace('/[^a-z0-9-]/', '', $clean) ?? '';
+        $clean = trim($clean, '-');
+        if (strlen($clean) > 64) {
+            $clean = substr($clean, 0, 64);
+        }
+        return $clean === '' ? null : $clean;
     }
 
     /**
@@ -149,6 +178,7 @@ final class PublicListConfig
             perPage:              self::DEFAULT_PER_PAGE,
             searchEnabled:        false,
             cacheTtl:             self::DEFAULT_TTL,
+            permalinkBase:        null,
         );
     }
 
@@ -170,6 +200,7 @@ final class PublicListConfig
             'per_page'               => $this->perPage,
             'search_enabled'         => $this->searchEnabled,
             'cache_ttl'              => $this->cacheTtl,
+            'permalink_base'         => $this->permalinkBase,
         ];
     }
 }

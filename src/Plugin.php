@@ -176,6 +176,12 @@ final class Plugin
         $this->container->bind(\ImaginaCRM\PublicLists\PublicAssets::class, static function (): \ImaginaCRM\PublicLists\PublicAssets {
             return new \ImaginaCRM\PublicLists\PublicAssets();
         });
+        // Permalinks dedicados para listas públicas (Fase 10).
+        $this->container->bind(\ImaginaCRM\PublicLists\PublicPermalinks::class, static function (Container $c): \ImaginaCRM\PublicLists\PublicPermalinks {
+            return new \ImaginaCRM\PublicLists\PublicPermalinks(
+                $c->get(ListRepository::class),
+            );
+        });
 
         // Bloque Gutenberg (Fase 8 — 2.D). Reusa el render del shortcode
         // via render_callback — sin duplicar lógica de render entre ambos.
@@ -912,6 +918,12 @@ final class Plugin
         $publicBlock = $this->container->get(\ImaginaCRM\PublicLists\Block::class);
         if ($publicBlock instanceof \ImaginaCRM\PublicLists\Block) {
             $publicBlock->register();
+        }
+        // Permalinks dedicados (Fase 10): rewrite rules + render con
+        // template del tema. Auto-flush cuando cambia la signature.
+        $publicPermalinks = $this->container->get(\ImaginaCRM\PublicLists\PublicPermalinks::class);
+        if ($publicPermalinks instanceof \ImaginaCRM\PublicLists\PublicPermalinks) {
+            $publicPermalinks->register();
         }
 
         // Portal del cliente (Fase 9 — 3.B). Shortcode + enqueue lazy del

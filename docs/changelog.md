@@ -4,6 +4,32 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.40.2] — 2026-05-17
+
+**Permalinks dedicados** (Fase 10 — pulidos). Una lista pública con
+`permalink_base` configurado se vuelve accesible en `/{permalink_base}/`
+además del shortcode.
+
+### Añadido
+
+- `PublicListConfig.permalinkBase: ?string` + sanitización
+  (`sanitizePermalink`).
+- `src/PublicLists/PublicPermalinks.php`:
+    * Registra rewrite rules en `init` por cada lista pública con
+      permalink_base.
+    * Auto-flush vía signature en `wp_loaded` (sin intervención manual).
+    * Render en `template_redirect` priority 5 con
+      `get_header()` + `do_shortcode([imcrm-list slug=...])` +
+      `get_footer()`.
+- UI: input "Permalink dedicado" en `PublicVisibilityPanel`.
+- 7 tests nuevos en `PublicListConfigTest`.
+
+### Restricciones
+
+- Requiere pretty permalinks activos.
+- Slug clamp a 64 chars, solo a-z0-9-.
+- Rules con priority `top` → ganan a otras rules WP.
+
 ## [0.40.1] — 2026-05-17
 
 **Magic links** (Fase 10 — pulidos). Login sin password para clientes

@@ -15,6 +15,12 @@ export interface PublicListSettings {
     per_page: number;
     search_enabled: boolean;
     cache_ttl: number;
+    /**
+     * Slug del permalink dedicado en el frontend (Fase 10). Cuando está
+     * seteado, la lista es accesible en `/{permalink_base}/`. Null =
+     * solo via shortcode/bloque.
+     */
+    permalink_base: string | null;
 }
 
 export const PUBLIC_DEFAULTS: PublicListSettings = {
@@ -27,6 +33,7 @@ export const PUBLIC_DEFAULTS: PublicListSettings = {
     per_page: 20,
     search_enabled: true,
     cache_ttl: 60,
+    permalink_base: null,
 };
 
 export const PUBLIC_LIMITS = {

@@ -190,9 +190,70 @@ final class PublicListConfigTest extends TestCase
             'per_page'               => 10,
             'search_enabled'         => true,
             'cache_ttl'              => 30,
+            'permalink_base'         => 'mi-lista',
         ];
         $cfg = PublicListConfig::fromListSettings(['public' => $input]);
         // El roundtrip debe preservar todo el shape.
         $this->assertSame($input, $cfg->toArray());
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    //  permalink_base (Fase 10 — pulidos)
+    // ───────────────────────────────────────────────────────────────────
+
+    public function test_permalink_base_null_by_default(): void
+    {
+        $cfg = PublicListConfig::fromListSettings(['public' => ['enabled' => true]]);
+        $this->assertNull($cfg->permalinkBase);
+    }
+
+    public function test_permalink_base_sanitizes_input(): void
+    {
+        // Mayúsculas → lowercase, espacios y chars no permitidos → strip.
+        $cfg = PublicListConfig::fromListSettings([
+            'public' => ['enabled' => true, 'permalink_base' => 'Mi Lista Buena!'],
+        ]);
+        $this->assertSame('milistabuena', $cfg->permalinkBase);
+    }
+
+    public function test_permalink_base_keeps_hyphens(): void
+    {
+        $cfg = PublicListConfig::fromListSettings([
+            'public' => ['enabled' => true, 'permalink_base' => 'mi-lista-2026'],
+        ]);
+        $this->assertSame('mi-lista-2026', $cfg->permalinkBase);
+    }
+
+    public function test_permalink_base_strips_leading_trailing_hyphens(): void
+    {
+        $cfg = PublicListConfig::fromListSettings([
+            'public' => ['enabled' => true, 'permalink_base' => '--precios--'],
+        ]);
+        $this->assertSame('precios', $cfg->permalinkBase);
+    }
+
+    public function test_permalink_base_clamps_to_64_chars(): void
+    {
+        $cfg = PublicListConfig::fromListSettings([
+            'public' => ['enabled' => true, 'permalink_base' => str_repeat('a', 100)],
+        ]);
+        $this->assertSame(64, strlen($cfg->permalinkBase ?? ''));
+    }
+
+    public function test_permalink_base_returns_null_for_empty_after_sanitize(): void
+    {
+        // Input lleno de chars inválidos → todos strip → null (no string vacío).
+        $cfg = PublicListConfig::fromListSettings([
+            'public' => ['enabled' => true, 'permalink_base' => '!!!@@@###'],
+        ]);
+        $this->assertNull($cfg->permalinkBase);
+    }
+
+    public function test_permalink_base_ignored_when_not_string(): void
+    {
+        $cfg = PublicListConfig::fromListSettings([
+            'public' => ['enabled' => true, 'permalink_base' => 42],
+        ]);
+        $this->assertNull($cfg->permalinkBase);
     }
 }

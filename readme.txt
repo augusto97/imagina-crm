@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.40.1
+Stable tag: 0.40.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,118 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.40.2 =
+**Fase 10 — Permalinks dedicados para listas públicas.**
+
+Tercera pieza de la Fase 10. Una lista pública con `permalink_base`
+configurado se vuelve accesible en `/{permalink_base}/` además del
+shortcode. URL bonita SEO-friendly sin requerir que el admin cree
+una página WP con el shortcode manualmente.
+
+Cómo funciona
+-------------
+1. Admin entra a Editar lista → tab "Visibilidad pública" → llena
+   el campo "Permalink dedicado" con `precios` y guarda.
+2. El plugin registra una rewrite rule `^precios/?$` → query var
+   `imcrm_public_list=precios`.
+3. El plugin detecta una signature cambiada en `wp_loaded` y hace
+   flush automático de rewrite rules (sin requerir que el admin
+   vaya a Settings → Permalinks → Save).
+4. Cuando un visitante va a `/precios/`:
+   - Hook `template_redirect` priority 5 detecta el query var.
+   - Resuelve la lista por slug.
+   - Renderiza con `get_header()` + `do_shortcode('[imcrm-list slug="precios"]')`
+     + `get_footer()` → preserva el chrome del tema.
+
+PublicListConfig extendido
+--------------------------
+src/PublicLists/PublicListConfig.php — nuevo campo `permalinkBase`.
+
+Sanitización (`PublicListConfig::sanitizePermalink`):
+- lowercase.
+- Solo a-z0-9- permitidos.
+- Strip de hyphens al inicio/fin.
+- Max 64 chars (compat MySQL + SEO).
+- Empty post-sanitize → null.
+
+PublicPermalinks (nuevo)
+------------------------
+src/PublicLists/PublicPermalinks.php — registra todo el flow:
+
+- registerRewriteRules() — hook `init`. Itera ListRepository (cacheado)
+  buscando listas con `enabled=true` Y `permalink_base !== null`.
+  Para cada una, `add_rewrite_rule` priority `top`.
+- registerQueryVar() — agrega `imcrm_public_list` al array de query vars.
+- maybeFlush() — hook `wp_loaded` priority 20. Computa una signature
+  MD5 del map `[list_slug => permalink_base]`. Si difiere de la
+  guardada en `imcrm_public_permalinks_signature` → flush + update
+  option. Cubre el caso "admin cambió un permalink desde la UI"
+  sin requerir intervención manual.
+- maybeRender() — hook `template_redirect` priority 5. Si el query
+  var está, resuelve la lista, valida que sigue siendo pública con
+  permalink_base, y renderiza con header+shortcode+footer. Si algo
+  falla, deja que WP siga su flujo normal (404 del tema).
+
+Convivencia con el sitio
+------------------------
+- Rules registradas con priority `top` → ganan a otras rules. Si
+  hay choque con una page WP, el plugin tiene precedencia. El admin
+  ve esto y puede cambiar el slug.
+- Si admin quita el permalink_base → en el próximo wp_loaded la
+  signature cambia, flush, el slug deja de funcionar.
+- Si admin borra la lista → la rule sigue en .htaccess hasta el
+  próximo flush, pero maybeRender devuelve early (return sin output)
+  → 404 del tema.
+- Sitios con permalinks "plain" (`?p=N`): el feature requiere
+  pretty permalinks activos. Sin pretty permalinks, los rules no
+  funcionan — el admin debe seguir usando el shortcode.
+
+UI en PublicVisibilityPanel
+---------------------------
+app/admin/lists/PublicVisibilityPanel.tsx — input nuevo
+"Permalink dedicado (opcional)" entre el input de cache_ttl y
+los toggles de search/filters.
+
+- Visualización con slash markers: `/{input}/` mostrando el formato
+  final.
+- Saneo client-side en onChange: regex `[^a-z0-9-]` strip, max 64.
+- Hint: "Solo letras minúsculas, números y guiones. Dejá vacío
+  para acceder solo via shortcode."
+
+app/types/publicList.ts — PublicListSettings.permalink_base: string|null.
+PUBLIC_DEFAULTS.permalink_base = null.
+shallowEqual incluye el nuevo campo para el dirty tracking.
+
+Tests (7 nuevos)
+----------------
+tests/Unit/PublicLists/PublicListConfigTest.php:
+
+- permalink_base null por default (sin la key en JSON).
+- Saneo: "Mi Lista Buena!" → "milistabuena".
+- Saneo preserva hyphens: "mi-lista-2026" → "mi-lista-2026".
+- Saneo strip leading/trailing hyphens: "--precios--" → "precios".
+- Clamp a 64 chars (str_repeat('a', 100) → length 64).
+- Sanitize a vacío → null: "!!!@@@###" → null.
+- Tipo wrong → null: int 42 → null.
+- Roundtrip toArray() incluye permalink_base.
+
+Backend del PublicPermalinks (rewrite rules + flush + render) sin
+tests directos — requiere mockear add_rewrite_rule, get_query_var,
+get_header, do_shortcode, get_footer. Cobertura indirecta via
+PublicListConfigTest del shape + manual testing en local.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 423 tests, +7 nuevos pasan, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 17.20 KB gzip (+0.25 KB por el nuevo input).
+
+Próxima pieza de Fase 10
+------------------------
+- Roles personalizados — admin define sus propios roles con caps
+  custom.
 
 = 0.40.1 =
 **Fase 10 — Magic links (login sin password para clientes).**

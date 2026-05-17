@@ -223,6 +223,37 @@ export function PublicVisibilityPanel({ list }: Props): JSX.Element {
                             </div>
                         </div>
 
+                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                            <Label htmlFor="pub-permalink">{__('Permalink dedicado (opcional)')}</Label>
+                            <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                                <span className="imcrm-text-sm imcrm-text-muted-foreground imcrm-font-mono">/</span>
+                                <Input
+                                    id="pub-permalink"
+                                    type="text"
+                                    placeholder={__('ej. precios')}
+                                    value={draft.permalink_base ?? ''}
+                                    onChange={(e) => {
+                                        // Saneo client-side: solo a-z0-9-, lowercase.
+                                        const clean = e.target.value
+                                            .toLowerCase()
+                                            .replace(/[^a-z0-9-]/g, '')
+                                            .slice(0, 64);
+                                        setDraft((d) => ({
+                                            ...d,
+                                            permalink_base: clean === '' ? null : clean,
+                                        }));
+                                    }}
+                                    className="imcrm-font-mono"
+                                />
+                                <span className="imcrm-text-sm imcrm-text-muted-foreground imcrm-font-mono">/</span>
+                            </div>
+                            <span className="imcrm-text-xs imcrm-text-muted-foreground">
+                                {__(
+                                    'Si lo configuras, la lista será accesible en /tu-slug/ además del shortcode. Solo letras minúsculas, números y guiones. Dejá vacío para acceder solo via shortcode.',
+                                )}
+                            </span>
+                        </div>
+
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                             <label className="imcrm-inline-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
                                 <input
@@ -432,6 +463,10 @@ function readPublic(settings: Record<string, unknown>): PublicListSettings {
             typeof p.cache_ttl === 'number'
                 ? clamp(p.cache_ttl, PUBLIC_LIMITS.cacheTtlMin, PUBLIC_LIMITS.cacheTtlMax)
                 : PUBLIC_DEFAULTS.cache_ttl,
+        permalink_base:
+            typeof p.permalink_base === 'string' && p.permalink_base !== ''
+                ? p.permalink_base
+                : null,
     };
 }
 
@@ -454,6 +489,7 @@ function shallowEqual(a: PublicListSettings, b: PublicListSettings): boolean {
     if (a.per_page !== b.per_page) return false;
     if (a.cache_ttl !== b.cache_ttl) return false;
     if (a.default_sort !== b.default_sort) return false;
+    if (a.permalink_base !== b.permalink_base) return false;
     if (!arrEq(a.visible_field_slugs, b.visible_field_slugs)) return false;
     if (!arrEq(a.sort_allowed_slugs, b.sort_allowed_slugs)) return false;
     // fixed_filter_tree: comparación por JSON (estable en este contexto
