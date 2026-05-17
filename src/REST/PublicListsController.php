@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\REST;
 
-use ImaginaCRM\PublicLists\PublicListService;
+use ImaginaCRM\PublicLists\PublicListReader;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -37,7 +37,7 @@ final class PublicListsController extends AbstractController
     public const RATE_LIMIT_MAX   = 60;          // requests
     public const RATE_LIMIT_WIN   = 60;          // segundos
 
-    public function __construct(private readonly PublicListService $service)
+    public function __construct(private readonly PublicListReader $service)
     {
         parent::__construct();
     }

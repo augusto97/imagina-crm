@@ -4,6 +4,38 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.38.1] — 2026-05-17
+
+Continuación de la **Fase 8 — Listas públicas** (iteración 2.B:
+shortcode con render server-side).
+
+### Añadido
+
+- `src/PublicLists/PublicListReader.php` — interfaz que abstrae la
+  lectura pública (findPublicList, configFor, metaFor, fetchRecords).
+  `PublicListService` la implementa; tests pueden mockear sin extender
+  la clase final.
+- `src/PublicLists/Shortcode.php` — handler de `[imcrm-list slug="..."]`.
+  HTML 100% server-side, indexable, sin JS. Atributos `data-imcrm-*`
+  preparados para hidratación en 2.C.
+- `src/PublicLists/PublicAssets.php` — enqueue perezoso del CSS solo
+  en páginas que contienen el shortcode/bloque.
+- `assets/public-list.css` — estilos base sin Tailwind, con variables
+  CSS override-ables y modo oscuro automático.
+
+### Tests
+
+- 8 tests unitarios en `ShortcodeTest` cubriendo render, tipos
+  especiales (email/url/checkbox), empty state, validation error.
+- Stubs WP nuevos en `tests/bootstrap.php`: `esc_html`, `esc_attr`,
+  `esc_url`, `esc_html__`, `esc_attr__`, `_n`, `rest_url`.
+
+### Próximas iteraciones
+
+- 2.C — Bundle JS público + hidratación
+- 2.D — Bloque Gutenberg
+- 2.E — Tab "Visibilidad pública" en List Builder
+
 ## [0.38.0] — 2026-05-17
 
 Arranque de la **Fase 8 — Listas públicas** (iteración 2.A: backend

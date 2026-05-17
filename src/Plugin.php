@@ -165,6 +165,16 @@ final class Plugin
             );
         });
 
+        // Shortcode `[imcrm-list]` + assets del frontend público (Fase 8 — 2.B).
+        $this->container->bind(\ImaginaCRM\PublicLists\Shortcode::class, static function (Container $c): \ImaginaCRM\PublicLists\Shortcode {
+            return new \ImaginaCRM\PublicLists\Shortcode(
+                $c->get(PublicListService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\PublicLists\PublicAssets::class, static function (): \ImaginaCRM\PublicLists\PublicAssets {
+            return new \ImaginaCRM\PublicLists\PublicAssets();
+        });
+
         $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {
             return new SlugManager($c->get(Database::class));
         });
@@ -815,6 +825,19 @@ final class Plugin
         $standalone = $this->container->get(StandalonePage::class);
         if ($standalone instanceof StandalonePage) {
             $standalone->register();
+        }
+
+        // Listas públicas (Fase 8): el shortcode y el enqueue de su CSS
+        // viven en frontend. Es seguro registrarlos siempre — los
+        // assets solo se cargan en páginas que tengan el shortcode (vía
+        // detección perezosa en `PublicAssets`).
+        $publicShortcode = $this->container->get(\ImaginaCRM\PublicLists\Shortcode::class);
+        if ($publicShortcode instanceof \ImaginaCRM\PublicLists\Shortcode) {
+            $publicShortcode->register();
+        }
+        $publicAssets = $this->container->get(\ImaginaCRM\PublicLists\PublicAssets::class);
+        if ($publicAssets instanceof \ImaginaCRM\PublicLists\PublicAssets) {
+            $publicAssets->register();
         }
 
         if (is_admin()) {

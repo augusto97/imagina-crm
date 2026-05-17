@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.38.0
+Stable tag: 0.38.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,76 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.38.1 =
+**Fase 8 — Listas públicas (iteración 2.B: shortcode con render server-side).**
+
+Trae el shortcode `[imcrm-list slug="..."]` que renderiza la lista en el
+frontend del tema con HTML 100% server-side: indexable por buscadores,
+visible sin JS (first paint cero-frames), y con marcas de hidratación
+preparadas para la próxima iteración (2.C, bundle JS público).
+
+Cambios técnicos
+----------------
+- Nueva interfaz `ImaginaCRM\PublicLists\PublicListReader` que abstrae
+  la lectura pública de listas. Permite que el shortcode y el controller
+  REST público dependan de un contrato testeable sin extender la clase
+  `final` PublicListService.
+- `src/PublicLists/Shortcode.php`: maneja `[imcrm-list]`. Atributos
+  `slug` (requerido), `per_page` (override clampeado), `class` (CSS).
+  Si la lista no existe o no es pública: devuelve string vacío (no
+  rompe el render del tema, no revela existencia).
+- Render server-side con tabla HTML semántica. Cada tipo de campo se
+  formatea apropiadamente:
+    * `url` → enlace target=_blank rel=noopener
+    * `email` → enlace mailto:
+    * `checkbox` → ✓ / ✗ con aria-label
+    * `multi_select` → pills inline
+    * `long_text` → `nl2br()` preservando saltos
+    * resto → texto plano escapado
+- Atributos `data-imcrm-config` y `data-imcrm-initial` con JSON
+  serializado. El bundle JS público (2.C) los leerá para hidratar
+  el div con React preservando el primer paint.
+- `src/PublicLists/PublicAssets.php`: enqueue perezoso del CSS solo
+  en páginas que contienen el shortcode o el bloque (detección via
+  `has_shortcode`/`has_block`). Impacto cero en páginas sin la lista.
+  Filtro `imagina_crm/public_list/force_enqueue` para temas que
+  invocan `do_shortcode` desde widgets/hooks donde la detección
+  estándar no llega.
+- `assets/public-list.css`: estilos base sin Tailwind. Selectores
+  específicos `.imcrm-public-list__*` para no chocar con CSS del
+  tema. Variables `--imcrm-public-*` override-ables. Modo oscuro
+  automático con `prefers-color-scheme`.
+
+Tests
+-----
+- 8 tests unitarios nuevos en `ShortcodeTest`:
+    * slug vacío / no público / service con error → string vacío.
+    * Render de tabla con columnas visibles.
+    * Tipos especiales (email→mailto, url→href, checkbox→✓/✗).
+    * Empty state cuando no hay records.
+    * Atributos data-* presentes para hidratación futura.
+- Stubs nuevos en `tests/bootstrap.php`: `esc_html`, `esc_attr`,
+  `esc_url`, `esc_html__`, `esc_attr__`, `_n`, `rest_url`.
+
+PHPStan: 0 regresiones (22 errores baseline).
+PHPUnit: 361 tests, +8 nuevos pasan.
+
+Cómo usarlo (paso a paso)
+-------------------------
+1. Crear una lista en el admin con algunos records.
+2. Editar la lista → tab "Configuración avanzada" → marcar
+   `settings.public.enabled=true` (UI llega en 2.E; por ahora se
+   edita via REST PATCH /lists/{id} con `settings.public`).
+3. Crear una página WP con shortcode `[imcrm-list slug="mi-lista"]`.
+4. Visitar la página: tabla server-rendered con records.
+
+Próximos pasos de la Fase 8
+---------------------------
+- 2.C — Bundle JS público (`app/public.tsx`) que hidrata el div
+  habilitando filtros/sort/paginación dinámicos.
+- 2.D — Bloque Gutenberg `imagina-crm/list`.
+- 2.E — UI "Visibilidad pública" en el List Builder.
 
 = 0.38.0 =
 **Fase 8 — Listas públicas (iteración 2.A: backend foundation).**

@@ -35,7 +35,7 @@ use ImaginaCRM\Support\ValidationResult;
  *    automática por hooks `imagina_crm/record_*` ya enganchados en
  *    `Cache::registerInvalidationHooks()`.
  */
-final class PublicListService
+final class PublicListService implements PublicListReader
 {
     public function __construct(
         private readonly ListRepository $lists,

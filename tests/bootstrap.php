@@ -421,6 +421,58 @@ if (! function_exists('rest_authorization_required_code')) {
     }
 }
 
+/**
+ * Stubs de funciones de escape/output de WP. Los tests del Shortcode
+ * (Fase 8 — 2.B) consumen estos para renderizar HTML sin un WP real.
+ * Las versiones reales aplican sanitización más estricta — estos
+ * stubs son suficientes para validar shape del output, no seguridad.
+ */
+if (! function_exists('esc_html')) {
+    function esc_html(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+if (! function_exists('esc_attr')) {
+    function esc_attr(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+if (! function_exists('esc_url')) {
+    function esc_url(string $url): string
+    {
+        return htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+if (! function_exists('esc_html__')) {
+    function esc_html__(string $text, string $domain = 'default'): string
+    {
+        unset($domain);
+        return esc_html($text);
+    }
+}
+if (! function_exists('esc_attr__')) {
+    function esc_attr__(string $text, string $domain = 'default'): string
+    {
+        unset($domain);
+        return esc_attr($text);
+    }
+}
+if (! function_exists('_n')) {
+    function _n(string $single, string $plural, int $count, string $domain = 'default'): string
+    {
+        unset($domain);
+        return $count === 1 ? $single : $plural;
+    }
+}
+if (! function_exists('rest_url')) {
+    function rest_url(string $path = ''): string
+    {
+        return 'https://example.test/wp-json/' . ltrim($path, '/');
+    }
+}
+
 if (! function_exists('wp_kses_post')) {
     function wp_kses_post(string $html): string
     {

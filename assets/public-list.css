@@ -1,0 +1,142 @@
+/**
+ * Estilos base para el shortcode/bloque `[imcrm-list]` (Fase 8 — 2.B).
+ *
+ * Diseñado para coexistir con CUALQUIER tema:
+ *  - Sin reset agresivo de estilos del tema (no usa `* { ... }`).
+ *  - Selectores específicos `imcrm-public-list__*` para no chocar.
+ *  - Variables CSS para que el tema pueda override sin tocar este CSS.
+ *  - Sin Tailwind — el bundle público es independiente del admin.
+ *
+ * Strategy: defaults conservadores tipo "tabla nativa con un poco de
+ * pulido". El tema puede pisar todo via las variables `--imcrm-public-*`
+ * declaradas abajo.
+ */
+
+.imcrm-public-list {
+    /* Variables override-ables por el tema. */
+    --imcrm-public-text: inherit;
+    --imcrm-public-bg: transparent;
+    --imcrm-public-border: rgba(0, 0, 0, 0.12);
+    --imcrm-public-border-strong: rgba(0, 0, 0, 0.2);
+    --imcrm-public-row-hover: rgba(0, 0, 0, 0.03);
+    --imcrm-public-muted: rgba(0, 0, 0, 0.55);
+    --imcrm-public-primary: #4f46e5;
+    --imcrm-public-pill-bg: rgba(79, 70, 229, 0.1);
+    --imcrm-public-pill-text: #4338ca;
+    --imcrm-public-radius: 0.5rem;
+    --imcrm-public-font: inherit;
+    --imcrm-public-font-size: 0.95rem;
+
+    color: var(--imcrm-public-text);
+    background: var(--imcrm-public-bg);
+    font-family: var(--imcrm-public-font);
+    font-size: var(--imcrm-public-font-size);
+    margin: 1.5rem 0;
+}
+
+.imcrm-public-list__description {
+    color: var(--imcrm-public-muted);
+    margin: 0 0 1rem 0;
+    font-size: 0.95em;
+}
+
+.imcrm-public-list__empty {
+    color: var(--imcrm-public-muted);
+    font-style: italic;
+    padding: 1rem;
+    text-align: center;
+    border: 1px dashed var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
+}
+
+.imcrm-public-list__table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
+    overflow: hidden;
+    /* `border-radius` no afecta a <table> con `border-collapse: collapse`
+       en todos los browsers. El wrapper visual queda aceptable sin él. */
+}
+
+.imcrm-public-list__table thead {
+    background: var(--imcrm-public-row-hover);
+    border-bottom: 1px solid var(--imcrm-public-border-strong);
+}
+
+.imcrm-public-list__table th {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    font-weight: 600;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--imcrm-public-muted);
+    border-bottom: 1px solid var(--imcrm-public-border);
+}
+
+.imcrm-public-list__table td {
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--imcrm-public-border);
+    vertical-align: top;
+}
+
+.imcrm-public-list__table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.imcrm-public-list__table tbody tr:hover {
+    background: var(--imcrm-public-row-hover);
+}
+
+.imcrm-public-list__table a {
+    color: var(--imcrm-public-primary);
+    text-decoration: none;
+}
+.imcrm-public-list__table a:hover {
+    text-decoration: underline;
+}
+
+.imcrm-public-list__empty-cell {
+    color: var(--imcrm-public-muted);
+}
+
+.imcrm-public-list__pill {
+    display: inline-block;
+    background: var(--imcrm-public-pill-bg);
+    color: var(--imcrm-public-pill-text);
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.85em;
+    margin-right: 0.25rem;
+    line-height: 1.4;
+}
+
+.imcrm-public-list__pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0.2rem 0;
+    color: var(--imcrm-public-muted);
+    font-size: 0.9em;
+}
+.imcrm-public-list__page-info {
+    font-weight: 500;
+}
+.imcrm-public-list__total {
+    font-size: 0.9em;
+    opacity: 0.85;
+}
+
+/* Modo oscuro automático cuando el tema lo declara con prefers-color-scheme.
+   Si el tema usa data-theme="dark" en lugar, el integrator puede override. */
+@media (prefers-color-scheme: dark) {
+    .imcrm-public-list {
+        --imcrm-public-border: rgba(255, 255, 255, 0.15);
+        --imcrm-public-border-strong: rgba(255, 255, 255, 0.25);
+        --imcrm-public-row-hover: rgba(255, 255, 255, 0.05);
+        --imcrm-public-muted: rgba(255, 255, 255, 0.6);
+        --imcrm-public-pill-bg: rgba(99, 102, 241, 0.2);
+        --imcrm-public-pill-text: #c7d2fe;
+    }
+}
