@@ -42,6 +42,8 @@ use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
 use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Permissions\RoleInstaller;
+use ImaginaCRM\Portal\ClientResolver;
+use ImaginaCRM\Portal\PortalScopeService;
 use ImaginaCRM\PublicLists\PublicListService;
 use ImaginaCRM\Records\QueryBuilder;
 use ImaginaCRM\Records\RecordRepository;
@@ -180,6 +182,28 @@ final class Plugin
         $this->container->bind(\ImaginaCRM\PublicLists\Block::class, static function (Container $c): \ImaginaCRM\PublicLists\Block {
             return new \ImaginaCRM\PublicLists\Block(
                 $c->get(\ImaginaCRM\PublicLists\Shortcode::class),
+            );
+        });
+
+        // Portal del cliente (Fase 9 — 3.A). ClientResolver encuentra la
+        // lista de portal + el record-cliente del WP_User actual; el
+        // PortalScopeService genera el WHERE inyectable que aísla los
+        // datos del cliente del resto. Es la pieza crítica de data
+        // isolation — los tests viven en `tests/Unit/Portal/`.
+        $this->container->bind(ClientResolver::class, static function (Container $c): ClientResolver {
+            return new ClientResolver(
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Support\Database::class),
+                $c->get(\ImaginaCRM\Support\Cache::class),
+            );
+        });
+        $this->container->bind(PortalScopeService::class, static function (Container $c): PortalScopeService {
+            $db = $c->get(\ImaginaCRM\Support\Database::class);
+            return new PortalScopeService(
+                $c->get(ClientResolver::class),
+                $c->get(FieldRepository::class),
+                $db instanceof \ImaginaCRM\Support\Database ? $db : 'wp_imcrm_relations',
             );
         });
 

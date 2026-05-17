@@ -4,6 +4,44 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-05-17
+
+Arranque de la **Fase 9 — Portal del cliente** (iteración 3.A:
+foundation + aislamiento). Sin REST controller ni UI todavía — solo
+la lógica de autorización pura.
+
+### Añadido
+
+- `src/Portal/PortalConfig.php` — value object que parsea
+  `settings.portal`. Requiere `owner_field_id` para `isPortalList()`.
+- `src/Portal/ClientResolverInterface.php` + `ClientResolver` —
+  resuelve `WP_User` → record-cliente. Fail-closed en cualquier
+  mis-config.
+- `src/Portal/PortalScopeService.php` — genera el WHERE inyectable
+  al QueryBuilder. Cuatro casos cubiertos (lista portal, field user,
+  field relation, fallback 1=0).
+
+### Reglas de oro
+
+1. Sin record-cliente → 1=0 en TODAS las listas.
+2. Ambigüedad de vínculo → `user` field gana sobre `relation`.
+3. Fail-closed siempre. Mis-config produce 1=0, nunca "ver todo".
+
+### Tests (CRÍTICOS)
+
+- 17 tests en `PortalScopeServiceTest` cubriendo todos los casos
+  de aislamiento. Cualquier failure es un data leak.
+- 6 tests en `PortalConfigTest`.
+
+### Próximas iteraciones
+
+- 3.B — REST controllers `/portal/*` + shortcode + auth flow.
+- 3.C — Template editor extendido (schema BD + kind=client_portal).
+- 3.D-3.E — Bloques del template (client_data, editable_form,
+  related_records, kpi, charts, activity, comments).
+- 3.F — Bundle `app/portal.tsx` + renderer.
+- 3.G — Botón "Crear acceso al portal".
+
 ## [0.38.4] — 2026-05-17
 
 **Cierre de la Fase 8.** Última iteración (2.E): tab "Visibilidad

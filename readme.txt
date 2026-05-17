@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.38.4
+Stable tag: 0.39.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,102 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.0 =
+**Fase 9 — Portal del cliente (iteración 3.A: foundation + aislamiento).**
+
+Arranca la Fase 9 (portal del cliente embebido en el tema). Esta
+iteración trae la lógica de autorización pura sin REST controller ni
+UI todavía — todo lo demás de la fase se construye encima.
+
+Pieza crítica de seguridad: `PortalScopeService` genera la cláusula
+WHERE que se inyecta a TODAS las queries del portal. Sin él, un
+cliente podría adivinar IDs de records ajenos y verlos.
+
+Sin cambios de schema. Todo el shape va en `wp_imcrm_lists.settings.portal`.
+
+Modelo de datos
+---------------
+Una lista del CRM se marca como "lista de portal" con:
+- `settings.portal.enabled = true`
+- `settings.portal.owner_field_id = <field_id>` (field tipo `user`
+  que identifica al cliente dueño del record).
+
+Esa lista típicamente se llama "Clientes". Otras listas (ej. "Facturas",
+"Tickets") se vinculan al cliente con:
+- Un field `relation` apuntando a la lista de portal, O
+- Un field `user` directo (caso "creador del record").
+
+Cambios técnicos
+----------------
+- Namespace nuevo `ImaginaCRM\Portal` con tres clases:
+    * `PortalConfig`: value object inmutable. Parsea `settings.portal`,
+      requiere `owner_field_id` para considerar la lista como
+      portal-list (fail-closed).
+    * `ClientResolver`: resuelve `WP_User` → record-cliente.
+      Devuelve null si:
+        - No hay lista de portal configurada.
+        - El owner_field no existe / pertenece a otra lista / no es
+          tipo `user`.
+        - El user no tiene record asociado en la lista de portal.
+    * `PortalScopeService`: genera el WHERE inyectable al QueryBuilder.
+      Tres casos cubiertos + 1 fail-closed:
+        1. Lista de portal → `AND \`id\` = <record_cliente>`.
+        2. Lista con field `user` → `AND \`<col>\` = <user_id>`.
+        3. Lista con field `relation` a la lista de portal →
+           `AND \`id\` IN (SELECT source_record_id FROM relations ...)`.
+        4. Cualquier otro caso → `AND 1=0`.
+- `ClientResolverInterface` (paralelo a `PublicListReader` de Fase 8):
+  permite que `PortalScopeService` y futuros controllers dependan de
+  un contrato testeable sin mockear clases final.
+
+Reglas de oro (no negociables)
+------------------------------
+1. Sin record-cliente resoluble → AND 1=0 en TODAS las listas.
+2. Si hay AMBIGÜEDAD (ej. una lista con field user Y field relation
+   a la lista de portal): se elige `user` primero (más directo).
+   No se hace OR para no agrandar el conjunto visible.
+3. Fail-closed siempre. Cualquier mis-config produce 1=0, NUNCA
+   "ver todo".
+
+Tests CRÍTICOS de aislamiento
+-----------------------------
+17 tests unitarios nuevos en `PortalScopeServiceTest` + 6 en
+`PortalConfigTest`. Cualquier failure en `PortalScopeServiceTest` es
+un data leak en producción.
+
+Cobertura:
+- User sin ID → 1=0.
+- Sin lista de portal configurada → 1=0.
+- User sin record asociado → 1=0.
+- Lista de portal → scope por record_id propio.
+- Verificación explícita: scope usa record_id, NO user_id (defensa
+  contra el bug "user_id 42 coincide con record_id 42 de otro
+  cliente").
+- Lista con field user → scope por user_id.
+- Lista con field relation a portal → subquery a `wp_imcrm_relations`.
+- Lista sin vínculo → 1=0.
+- Relation a OTRA lista (no portal) → 1=0.
+- User field gana cuando ambos presentes (orden documentado).
+- Fields soft-deleted no cuentan como vínculo.
+- client_record con id=0 (mis-config defensiva) → 1=0.
+
+PHPStan: 0 regresiones (22 errores baseline).
+PHPUnit: 388 tests, +23 nuevos pasan, 0 errores nuevos.
+
+Próximas iteraciones de la Fase 9
+---------------------------------
+- 3.B — REST controllers del portal + shortcode `[imcrm-client-portal]`
+  + auth flow (redirect a login si no autenticado, 403 si no es
+  cliente).
+- 3.C — Template editor extendido: schema BD (`wp_imcrm_templates.kind`)
+  + tipos client_portal.
+- 3.D — Bloques nuevos del template: client_data, editable_form,
+  related_records_table.
+- 3.E — Bloques avanzados: kpi_widget, chart_widget, activity_timeline,
+  comments_thread.
+- 3.F — Bundle `app/portal.tsx` + renderer del template.
+- 3.G — Botón "Crear acceso al portal" en la lista de portal.
 
 = 0.38.4 =
 **Fase 8 — Listas públicas (iteración 2.E: UI de configuración) · CIERRE DE LA FASE 8.**
