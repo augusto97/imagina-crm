@@ -14,7 +14,7 @@ export default defineConfig({
         // manifest — pero igual queremos que Vite lo procese en el
         // mismo build pipeline.
         v4wp({
-            input: ['app/main.tsx', 'app/public.tsx'],
+            input: ['app/main.tsx', 'app/public.tsx', 'app/portal.tsx'],
             outDir: 'dist',
         }),
         react(),

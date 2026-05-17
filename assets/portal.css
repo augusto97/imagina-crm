@@ -82,6 +82,105 @@
     color: var(--imcrm-portal-text);
 }
 
+/* ─── Bloques del template (Fase 9 — 3.D) ───────────────────────── */
+
+.imcrm-portal-block {
+    margin-bottom: 1.75rem;
+}
+.imcrm-portal-block__title {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+.imcrm-portal-block__content {
+    color: var(--imcrm-portal-text);
+    line-height: 1.55;
+}
+.imcrm-portal-block__loading {
+    color: var(--imcrm-portal-muted);
+    font-style: italic;
+}
+.imcrm-portal-block__error {
+    color: #b91c1c;
+    padding: 0.75rem 1rem;
+    background: rgba(239, 68, 68, 0.08);
+    border-left: 3px solid #ef4444;
+    border-radius: var(--imcrm-portal-radius);
+}
+.imcrm-portal-block__empty {
+    color: var(--imcrm-portal-muted);
+    font-style: italic;
+}
+
+/* client_data — definition list */
+.imcrm-portal-data-list {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(120px, max-content) 1fr;
+    gap: 0.5rem 1rem;
+    align-items: baseline;
+}
+.imcrm-portal-data-list__item {
+    display: contents;
+}
+.imcrm-portal-data-list__label {
+    color: var(--imcrm-portal-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.imcrm-portal-data-list__value {
+    margin: 0;
+    color: var(--imcrm-portal-text);
+}
+.imcrm-portal-data-list__empty {
+    color: var(--imcrm-portal-muted);
+}
+
+.imcrm-portal-pill {
+    display: inline-block;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--imcrm-portal-primary);
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    margin-right: 0.25rem;
+}
+
+/* related_records_table */
+.imcrm-portal-related-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    overflow: hidden;
+    font-size: 0.95rem;
+}
+.imcrm-portal-related-table thead {
+    background: rgba(0, 0, 0, 0.025);
+}
+.imcrm-portal-related-table th,
+.imcrm-portal-related-table td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--imcrm-portal-border);
+    text-align: left;
+}
+.imcrm-portal-related-table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--imcrm-portal-muted);
+}
+.imcrm-portal-related-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.imcrm-portal-related-table__footer {
+    margin: 0.5rem 0 0;
+    text-align: right;
+    color: var(--imcrm-portal-muted);
+    font-size: 0.85rem;
+}
+
 @media (prefers-color-scheme: dark) {
     .imcrm-portal-root,
     .imcrm-portal-card {

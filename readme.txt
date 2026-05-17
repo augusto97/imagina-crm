@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.2
+Stable tag: 0.39.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,90 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.3 =
+**Fase 9 — Portal del cliente (iteración 3.D: bundle JS + renderer +
+bloques base).**
+
+Trae el bundle JS del portal que hidrata el placeholder server-side
+y renderiza los bloques del template. Con este release el portal
+queda funcional end-to-end para los casos básicos: cliente entra,
+ve sus datos y registros relacionados.
+
+Bundle: **1.89 KB gzip** (mi código) + 45.7 KB vendor-react
+compartido. Total para el cliente: ~48 KB.
+
+Frontend
+--------
+- `app/portal.tsx` — entry point del bundle. Busca todos los
+  `.imcrm-portal-root` del DOM, parsea `data-imcrm-portal-boot` y
+  monta `PortalRenderer` dentro de `.imcrm-portal-body` (el header
+  con saludo + logout se preserva, no necesita JS).
+- `app/portal/types.ts` — tipos espejo de los shapes PHP.
+- `app/portal/api.ts` — cliente fetch contra `/portal/*`. Diferencias
+  con el cliente público (Fase 8):
+    * Manda `credentials: same-origin` (el portal exige auth).
+    * Envía `X-WP-Nonce` desde el boot data.
+    * Sin cache en memoria (las respuestas pueden cambiar en
+      cualquier momento por updates del admin).
+- `app/portal/PortalRenderer.tsx` — fetch on-mount a `/portal/me`,
+  itera `template.blocks` y monta cada uno con su componente.
+
+Bloques implementados (los 3 declarados en `PortalTemplate`)
+------------------------------------------------------------
+- `StaticTextBlock` — HTML estático del admin. Trusted source
+  (mismo patrón que el `static_text` del panel CRM).
+- `ClientDataBlock` — definition list con los campos del record
+  cliente. Formateo simple por tipo (multi_select→pills,
+  checkbox→✓/✗, null→—).
+- `RelatedRecordsTableBlock` — tabla de records relacionados.
+  Fetch al endpoint `/portal/lists/{slug}/records` (el scope SQL
+  de PortalScopeService lo aísla automáticamente). Loading/error/
+  empty states.
+
+Bloques desconocidos (versionado futuro) → ignorados silenciosamente.
+Mismo patrón que el parser PHP (tolerancia a versionado).
+
+CSS
+---
+`assets/portal.css` extendido con estilos para los bloques:
+- Definition list responsiva para `client_data`.
+- Tabla simple para `related_records_table`.
+- Estados loading/error/empty consistentes.
+- Pills para multi_select.
+- Variables `--imcrm-portal-*` siguen siendo override-ables por el tema.
+
+Vite + assets pipeline
+----------------------
+- `vite.config.ts`: `input` ahora incluye `app/portal.tsx`.
+- `PortalAssets.php` reescrito para leer `dist/manifest.json` y
+  enqueuear el bundle con `vendor-react` como dep. Mismo patrón
+  que `PublicAssets` de Fase 8.
+- Bundle solo se carga en páginas con el shortcode
+  `[imcrm-client-portal]` (detección `has_shortcode`).
+
+Limitaciones conocidas
+----------------------
+- Sin paginación interactiva en `related_records_table` — solo
+  primera página + footer "Mostrando X de Y". Paginación completa
+  llega en 3.E con un componente UI más rico.
+- Sin tests del bundle JS (Vitest no configurado en el proyecto).
+  Cobertura indirecta vía tests PHP del template y scope.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 397 tests sin cambios.
+TypeScript build: limpio.
+Bundle portal: 1.89 KB gzip (mi código) + 45.7 KB vendor-react =
+48 KB total para el cliente.
+
+Próximos pasos de la Fase 9 (opcionales)
+----------------------------------------
+- 3.E — Bloques avanzados: editable_form (para que el cliente
+  actualice campos propios), kpi_widget, chart_widget,
+  activity_timeline, comments_thread.
+- 3.G — Botón "Crear acceso al portal" en el detalle de un cliente
+  (wp_create_user con rol crm_client + asocia user_id al
+  owner_field).
 
 = 0.39.2 =
 **Fase 9 — Portal del cliente (iteración 3.C: template + default fallback).**

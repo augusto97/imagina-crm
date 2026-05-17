@@ -4,6 +4,36 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.3] — 2026-05-17
+
+Continuación de la **Fase 9 — Portal del cliente** (iteración 3.D:
+bundle JS + renderer + bloques base). El portal queda funcional
+end-to-end para casos básicos.
+
+### Añadido
+
+- `app/portal.tsx` — entry bundle (1.89 KB gzip + 45.7 KB
+  vendor-react compartido).
+- `app/portal/PortalRenderer.tsx` — fetch `/portal/me` + render
+  iterando `template.blocks`.
+- `app/portal/blocks/` — tres bloques: `StaticTextBlock`,
+  `ClientDataBlock`, `RelatedRecordsTableBlock`.
+- `vite.config.ts`: `app/portal.tsx` añadido a `input`.
+- `PortalAssets.php` reescrito para enqueuear el bundle via
+  manifest (mismo patrón que `PublicAssets`).
+- CSS extendido con estilos para los bloques.
+
+### Limitaciones conocidas
+
+- Sin paginación interactiva en related_records_table (queda para
+  3.E).
+- Sin tests del bundle JS (Vitest no configurado).
+
+### Próximos pasos
+
+- 3.E — Bloques avanzados (opcionales).
+- 3.G — Botón "Crear acceso al portal".
+
 ## [0.39.2] — 2026-05-17
 
 Continuación de la **Fase 9 — Portal del cliente** (iteración 3.C:
