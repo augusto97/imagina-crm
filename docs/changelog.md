@@ -4,6 +4,51 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.37.2] — 2026-05-17
+
+Continuación de la **Fase 7 — Roles y permisos** (iteración 1.C+D
+fusionada). Gating REST por endpoint + filtrado SQL de records por
+scope. Las capabilities `imcrm_*` ahora se enforcean de verdad —
+hasta este release todo era infraestructura sin efectos visibles.
+
+### Añadido
+
+- `QueryBuilder::buildSelect()` acepta `$additionalWhere` opcional
+  con shape `{sql, args}`. Se compone con AND al WHERE final. Es la
+  vía por la que `PermissionService::recordsScopeWhere()` (Fase 7 — 1.B)
+  inyecta el filtro de scope sin tocar los filtros del usuario.
+- `RecordService::list()` y `CsvExporter::export()` propagan
+  `$additionalWhere` al QueryBuilder.
+- `AbstractController::requireCapability(cap)` y `requireAnyCapability(...caps)`
+  para construir permission_callbacks granulares.
+- 4 tests nuevos en `QueryBuilderTest` cubriendo composición del scope SQL,
+  caso blocking (AND 1=0), y verificación de back-compat cuando no se pasa.
+
+### Cambiado
+
+- Cada controller REST ahora elige el cap específico por endpoint en vez
+  de heredar `checkAdminPermissions`. Mapping completo en
+  `readme.txt` changelog 0.37.2.
+- `RecordsController`: gating + checks per-record (404 si no visible,
+  403 si visible pero no editable). Bulk filtra IDs aprobados/denegados.
+- `ListsController::getCollection` filtra listas no visibles por usuario.
+- `ListsController::getItem` devuelve 404 si el user no puede verla
+  (data leak prevention: no se distingue "no existe" de "no autorizado").
+- `CommentsController` y `ActivityController` chequean visibility per-record
+  antes de devolver comments/timeline.
+- `ExportController` aplica el scope SQL — el CSV ya no expone records ajenos.
+
+### Limitaciones temporales
+
+- `AggregatesController`: para no exponer agregados sobre records ajenos,
+  usuarios con scope distinto de `all` reciben 403. Refactor del
+  `RecordAggregator` con `additionalWhere` pendiente.
+
+### Próximos pasos
+
+- 1.E — Frontend gating (sidebar, botones, columnas) + tab "Permisos"
+  en List Builder.
+
 ## [0.37.1] — 2026-05-17
 
 Continuación de la **Fase 7 — Roles y permisos** (iteración 1.B:

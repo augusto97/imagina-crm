@@ -6,6 +6,7 @@ namespace ImaginaCRM\REST;
 use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldService;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -31,40 +32,49 @@ final class FieldsController extends AbstractController
     {
         $base = 'lists/(?P<list>[a-zA-Z0-9_-]+)/fields';
 
+        // GET: cualquier user con acceso al SPA puede leer el schema
+        // (necesario para que el front renderice la tabla aunque sea
+        // viewer). Mutaciones requieren manage_fields o manage_lists.
+        $canRead = [$this, 'checkAdminPermissions'];
+        $canManage = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_MANAGE_FIELDS,
+            CapabilityRegistry::CAP_MANAGE_LISTS,
+        );
+
         register_rest_route($this->namespace, '/' . $base, [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/reorder', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'reorder'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $canManage,
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/(?P<id_or_slug>[a-zA-Z0-9_-]+)', [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
                 'args'                => [
                     'purge' => ['type' => 'boolean', 'default' => false],
                 ],
@@ -77,7 +87,14 @@ final class FieldsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'distinctValues'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                // distinctValues lee valores del field — gating de read.
+                // El scope de records aplicado en RecordsController no
+                // se replica aquí (el catálogo de valores es por
+                // diseño global para autocompletes).
+                'permission_callback' => $this->requireAnyCapability(
+                    CapabilityRegistry::CAP_VIEW_RECORDS,
+                    CapabilityRegistry::CAP_VIEW_OWN_RECORDS,
+                ),
                 'args'                => [
                     'search' => ['type' => 'string'],
                     'limit'  => ['type' => 'integer', 'default' => 50],

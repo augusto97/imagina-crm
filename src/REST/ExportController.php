@@ -5,6 +5,8 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Exports\CsvExporter;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
+use ImaginaCRM\Permissions\PermissionService;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -24,6 +26,7 @@ final class ExportController extends AbstractController
     public function __construct(
         private readonly CsvExporter $exporter,
         private readonly ListService $lists,
+        private readonly PermissionService $permissions,
     ) {
         parent::__construct();
     }
@@ -33,7 +36,7 @@ final class ExportController extends AbstractController
         register_rest_route($this->namespace, '/lists/(?P<list>[a-zA-Z0-9_-]+)/export', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'export'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_EXPORT_RECORDS),
         ]);
     }
 
@@ -41,6 +44,11 @@ final class ExportController extends AbstractController
     {
         $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
         if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        // Visibilidad: si el user no puede ver la lista, 404.
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanSeeList($user, $list)) {
             return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
         }
 
@@ -62,7 +70,12 @@ final class ExportController extends AbstractController
             }
         }
 
-        $csv = $this->exporter->export($list, $fieldIds, $filterTree);
+        // Inyecta el scope de records del user — un agent con scope=own
+        // NO debe exportar registros ajenos via CSV.
+        $scope = $this->permissions->recordsScopeWhere($user, $list);
+        $additionalWhere = $scope['sql'] === '' ? null : $scope;
+
+        $csv = $this->exporter->export($list, $fieldIds, $filterTree, $additionalWhere);
 
         $filename = sprintf(
             '%s-%s.csv',

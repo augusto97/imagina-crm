@@ -5,6 +5,7 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Imports\ImportService;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -35,7 +36,7 @@ final class ImportController extends AbstractController
         register_rest_route($this->namespace, '/' . $base . '/preview', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'preview'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_IMPORT_RECORDS),
             'args'                => [
                 'csv' => ['type' => 'string', 'required' => true],
             ],
@@ -44,7 +45,7 @@ final class ImportController extends AbstractController
         register_rest_route($this->namespace, '/' . $base . '/run', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'run'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_IMPORT_RECORDS),
             'args'                => [
                 'csv'        => ['type' => 'string', 'required' => true],
                 'mapping'    => ['required' => true],

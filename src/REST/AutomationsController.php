@@ -7,6 +7,7 @@ use ImaginaCRM\Automations\AutomationEntity;
 use ImaginaCRM\Automations\AutomationRunRepository;
 use ImaginaCRM\Automations\AutomationService;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -40,12 +41,12 @@ final class AutomationsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_AUTOMATIONS),
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_AUTOMATIONS),
             ],
         ]);
 
@@ -53,17 +54,17 @@ final class AutomationsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_AUTOMATIONS),
             ],
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_AUTOMATIONS),
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_AUTOMATIONS),
             ],
         ]);
 

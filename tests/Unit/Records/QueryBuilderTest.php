@@ -444,6 +444,86 @@ final class QueryBuilderTest extends TestCase
         $this->assertStringContainsString('group_value IS NULL', $compiled['sql']);
     }
 
+    // ───────────────────────────────────────────────────────────────────
+    //  additionalWhere (Fase 7 — 1.D): inyección de scope SQL para
+    //  filtrar records al WHERE final sin tocar los filtros del usuario.
+    // ───────────────────────────────────────────────────────────────────
+
+    public function test_buildSelect_additional_where_appends_after_user_filters(): void
+    {
+        $fields = $this->sampleFields();
+        $params = new QueryParams(
+            page: 1, perPage: 50,
+            filters: [['column' => 'col_name', 'operator' => 'eq', 'value' => 'Acme']],
+            sort: [], fields: [], search: null, includeDeleted: false,
+        );
+        $additionalWhere = ['sql' => 'AND `created_by` = %d', 'args' => [42]];
+
+        $compiled = $this->qb->buildSelect('clients', $fields, $params, null, null, $additionalWhere);
+
+        // El filtro original sigue. El scope se appendea.
+        $this->assertStringContainsString('`col_name` = %s', $compiled['sql']);
+        $this->assertStringContainsString('AND `created_by` = %d', $compiled['sql']);
+
+        // Args: [user_filter_value, scope_arg, perPage, offset]
+        $this->assertSame(['Acme', 42, 50, 0], $compiled['args']);
+        // count_args excluye perPage/offset pero incluye el scope arg.
+        $this->assertSame(['Acme', 42], $compiled['count_args']);
+    }
+
+    public function test_buildSelect_additional_where_with_no_user_filters(): void
+    {
+        $fields = $this->sampleFields();
+        $params = new QueryParams(
+            page: 1, perPage: 25,
+            filters: [], sort: [], fields: [], search: null, includeDeleted: false,
+        );
+        // Sin filtros del user, el WHERE default es "WHERE 1=1" (por el
+        // includeDeleted=false que añade `deleted_at IS NULL`).
+        $additionalWhere = ['sql' => 'AND `created_by` = %d', 'args' => [99]];
+
+        $compiled = $this->qb->buildSelect('clients', $fields, $params, null, null, $additionalWhere);
+
+        $this->assertStringContainsString('AND `created_by` = %d', $compiled['sql']);
+        $this->assertContains(99, $compiled['args']);
+    }
+
+    public function test_buildSelect_additional_where_blocking_clause(): void
+    {
+        // scope=none → PermissionService emite "AND 1=0" para garantizar
+        // que la query no devuelve filas. El compilador debe respetarlo
+        // tal cual.
+        $fields = $this->sampleFields();
+        $params = new QueryParams(
+            page: 1, perPage: 10,
+            filters: [['column' => 'col_status', 'operator' => 'eq', 'value' => 'active']],
+            sort: [], fields: [], search: null, includeDeleted: false,
+        );
+        $compiled = $this->qb->buildSelect(
+            'clients', $fields, $params, null, null,
+            ['sql' => 'AND 1=0', 'args' => []],
+        );
+
+        $this->assertStringContainsString('AND 1=0', $compiled['sql']);
+        $this->assertStringContainsString('AND 1=0', $compiled['count_sql']);
+    }
+
+    public function test_buildSelect_additional_where_omitted_keeps_legacy_behavior(): void
+    {
+        // Sin scope: el SQL es idéntico al pre-1.D. Garantía de back-compat.
+        $fields = $this->sampleFields();
+        $params = new QueryParams(
+            page: 1, perPage: 10,
+            filters: [['column' => 'col_name', 'operator' => 'eq', 'value' => 'X']],
+            sort: [], fields: [], search: null, includeDeleted: false,
+        );
+        $withScope = $this->qb->buildSelect('clients', $fields, $params, null, null, null);
+        $withEmptyScope = $this->qb->buildSelect('clients', $fields, $params, null, null, ['sql' => '', 'args' => []]);
+
+        $this->assertSame($withScope['sql'], $withEmptyScope['sql']);
+        $this->assertSame($withScope['args'], $withEmptyScope['args']);
+    }
+
     /**
      * @return array<int, FieldEntity>
      */

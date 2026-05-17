@@ -158,6 +158,13 @@ final class QueryBuilder
      *   son un árbol AND/OR anidado (no representable en `$params->filters`,
      *   que es plano).
      *
+     * @param array{sql:string, args:array<int, mixed>}|null $additionalWhere
+     *   Cláusula adicional que se appendea al WHERE final con AND. Es la
+     *   vía por la que `PermissionService::recordsScopeWhere()` inyecta
+     *   el filtro de scope (own/assigned) sin tocar los filtros del
+     *   usuario. Shape: `{sql: "AND \`r\`.\`col\` = %d", args: [user_id]}`.
+     *   `sql` debe empezar con "AND " — se concatena tal cual.
+     *
      * @return array{
      *     sql:string,
      *     args:array<int, mixed>,
@@ -171,6 +178,7 @@ final class QueryBuilder
         QueryParams $params,
         ?array $whereOverride = null,
         ?array $idWhitelist = null,
+        ?array $additionalWhere = null,
     ): array {
         $table     = '`' . esc_sql($this->db->dataTable($tableSuffix)) . '`';
         $columnSet = $this->columnsByName($fields);
@@ -198,6 +206,27 @@ final class QueryBuilder
                 foreach ($idWhitelist as $id) {
                     $whereArgs[] = (int) $id;
                 }
+            }
+        }
+
+        // Inyección del scope de permisos (Fase 7 — 1.D): se appendea
+        // como un AND adicional sin tocar los filtros del usuario.
+        // PermissionService garantiza un shape preparado para concatenar
+        // tal cual (sql empieza con "AND ").
+        if ($additionalWhere !== null && isset($additionalWhere['sql']) && $additionalWhere['sql'] !== '') {
+            $scopeSql = (string) $additionalWhere['sql'];
+            $scopeArg = isset($additionalWhere['args']) && is_array($additionalWhere['args'])
+                ? $additionalWhere['args']
+                : [];
+            if ($where === '') {
+                // Sin WHERE previo: el "AND " del scope se convierte en
+                // "WHERE ". Si scope era "AND 1=0", queda "WHERE 1=0".
+                $where = 'WHERE ' . preg_replace('/^AND\s+/i', '', $scopeSql);
+            } else {
+                $where .= ' ' . $scopeSql;
+            }
+            foreach ($scopeArg as $a) {
+                $whereArgs[] = $a;
             }
         }
 

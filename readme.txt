@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.37.1
+Stable tag: 0.37.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,95 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.37.2 =
+**Fase 7 — Roles y permisos (iteración 1.C+D fusionada: REST gating + scope SQL).**
+
+Tercera iteración (combinada con la 1.D del plan) — gating real por endpoint
++ filtrado SQL de records por scope. A partir de este release, las
+capabilities `imcrm_*` se ENFORCEAN de verdad: cada controller REST exige
+la cap correcta para su operación y los records se filtran al WHERE final
+por el rol del user.
+
+Sin cambios visibles para administradores (siguen viendo todo).
+
+Backend
+-------
+- `QueryBuilder::buildSelect` acepta `$additionalWhere = {sql, args}` que
+  se compone con AND al WHERE final. La cláusula del scope viene de
+  `PermissionService::recordsScopeWhere()` (Fase 7 — 1.B). Si scope=all
+  (admins), $additionalWhere es null y el SQL queda idéntico al pre-1.D.
+- `RecordService::list()` propaga $additionalWhere al QueryBuilder. Igual
+  con `CsvExporter::export()` — el CSV ya no expone records ajenos.
+- `AbstractController` con dos nuevos helpers: `requireCapability(cap)`
+  y `requireAnyCapability(...caps)`. Cada controller ahora elige el
+  granular por endpoint en vez de heredar el legado `checkAdminPermissions`.
+
+Gating por controller
+---------------------
+| Controller          | Lectura                          | Mutación                              |
+|---------------------|----------------------------------|---------------------------------------|
+| ListsController     | imcrm_access_admin (filtrado)    | imcrm_manage_lists                    |
+| FieldsController    | imcrm_access_admin               | imcrm_manage_fields | manage_lists    |
+| ViewsController     | imcrm_access_admin               | imcrm_manage_views  | manage_lists    |
+| RecordsController   | view_records | view_own_records   | create/edit/delete + ACL per-record   |
+| AggregatesController| view_records | view_own_records   | (read-only — bloqueado si scope!=all) |
+| AutomationsController | imcrm_manage_automations       | imcrm_manage_automations              |
+| DashboardsController | imcrm_access_admin              | imcrm_manage_dashboards               |
+| CommentsController  | view + per-record visibility    | view + per-record (service valida autor) |
+| ActivityController  | view + per-record visibility    | (read-only)                            |
+| RecurrencesController | view_records | view_own_records | edit_records | edit_own_records    |
+| ImportController    | -                                | imcrm_import_records                  |
+| ExportController    | -                                | imcrm_export_records (scope aplicado) |
+| SearchAdminController | imcrm_manage_lists             | imcrm_manage_lists                    |
+| SlugsController     | imcrm_manage_lists | manage_fields | -                                |
+| LicenseController   | imcrm_manage_lists               | imcrm_manage_lists                    |
+
+RecordsController — chequeos per-record
+---------------------------------------
+- GET /records: filtro SQL automático (own/assigned/none).
+- GET /records/{id}: 404 si el record no es visible para el user.
+- POST /records: requiere ACL.create=true para alguno de los roles del user.
+- PATCH /records/{id}: 404 si no ve el record; 403 si lo ve pero no puede editar.
+- DELETE /records/{id}: idem.
+- POST /records/bulk: filtra IDs aprobados/denegados; devuelve `denied_ids`
+  en la respuesta. Si TODOS son denegados → 403.
+
+ListsController — filtrado de colección
+---------------------------------------
+GET /lists devuelve solo las listas donde `userCanSeeList` retorna true
+para el user actual. Sidebar del front mostrará solo lo accesible.
+
+Aggregates: limitación temporal
+-------------------------------
+RecordAggregator no soporta aún additionalWhere. Para no exponer
+agregados sobre records ajenos, los usuarios con scope acotado
+(no admin, no all) reciben 403 al pedir aggregates. El front
+debe ocultar la barra de totales para esos roles. Refactor del
+aggregator → backlog Fase 7 iteración 1.E o posterior.
+
+Data leak prevention
+--------------------
+Patrón aplicado consistentemente: cuando un user no puede ver un
+recurso (lista o record), se devuelve 404 — no 403 — para no
+revelar la existencia. Solo cuando puede VER pero no MUTAR, se
+devuelve 403 con mensaje específico.
+
+Tests
+-----
+4 tests nuevos en `QueryBuilderTest`:
+- additionalWhere appendea después de los filtros del user.
+- additionalWhere funciona sin filtros del user (WHERE 1=1 + scope).
+- additionalWhere blocking (AND 1=0) propaga al count_sql.
+- additionalWhere omitido = comportamiento legacy pre-1.D (back-compat).
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 336 tests, +4 nuevos pasan, 0 errores nuevos.
+
+Próximos pasos
+--------------
+- 1.E — Frontend gating (sidebar, botones, columnas) + tab "Permisos"
+  en List Builder.
 
 = 0.37.1 =
 **Fase 7 — Roles y permisos (iteración 1.B: PermissionService + ACL por lista).**

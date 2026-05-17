@@ -494,6 +494,7 @@ final class Plugin
             return new \ImaginaCRM\REST\ExportController(
                 $c->get(\ImaginaCRM\Exports\CsvExporter::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
+                $c->get(PermissionService::class),
             );
         });
 
@@ -509,6 +510,7 @@ final class Plugin
             return new \ImaginaCRM\REST\AggregatesController(
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
+                $c->get(PermissionService::class),
             );
         });
     }

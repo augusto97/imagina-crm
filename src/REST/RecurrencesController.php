@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Recurrences\RecurrenceRepository;
 use ImaginaCRM\Recurrences\RecurrenceService;
 use ImaginaCRM\Support\ValidationResult;
@@ -38,23 +39,34 @@ final class RecurrencesController extends AbstractController
     {
         $base = 'lists/(?P<list>[a-zA-Z0-9_-]+)/records/(?P<id>\d+)/recurrences';
 
+        // Lectura: cap de ver records (recurrencias son metadata de records).
+        // Mutación: cap de editar records.
+        $canRead = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_VIEW_RECORDS,
+            CapabilityRegistry::CAP_VIEW_OWN_RECORDS,
+        );
+        $canWrite = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_EDIT_RECORDS,
+            CapabilityRegistry::CAP_EDIT_OWN_RECORDS,
+        );
+
         register_rest_route($this->namespace, '/' . $base, [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createOrUpdate'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canWrite,
             ],
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/(?P<rid>\d+)', [
             'methods'             => WP_REST_Server::DELETABLE,
             'callback'            => [$this, 'deleteItem'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $canWrite,
         ]);
 
         // Batch endpoint: trae las recurrencias de N records de un
@@ -66,7 +78,7 @@ final class RecurrencesController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getBatch'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
         );
     }

@@ -6,6 +6,7 @@ namespace ImaginaCRM\REST;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Maintenance\CompositeIndexSuggester;
 use ImaginaCRM\Maintenance\PurgeService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Search\InvertedIndexEngine;
 use ImaginaCRM\Search\SearchService;
 use WP_Error;
@@ -47,49 +48,49 @@ final class SearchAdminController extends AbstractController
         register_rest_route($this->namespace, '/' . $base . '/search/status', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'getSearchStatus'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/search/enable', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'enableSearch'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/search/disable', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'disableSearch'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/search/reindex', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'reindexSearch'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/indexes/suggest', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'suggestIndexes'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/indexes/apply', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'applyIndex'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/indexes/drop', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'dropIndex'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/system/maintenance/purge', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'runPurge'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
     }
 
