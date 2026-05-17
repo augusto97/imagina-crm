@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.38.2
+Stable tag: 0.38.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,77 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.38.3 =
+**Fase 8 — Listas públicas (iteración 2.D: bloque Gutenberg).**
+
+Trae el bloque `imagina-crm/list` al editor de bloques: tarjeta en el
+inserter con icono propio, atributos editables desde el inspector
+lateral (slug, per_page, clase CSS), render server-side que reutiliza
+el shortcode (sin duplicar lógica).
+
+Decisión técnica
+----------------
+Bloque **server-rendered puro** sin JS de editor custom. Razones:
+- Cero dependencias nuevas en package.json (no traer `@wordpress/blocks`,
+  `@wordpress/block-editor`, etc. que suman ~150 KB al bundle del
+  editor).
+- WP genera automáticamente la UI del inspector desde la `attributes`
+  schema declarada en `register_block_type` (input por atributo).
+- El render usa el mismo `Shortcode::render` que ya está probado en 2.B.
+- Cualquier mejora futura del shortcode (formatters de tipos, hidratación,
+  etc.) aplica automáticamente al bloque.
+
+Una iteración posterior puede agregar JS de editor con autocomplete
+de slugs disponibles y preview en vivo, pero no es bloqueante.
+
+Comportamiento
+--------------
+- Inserter de bloques: categoría "Widgets", título "Lista Imagina CRM",
+  icono `database-view`. Keywords: crm, lista, list, imagina.
+- Atributos: `slug` (string, requerido), `perPage` (integer, opcional),
+  `extraClass` (string, opcional para custom CSS).
+- Soporta `align: wide|full` y `customClassName`. HTML editing
+  deshabilitado (el bloque siempre se renderiza dinámicamente).
+- Sin slug:
+    * Si el visitante puede editar posts (admin/editor): placeholder
+      visible con mensaje "Configura el slug de la lista en el panel
+      lateral del bloque".
+    * Visitante anónimo: string vacío (sin mensajes técnicos).
+- Con slug: delega a `Shortcode::render` con los atributos.
+
+PHP
+---
+- `src/PublicLists/Block.php` — registra el bloque y maneja el
+  render_callback.
+- `Plugin.php` — binding del Block en el container; registro en `init`.
+- `PublicAssets.php` ya detectaba `has_block('imagina-crm/list', ...)`
+  desde 2.B — el CSS y el bundle JS se cargan automáticamente en
+  páginas con el bloque.
+- `assets/public-list.css` — clase `.imcrm-public-list--placeholder`
+  para el estado sin slug en el editor.
+
+Tests
+-----
+5 tests unitarios nuevos en `BlockTest`:
+- Slug vacío + user con `edit_posts` → placeholder visible.
+- Slug vacío + visitante anónimo → string vacío.
+- Con slug → delega al shortcode (verifica que el HTML contiene el
+  output esperado: tabla, atributos `data-imcrm-*`).
+- `extraClass` se transmite al wrapper.
+- `perPage` se transmite al shortcode.
+
+Stub nuevo en `tests/bootstrap.php`: `$GLOBALS['imcrm_test_current_user_can']`
+como callable para override directo de `current_user_can()` en tests
+que no quieren armar un WP_User completo.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 366 tests (+5 nuevos), 0 errores nuevos.
+
+Próximo paso de la Fase 8
+-------------------------
+- 2.E — Tab "Visibilidad pública" en el List Builder para configurar
+  `settings.public` desde la UI. Última iteración de la Fase 8.
 
 = 0.38.2 =
 **Fase 8 — Listas públicas (iteración 2.C: bundle JS público + hidratación).**

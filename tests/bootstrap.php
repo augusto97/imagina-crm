@@ -406,6 +406,12 @@ if (! function_exists('user_can')) {
 if (! function_exists('current_user_can')) {
     function current_user_can(string $cap): bool
     {
+        // Override directo via callable (útil para tests que no quieren
+        // armar un WP_User completo — ej. BlockTest).
+        $override = $GLOBALS['imcrm_test_current_user_can'] ?? null;
+        if (is_callable($override)) {
+            return (bool) $override($cap);
+        }
         $user = $GLOBALS['imcrm_test_current_user'] ?? null;
         if ($user instanceof WP_User) {
             return user_can($user, $cap);

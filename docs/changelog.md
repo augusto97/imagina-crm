@@ -4,6 +4,38 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.38.3] — 2026-05-17
+
+Continuación de la **Fase 8 — Listas públicas** (iteración 2.D: bloque
+Gutenberg). Trae el bloque `imagina-crm/list` al editor de bloques sin
+agregar dependencias nuevas al frontend.
+
+### Añadido
+
+- `src/PublicLists/Block.php` — registra el bloque server-rendered.
+  Reutiliza el `Shortcode::render` (no duplica lógica).
+- Atributos: `slug` (string), `perPage` (integer), `extraClass` (string).
+- Soporta align `wide|full` y `customClassName`.
+- Placeholder visible en el editor cuando falta el slug (solo a
+  usuarios con `edit_posts`).
+
+### Decisión técnica
+
+Bloque server-rendered puro sin JS de editor custom — WP autogenera
+el inspector desde la `attributes` schema. Cero dependencias nuevas
+en `package.json`, sin inflar bundle del editor.
+
+### Tests
+
+- 5 tests unitarios en `BlockTest` cubriendo placeholder, anonymous
+  visitor, delegación al shortcode y atributos extra.
+- Override callable de `current_user_can()` en `tests/bootstrap.php`
+  para tests sin `WP_User` completo.
+
+### Próximo paso
+
+- 2.E — Tab "Visibilidad pública" en List Builder (UI de configuración).
+
 ## [0.38.2] — 2026-05-17
 
 Continuación de la **Fase 8 — Listas públicas** (iteración 2.C:

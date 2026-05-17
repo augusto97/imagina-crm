@@ -216,6 +216,19 @@
     cursor: not-allowed;
 }
 
+/* Placeholder visible solo en el editor de bloques cuando el slug no
+   está configurado (Fase 8 — 2.D). El frontend público recibe string
+   vacío en su lugar — los visitantes nunca ven este placeholder. */
+.imcrm-public-list--placeholder {
+    padding: 1.5rem;
+    border: 2px dashed var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius);
+    text-align: center;
+    color: var(--imcrm-public-muted);
+    font-style: italic;
+    background: var(--imcrm-public-row-hover);
+}
+
 /* Modo oscuro automático cuando el tema lo declara con prefers-color-scheme.
    Si el tema usa data-theme="dark" en lugar, el integrator puede override. */
 @media (prefers-color-scheme: dark) {

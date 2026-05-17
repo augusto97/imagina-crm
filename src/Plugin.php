@@ -175,6 +175,14 @@ final class Plugin
             return new \ImaginaCRM\PublicLists\PublicAssets();
         });
 
+        // Bloque Gutenberg (Fase 8 — 2.D). Reusa el render del shortcode
+        // via render_callback — sin duplicar lógica de render entre ambos.
+        $this->container->bind(\ImaginaCRM\PublicLists\Block::class, static function (Container $c): \ImaginaCRM\PublicLists\Block {
+            return new \ImaginaCRM\PublicLists\Block(
+                $c->get(\ImaginaCRM\PublicLists\Shortcode::class),
+            );
+        });
+
         $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {
             return new SlugManager($c->get(Database::class));
         });
@@ -838,6 +846,10 @@ final class Plugin
         $publicAssets = $this->container->get(\ImaginaCRM\PublicLists\PublicAssets::class);
         if ($publicAssets instanceof \ImaginaCRM\PublicLists\PublicAssets) {
             $publicAssets->register();
+        }
+        $publicBlock = $this->container->get(\ImaginaCRM\PublicLists\Block::class);
+        if ($publicBlock instanceof \ImaginaCRM\PublicLists\Block) {
+            $publicBlock->register();
         }
 
         if (is_admin()) {
