@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 
 import { fetchMe } from './api';
 import { ClientDataBlock } from './blocks/ClientDataBlock';
+import { EditableFormBlock } from './blocks/EditableFormBlock';
+import { ExternalLinkBlock } from './blocks/ExternalLinkBlock';
+import { KpiWidgetBlock } from './blocks/KpiWidgetBlock';
 import { RelatedRecordsTableBlock } from './blocks/RelatedRecordsTableBlock';
 import { StaticTextBlock } from './blocks/StaticTextBlock';
 import type { PortalBootData, PortalMeResponse } from './types';
@@ -68,6 +71,19 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
                         return <ClientDataBlock key={idx} config={block.config} record={data.record} />;
                     case 'related_records_table':
                         return <RelatedRecordsTableBlock key={idx} config={block.config} boot={boot} />;
+                    case 'editable_form':
+                        return (
+                            <EditableFormBlock
+                                key={idx}
+                                config={block.config}
+                                record={data.record}
+                                boot={boot}
+                            />
+                        );
+                    case 'external_link':
+                        return <ExternalLinkBlock key={idx} config={block.config} />;
+                    case 'kpi_widget':
+                        return <KpiWidgetBlock key={idx} config={block.config} boot={boot} />;
                     default:
                         // Bloques desconocidos: ignorar silenciosamente.
                         return null;

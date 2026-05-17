@@ -181,6 +181,100 @@
     font-size: 0.85rem;
 }
 
+/* ─── Bloques de Fase 9 — 3.E ────────────────────────────────────── */
+
+/* editable_form */
+.imcrm-portal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 480px;
+}
+.imcrm-portal-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.imcrm-portal-form__label {
+    font-size: 0.85rem;
+    color: var(--imcrm-portal-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.imcrm-portal-form__input {
+    height: 2.25rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-bg);
+    color: var(--imcrm-portal-text);
+    font: inherit;
+    font-size: 0.95rem;
+}
+.imcrm-portal-form__input:focus {
+    outline: 2px solid var(--imcrm-portal-primary);
+    outline-offset: -1px;
+    border-color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-form__input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.imcrm-portal-form__feedback {
+    margin: 0;
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--imcrm-portal-radius);
+    font-size: 0.9rem;
+}
+.imcrm-portal-form__feedback--success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #15803d;
+    border-left: 3px solid #22c55e;
+}
+.imcrm-portal-form__feedback--error {
+    background: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    border-left: 3px solid #ef4444;
+}
+.imcrm-portal-form__submit {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+}
+.imcrm-portal-form__submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* external_link */
+.imcrm-portal-external-link__btn {
+    display: inline-block;
+}
+
+/* kpi_widget */
+.imcrm-portal-block--kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1.25rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-card-bg);
+}
+.imcrm-portal-kpi__label {
+    margin: 0;
+    color: var(--imcrm-portal-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.imcrm-portal-kpi__value {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--imcrm-portal-primary);
+}
+
 @media (prefers-color-scheme: dark) {
     .imcrm-portal-root,
     .imcrm-portal-card {

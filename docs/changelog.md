@@ -4,6 +4,46 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.5] — 2026-05-17
+
+Continuación de la **Fase 9 — Portal del cliente** (iteración 3.E:
+bloques avanzados + fix limitación de aggregator). Tres tipos de
+bloque nuevos al portal + cierre del TODO de Fase 7 sobre
+`AggregatesController` con scope acotado.
+
+### Añadido
+
+- `editable_form` — cliente actualiza subset whitelisteado de
+  campos. Endpoint `PATCH /portal/me` con validación estricta de
+  whitelist (slug fuera → 403 explícito).
+- `external_link` — CTA con link externo.
+- `kpi_widget` — métrica simple sobre records relacionados.
+- `RecordAggregator::aggregate` ahora acepta `$additionalWhere`
+  (mismo shape que `QueryBuilder::buildSelect`).
+- `GET /portal/lists/{slug}/aggregates` para el `kpi_widget`.
+- `PortalTemplate::editableFieldSlugs()` — unión deduplicada de
+  slugs editables de todos los bloques `editable_form`.
+
+### Cambiado
+
+- `AggregatesController` ya no devuelve 403 para usuarios con
+  scope acotado. Inyecta el scope al aggregator y devuelve
+  agregados limitados al scope del usuario. Cierre del TODO de
+  Fase 7 — 1.D.
+
+### Tests
+
+- 4 tests nuevos en `PortalTemplateTest` (editableFieldSlugs,
+  parsing de nuevos tipos).
+- Test del aggregator con additionalWhere queda en backlog
+  (requiere FakeWpdb con `get_row`).
+
+### Próximos pasos opcionales
+
+- Bloques aún más avanzados (activity_timeline, comments_thread,
+  chart_widget, etc.).
+- UIs admin del portal (botón Crear acceso, tab Configuración).
+
 ## [0.39.4] — 2026-05-17
 
 Continuación de la **Fase 9 — Portal del cliente** (iteración 3.G:

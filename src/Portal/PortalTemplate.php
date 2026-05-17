@@ -62,6 +62,10 @@ final class PortalTemplate
         'client_data',
         'related_records_table',
         'static_text',
+        // Fase 9 — 3.E
+        'editable_form',
+        'external_link',
+        'kpi_widget',
     ];
 
     /**
@@ -148,6 +152,36 @@ final class PortalTemplate
     public function isEmpty(): bool
     {
         return $this->blocks === [];
+    }
+
+    /**
+     * Whitelist de campos que el cliente puede editar via
+     * `PATCH /portal/me`. Es la UNIÓN de los slugs declarados en TODOS
+     * los bloques `editable_form` del template.
+     *
+     * Por seguridad, si un slug NO está en esta whitelist, el endpoint
+     * lo rechaza con 403 (data tampering prevention).
+     *
+     * @return list<string>
+     */
+    public function editableFieldSlugs(): array
+    {
+        $out = [];
+        foreach ($this->blocks as $block) {
+            if ($block['type'] !== 'editable_form') {
+                continue;
+            }
+            $slugs = $block['config']['editable_field_slugs'] ?? null;
+            if (! is_array($slugs)) {
+                continue;
+            }
+            foreach ($slugs as $slug) {
+                if (is_string($slug) && $slug !== '') {
+                    $out[] = $slug;
+                }
+            }
+        }
+        return array_values(array_unique($out));
     }
 
     /**

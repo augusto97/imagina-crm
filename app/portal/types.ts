@@ -48,6 +48,36 @@ export type PortalBlock =
               title?: string;
               per_page?: number;
           };
+      }
+    // Fase 9 — 3.E
+    | {
+          type: 'editable_form';
+          config: {
+              editable_field_slugs?: string[];
+              title?: string;
+              submit_label?: string;
+          };
+      }
+    | {
+          type: 'external_link';
+          config: {
+              title?: string;
+              description?: string;
+              href?: string;
+              label?: string;
+              new_window?: boolean;
+          };
+      }
+    | {
+          type: 'kpi_widget';
+          config: {
+              title?: string;
+              list_slug?: string;
+              field_id?: number;
+              metric?: 'count' | 'sum' | 'avg' | 'min' | 'max';
+              suffix?: string;
+              prefix?: string;
+          };
       };
 
 export interface PortalMeResponse {

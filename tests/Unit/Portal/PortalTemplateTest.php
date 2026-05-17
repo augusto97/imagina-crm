@@ -125,6 +125,73 @@ final class PortalTemplateTest extends TestCase
         $this->assertSame([], $tpl->toArray());
     }
 
+    public function test_editable_field_slugs_returns_empty_without_editable_form_blocks(): void
+    {
+        // Sin bloques editable_form, NINGÚN campo es editable. Defensa
+        // crítica — el endpoint PATCH /portal/me devuelve 403 en este
+        // caso.
+        $tpl = PortalTemplate::fromListSettings([
+            'portal_template' => [
+                'blocks' => [
+                    ['type' => 'client_data', 'config' => ['visible_field_slugs' => ['nombre']]],
+                ],
+            ],
+        ]);
+        $this->assertSame([], $tpl->editableFieldSlugs());
+    }
+
+    public function test_editable_field_slugs_unions_across_blocks(): void
+    {
+        // Si el template tiene VARIOS bloques editable_form, la
+        // whitelist es la unión deduplicada.
+        $tpl = PortalTemplate::fromListSettings([
+            'portal_template' => [
+                'blocks' => [
+                    ['type' => 'editable_form', 'config' => ['editable_field_slugs' => ['telefono', 'direccion']]],
+                    ['type' => 'editable_form', 'config' => ['editable_field_slugs' => ['direccion', 'preferencias']]],
+                ],
+            ],
+        ]);
+        $slugs = $tpl->editableFieldSlugs();
+        sort($slugs);
+        $this->assertSame(['direccion', 'preferencias', 'telefono'], $slugs);
+    }
+
+    public function test_editable_field_slugs_filters_non_strings(): void
+    {
+        $tpl = PortalTemplate::fromListSettings([
+            'portal_template' => [
+                'blocks' => [
+                    [
+                        'type'   => 'editable_form',
+                        'config' => ['editable_field_slugs' => ['telefono', 42, '', null, 'direccion']],
+                    ],
+                ],
+            ],
+        ]);
+        $this->assertSame(['telefono', 'direccion'], $tpl->editableFieldSlugs());
+    }
+
+    public function test_new_block_types_accepted(): void
+    {
+        // Defensa: los 3 tipos nuevos de Fase 9 — 3.E (editable_form,
+        // external_link, kpi_widget) deben pasar el parser.
+        $tpl = PortalTemplate::fromListSettings([
+            'portal_template' => [
+                'blocks' => [
+                    ['type' => 'editable_form', 'config' => []],
+                    ['type' => 'external_link', 'config' => ['href' => 'https://x.com']],
+                    ['type' => 'kpi_widget', 'config' => ['list_slug' => 'facturas']],
+                ],
+            ],
+        ]);
+        $blocks = $tpl->toArray();
+        $this->assertCount(3, $blocks);
+        $this->assertSame('editable_form', $blocks[0]['type']);
+        $this->assertSame('external_link', $blocks[1]['type']);
+        $this->assertSame('kpi_widget', $blocks[2]['type']);
+    }
+
     private function makeField(int $id, string $slug, string $type, ?string $deletedAt = null): FieldEntity
     {
         return new FieldEntity(

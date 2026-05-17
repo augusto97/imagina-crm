@@ -60,20 +60,17 @@ final class AggregatesController extends AbstractController
         if (! $this->permissions->userCanSeeList($user, $list)) {
             return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
         }
-        // RecordAggregator todavía no soporta inyección de scope SQL.
-        // Para no exponer agregados sobre records ajenos, bloqueamos el
-        // endpoint a usuarios con scope acotado. Refactor pendiente
-        // (ver docs/multi-stakeholder-design.md §1.D — extender
-        // RecordAggregator con additionalWhere y devolver agregados
-        // limitados al scope del user).
-        if (
-            ! $this->permissions->userIsPluginAdmin($user)
-            && $this->permissions->recordsScopeWhere($user, $list)['sql'] !== ''
-        ) {
-            return $this->forbidden(__(
-                'Agregados sobre records limitados por scope aún no están soportados para tu rol.',
-                'imagina-crm'
-            ));
+        // Scope SQL: si el user no es plugin-admin, los agregados se
+        // limitan a los records que su rol puede ver (Fase 9 — 3.E:
+        // refactor del RecordAggregator para aceptar additionalWhere).
+        // Para admins, $additionalWhere queda null y el SQL es idéntico
+        // al pre-3.E.
+        $additionalWhere = null;
+        if (! $this->permissions->userIsPluginAdmin($user)) {
+            $scope = $this->permissions->recordsScopeWhere($user, $list);
+            if ($scope['sql'] !== '') {
+                $additionalWhere = $scope;
+            }
         }
 
         $rawFields = (string) ($request->get_param('fields') ?? '');
@@ -102,7 +99,7 @@ final class AggregatesController extends AbstractController
             $groupBy = null;
         }
 
-        $result = $this->aggregator->aggregate($list, $fieldIds, $filterTree, $groupBy);
+        $result = $this->aggregator->aggregate($list, $fieldIds, $filterTree, $groupBy, $additionalWhere);
 
         return new WP_REST_Response(['data' => $result]);
     }

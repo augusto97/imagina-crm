@@ -10,6 +10,7 @@ use ImaginaCRM\Portal\ClientResolverInterface;
 use ImaginaCRM\Portal\PortalAccountManager;
 use ImaginaCRM\Portal\PortalScopeService;
 use ImaginaCRM\Portal\PortalTemplate;
+use ImaginaCRM\Records\RecordAggregator;
 use ImaginaCRM\Records\RecordService;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
@@ -50,6 +51,7 @@ final class PortalController extends AbstractController
         private readonly RecordService $records,
         private readonly FieldRepository $fields,
         private readonly PortalAccountManager $accounts,
+        private readonly RecordAggregator $aggregator,
     ) {
         parent::__construct();
     }
@@ -59,9 +61,22 @@ final class PortalController extends AbstractController
         $canAccess = $this->requireCapability(CapabilityRegistry::CAP_ACCESS_PORTAL);
 
         register_rest_route($this->namespace, '/portal/me', [
-            'methods'             => WP_REST_Server::READABLE,
-            'callback'            => [$this, 'getMe'],
-            'permission_callback' => $canAccess,
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getMe'],
+                'permission_callback' => $canAccess,
+            ],
+            [
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => [$this, 'updateMe'],
+                'permission_callback' => $canAccess,
+                'args'                => [
+                    'fields' => [
+                        'type'        => 'object',
+                        'description' => 'Mapa slug → valor. Solo se aceptan slugs declarados en algún bloque editable_form del template.',
+                    ],
+                ],
+            ],
         ]);
 
         register_rest_route(
@@ -91,6 +106,23 @@ final class PortalController extends AbstractController
             ],
         );
 
+        // Aggregates de records relacionados al cliente (Fase 9 — 3.E).
+        // Sirve a los bloques kpi_widget del template del portal. El
+        // scope SQL del PortalScopeService se inyecta automáticamente
+        // — el cliente nunca ve agregados sobre records ajenos.
+        register_rest_route(
+            $this->namespace,
+            '/portal/lists/(?P<slug>[a-zA-Z0-9_-]+)/aggregates',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getAggregates'],
+                'permission_callback' => $canAccess,
+                'args'                => [
+                    'fields' => ['type' => 'string', 'description' => 'CSV de field IDs a agregar.'],
+                ],
+            ],
+        );
+
         // Endpoint admin: crear cuenta WP para un cliente desde el CRM
         // (Fase 9 — 3.G). Requiere manage_lists — solo admins crean
         // accesos.
@@ -106,6 +138,130 @@ final class PortalController extends AbstractController
                 ],
             ],
         );
+    }
+
+    /**
+     * PATCH /portal/me
+     *
+     * Permite al cliente actualizar SU PROPIO record. Solo se aceptan
+     * slugs declarados en algún bloque `editable_form` del template
+     * configurado por el admin. Cualquier slug fuera de la whitelist
+     * → 403.
+     *
+     * Es el endpoint de mutación más sensible del portal — un bug
+     * acá significa que un cliente puede tamper con campos que no
+     * debería tocar (ej. estado de un trámite que solo el admin
+     * cambia).
+     */
+    public function updateMe(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $user = wp_get_current_user();
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null) {
+            return $this->notFound(__('El portal del cliente no está configurado.', 'imagina-crm'));
+        }
+        $clientRecord = $this->resolver->clientRecordFor($user);
+        if ($clientRecord === null) {
+            return $this->notFound();
+        }
+        $recordId = isset($clientRecord['id']) ? (int) $clientRecord['id'] : 0;
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+
+        // Whitelist desde el template configurado (no el default —
+        // el default no incluye `editable_form`, así que un cliente
+        // sin template explícito no puede editar nada).
+        $template = PortalTemplate::fromListSettings($portalList->settings);
+        $allowed = array_flip($template->editableFieldSlugs());
+        if ($allowed === []) {
+            return $this->forbidden(__('Tu portal no permite edición de campos.', 'imagina-crm'));
+        }
+
+        $params = $request->get_json_params();
+        if (! is_array($params)) {
+            $params = $request->get_params();
+        }
+        $fieldsIn = is_array($params['fields'] ?? null) ? $params['fields'] : [];
+        if ($fieldsIn === []) {
+            return $this->validationError(ValidationResult::failWith(
+                'fields',
+                __('No se enviaron cambios.', 'imagina-crm'),
+            ));
+        }
+
+        // Filtra: solo slugs en whitelist. Cualquier slug fuera lo
+        // rechazamos con 403 — error explícito, no silencioso, para
+        // evitar que un cliente piense que "guardó" un campo que el
+        // backend ignoró.
+        $cleanValues = [];
+        foreach ($fieldsIn as $slug => $value) {
+            if (! is_string($slug)) {
+                continue;
+            }
+            if (! isset($allowed[$slug])) {
+                return $this->forbidden(
+                    /* translators: %s: field slug */
+                    sprintf(__('No tienes permiso para editar el campo "%s".', 'imagina-crm'), $slug),
+                );
+            }
+            $cleanValues[$slug] = $value;
+        }
+        if ($cleanValues === []) {
+            return $this->validationError(ValidationResult::failWith(
+                'fields',
+                __('No se enviaron cambios válidos.', 'imagina-crm'),
+            ));
+        }
+
+        $result = $this->records->update($portalList, $recordId, $cleanValues);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+
+        return new WP_REST_Response(['data' => $result]);
+    }
+
+    /**
+     * GET /portal/lists/{slug}/aggregates?fields=1,2,3
+     *
+     * Aggregates de records relacionados al cliente. Reutiliza el
+     * `RecordAggregator` con el scope SQL del portal inyectado vía
+     * `additionalWhere` — los totales son SIEMPRE solo del cliente
+     * actual.
+     */
+    public function getAggregates(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('slug'));
+        if ($list === null) {
+            return $this->notFound();
+        }
+
+        $user = wp_get_current_user();
+        $scope = $this->scope->recordsScopeWhere($user, $list);
+        // El portal nunca otorga ver-todo; si por algún edge el scope
+        // está vacío (no debería), bloqueamos como defensa adicional.
+        if ($scope['sql'] === '') {
+            return new WP_REST_Response(['data' => ['totals' => [], 'groups' => []]]);
+        }
+
+        $rawFields = (string) ($request->get_param('fields') ?? '');
+        $fieldIds = array_values(array_filter(
+            array_map('intval', explode(',', $rawFields)),
+            static fn (int $id): bool => $id > 0,
+        ));
+        if ($fieldIds === []) {
+            return new WP_REST_Response(['data' => ['totals' => [], 'groups' => []]]);
+        }
+
+        $result = $this->aggregator->aggregate(
+            $list,
+            $fieldIds,
+            null,    // sin filterTree extra — solo el scope del portal.
+            null,    // sin groupBy.
+            $scope,
+        );
+        return new WP_REST_Response(['data' => $result]);
     }
 
     /**

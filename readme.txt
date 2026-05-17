@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.4
+Stable tag: 0.39.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,151 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.5 =
+**Fase 9 — Portal del cliente (iteración 3.E: bloques avanzados +
+fix scope SQL en RecordAggregator).**
+
+Trae 3 nuevos tipos de bloque al portal y cierra de paso la
+limitación temporal del AggregatesController que devolvía 403
+para usuarios con scope acotado desde Fase 7.
+
+Tipos de bloque nuevos
+----------------------
+- `editable_form` — form donde el cliente actualiza un subset
+  whitelisteado de campos propios. La whitelist se respeta TANTO
+  client-side (qué inputs renderiza) COMO server-side (qué slugs
+  acepta el endpoint PATCH /portal/me). Slug fuera de whitelist
+  → 403 explícito (no silencioso) — error visible al cliente y
+  prevención de tampering.
+- `external_link` — CTA con link a recurso externo. Útil para
+  "Pagar factura", "Descargar PDF", "Agendar reunión". Atributos:
+  href, label, title, description, new_window (default true =
+  abre en nueva pestaña con noopener noreferrer).
+- `kpi_widget` — métrica simple (count/sum/avg/min/max) sobre
+  records relacionados al cliente. Reusa el endpoint
+  `/portal/lists/{slug}/aggregates` que aplica el scope SQL del
+  portal automáticamente — el KPI NUNCA incluye records ajenos.
+
+Endpoints REST nuevos
+---------------------
+- PATCH /imagina-crm/v1/portal/me
+  Cliente actualiza su propio record. Whitelist desde el template
+  configurado. Slug fuera de la whitelist → 403. Sin template
+  con bloque editable_form → 403 ("Tu portal no permite edición").
+- GET /imagina-crm/v1/portal/lists/{slug}/aggregates?fields=N,M
+  Aggregates con scope del portal. Reutiliza RecordAggregator
+  con additionalWhere = scope SQL.
+
+RecordAggregator extendido con additionalWhere
+----------------------------------------------
+src/Records/RecordAggregator.php — método aggregate() ahora acepta
+$additionalWhere opcional (mismo shape que en
+QueryBuilder::buildSelect desde Fase 7 — 1.D). La cláusula se
+appendea al WHERE final con AND. Si no se pasa, comportamiento
+idéntico al pre-3.E (back-compat).
+
+Fix de limitación temporal en AggregatesController
+--------------------------------------------------
+src/REST/AggregatesController.php — antes (desde Fase 7 — 1.D)
+devolvía 403 a usuarios con scope acotado (crm_agent con
+view=own) porque el aggregator no soportaba inyectar el filtro.
+Ahora inyecta el scope y devuelve agregados limitados a lo que
+el usuario puede ver. Cierre del TODO documentado en 0.37.2.
+
+Whitelist de campos editables
+-----------------------------
+PortalTemplate::editableFieldSlugs() devuelve la UNIÓN deduplicada
+de los slugs declarados en TODOS los bloques editable_form del
+template. Ejemplo: si el admin pone 2 bloques editable_form
+(uno con [telefono, direccion], otro con [direccion, email]), el
+cliente puede editar [telefono, direccion, email]. Esto permite
+splittear forms visualmente sin perder la semántica de "campos
+editables" en el backend.
+
+Si el template NO tiene ningún bloque editable_form, la whitelist
+es vacía y el endpoint PATCH /portal/me devuelve 403. El default
+template (cuando una lista de portal no tiene `portal_template`
+configurado) NO incluye editable_form → cliente sin admin
+configurando explícitamente NO puede mutar nada. Fail-closed.
+
+Frontend (bundle portal)
+------------------------
+- app/portal/blocks/EditableFormBlock.tsx
+- app/portal/blocks/ExternalLinkBlock.tsx
+- app/portal/blocks/KpiWidgetBlock.tsx
+- PortalRenderer.tsx — dispatcher actualizado con los 3 nuevos
+  cases.
+
+EditableFormBlock:
+- Input por slug (todos `type="text"` en 3.E — tipos específicos
+  por field type llegan en iteración futura, requeriría pasar
+  los types del field en `editable_field_types` del config del
+  bloque).
+- Submit a PATCH /portal/me con AbortController.
+- Estados: submitting, feedback (success/error con role aria
+  apropiado).
+- Errores tipados: 403 (whitelist violation), 422 (validation
+  del backend con mensaje específico del RecordValidator), otros.
+
+KpiWidgetBlock:
+- Fetch on-mount a /portal/lists/{slug}/aggregates.
+- Renderiza prefix + value + suffix (ej. "$1,234 USD").
+- Loading/error states.
+- Soporta count (sin field_id) y sum/avg/min/max (con field_id).
+
+ExternalLinkBlock:
+- Si href vacío → null (no renderiza nada).
+- target=_blank + rel=noopener,noreferrer por default
+  (configurable con new_window: false).
+
+CSS extendido
+-------------
+assets/portal.css con estilos para form fields, feedback banners
+(success verde / error rojo, accesibles con role=alert), KPI
+widget destacado (valor grande en color primary).
+
+Tests
+-----
+4 tests nuevos en PortalTemplateTest:
+- editableFieldSlugs() devuelve [] sin bloques editable_form
+  (defensa crítica: sin bloque → endpoint PATCH /portal/me bloquea
+  todo con 403).
+- Unión deduplicada entre múltiples bloques editable_form.
+- Filtra no-strings de la lista.
+- Los 3 tipos nuevos (editable_form, external_link, kpi_widget)
+  pasan el parser.
+
+Test del RecordAggregator con additionalWhere queda en backlog
+porque requiere FakeWpdb con soporte de `get_row` (actual solo
+tiene `prepare` y `esc_like`). Cobertura indirecta vía PHPStan
+strict y manual testing.
+
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, +4 nuevos pasan, 0 errores nuevos.
+
+Bundle portal: 9.46 KB raw / 3.08 KB gzip (+1.19 KB vs 0.39.3).
+Total para el cliente: ~49 KB gzip (vendor-react compartido).
+
+Fase 9 — status
+---------------
+Cerradas:
+- 3.A — PortalScopeService + tests de aislamiento (17 tests).
+- 3.B — REST + shortcode + auth flow.
+- 3.C — PortalTemplate + default fallback.
+- 3.D — Bundle JS + renderer + bloques base (static_text,
+  client_data, related_records_table).
+- 3.E — Bloques avanzados (editable_form, external_link,
+  kpi_widget) + fix aggregator.
+- 3.G — PortalAccountManager + endpoint Crear acceso.
+
+Quedan piezas opcionales:
+- 3.E parte 2 — bloques aún más avanzados (activity_timeline,
+  comments_thread, chart_widget, related_records_kanban,
+  download_files). Implementables uno por uno según necesidad.
+- UI del botón "Crear acceso al portal" en el panel CRM del record.
+- Tab "Configuración del portal" en el List Builder (UI para
+  settings.portal y template editor).
 
 = 0.39.4 =
 **Fase 9 — Portal del cliente (iteración 3.G: PortalAccountManager +
