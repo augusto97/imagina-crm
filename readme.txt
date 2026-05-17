@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.5
+Stable tag: 0.39.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,113 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.6 =
+**Fase 9 — Portal del cliente (UI de configuración) · CIERRE DE FASE 9.**
+
+Trae el panel "Portal del cliente" al List Builder para configurar
+`settings.portal` y `settings.portal_template` desde UI visual en vez
+de tener que editar JSON via REST PATCH manual. Con este release la
+Fase 9 queda 100% cerrada.
+
+Frontend
+--------
+- `app/types/portal.ts`: tipos espejo de `PortalConfig.php` y
+  `PortalTemplate.php` + defaults + lista de tipos de bloque con
+  labels human-readable.
+- `app/admin/lists/PortalConfigPanel.tsx`: panel completo.
+    * Toggle "Habilitar como lista de portal".
+    * Selector de owner_field (filtrado a fields tipo `user`).
+    * Editor JSON del template con validación parse-time.
+    * Botones "Insertar ejemplo" para cada tipo de bloque
+      (static_text, client_data, editable_form, related_records_table,
+      kpi_widget, external_link) — el admin no tiene que memorizar
+      el shape: presiona el botón y aparece un ejemplo editable.
+    * Snippet del shortcode `[imcrm-client-portal]` con botón copiar.
+    * Validación client-side:
+        - JSON parseable + tiene `blocks: []`.
+        - Si enabled=true, owner_field_id es obligatorio.
+        - Si owner_field_id está seteado, debe existir Y ser tipo user.
+    * Cuando enabled=false: panel colapsado con nota explicando que
+      los endpoints /portal/* devuelven 404 mientras la lista no
+      esté marcada como portal.
+
+Por qué editor JSON y no editor visual
+--------------------------------------
+Un editor visual drag-and-drop del template es trabajo significativo
+(~3-5 días de UI) que excede el alcance de esta iteración. El editor
+JSON con botones de "Insertar ejemplo" cubre el caso de uso al 80%
+del esfuerzo — el admin puede:
+1. Ver el shape concreto del template (developer-friendly).
+2. Generar bloques nuevos con un click sin tener que escribir.
+3. Editar config inline sin abrir N modales.
+4. Validar el JSON antes de guardar.
+
+Un editor visual queda como mejora opcional cuando alguien la pida
+explícitamente.
+
+Cableado
+--------
+ListBuilderPage.tsx: nuevo panel renderizado entre
+PublicVisibilityPanel y MaintenancePanel. La página ahora tiene 5
+paneles más allá del General + FieldBuilder:
+- Appearance
+- Permissions (Fase 7)
+- Public Visibility (Fase 8)
+- Portal Config (Fase 9 — este release)
+- Maintenance
+
+Diseño de merge
+---------------
+El panel solo escribe `settings.portal` y `settings.portal_template`.
+El resto de `settings` (permissions, public, otros) queda intacto.
+Evita race conditions con otros paneles que también persisten en
+`settings`.
+
+Fase 9 cerrada
+--------------
+| Iter.  | Versión | Entrega                                          |
+|--------|---------|--------------------------------------------------|
+| 3.A    | 0.39.0  | PortalScopeService + tests aislamiento (17 tests) |
+| 3.B    | 0.39.1  | REST + shortcode + auth flow                     |
+| 3.C    | 0.39.2  | PortalTemplate + default fallback                |
+| 3.D    | 0.39.3  | Bundle JS + bloques base (static_text,
+                    client_data, related_records_table)             |
+| 3.E    | 0.39.5  | Bloques avanzados (editable_form, external_link,
+                    kpi_widget) + fix aggregator scope              |
+| 3.G    | 0.39.4  | PortalAccountManager + endpoint Crear acceso     |
+| UI     | 0.39.6  | Tab "Portal del cliente" en List Builder         |
+
+Cómo usarlo end-to-end ahora (todo via UI admin)
+-------------------------------------------------
+1. Crear lista "Clientes" en admin. Agregar fields incluyendo
+   uno tipo Usuario (ej. "cuenta_wp").
+2. Editar lista → tab "Portal del cliente" → marcar habilitar +
+   elegir "cuenta_wp" como owner_field → guardar.
+3. (Opcional) Editar el template del portal: click "Insertar ejemplo"
+   en los tipos de bloque que quieras + ajustar config.
+4. Para cada cliente:
+   - Crear el record en la lista.
+   - POST /imagina-crm/v1/portal/lists/clientes/records/{id}/access
+     (botón en panel CRM queda como mejora futura).
+   - El cliente recibe email con login + pass.
+5. Crear página WP con shortcode [imcrm-client-portal].
+6. Cliente entra, ve su portal con los bloques configurados.
+   PortalScopeService garantiza aislamiento.
+
+Piezas opcionales que quedan
+----------------------------
+- Botón "Crear acceso al portal" en panel CRM del record (alternativa
+  al curl/POST manual).
+- Bloques aún más avanzados (activity_timeline, comments_thread,
+  chart_widget, related_records_kanban, download_files).
+- Editor visual drag-and-drop del template (en lugar del JSON).
+
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 14.80 KB gzip (+1.66 KB vs 0.39.5 por el
+nuevo panel).
 
 = 0.39.5 =
 **Fase 9 — Portal del cliente (iteración 3.E: bloques avanzados +

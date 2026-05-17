@@ -4,6 +4,46 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.6] — 2026-05-17
+
+**Cierre de la Fase 9.** Trae el panel "Portal del cliente" al List
+Builder para configurar `settings.portal` y `settings.portal_template`
+desde UI visual.
+
+### Añadido
+
+- `app/types/portal.ts` — tipos espejo + defaults + catálogo de
+  tipos de bloque con labels.
+- `app/admin/lists/PortalConfigPanel.tsx` — panel completo:
+    * Toggle habilitar portal.
+    * Selector de owner_field filtrado a tipo Usuario.
+    * Editor JSON del template + 6 botones "Insertar ejemplo" para
+      cada tipo de bloque (genera ejemplos editables sin tener que
+      memorizar shapes).
+    * Validación client-side (JSON parseable, owner_field requerido
+      si enabled, owner_field debe ser tipo user).
+    * Snippet del shortcode con botón copiar.
+    * Estado colapsado cuando disabled.
+
+### Fase 9 cerrada
+
+| Iter.  | Versión | Entrega                                              |
+|--------|---------|------------------------------------------------------|
+| 3.A    | 0.39.0  | PortalScopeService + 17 tests aislamiento críticos   |
+| 3.B    | 0.39.1  | REST + shortcode + auth flow                         |
+| 3.C    | 0.39.2  | PortalTemplate + default fallback                    |
+| 3.D    | 0.39.3  | Bundle JS + 3 bloques base                           |
+| 3.E    | 0.39.5  | 3 bloques avanzados + fix aggregator scope           |
+| 3.G    | 0.39.4  | PortalAccountManager + endpoint Crear acceso         |
+| UI     | 0.39.6  | Tab "Portal del cliente" en List Builder             |
+
+### Piezas opcionales que quedan
+
+- Botón "Crear acceso al portal" en panel CRM del record.
+- Bloques aún más avanzados (activity_timeline, comments_thread,
+  chart_widget, etc.).
+- Editor visual drag-and-drop del template.
+
 ## [0.39.5] — 2026-05-17
 
 Continuación de la **Fase 9 — Portal del cliente** (iteración 3.E:
