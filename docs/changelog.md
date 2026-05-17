@@ -4,6 +4,35 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.2] — 2026-05-17
+
+Continuación de la **Fase 9 — Portal del cliente** (iteración 3.C:
+template + default fallback). Sistema de templates almacenado en
+`settings.portal_template` (JSON, sin tabla nueva — decisión de
+simplificar respecto al plan original).
+
+### Añadido
+
+- `src/Portal/PortalTemplate.php` — value object con whitelist de
+  tipos válidos (`client_data`, `related_records_table`, `static_text`)
+  + `defaultFor(fields)` que genera template usable sin config previa.
+- `PortalController::getMe` ahora devuelve `template: {blocks: [...]}`.
+  Si la lista no tiene `portal_template`, se inyecta el default.
+- 9 tests nuevos en `PortalTemplateTest`.
+
+### Decisión de diseño
+
+El plan original proponía una tabla `wp_imcrm_templates` con columna
+`kind`. Se simplifica a un JSON en `settings.portal_template` —
+reusa la misma infra que `crm_panel_template` ya existente. Cero
+schema bump, menos código, suficiente para los casos previstos.
+
+### Próximas iteraciones
+
+- 3.D — Bundle `app/portal.tsx` + renderer de bloques.
+- 3.E — Bloques avanzados (opcional).
+- 3.G — Botón "Crear acceso al portal".
+
 ## [0.39.1] — 2026-05-17
 
 Continuación de la **Fase 9 — Portal del cliente** (iteración 3.B:

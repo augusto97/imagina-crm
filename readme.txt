@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.1
+Stable tag: 0.39.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,85 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.2 =
+**Fase 9 — Portal del cliente (iteración 3.C: template + default fallback).**
+
+Trae el sistema de templates del portal. Decisión de diseño:
+**usar el mismo modelo que `crm_panel_template` (JSON en
+settings)** en vez de una tabla nueva — el doc original
+proponía una tabla `wp_imcrm_templates` pero eso es overkill
+para el shape simple que necesitamos. Resultado: cero schema
+bump, infra reutilizada.
+
+Storage
+-------
+El template vive en `wp_imcrm_lists.settings.portal_template`
+(la lista de portal contiene su propio template). Shape:
+
+    {
+      "portal_template": {
+        "blocks": [
+          { "type": "client_data", "config": {...} },
+          { "type": "related_records_table", "config": {...} },
+          ...
+        ]
+      }
+    }
+
+Cambios técnicos
+----------------
+- `src/Portal/PortalTemplate.php`: value object inmutable.
+    * `fromListSettings()` — parsea con whitelist de tipos
+      válidos (descarta tipos desconocidos silenciosamente
+      para tolerar versionado).
+    * `defaultFor(fields)` — genera un template default cuando
+      la lista no tiene `portal_template` configurado: un
+      bloque `static_text` con mensaje de bienvenida + un
+      bloque `client_data` mostrando todos los fields del
+      record cliente (excepto `relation` y soft-deleted).
+- `PortalController::getMe` ahora devuelve `template: {blocks: [...]}`
+  además de `record` y `user`. Si la lista de portal no tiene
+  template configurado, se inyecta el default — el cliente NUNCA
+  recibe `template: null`.
+
+Tipos de bloque soportados en 3.C
+---------------------------------
+- `client_data` — datos del record cliente (subset de fields).
+- `related_records_table` — tabla de records de otra lista
+  relacionada al cliente.
+- `static_text` — bloque HTML estático (mensaje de bienvenida,
+  instrucciones).
+
+Render JS de estos tres bloques llega en 3.D (bundle `app/portal.tsx`).
+
+Tipos futuros (3.E, opcional)
+-----------------------------
+- `editable_form` — form para que el cliente actualice campos.
+- `kpi_widget`, `chart_widget` — métricas.
+- `activity_timeline`, `comments_thread`.
+
+Tests
+-----
+9 tests unitarios nuevos en `PortalTemplateTest`:
+- Empty cuando no hay `portal_template` o `blocks`.
+- Parsing de blocks válidos.
+- Drop silencioso de tipos desconocidos (tolerancia a
+  versionado: bloques de futuras versiones no rompen).
+- Drop de entradas no-array.
+- Default incluye intro + client_data.
+- Default omite fields `relation` y soft-deleted.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 397 tests, +9 nuevos pasan.
+
+Próximas iteraciones
+--------------------
+- 3.D — Bundle `app/portal.tsx` con renderer que consume
+  `/portal/me` y renderiza los 3 tipos de bloque base.
+- 3.E — Bloques avanzados (kpi, charts, comments, activity,
+  editable_form). Opcional.
+- 3.G — Botón "Crear acceso al portal" en la lista de clientes.
 
 = 0.39.1 =
 **Fase 9 — Portal del cliente (iteración 3.B: REST + shortcode + auth flow).**

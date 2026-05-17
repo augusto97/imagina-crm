@@ -222,6 +222,7 @@ final class Plugin
                 $c->get(PortalScopeService::class),
                 $c->get(ListService::class),
                 $c->get(RecordService::class),
+                $c->get(FieldRepository::class),
             );
         });
 

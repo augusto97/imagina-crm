@@ -3,11 +3,12 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\REST;
 
+use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Portal\ClientResolverInterface;
-use ImaginaCRM\Portal\PortalConfig;
 use ImaginaCRM\Portal\PortalScopeService;
+use ImaginaCRM\Portal\PortalTemplate;
 use ImaginaCRM\Records\RecordService;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
@@ -46,6 +47,7 @@ final class PortalController extends AbstractController
         private readonly PortalScopeService $scope,
         private readonly ListService $lists,
         private readonly RecordService $records,
+        private readonly FieldRepository $fields,
     ) {
         parent::__construct();
     }
@@ -111,7 +113,15 @@ final class PortalController extends AbstractController
             return $this->notFound();
         }
 
-        $portalConfig = PortalConfig::fromListSettings($portalList->settings);
+        // Template del portal: si la lista de portal tiene
+        // `settings.portal_template` configurado, lo usamos. Sino,
+        // generamos uno default con los fields del record cliente
+        // (cero-config, "out-of-the-box").
+        $template = PortalTemplate::fromListSettings($portalList->settings);
+        if ($template->isEmpty()) {
+            $portalFields = $this->fields->allForList($portalList->id);
+            $template = PortalTemplate::defaultFor($portalFields);
+        }
 
         return new WP_REST_Response([
             'data' => [
@@ -126,7 +136,7 @@ final class PortalController extends AbstractController
                     'display_name' => $user->display_name,
                     'email'        => $user->user_email,
                 ],
-                'template_id' => $portalConfig->defaultTemplateId,
+                'template' => ['blocks' => $template->toArray()],
             ],
         ]);
     }
