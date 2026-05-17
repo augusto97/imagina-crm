@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.8
+Stable tag: 0.39.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,76 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.9 =
+**Editor visual del template del portal del cliente.**
+
+Reemplaza el textarea JSON + botones "Insertar ejemplo" del
+PortalConfigPanel por un editor visual de bloques con cards
+colapsables y forms específicos por tipo. Mantiene modo "Avanzado
+(JSON)" para usuarios power.
+
+UX antes vs después
+-------------------
+Antes (0.39.6 → 0.39.8):
+- Textarea con JSON crudo.
+- Botones "+ Texto" / "+ Datos" / etc. que insertan un ejemplo
+  hardcodeado al final del JSON.
+- El admin tenía que editar el JSON a mano para personalizar.
+- Errores de parsing => mensaje de error.
+- Funcional pero no amigable para no-developers.
+
+Ahora (0.39.9):
+- Lista de cards, una por bloque del template:
+    * Header con badge del type + título + botones acción
+      (subir/bajar/eliminar).
+    * Click expande con form de configuración inline.
+    * Form específico por tipo de bloque:
+        - static_text: textarea HTML.
+        - client_data: input "Slugs visibles" (CSV).
+        - editable_form: slugs editables + texto del botón.
+        - related_records_table: list_slug + slugs visibles + per_page.
+        - kpi_widget: list_slug + field_id + metric + prefix/suffix.
+        - external_link: URL + label + descripción.
+        - activity_timeline: límite de eventos.
+        - download_files: slug del campo de archivo.
+- Botón "Agregar bloque" con dropdown de los 8 tipos.
+- Toggle "Modo avanzado (JSON)" para usuarios que quieren copy-paste
+  el template entre listas o editar configs exóticas.
+
+Archivos nuevos
+---------------
+app/admin/lists/PortalTemplateEditor.tsx
+- PortalTemplateEditor (componente principal).
+- BlockCard (header + expanded form).
+- BlockConfigForm (switch por type con inputs específicos).
+- ConfigField (wrapper label+input+hint).
+- SlugsInput (input CSV → string[]).
+- defaultConfigFor() (config conservadora al crear bloque nuevo).
+
+PortalConfigPanel refactor
+--------------------------
+- State: ahora trabaja con `template: PortalTemplate` directo, no
+  con `templateJson: string`. Sin parsing por edición — el editor
+  visual mantiene el shape correcto.
+- Sin manejo de jsonError local (movido al editor cuando está en
+  modo avanzado).
+- handleSave simplificado: no necesita JSON.parse — directamente
+  pasa el template object al backend.
+
+Modo avanzado preserva al salir
+-------------------------------
+Cuando el usuario está en modo avanzado editando JSON y presiona
+"← Vista de cards", el editor intenta aplicar el JSON actual si es
+válido antes de cambiar al modo cards. Sin pérdida de ediciones.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 16.49 KB gzip (+1.69 KB vs 0.39.8 por el
+editor visual). Mejora UX significativa por el costo de bundle.
 
 = 0.39.8 =
 **Pulidos post-Fase 9 (parte 2): bloques avanzados activity_timeline

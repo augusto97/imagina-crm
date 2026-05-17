@@ -4,6 +4,36 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.9] — 2026-05-17
+
+Editor visual del template del portal del cliente. Reemplaza el
+textarea JSON + botones "Insertar ejemplo" del PortalConfigPanel
+por un editor de bloques con cards colapsables y forms específicos
+por tipo.
+
+### Añadido
+
+- `app/admin/lists/PortalTemplateEditor.tsx`:
+    * Lista de cards (BlockCard) con reorder/delete/expand.
+    * Form de config por tipo de bloque (BlockConfigForm) — inputs
+      específicos para los 8 tipos.
+    * Botón "Agregar bloque" con dropdown.
+    * Toggle "Modo avanzado (JSON)" para casos donde el form no
+      cubra alguna config exótica o para copy-paste de templates.
+
+### Cambiado
+
+- `PortalConfigPanel` refactor:
+    * State con `template: PortalTemplate` directo (no string JSON).
+    * `handleSave` simplificado (no parsing).
+    * Sin manejo local de jsonError (movido al editor en modo
+      avanzado).
+
+### Métricas
+
+ListBuilderPage chunk: 16.49 KB gzip (+1.69 KB vs 0.39.8). Mejora
+UX significativa por el costo.
+
 ## [0.39.8] — 2026-05-17
 
 Dos bloques avanzados nuevos para el portal del cliente. Con esto

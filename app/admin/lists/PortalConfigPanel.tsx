@@ -10,13 +10,14 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useFields } from '@/hooks/useFields';
 import { useUpdateList } from '@/hooks/useLists';
 import { ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
 import type { ListSummary } from '@/types/list';
-import { PORTAL_BLOCK_TYPES, PORTAL_DEFAULTS, type PortalSettings, type PortalTemplate } from '@/types/portal';
+import { PORTAL_DEFAULTS, type PortalSettings, type PortalTemplate } from '@/types/portal';
+
+import { PortalTemplateEditor } from './PortalTemplateEditor';
 
 interface Props {
     list: ListSummary;
@@ -45,54 +46,20 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
     const initialTemplate = useMemo<PortalTemplate>(() => readTemplate(list.settings), [list.settings]);
 
     const [portal, setPortal] = useState<PortalSettings>(initialPortal);
-    const [templateJson, setTemplateJson] = useState<string>(
-        JSON.stringify(initialTemplate, null, 2),
-    );
-    const [jsonError, setJsonError] = useState<string | null>(null);
+    const [template, setTemplate] = useState<PortalTemplate>(initialTemplate);
+    const [advancedMode, setAdvancedMode] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [copyHint, setCopyHint] = useState<string | null>(null);
 
     useEffect(() => {
         setPortal(initialPortal);
-        setTemplateJson(JSON.stringify(initialTemplate, null, 2));
+        setTemplate(initialTemplate);
     }, [initialPortal, initialTemplate]);
 
     const userFields = useMemo(() => (fields.data ?? []).filter((f) => f.type === 'user'), [fields.data]);
 
-    const insertBlockExample = (type: string): void => {
-        let current: PortalTemplate;
-        try {
-            current = JSON.parse(templateJson) as PortalTemplate;
-            if (!Array.isArray(current.blocks)) current = { blocks: [] };
-        } catch {
-            current = { blocks: [] };
-        }
-        current.blocks.push({ type: type as PortalTemplate['blocks'][number]['type'], config: exampleConfigFor(type) });
-        setTemplateJson(JSON.stringify(current, null, 2));
-        setJsonError(null);
-    };
-
     const handleSave = async (): Promise<void> => {
         setSubmitError(null);
-        setJsonError(null);
-
-        let parsedTemplate: PortalTemplate;
-        try {
-            parsedTemplate = JSON.parse(templateJson) as PortalTemplate;
-            if (typeof parsedTemplate !== 'object' || parsedTemplate === null) {
-                throw new Error('No es un objeto');
-            }
-            if (!Array.isArray(parsedTemplate.blocks)) {
-                throw new Error('Debe tener una propiedad `blocks: []`');
-            }
-        } catch (err) {
-            setJsonError(
-                err instanceof Error
-                    ? `JSON inválido: ${err.message}`
-                    : 'JSON inválido',
-            );
-            return;
-        }
 
         // Validación coherencia: si owner_field_id está seteado, debe
         // existir Y ser tipo `user`. El backend igual valida, pero
@@ -111,7 +78,7 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
         }
 
         try {
-            const nextSettings = mergeIntoSettings(list.settings, portal, parsedTemplate);
+            const nextSettings = mergeIntoSettings(list.settings, portal, template);
             await update.mutateAsync({ settings: nextSettings });
         } catch (err) {
             setSubmitError(
@@ -185,41 +152,14 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
                             </p>
                         </div>
 
-                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                            <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3">
-                                <Label htmlFor="portal-template-json">{__('Template del portal (JSON)')}</Label>
-                                <div className="imcrm-flex imcrm-gap-2">
-                                    {PORTAL_BLOCK_TYPES.map((bt) => (
-                                        <button
-                                            key={bt.value}
-                                            type="button"
-                                            onClick={() => insertBlockExample(bt.value)}
-                                            className="imcrm-rounded imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-py-1 imcrm-text-xs hover:imcrm-bg-muted"
-                                            title={__('Insertar ejemplo de bloque')}
-                                        >
-                                            + {bt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <Textarea
-                                id="portal-template-json"
-                                value={templateJson}
-                                onChange={(e) => {
-                                    setTemplateJson(e.target.value);
-                                    setJsonError(null);
-                                }}
-                                rows={14}
-                                className="imcrm-font-mono imcrm-text-xs"
+                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                            <Label>{__('Template del portal')}</Label>
+                            <PortalTemplateEditor
+                                template={template}
+                                onChange={setTemplate}
+                                advancedMode={advancedMode}
+                                onAdvancedToggle={setAdvancedMode}
                             />
-                            {jsonError !== null && (
-                                <p className="imcrm-text-xs imcrm-text-destructive">{jsonError}</p>
-                            )}
-                            <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                                {__(
-                                    'Si dejas blocks: [], el portal renderiza un template default con los datos del cliente. Para empezar, click en los botones de arriba para insertar ejemplos.',
-                                )}
-                            </p>
                         </div>
 
                         <div className="imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-3">
@@ -315,50 +255,3 @@ function mergeIntoSettings(
     };
 }
 
-function exampleConfigFor(type: string): Record<string, unknown> {
-    switch (type) {
-        case 'static_text':
-            return { html: '<p>Bienvenido a tu portal.</p>', title: 'Bienvenida' };
-        case 'client_data':
-            return { visible_field_slugs: ['nombre', 'email'], title: 'Mis datos' };
-        case 'editable_form':
-            return {
-                editable_field_slugs: ['telefono', 'direccion'],
-                title: 'Actualizar mis datos',
-                submit_label: 'Guardar',
-            };
-        case 'related_records_table':
-            return {
-                list_slug: 'facturas',
-                visible_field_slugs: ['fecha', 'monto', 'estado'],
-                title: 'Mis facturas',
-                per_page: 10,
-            };
-        case 'kpi_widget':
-            return {
-                list_slug: 'facturas',
-                field_id: 0,
-                metric: 'count',
-                title: 'Total de facturas',
-            };
-        case 'external_link':
-            return {
-                href: 'https://example.com',
-                label: 'Visitar',
-                title: 'Acción externa',
-                new_window: true,
-            };
-        case 'activity_timeline':
-            return {
-                title: 'Actividad reciente',
-                limit: 20,
-            };
-        case 'download_files':
-            return {
-                title: 'Mis archivos',
-                field_slug: 'archivo_adjunto',
-            };
-        default:
-            return {};
-    }
-}
