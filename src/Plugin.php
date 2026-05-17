@@ -231,6 +231,7 @@ final class Plugin
                 $c->get(FieldRepository::class),
                 $c->get(\ImaginaCRM\Portal\PortalAccountManager::class),
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
+                $c->get(\ImaginaCRM\Activity\ActivityRepository::class),
             );
         });
 

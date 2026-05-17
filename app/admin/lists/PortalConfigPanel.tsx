@@ -348,6 +348,16 @@ function exampleConfigFor(type: string): Record<string, unknown> {
                 title: 'Acción externa',
                 new_window: true,
             };
+        case 'activity_timeline':
+            return {
+                title: 'Actividad reciente',
+                limit: 20,
+            };
+        case 'download_files':
+            return {
+                title: 'Mis archivos',
+                field_slug: 'archivo_adjunto',
+            };
         default:
             return {};
     }

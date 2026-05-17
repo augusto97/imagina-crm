@@ -21,7 +21,9 @@ export type PortalBlockType =
     | 'static_text'
     | 'editable_form'
     | 'external_link'
-    | 'kpi_widget';
+    | 'kpi_widget'
+    | 'activity_timeline'
+    | 'download_files';
 
 export const PORTAL_BLOCK_TYPES: Array<{ value: PortalBlockType; label: string }> = [
     { value: 'static_text', label: 'Texto / HTML' },
@@ -30,6 +32,8 @@ export const PORTAL_BLOCK_TYPES: Array<{ value: PortalBlockType; label: string }
     { value: 'related_records_table', label: 'Tabla de registros relacionados' },
     { value: 'kpi_widget', label: 'KPI / métrica' },
     { value: 'external_link', label: 'Enlace externo (CTA)' },
+    { value: 'activity_timeline', label: 'Timeline de actividad' },
+    { value: 'download_files', label: 'Archivos descargables' },
 ];
 
 export interface PortalTemplateBlock {

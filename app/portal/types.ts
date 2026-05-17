@@ -78,6 +78,21 @@ export type PortalBlock =
               suffix?: string;
               prefix?: string;
           };
+      }
+    // Fase 9 — pulidos
+    | {
+          type: 'activity_timeline';
+          config: {
+              title?: string;
+              limit?: number;
+          };
+      }
+    | {
+          type: 'download_files';
+          config: {
+              title?: string;
+              field_slug?: string;
+          };
       };
 
 export interface PortalMeResponse {

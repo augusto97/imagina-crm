@@ -66,6 +66,9 @@ final class PortalTemplate
         'editable_form',
         'external_link',
         'kpi_widget',
+        // Fase 9 — pulidos
+        'activity_timeline',
+        'download_files',
     ];
 
     /**

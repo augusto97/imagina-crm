@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\REST;
 
+use ImaginaCRM\Activity\ActivityEntity;
+use ImaginaCRM\Activity\ActivityRepository;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
@@ -52,6 +54,7 @@ final class PortalController extends AbstractController
         private readonly FieldRepository $fields,
         private readonly PortalAccountManager $accounts,
         private readonly RecordAggregator $aggregator,
+        private readonly ActivityRepository $activity,
     ) {
         parent::__construct();
     }
@@ -103,6 +106,21 @@ final class PortalController extends AbstractController
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getRecord'],
                 'permission_callback' => $canAccess,
+            ],
+        );
+
+        // Activity timeline del record del cliente (bloque activity_timeline).
+        register_rest_route(
+            $this->namespace,
+            '/portal/me/activity',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getMyActivity'],
+                'permission_callback' => $canAccess,
+                'args'                => [
+                    'limit'  => ['type' => 'integer', 'default' => 50],
+                    'offset' => ['type' => 'integer', 'default' => 0],
+                ],
             ],
         );
 
@@ -220,6 +238,40 @@ final class PortalController extends AbstractController
         }
 
         return new WP_REST_Response(['data' => $result]);
+    }
+
+    /**
+     * GET /portal/me/activity
+     *
+     * Timeline de actividad del record del cliente. Reusa
+     * `ActivityRepository::recentForRecord` con list_id + record_id
+     * resueltos desde el ClientResolver (no se aceptan IDs como
+     * params — defensa contra spoofing).
+     */
+    public function getMyActivity(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $user = wp_get_current_user();
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null) {
+            return $this->notFound();
+        }
+        $clientRecord = $this->resolver->clientRecordFor($user);
+        if ($clientRecord === null) {
+            return $this->notFound();
+        }
+        $recordId = isset($clientRecord['id']) ? (int) $clientRecord['id'] : 0;
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+
+        $limit  = max(1, min(200, (int) ($request->get_param('limit') ?? 50)));
+        $offset = max(0, (int) ($request->get_param('offset') ?? 0));
+
+        $items = array_map(
+            static fn (ActivityEntity $a): array => $a->toArray(),
+            $this->activity->recentForRecord($portalList->id, $recordId, $limit, $offset),
+        );
+        return new WP_REST_Response(['data' => $items]);
     }
 
     /**

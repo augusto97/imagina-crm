@@ -4,6 +4,31 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.8] — 2026-05-17
+
+Dos bloques avanzados nuevos para el portal del cliente. Con esto
+el portal cubre 8 de los 11 tipos del plan original.
+
+### Añadido
+
+- Bloque `activity_timeline` — timeline del record del cliente.
+  Endpoint nuevo `GET /portal/me/activity` que reusa
+  `ActivityRepository::recentForRecord` (Fase 7).
+- Bloque `download_files` — lista de attachments del record.
+  100% client-side, usa endpoint nativo de WP
+  `/wp-json/wp/v2/media?include=N` (sin nuevo endpoint del plugin).
+- `PORTAL_BLOCK_TYPES` ampliado en panel admin con los 2 nuevos
+  + ejemplos en `exampleConfigFor`.
+
+### Total tipos de bloque del portal: 8/11
+
+- 3.D: static_text, client_data, related_records_table.
+- 3.E: editable_form, external_link, kpi_widget.
+- Pulidos: activity_timeline, download_files.
+
+Restantes opcionales: related_records_kanban, chart_widget,
+comments_thread.
+
 ## [0.39.7] — 2026-05-17
 
 Tres pulidos post-Fase 9 de mejora UX/seguridad.

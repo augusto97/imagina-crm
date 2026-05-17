@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.7
+Stable tag: 0.39.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,114 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.8 =
+**Pulidos post-Fase 9 (parte 2): bloques avanzados activity_timeline
+y download_files.**
+
+Dos tipos de bloque nuevos para el portal del cliente. Los más útiles
+de la lista que mencionaba el plan original. Con esto el portal cubre
+ya 8 de los 11 tipos de bloque propuestos.
+
+Bloque `activity_timeline`
+--------------------------
+Timeline de eventos del record del cliente. Muestra cuándo se creó,
+cuándo se actualizó, comentarios agregados, menciones recibidas,
+automatizaciones ejecutadas.
+
+Backend nuevo:
+- `GET /imagina-crm/v1/portal/me/activity?limit=N&offset=N`
+  Cap: imcrm_access_portal.
+  Resuelve list_id + record_id desde el ClientResolver — el cliente
+  NO puede spoofear IDs (defensa contra acceso a actividad ajena).
+  Reusa ActivityRepository::recentForRecord (Fase 7).
+
+Frontend:
+- app/portal/blocks/ActivityTimelineBlock.tsx — fetch on-mount con
+  AbortController.
+- UI: timeline vertical con dots conectados por borde izquierdo.
+- Mapeo de `action` slugs a texto legible (record.created → "Registro
+  creado", etc.) para los 8 más comunes; fallback al string crudo.
+- Sin avatares ni iconos por type (cubrir 20+ types implicaría mucho
+  mapeo; texto crudo es suficiente para esta versión).
+
+Bloque `download_files`
+-----------------------
+Lista los archivos adjuntos al record del cliente.
+
+Implementación 100% client-side:
+- El record ya viene con los IDs de attachment en `record.fields[<slug>]`
+  (el field tipo `file` los guarda como int o array de ints).
+- El bundle llama al endpoint NATIVO de WP `/wp-json/wp/v2/media?include=N,M,O`
+  que es público para attachments.
+- Renderiza la lista con icono + nombre + botón download.
+
+Por qué no agregamos endpoint al plugin:
+- WP ya tiene endpoint público para media. Reusarlo evita duplicar
+  lógica de attachment lookup, permisos de archivos, etc.
+- Si el attachment fue borrado (404), se omite del listado sin
+  romper el render.
+- Single round-trip — usamos `?include=N,M,O` para traer todos los
+  metadata de una vez.
+
+Edge cases manejados:
+- Field con valor null/0/'' → "Sin archivos disponibles".
+- Field single (int) o múltiple (array): mismo path.
+- HTML en title del attachment (raro pero posible) → strip + fallback
+  a "Archivo #ID".
+- Field slug no configurado → mensaje de error.
+
+PortalTemplate ampliado
+-----------------------
+src/Portal/PortalTemplate.php — VALID_BLOCK_TYPES incluye los 2
+nuevos. Drop silencioso de tipos desconocidos sigue funcionando
+(tolerancia a versionado).
+
+Total tipos de bloque soportados en el plugin: 8
+- static_text, client_data, related_records_table (Fase 9 — 3.D)
+- editable_form, external_link, kpi_widget (Fase 9 — 3.E)
+- activity_timeline, download_files (pulidos)
+
+Tipos del plan original NO implementados todavía:
+- related_records_kanban — variante del tabla, baja prioridad.
+- chart_widget — requiere lib de charts (~30 KB extra).
+- comments_thread — requiere endpoint POST para que cliente comente.
+
+Estos 3 quedan disponibles si el usuario los pide explícitamente.
+
+UI del admin
+------------
+app/types/portal.ts — PORTAL_BLOCK_TYPES incluye los 2 nuevos con
+labels legibles ("Timeline de actividad", "Archivos descargables").
+
+app/admin/lists/PortalConfigPanel.tsx — exampleConfigFor() genera
+ejemplos editables para los 2 nuevos tipos cuando el admin presiona
+los botones "+ Timeline" / "+ Archivos descargables".
+
+Estilos
+-------
+assets/portal.css extendido con:
+- .imcrm-portal-activity — lista con border-left + dots posicionados.
+- .imcrm-portal-downloads — lista de cards con icono + link.
+- Hover states + colores via variables --imcrm-portal-*.
+
+Tests
+-----
+PortalTemplateTest: 1 test actualizado para incluir los 2 nuevos
+tipos. Total: 13 tests en PortalTemplateTest verifican el parser.
+
+Backend del endpoint /portal/me/activity sin test unitario directo —
+requiere stub de WP_User + ClientResolver (cubierto por
+PortalScopeServiceTest indirectamente). Tests integration con WP
+real cuando esté el suite.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+Bundle portal: 15.94 KB raw / 4.53 KB gzip (+0.85 KB vs 0.39.7 por
+los 2 nuevos bloques). Total para el cliente: ~50.2 KB gzip.
 
 = 0.39.7 =
 **Pulidos post-Fase 9: botón "Crear acceso", gating per-cell TableView,

@@ -302,6 +302,89 @@
     color: var(--imcrm-portal-primary);
 }
 
+/* activity_timeline */
+.imcrm-portal-activity {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 2px solid var(--imcrm-portal-border);
+}
+.imcrm-portal-activity__item {
+    position: relative;
+    padding: 0 0 0.75rem 1rem;
+    margin-left: -1px;
+}
+.imcrm-portal-activity__item:last-child {
+    padding-bottom: 0;
+}
+.imcrm-portal-activity__dot {
+    position: absolute;
+    left: -5px;
+    top: 0.4rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--imcrm-portal-primary);
+}
+.imcrm-portal-activity__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+.imcrm-portal-activity__action {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--imcrm-portal-text);
+}
+.imcrm-portal-activity__meta {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--imcrm-portal-muted);
+}
+
+/* download_files */
+.imcrm-portal-downloads {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.imcrm-portal-downloads__item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-bg);
+    transition: background 0.12s;
+}
+.imcrm-portal-downloads__item:hover {
+    background: var(--imcrm-portal-card-bg);
+}
+.imcrm-portal-downloads__icon {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    color: var(--imcrm-portal-muted);
+}
+.imcrm-portal-downloads__link {
+    flex: 1;
+    color: var(--imcrm-portal-text);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+.imcrm-portal-downloads__link:hover {
+    color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-downloads__action {
+    width: 1rem;
+    height: 1rem;
+    color: var(--imcrm-portal-muted);
+}
+
 @media (prefers-color-scheme: dark) {
     .imcrm-portal-root,
     .imcrm-portal-card {

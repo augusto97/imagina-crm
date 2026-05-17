@@ -174,22 +174,27 @@ final class PortalTemplateTest extends TestCase
 
     public function test_new_block_types_accepted(): void
     {
-        // Defensa: los 3 tipos nuevos de Fase 9 — 3.E (editable_form,
-        // external_link, kpi_widget) deben pasar el parser.
+        // Defensa: los 5 tipos nuevos de Fase 9 (editable_form,
+        // external_link, kpi_widget en 3.E + activity_timeline,
+        // download_files en pulidos) deben pasar el parser.
         $tpl = PortalTemplate::fromListSettings([
             'portal_template' => [
                 'blocks' => [
                     ['type' => 'editable_form', 'config' => []],
                     ['type' => 'external_link', 'config' => ['href' => 'https://x.com']],
                     ['type' => 'kpi_widget', 'config' => ['list_slug' => 'facturas']],
+                    ['type' => 'activity_timeline', 'config' => ['limit' => 30]],
+                    ['type' => 'download_files', 'config' => ['field_slug' => 'archivo']],
                 ],
             ],
         ]);
         $blocks = $tpl->toArray();
-        $this->assertCount(3, $blocks);
+        $this->assertCount(5, $blocks);
         $this->assertSame('editable_form', $blocks[0]['type']);
         $this->assertSame('external_link', $blocks[1]['type']);
         $this->assertSame('kpi_widget', $blocks[2]['type']);
+        $this->assertSame('activity_timeline', $blocks[3]['type']);
+        $this->assertSame('download_files', $blocks[4]['type']);
     }
 
     private function makeField(int $id, string $slug, string $type, ?string $deletedAt = null): FieldEntity
