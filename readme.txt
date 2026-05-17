@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.37.3
+Stable tag: 0.38.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,85 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.38.0 =
+**Fase 8 — Listas públicas (iteración 2.A: backend foundation).**
+
+Arranca la Fase 8. Esta primera iteración trae el backend de las listas
+públicas: configuración por lista (`settings.public`), API REST anónima
+con rate limiting, cache HTTP CDN-friendly y serialización limitada a
+campos visibles. Las próximas iteraciones (2.B-2.E) traen el shortcode,
+el bundle JS público, el bloque Gutenberg y la UI de configuración.
+
+Sin frontend en este release — solo la API que las próximas iteraciones
+consumirán. Endpoints listos para probar con curl/Postman:
+
+    GET /wp-json/imagina-crm/v1/public/lists/{slug}
+    GET /wp-json/imagina-crm/v1/public/lists/{slug}/records?page=1&search=...
+
+Sin cambios de schema. Todo el shape va en `wp_imcrm_lists.settings.public`
+(JSON existente).
+
+Cambios técnicos
+----------------
+- Namespace nuevo `ImaginaCRM\PublicLists` con dos clases:
+    * `PublicListConfig`: value object que parsea `settings.public`.
+      Default fail-closed (sin la clave o con `enabled=false` → lista
+      NO se expone). Clamps de `per_page` [1, 100] y `cache_ttl`
+      [0, 3600] para evitar abusos.
+    * `PublicListService`: orquesta lecturas públicas. Aplica el
+      `fixed_filter_tree` ANTES que cualquier filtro del visitante;
+      restringe sort a `sort_allowed_slugs`; proyecta solo campos
+      en `visible_field_slugs`. Cache server-side opcional con TTL
+      del config + invalidación automática por hooks `record_*`.
+- `src/REST/PublicListsController.php` con dos endpoints anónimos
+  (`__return_true` en permission_callback):
+    * GET /public/lists/{slug} — metadata (nombre, descripción, fields
+      visibles, config UI).
+    * GET /public/lists/{slug}/records — records paginados.
+- Rate limit por IP: 60 req/min por (endpoint × IP), vía
+  `set_transient`. Respeta X-Forwarded-For para sitios detrás de CDN.
+  IP no resoluble → no se aplica rate limit (no bloquear NAT).
+- Cache HTTP: header `Cache-Control: public, max-age=<ttl>` cuando
+  TTL > 0. CDN/Varnish puede cachear sin tocar PHP (endpoint sin
+  cookies, sin user-specific data).
+
+Garantías de seguridad
+----------------------
+1. Lista no marcada como pública → 404 (no 403, no revela existencia).
+2. Filtros del visitante restringidos a `visible_field_slugs` —
+   intentos de filtrar por campos privados se descartan silenciosamente.
+3. Sort restringido a `sort_allowed_slugs`. Slugs fuera de whitelist
+   ignorados.
+4. `fixed_filter_tree` siempre se aplica antes que filtros del visitante.
+   Mediante composición AND — no se puede bypassear desde el client.
+5. Serialización excluye `created_by`, `deleted_at` y otros campos
+   internos del envelope. Solo `{id, fields: {...}, relations: {...}}`
+   con sólo los slugs visibles.
+
+Tests
+-----
+17 tests unitarios nuevos en `PublicListConfigTest`:
+- Default cerrado cuando no hay clave `public`.
+- Parsing completo del shape.
+- Clamps de per_page y cache_ttl.
+- Normalización de visible_field_slugs/sort_allowed_slugs (dedup,
+  filtro de no-strings).
+- `fixed_filter_tree` rechazado si no es `{type:'group',...}`.
+- Roundtrip `fromListSettings` → `toArray()`.
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 353 tests, +17 nuevos pasan, 0 errores nuevos.
+
+Próximas iteraciones de la Fase 8
+---------------------------------
+- 2.B — Shortcode `[imcrm-list slug="..."]` con render server-side
+  (HTML inicial para SEO + first paint sin JS).
+- 2.C — Bundle JS público (`app/public.tsx`, target < 50KB gzip)
+  que hidrata el div para habilitar filtros/paginación dinámicos.
+- 2.D — Bloque Gutenberg `imagina-crm/list`.
+- 2.E — Tab "Visibilidad pública" en el List Builder para que el
+  admin configure `settings.public` desde la UI.
 
 = 0.37.3 =
 **Fase 7 — Roles y permisos (iteración 1.E: Frontend gating + tab "Permisos") · CIERRE DE LA FASE 7.**

@@ -4,6 +4,49 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.38.0] — 2026-05-17
+
+Arranque de la **Fase 8 — Listas públicas** (iteración 2.A: backend
+foundation). Sin frontend todavía — solo la API que las próximas
+iteraciones consumirán.
+
+### Añadido
+
+- `src/PublicLists/PublicListConfig.php` — value object inmutable
+  que parsea `wp_imcrm_lists.settings.public`. Default fail-closed
+  (sin la clave o con `enabled=false` la lista no se expone).
+  Clamps de `per_page` y `cache_ttl`.
+- `src/PublicLists/PublicListService.php` — orquesta lecturas públicas.
+  Aplica `fixed_filter_tree` siempre; restringe sort a whitelist;
+  proyecta solo `visible_field_slugs`. Cache server-side opcional.
+- `src/REST/PublicListsController.php` — endpoints anónimos:
+    * `GET /imagina-crm/v1/public/lists/{slug}` (metadata)
+    * `GET /imagina-crm/v1/public/lists/{slug}/records` (records)
+- Rate limit por IP con `set_transient` (60 req/min × endpoint).
+  Respeta X-Forwarded-For.
+- Headers `Cache-Control: public, max-age=...` cuando TTL > 0 →
+  CDN/Varnish puede cachear sin tocar PHP.
+
+### Garantías de seguridad
+
+1. Lista no marcada como pública → 404.
+2. Filtros del visitante limitados a campos visibles.
+3. Sort restringido a `sort_allowed_slugs`.
+4. `fixed_filter_tree` aplicado siempre antes que filtros del visitante.
+5. Serialización excluye campos internos (`created_by`, etc.).
+
+### Tests
+
+- 17 tests unitarios nuevos en `PublicListConfigTest`: parsing,
+  defaults seguros, clamps, normalización, roundtrip.
+
+### Próximas iteraciones
+
+- 2.B — Shortcode + render server-side
+- 2.C — Bundle JS público + hidratación
+- 2.D — Bloque Gutenberg
+- 2.E — UI de configuración en List Builder
+
 ## [0.37.3] — 2026-05-17
 
 **Cierre de la Fase 7.** Última iteración (1.E): frontend gating +

@@ -42,6 +42,7 @@ use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
 use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Permissions\RoleInstaller;
+use ImaginaCRM\PublicLists\PublicListService;
 use ImaginaCRM\Records\QueryBuilder;
 use ImaginaCRM\Records\RecordRepository;
 use ImaginaCRM\Records\RecordService;
@@ -145,6 +146,22 @@ final class Plugin
         $this->container->bind(\ImaginaCRM\REST\PermissionsController::class, static function (Container $c): \ImaginaCRM\REST\PermissionsController {
             return new \ImaginaCRM\REST\PermissionsController(
                 $c->get(ListService::class),
+            );
+        });
+
+        // Listas públicas (Fase 8): service + controller del namespace
+        // `/imagina-crm/v1/public/*` sin auth/nonce.
+        $this->container->bind(PublicListService::class, static function (Container $c): PublicListService {
+            return new PublicListService(
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(RecordService::class),
+                $c->get(\ImaginaCRM\Support\Cache::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\PublicListsController::class, static function (Container $c): \ImaginaCRM\REST\PublicListsController {
+            return new \ImaginaCRM\REST\PublicListsController(
+                $c->get(PublicListService::class),
             );
         });
 

@@ -17,6 +17,7 @@ final class RestBootstrap
     private const CONTROLLERS = [
         ListsController::class,
         PermissionsController::class,
+        PublicListsController::class,
         FieldsController::class,
         RecordsController::class,
         ViewsController::class,
