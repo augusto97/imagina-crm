@@ -216,6 +216,12 @@ final class Plugin
         $this->container->bind(\ImaginaCRM\Portal\PortalAssets::class, static function (): \ImaginaCRM\Portal\PortalAssets {
             return new \ImaginaCRM\Portal\PortalAssets();
         });
+        $this->container->bind(\ImaginaCRM\Portal\PortalAccountManager::class, static function (Container $c): \ImaginaCRM\Portal\PortalAccountManager {
+            return new \ImaginaCRM\Portal\PortalAccountManager(
+                $c->get(ClientResolver::class),
+                $c->get(RecordRepository::class),
+            );
+        });
         $this->container->bind(\ImaginaCRM\REST\PortalController::class, static function (Container $c): \ImaginaCRM\REST\PortalController {
             return new \ImaginaCRM\REST\PortalController(
                 $c->get(ClientResolver::class),
@@ -223,6 +229,7 @@ final class Plugin
                 $c->get(ListService::class),
                 $c->get(RecordService::class),
                 $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Portal\PortalAccountManager::class),
             );
         });
 

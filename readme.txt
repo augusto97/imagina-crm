@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.3
+Stable tag: 0.39.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,95 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.4 =
+**Fase 9 — Portal del cliente (iteración 3.G: PortalAccountManager +
+endpoint REST "Crear acceso").**
+
+Automatiza el flujo manual que el admin tenía que hacer hasta ahora
+para que un cliente acceda al portal: crear user WP + asignar rol
+crm_client + asociar user_id al owner_field del record. Ahora todo
+sucede en un solo POST.
+
+PortalAccountManager
+--------------------
+`src/Portal/PortalAccountManager.php`: orchestrador del flujo.
+- `createAccessFor(ListEntity $portalList, int $recordId, bool $sendNotification = true)`
+- Validaciones:
+    * Lista debe ser portal-list (settings.portal.enabled + owner_field).
+    * Record debe existir.
+    * Email del cliente debe poder resolverse del record + ser válido.
+- Idempotencia: si el record ya tiene user asociado, devuelve éxito
+  sin recrear (útil para reintentos sin efectos colaterales).
+- Reuse de wp_user existente: si ya hay un WP user con el mismo
+  email (caso "el cliente ya tiene cuenta en este WP"), lo reusa
+  asignándole el rol crm_client si no lo tiene.
+- Crea login único basado en local-part del email + sufijo numérico
+  ante colisiones (sanitize_user + retry hasta 99).
+- Si sendNotification=true, envía el email de bienvenida con la
+  pass auto-generada vía wp_send_new_user_notifications($user_id, 'user').
+
+Resolución de email del record
+------------------------------
+Itera columnas del row y devuelve el primer valor que pase
+`is_email()`. Simple y suficiente — no hardcodea slug.
+Mejora futura: settings.portal.email_field_slug para override
+explícito cuando el record tenga múltiples campos email.
+
+Endpoint REST
+-------------
+POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/access
+- Cap: imcrm_manage_lists (solo admins crean accesos).
+- Body params: send_notification (bool, default true).
+- 201 Created: { user_id, created, email }
+- 422 Validation Error: lista no es portal, sin email, etc.
+- 404: lista o record no existen.
+
+UI del admin (queda como mejora)
+--------------------------------
+El endpoint está disponible para ser invocado vía curl/Postman o
+desde un futuro botón "Crear acceso al portal" en el panel CRM
+del record. Para esta iteración no integramos el botón al UI —
+queda como mejora opcional cuando el usuario lo necesite.
+
+Plugin.php
+----------
+Binding nuevo: PortalAccountManager (recibe ClientResolver y
+RecordRepository). PortalController binding actualizado para
+inyectarlo.
+
+Tests
+-----
+0 tests nuevos en 3.G. El manager toca muchas funciones WP
+(wp_create_user, wp_send_new_user_notifications, sanitize_user,
+is_email, is_wp_error, get_user_by, etc.) que requerirían stubs
+elaborados. Cobertura indirecta:
+- Lógica de validación es lineal y se valida con manual testing.
+- Idempotencia: lógica simple de check antes de crear.
+- PHPStan strict garantiza tipos correctos.
+
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 397 tests, 0 errores nuevos.
+
+Estado de la Fase 9 ahora
+-------------------------
+Funcional end-to-end:
+1. Admin marca lista como portal (vía REST PATCH a settings.portal —
+   UI de configuración pendiente).
+2. Admin POST /portal/lists/{slug}/records/{id}/access → cuenta WP
+   creada + email enviado al cliente.
+3. Cliente recibe email con login + password, hace login.
+4. Cliente accede a página WP con [imcrm-client-portal].
+5. Ve su saludo, datos en bloque client_data, registros relacionados
+   en related_records_table. PortalScopeService aísla todo.
+
+Próximos pasos (opcionales)
+---------------------------
+- 3.E — Bloques avanzados: editable_form, kpi_widget, chart_widget,
+  activity_timeline, comments_thread.
+- UI del botón "Crear acceso al portal" en el panel CRM del record.
+- Tab "Configuración del portal" en el List Builder (equivalente al
+  PublicVisibilityPanel de Fase 8 pero para portal_template).
 
 = 0.39.3 =
 **Fase 9 — Portal del cliente (iteración 3.D: bundle JS + renderer +

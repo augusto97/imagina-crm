@@ -7,6 +7,7 @@ use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Portal\ClientResolverInterface;
+use ImaginaCRM\Portal\PortalAccountManager;
 use ImaginaCRM\Portal\PortalScopeService;
 use ImaginaCRM\Portal\PortalTemplate;
 use ImaginaCRM\Records\RecordService;
@@ -48,6 +49,7 @@ final class PortalController extends AbstractController
         private readonly ListService $lists,
         private readonly RecordService $records,
         private readonly FieldRepository $fields,
+        private readonly PortalAccountManager $accounts,
     ) {
         parent::__construct();
     }
@@ -88,6 +90,48 @@ final class PortalController extends AbstractController
                 'permission_callback' => $canAccess,
             ],
         );
+
+        // Endpoint admin: crear cuenta WP para un cliente desde el CRM
+        // (Fase 9 — 3.G). Requiere manage_lists — solo admins crean
+        // accesos.
+        register_rest_route(
+            $this->namespace,
+            '/portal/lists/(?P<slug>[a-zA-Z0-9_-]+)/records/(?P<id>\d+)/access',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'createAccess'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
+                'args'                => [
+                    'send_notification' => ['type' => 'boolean', 'default' => true],
+                ],
+            ],
+        );
+    }
+
+    /**
+     * POST /portal/lists/{slug}/records/{id}/access
+     *
+     * Crea (o reactiva) la cuenta WP del cliente y la asocia al record.
+     * Cap requerida: imcrm_manage_lists.
+     */
+    public function createAccess(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('slug'));
+        if ($list === null) {
+            return $this->notFound();
+        }
+        $recordId = (int) $request->get_param('id');
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+        $send = (bool) $request->get_param('send_notification');
+
+        $result = $this->accounts->createAccessFor($list, $recordId, $send);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+
+        return new WP_REST_Response(['data' => $result], 201);
     }
 
     public function getMe(WP_REST_Request $request): WP_REST_Response|WP_Error

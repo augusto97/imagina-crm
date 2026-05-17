@@ -4,6 +4,36 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.4] — 2026-05-17
+
+Continuación de la **Fase 9 — Portal del cliente** (iteración 3.G:
+PortalAccountManager + endpoint "Crear acceso"). Automatiza el flujo
+de creación de cuentas WP para clientes.
+
+### Añadido
+
+- `src/Portal/PortalAccountManager.php`:
+    * Crea o reactiva usuario WP con rol crm_client.
+    * Asocia user_id al owner_field del record.
+    * Envía email de bienvenida via wp_send_new_user_notifications.
+    * Idempotente: reintento sin efectos colaterales.
+    * Reusa WP users existentes por email.
+- `POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/access`
+  con cap `imcrm_manage_lists`.
+
+### UI pendiente
+
+El botón "Crear acceso al portal" en el panel CRM del record queda
+como mejora opcional. El endpoint está disponible via curl/Postman.
+
+### Estado de Fase 9
+
+Funcional end-to-end. Las piezas opcionales restantes son:
+- 3.E — Bloques avanzados (editable_form, kpi, charts, etc.).
+- UI de configuración del portal (similar al PublicVisibilityPanel
+  de Fase 8).
+- UI del botón "Crear acceso al portal".
+
 ## [0.39.3] — 2026-05-17
 
 Continuación de la **Fase 9 — Portal del cliente** (iteración 3.D:
