@@ -323,6 +323,13 @@ final class PortalController extends AbstractController
             $template = PortalTemplate::defaultFor($portalFields);
         }
 
+        // Enriquecemos cada bloque editable_form con `editable_fields`:
+        // [{slug, label, type, config}] resuelto desde los FieldEntity.
+        // El bundle del portal lo usa para renderizar inputs específicos
+        // por tipo (date picker, multi-select, checkbox, etc.) en vez
+        // de un text genérico.
+        $blocks = $this->enrichTemplateBlocks($template->toArray(), $portalList->id);
+
         return new WP_REST_Response([
             'data' => [
                 'list'   => [
@@ -336,7 +343,7 @@ final class PortalController extends AbstractController
                     'display_name' => $user->display_name,
                     'email'        => $user->user_email,
                 ],
-                'template' => ['blocks' => $template->toArray()],
+                'template' => ['blocks' => $blocks],
             ],
         ]);
     }
@@ -431,6 +438,63 @@ final class PortalController extends AbstractController
      * Concatena la cláusula del scope con un filtro de id específico.
      * Resultado: `AND id = %d <scope.sql>` con args `[id, ...scope.args]`.
      *
+     * @param array{sql: string, args: list<mixed>} $scope
+     * @return array{sql: string, args: list<mixed>}
+     */
+    /**
+     * Enriquece los bloques del template antes de mandarlos al cliente.
+     *
+     * Hoy enriquece SOLO los `editable_form`: agrega `editable_fields`
+     * (lista con {slug, label, type, config}) resuelto desde los
+     * FieldEntity de la lista. Sin esto, el bundle del portal no
+     * sabría qué tipo de input renderizar para cada slug — todos
+     * caerían a `<input type="text">`.
+     *
+     * Slugs en `editable_field_slugs` que no resuelven a un field
+     * vivo se omiten de `editable_fields` — el cliente no debe ver
+     * inputs huérfanos.
+     *
+     * @param list<array{type:string, config:array<string, mixed>}> $blocks
+     * @return list<array{type:string, config:array<string, mixed>}>
+     */
+    private function enrichTemplateBlocks(array $blocks, int $portalListId): array
+    {
+        // Precargamos los fields de la lista de portal una sola vez.
+        $fieldsBySlug = [];
+        foreach ($this->fields->allForList($portalListId) as $f) {
+            if ($f->deletedAt !== null) continue;
+            $fieldsBySlug[$f->slug] = $f;
+        }
+
+        $out = [];
+        foreach ($blocks as $block) {
+            if ($block['type'] !== 'editable_form') {
+                $out[] = $block;
+                continue;
+            }
+            $slugs = $block['config']['editable_field_slugs'] ?? [];
+            if (! is_array($slugs)) {
+                $out[] = $block;
+                continue;
+            }
+            $editableFields = [];
+            foreach ($slugs as $slug) {
+                if (! is_string($slug) || ! isset($fieldsBySlug[$slug])) continue;
+                $field = $fieldsBySlug[$slug];
+                $editableFields[] = [
+                    'slug'   => $field->slug,
+                    'label'  => $field->label,
+                    'type'   => $field->type,
+                    'config' => $field->config,
+                ];
+            }
+            $block['config']['editable_fields'] = $editableFields;
+            $out[] = $block;
+        }
+        return $out;
+    }
+
+    /**
      * @param array{sql: string, args: list<mixed>} $scope
      * @return array{sql: string, args: list<mixed>}
      */

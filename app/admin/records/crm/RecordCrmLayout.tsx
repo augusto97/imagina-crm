@@ -18,6 +18,7 @@ import type { ListSummary } from '@/types/list';
 import type { RecordEntity } from '@/types/record';
 
 import { BlockRenderer } from './BlockRenderer';
+import { PortalAccessButton } from './PortalAccessButton';
 import { RecordHeader } from './RecordHeader';
 
 const SizedGrid = WidthProvider(GridLayout);
@@ -147,6 +148,8 @@ export function RecordCrmLayout({
                 saving={update.isPending}
                 deleting={deleting}
             />
+
+            <PortalAccessButton list={list} record={record} />
 
             {resolved.blocks.length === 0 ? (
                 <p className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-4 imcrm-py-8 imcrm-text-center imcrm-text-sm imcrm-text-muted-foreground">

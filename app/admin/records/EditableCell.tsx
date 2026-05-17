@@ -19,6 +19,15 @@ interface EditableCellProps {
     recordId: number;
     listId: number;
     value: unknown;
+    /**
+     * Si `false`, la celda se renderiza read-only (sin doble-click edit,
+     * sin disabled controls). Default `true` para back-compat.
+     *
+     * Lo usa el TableView con `useCan(EDIT_RECORDS) || useCan(EDIT_OWN_RECORDS)`
+     * — un viewer sin caps de edit no podrá activar el modo edición
+     * aunque el field type sea editable. Previene 403 backend en click.
+     */
+    canEdit?: boolean;
 }
 
 /**
@@ -40,7 +49,13 @@ interface EditableCellProps {
 // desde otros campos del record, el usuario no lo edita directo.
 const NON_INLINE_TYPES = ['user', 'file', 'relation', 'computed'];
 
-export function EditableCell({ field, recordId, listId, value }: EditableCellProps): JSX.Element {
+export function EditableCell({
+    field,
+    recordId,
+    listId,
+    value,
+    canEdit: canEditByUser = true,
+}: EditableCellProps): JSX.Element {
     const update = useUpdateRecord(listId);
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState<unknown>(value);
@@ -53,7 +68,10 @@ export function EditableCell({ field, recordId, listId, value }: EditableCellPro
         }
     }, [value, editing]);
 
-    const canEdit = !NON_INLINE_TYPES.includes(field.type);
+    // Combinación de dos checks:
+    //  - `canEditByUser`: prop pasada por TableView (caps del usuario).
+    //  - field.type editable inline (excluye user/file/relation/computed).
+    const canEdit = canEditByUser && !NON_INLINE_TYPES.includes(field.type);
 
     const startEdit = (): void => {
         if (!canEdit) return;

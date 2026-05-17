@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useAggregates } from '@/hooks/useAggregates';
 import { RecurrencesBatchProvider } from '@/hooks/useRecurrences';
 import { __, sprintf } from '@/lib/i18n';
+import { CAP, useCanAny } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type { FilterTree, RecordEntity } from '@/types/record';
@@ -102,6 +103,11 @@ export function TableView({
 }: TableViewProps): JSX.Element {
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
+    // Gating de edición inline por capability (Fase 7 — follow-up).
+    // El backend rechaza un PATCH sin la cap con 403; acá deshabilitamos
+    // el doble-click → input UX para evitar la confusión del 403-on-submit.
+    const canEditRecords = useCanAny(CAP.EDIT_RECORDS, CAP.EDIT_OWN_RECORDS);
+
     // Drag-and-drop column reorder: trackeamos qué column está siendo
     // arrastrada en local state (no persiste). Al drop, computamos el
     // nuevo orden y se lo pasamos al parent vía `onColumnOrderChange`.
@@ -146,6 +152,7 @@ export function TableView({
                         recordId={ctx.row.original.id}
                         field={field}
                         value={ctx.getValue()}
+                        canEdit={canEditRecords}
                     />
                 ),
                 size: defaultSizeForType(field.type),
@@ -190,7 +197,7 @@ export function TableView({
                 meta: { fieldId: null },
             },
         ];
-    }, [fields, listId]);
+    }, [fields, listId, canEditRecords]);
 
     // Footer aggregations: pedimos sum/avg/count/min/max para todos
     // los fields visibles que son numéricos / fecha / checkbox / etc.

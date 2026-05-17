@@ -4,6 +4,22 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.7] — 2026-05-17
+
+Tres pulidos post-Fase 9 de mejora UX/seguridad.
+
+### Añadido
+
+- `PortalAccessButton` en panel CRM del record (Fase 9 follow-up #1).
+- `EditableCell.canEdit` prop + gating per-cell en TableView
+  (Fase 7 follow-up #5).
+- Inputs específicos por tipo en `editable_form` del portal:
+  `PortalController::enrichTemplateBlocks` agrega `editable_fields`
+  con `{slug, label, type, config}` resuelto desde FieldEntity; el
+  bundle del portal usa esos types para renderizar inputs específicos
+  (date, datetime, number, email, url, checkbox, select, multi_select,
+  long_text).
+
 ## [0.39.6] — 2026-05-17
 
 **Cierre de la Fase 9.** Trae el panel "Portal del cliente" al List

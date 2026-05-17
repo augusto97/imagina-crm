@@ -220,6 +220,33 @@
     opacity: 0.6;
     cursor: not-allowed;
 }
+.imcrm-portal-form__textarea {
+    height: auto;
+    min-height: 4.5rem;
+    resize: vertical;
+}
+.imcrm-portal-form__checkbox {
+    width: 1rem;
+    height: 1rem;
+    align-self: flex-start;
+    accent-color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-form__checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.85rem;
+    padding: 0.4rem 0;
+}
+.imcrm-portal-form__checkbox-label {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+.imcrm-portal-form__checkbox-label input[type='checkbox'] {
+    accent-color: var(--imcrm-portal-primary);
+}
 .imcrm-portal-form__feedback {
     margin: 0;
     padding: 0.6rem 0.85rem;

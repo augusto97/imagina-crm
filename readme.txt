@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.6
+Stable tag: 0.39.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,97 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.7 =
+**Pulidos post-Fase 9: botón "Crear acceso", gating per-cell TableView,
+inputs por tipo en editable_form.**
+
+Tres mejoras de UX/seguridad sobre los entregables principales.
+Sin cambios funcionales mayores — afilan los bordes.
+
+1. Botón "Crear acceso al portal" en el panel CRM
+-------------------------------------------------
+Hoy el flujo era: admin abre el record del cliente → POST manual
+con curl/Postman al endpoint `/portal/lists/{slug}/records/{id}/access`.
+Ahora hay un botón visible en el panel CRM cuando aplica:
+
+- Solo aparece si la lista actual es portal-list (settings.portal.enabled
+  + owner_field_id configurados).
+- Lee el valor del owner_field en el record → si ya hay user asociado,
+  muestra "✓ Acceso al portal activo" deshabilitado.
+- Si no hay user, botón "Crear acceso al portal" que llama al endpoint
+  con send_notification=true.
+- Tres feedback states:
+    * 201 Created + created=true → "Cuenta creada. Email enviado."
+    * 201 Created + created=false → "Cuenta existente vinculada."
+    * Error → mensaje específico.
+
+Archivo: app/admin/records/crm/PortalAccessButton.tsx
+Cableado en: app/admin/records/crm/RecordCrmLayout.tsx (después del header).
+
+2. Gating per-cell en TableView
+-------------------------------
+Hoy un viewer (crm_viewer) que hacía doble-click sobre una celda
+para editar inline recibía 403 del backend al intentar guardar.
+UX confusa — el control se veía editable pero rechazaba el submit.
+
+Ahora:
+- EditableCell recibe nueva prop `canEdit?: boolean` (default true).
+- TableView lee `useCanAny(CAP.EDIT_RECORDS, CAP.EDIT_OWN_RECORDS)` y
+  pasa el resultado a cada celda.
+- Si canEdit=false: la celda renderiza read-only sin doble-click
+  → input. Sin opción de submit que vaya a fallar.
+
+Combinación final del check en EditableCell: `canEdit (prop) && !NON_INLINE_TYPES.includes(type)`.
+
+Archivos: app/admin/records/EditableCell.tsx, app/admin/records/views/TableView.tsx.
+
+3. Inputs específicos por tipo en editable_form (portal)
+--------------------------------------------------------
+Hoy los inputs del editable_form del portal eran TODOS type="text".
+Date pickers, multi-selects, checkboxes, etc. quedaban como text
+plano — UX pobre.
+
+Ahora cada slug usa el input apropiado:
+
+- text/email/url → input nativo correspondiente.
+- long_text → textarea con resize vertical.
+- number/currency → input type=number, step=any.
+- date → input type=date.
+- datetime → input type=datetime-local.
+- checkbox → input type=checkbox con accent-color.
+- select → <select> con las options del field.config.options.
+- multi_select → grupo de checkboxes (uno por option).
+- tipos no editables inline (relation/file/user/computed) → text
+  fallback read-only.
+
+Implementación:
+- Backend: PortalController::enrichTemplateBlocks resuelve los slugs
+  de cada bloque editable_form contra los FieldEntity y agrega
+  `editable_fields: [{slug, label, type, config}]` al config del
+  bloque ANTES de enviar al cliente. Sin cambio de schema.
+- Frontend: EditableFormBlock.tsx prefiere `editable_fields` si está;
+  fallback a `editable_field_slugs` con type='text' para back-compat.
+- `<FieldInput>` interno: switch por type que renderiza el input
+  apropiado. Tolera 2 shapes legacy de `config.options` (array de
+  strings o array de {value, label}).
+
+Tipos NO cubiertos en este pulido (mejora futura):
+- user/file/relation editables desde el portal — requieren pickers
+  específicos (autocomplete WP users, upload widget, relation modal).
+  El admin no debería poner esos slugs en `editable_field_slugs` por
+  ahora. Defensa adicional: tipos no reconocidos caen al text fallback
+  read-only.
+
+CSS extendido para textarea, checkbox y checkbox-group en
+assets/portal.css.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+Bundle portal: 3.68 KB gzip (+0.6 KB vs 0.39.6 por inputs por tipo).
 
 = 0.39.6 =
 **Fase 9 — Portal del cliente (UI de configuración) · CIERRE DE FASE 9.**
