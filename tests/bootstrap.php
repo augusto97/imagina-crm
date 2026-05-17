@@ -366,6 +366,61 @@ if (! function_exists('remove_role')) {
     }
 }
 
+/**
+ * Stub minimalista de `WP_User`. Los tests instancian con el constructor
+ * (ID + roles). `user_can()` consulta las caps agregadas a los roles que
+ * tenga asignados en `$GLOBALS['imcrm_test_roles']`.
+ */
+if (! class_exists('WP_User')) {
+    class WP_User // phpcs:ignore
+    {
+        public int $ID;
+
+        /** @var list<string> */
+        public array $roles;
+
+        /**
+         * @param list<string> $roles
+         */
+        public function __construct(int $id = 0, array $roles = [])
+        {
+            $this->ID    = $id;
+            $this->roles = $roles;
+        }
+    }
+}
+
+if (! function_exists('user_can')) {
+    function user_can(WP_User $user, string $cap): bool
+    {
+        foreach ($user->roles as $role) {
+            $r = $GLOBALS['imcrm_test_roles'][$role] ?? null;
+            if ($r instanceof WP_Role && $r->has_cap($cap)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+if (! function_exists('current_user_can')) {
+    function current_user_can(string $cap): bool
+    {
+        $user = $GLOBALS['imcrm_test_current_user'] ?? null;
+        if ($user instanceof WP_User) {
+            return user_can($user, $cap);
+        }
+        return false;
+    }
+}
+
+if (! function_exists('rest_authorization_required_code')) {
+    function rest_authorization_required_code(): int
+    {
+        return 401;
+    }
+}
+
 if (! function_exists('wp_kses_post')) {
     function wp_kses_post(string $html): string
     {

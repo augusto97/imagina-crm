@@ -40,6 +40,7 @@ use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Licensing\UpdaterClient;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Permissions\RoleInstaller;
 use ImaginaCRM\Records\QueryBuilder;
 use ImaginaCRM\Records\RecordRepository;
@@ -129,6 +130,22 @@ final class Plugin
         // `maybeUpgradeSchema` para mantener idempotencia ante updates.
         $this->container->bind(RoleInstaller::class, static function (): RoleInstaller {
             return new RoleInstaller();
+        });
+
+        // PermissionService: centraliza autorización (caps + ACL por lista).
+        // Recibe FieldRepository para resolver el column_name del campo de
+        // asignación cuando el ACL define scope=assigned. El bind se hace
+        // después que FieldRepository (más abajo), pero al ser lazy
+        // (closure), el orden no importa — se construye en el primer get().
+        $this->container->bind(PermissionService::class, static function (Container $c): PermissionService {
+            return new PermissionService($c->get(FieldRepository::class));
+        });
+
+        // PermissionsController: REST `/lists/{id}/permissions` + `/roles`.
+        $this->container->bind(\ImaginaCRM\REST\PermissionsController::class, static function (Container $c): \ImaginaCRM\REST\PermissionsController {
+            return new \ImaginaCRM\REST\PermissionsController(
+                $c->get(ListService::class),
+            );
         });
 
         $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.37.0
+Stable tag: 0.37.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,60 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.37.1 =
+**Fase 7 — Roles y permisos (iteración 1.B: PermissionService + ACL por lista).**
+
+Segunda iteración de la Fase 7. Sin schema nuevo — todo el ACL vive en
+`wp_imcrm_lists.settings` (JSON existente). Igual que 1.A, NO cambia
+todavía el comportamiento de los endpoints existentes (eso llega en 1.C);
+solo añade la pieza de evaluación de permisos.
+
+Cambios técnicos
+----------------
+- `ImaginaCRM\Permissions\ListPermissions`: value object inmutable
+  que parsea `settings.permissions` + `settings.assignment_field_id`.
+  Implementa `mergeScopes()` (toma el más permisivo entre roles del
+  mismo user) y resuelve defaults legacy seguros (todo `none` para
+  managers/agents/viewers cuando la lista no tiene `permissions`).
+- `ImaginaCRM\Permissions\PermissionService`: centraliza decisiones
+  de autorización (bypass de admin/manage_lists, scopes por operación,
+  filtrado SQL para records). Recibe FieldRepository (o un closure en
+  tests) para resolver el column_name del campo de asignación.
+- Nuevo endpoint REST:
+    * `GET /imagina-crm/v1/lists/{id_or_slug}/permissions` — devuelve
+      la matriz rol × operación de la lista + lista de roles del plugin.
+    * `PATCH /imagina-crm/v1/lists/{id_or_slug}/permissions` — actualiza
+      el shape, mergeando con settings existente. Valida cada scope
+      (`all`/`own`/`assigned`/`none`) y rechaza inputs inválidos con 422.
+    * `GET /imagina-crm/v1/roles` — catálogo de los 5 roles + labels.
+- Cap requerida para gestionar ACL: `imcrm_manage_lists`. Sólo admins.
+
+Reglas de evaluación
+--------------------
+1. `administrator` (WP) y `crm_admin` siempre tienen bypass total.
+2. Schema (crear listas/campos/etc.) NO se restringe por ACL — sólo
+   por la cap global correspondiente.
+3. Records SÍ se restringen por ACL + cap global.
+4. Multi-rol = más permisivo gana (own < assigned < all).
+5. Fail-closed: scope `assigned` sin `assignment_field_id` bloquea
+   todo. Shapes desconocidos caen a `none`.
+
+Tests
+-----
+44 tests unitarios nuevos:
+- `ListPermissionsTest` (16): parsing, defaults, mergeScopes, validación.
+- `PermissionServiceTest` (28): bypass de admins, scope=own/assigned/all/none,
+  intersección de fields_hidden, recordsScopeWhere para inyectar en SQL.
+
+Stubs nuevos en `tests/bootstrap.php`: `WP_User`, `user_can`,
+`current_user_can`, `rest_authorization_required_code` — reutilizables.
+
+Próximos pasos
+--------------
+- 1.C — Integración granular en controllers REST (gating real)
+- 1.D — `QueryBuilder` con `additionalWhere` cableado a recordsScopeWhere
+- 1.E — Frontend gating + tab "Permisos" en List Builder
 
 = 0.37.0 =
 **Fase 7 — Roles y permisos (iteración 1.A: foundation).**

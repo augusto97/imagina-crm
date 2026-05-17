@@ -4,6 +4,65 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.37.1] — 2026-05-17
+
+Continuación de la **Fase 7 — Roles y permisos** (iteración 1.B:
+`PermissionService` + ACL por lista). Sin cambios de schema — el ACL
+vive en `wp_imcrm_lists.settings` (JSON existente).
+
+### Añadido
+
+- `src/Permissions/ListPermissions.php` — value object inmutable que
+  parsea `settings.permissions`. Implementa `mergeScopes()` (combina
+  scopes de múltiples roles tomando el más permisivo), `forRole()`
+  (bypass automático para `crm_admin`/`administrator`, defaults legacy
+  cerrados para los demás).
+- `src/Permissions/PermissionService.php` — centraliza autorización.
+  Métodos `userCanAccessAdmin`, `userIsPluginAdmin`, `userCanManageLists`,
+  `userCanSeeList`, `userCanCreateInList`, `userCanViewRecord`,
+  `userCanEditRecord`, `userCanDeleteRecord`, `recordsScopeWhere`
+  (devuelve fragmento SQL inyectable al WHERE), `hiddenFieldSlugs`
+  (intersección de campos ocultos entre roles del user).
+- `src/REST/PermissionsController.php` — endpoints
+  `GET|PATCH /lists/{id_or_slug}/permissions` y `GET /roles`. Cap
+  requerida: `imcrm_manage_lists`. La validación rechaza scopes
+  desconocidos (422), roles fuera del catálogo y shapes inválidos.
+  El PATCH solo toca `settings.permissions` y `settings.assignment_field_id` —
+  no pisa otras claves de settings.
+
+### Decisiones de diseño
+
+- **Bypass de admins**: `administrator` (WP) y `crm_admin` saltan TODA
+  evaluación de ACL. No hace falta declararlos en `settings.permissions`.
+- **Schema vs records**: las operaciones de schema (crear listas/campos/
+  automatizaciones) NO se restringen por ACL por lista — solo por la
+  cap global correspondiente. El ACL por lista solo afecta records.
+- **Multi-rol = más permisivo**: si un user tiene `crm_agent` + `crm_viewer`
+  y el viewer tiene scope `all` mientras agent tiene `own`, se aplica `all`.
+- **Fail-closed**: scope `assigned` sin `assignment_field_id` configurado
+  bloquea todo (no degrada a `all`). Shapes desconocidos caen a `none`.
+- **Resolver inyectable**: `PermissionService` acepta `FieldRepository`
+  o un `Closure(int): ?FieldEntity`. La primera firma se usa en producción,
+  la segunda en tests para evitar tocar BD.
+
+### Tests
+
+- 44 tests unitarios nuevos:
+    - `ListPermissionsTest` (16): parsing, defaults legacy, mergeScopes
+      conmutativo, normalizeScope case-insensitive, fields_hidden únicos.
+    - `PermissionServiceTest` (28): bypass de admins, scope=own/assigned/all/none,
+      multi-rol toma el más permisivo, intersección de fields_hidden,
+      recordsScopeWhere para inyectar en SQL, fail-closed cuando el
+      assignment_field no existe o pertenece a otra lista.
+- Stubs reutilizables nuevos en `tests/bootstrap.php`: `WP_User`,
+  `user_can()`, `current_user_can()`, `rest_authorization_required_code()`.
+
+### Próximos pasos
+
+- 1.C — Integración granular en controllers REST (cada endpoint con su cap)
+- 1.D — `QueryBuilder` con `additionalWhere` cableado a `recordsScopeWhere`
+- 1.E — Frontend gating + tab "Permisos" en List Builder
+
 ## [0.37.0] — 2026-05-17
 
 Inicio de la **Fase 7 — Roles y permisos** (iteración 1.A: foundation).
