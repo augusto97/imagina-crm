@@ -21,6 +21,7 @@ import { AppearancePanel } from './AppearancePanel';
 import { FieldBuilder } from './FieldBuilder';
 import { MaintenancePanel } from './MaintenancePanel';
 import { PermissionsPanel } from './PermissionsPanel';
+import { PublicVisibilityPanel } from './PublicVisibilityPanel';
 import { SlugEditor } from './SlugEditor';
 
 export function ListBuilderPage(): JSX.Element {
@@ -213,6 +214,7 @@ export function ListBuilderPage(): JSX.Element {
 
             <AppearancePanel list={list.data} />
             <PermissionsPanel listId={list.data.id} />
+            <PublicVisibilityPanel list={list.data} />
             <MaintenancePanel listId={list.data.id} />
         </div>
     );

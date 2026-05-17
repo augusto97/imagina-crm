@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.38.3
+Stable tag: 0.38.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,91 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.38.4 =
+**Fase 8 — Listas públicas (iteración 2.E: UI de configuración) · CIERRE DE LA FASE 8.**
+
+Última iteración de la Fase 8. Trae el panel "Visibilidad pública" al
+List Builder para que el admin configure `settings.public` con UI
+visual en vez de tener que editar JSON via REST PATCH manual. Con
+este release la Fase 8 queda 100% cerrada.
+
+Frontend
+--------
+- `app/types/publicList.ts`: tipos espejo de `PublicListConfig.php`
+  + defaults seguros + limits (`per_page` [1, 100], `cache_ttl`
+  [0, 3600]).
+- `app/admin/lists/PublicVisibilityPanel.tsx`:
+    * Toggle master "Habilitar visibilidad pública". Cuando off:
+      panel colapsado con nota explicando que ningún visitante
+      puede ver datos.
+    * Tabla campo-por-campo con dos checkboxes: "Visible" (incluir
+      en respuesta REST y tabla) y "Ordenable" (permitir sort por
+      este campo). El segundo se deshabilita automáticamente si
+      el campo no está visible.
+    * Inputs numéricos clampeados para `per_page` y `cache_ttl`.
+    * Toggles para `search_enabled` y `viewer_filters_allowed`.
+    * Dropdown "Orden por defecto" que se llena dinámicamente con
+      las combinaciones `slug:asc|desc` de los campos marcados
+      como ordenables.
+    * Snippet del shortcode `[imcrm-list slug="..."]` con botón de
+      copiar al portapapeles (`navigator.clipboard`).
+    * Botón "Guardar visibilidad" con dirty tracking — solo
+      habilitado cuando hay cambios reales (comparación shallow
+      con el estado inicial).
+- Mensajes para casos edge:
+    * Lista sin campos exponibles (solo relations o vacía) →
+      warning amber explicando que se necesita al menos un field.
+    * Error de copy al portapapeles → fallback "selecciónalo
+      manualmente".
+
+Diseño de merge
+---------------
+El panel solo toca la clave `public` dentro de `settings`. El resto
+del shape (`permissions`, `assignment_field_id`, otras keys futuras)
+se preserva intacto. Esto evita race conditions donde dos paneles
+compitan por el mismo `settings`.
+
+Filtros fijos (out of scope)
+----------------------------
+El shape persiste `fixed_filter_tree` pero el panel no lo edita
+visualmente — el editor de filtros con AND/OR anidados (mismo
+shape que el FiltersPanel del admin) requiere refactor para ser
+embebible. Los admins que necesiten filtros fijos pueden setear
+`settings.public.fixed_filter_tree` via REST PATCH directo. UI
+visual queda como mejora futura.
+
+Fase 8 cerrada
+--------------
+| Iter. | Versión | Entrega                                              |
+|-------|---------|------------------------------------------------------|
+| 2.A   | 0.38.0  | PublicListConfig + Service + REST público            |
+| 2.B   | 0.38.1  | Shortcode con render server-side                     |
+| 2.C   | 0.38.2  | Bundle JS público + hidratación                      |
+| 2.D   | 0.38.3  | Bloque Gutenberg                                     |
+| 2.E   | 0.38.4  | Tab "Visibilidad pública" en List Builder            |
+
+Cómo usarlo end-to-end ahora
+----------------------------
+1. Crear lista en admin, agregar fields, llenar records.
+2. Editar lista → tab "Visibilidad pública" → habilitar +
+   marcar campos visibles + configurar opciones → guardar.
+3. Copiar el shortcode del panel.
+4. En cualquier página/post WP: pegar shortcode o insertar bloque
+   "Lista Imagina CRM" + completar slug en el inspector.
+5. Visitar la página: tabla server-rendered + JS hidrata con
+   búsqueda + sort + paginación dinámicos.
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 366 tests, 0 errores nuevos.
+TypeScript build: limpio. ListBuilderPage chunk: 13.14 KB gzip
+(+2.27 KB vs 0.38.3, esperado por el nuevo panel).
+
+Próximos pasos (fuera de Fase 8)
+--------------------------------
+- Fase 9 — Portal del cliente (template editor extendido con
+  bloques especiales: client_data, editable_form,
+  related_records_table, kpi_widget, etc.).
 
 = 0.38.3 =
 **Fase 8 — Listas públicas (iteración 2.D: bloque Gutenberg).**

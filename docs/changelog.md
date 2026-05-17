@@ -4,6 +4,51 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.38.4] — 2026-05-17
+
+**Cierre de la Fase 8.** Última iteración (2.E): tab "Visibilidad
+pública" en el List Builder. El admin ya no necesita editar JSON via
+REST PATCH para configurar listas públicas — todo se hace desde UI.
+
+### Añadido
+
+- `app/types/publicList.ts`: tipos espejo de `PublicListConfig.php`
+  + defaults + limits (per_page [1, 100], cache_ttl [0, 3600]).
+- `app/admin/lists/PublicVisibilityPanel.tsx`: panel completo de
+  configuración con:
+    * Toggle master + estado colapsado cuando off.
+    * Tabla campo-por-campo con dos toggles (visible / ordenable).
+    * Inputs clampeados para per_page y cache_ttl.
+    * Toggles para search_enabled y viewer_filters_allowed.
+    * Dropdown dinámico "Orden por defecto" (combinaciones
+      slug:asc/desc de campos ordenables).
+    * Snippet del shortcode con botón copiar al portapapeles.
+    * Dirty tracking — botón guardar solo activo si hay cambios.
+
+### Diseño de merge
+
+El panel solo escribe `settings.public`; el resto del shape (otras
+keys del settings) queda intacto. Evita race conditions con otros
+paneles (Permissions, etc.).
+
+### Limitaciones
+
+- `fixed_filter_tree` se persiste pero no se edita visualmente en
+  este panel — requiere refactor del FiltersPanel del admin para
+  hacerlo embebible. Admins que lo necesiten siguen usando REST
+  PATCH directo. UI visual queda como mejora futura.
+
+### Fase 8 cerrada
+
+| Iter. | Versión | Entrega                                          |
+|-------|---------|--------------------------------------------------|
+| 2.A   | 0.38.0  | PublicListConfig + Service + REST público        |
+| 2.B   | 0.38.1  | Shortcode con render server-side                 |
+| 2.C   | 0.38.2  | Bundle JS público (~48 KB gzip total) +
+                  hidratación                                       |
+| 2.D   | 0.38.3  | Bloque Gutenberg                                 |
+| 2.E   | 0.38.4  | Tab "Visibilidad pública" en List Builder        |
+
 ## [0.38.3] — 2026-05-17
 
 Continuación de la **Fase 8 — Listas públicas** (iteración 2.D: bloque
