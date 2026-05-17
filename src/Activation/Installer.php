@@ -6,6 +6,7 @@ namespace ImaginaCRM\Activation;
 use ImaginaCRM\Automations\ScheduledRunner;
 use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Lists\SchemaManager;
+use ImaginaCRM\Permissions\RoleInstaller;
 use ImaginaCRM\Plugin;
 use ImaginaCRM\Support\Database;
 
@@ -45,6 +46,11 @@ final class Installer
         global $wpdb;
         $schema = new SchemaManager(new Database($wpdb));
         $schema->installSystemTables();
+
+        // Roles y capabilities del plugin (Fase 7). Idempotente: añade
+        // las caps faltantes a `administrator` para no romper acceso
+        // de los admins existentes.
+        (new RoleInstaller())->sync();
 
         if (get_option(self::OPTION_INSTALLED) === false) {
             update_option(self::OPTION_INSTALLED, current_time('mysql', true), false);

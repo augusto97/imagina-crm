@@ -40,6 +40,7 @@ use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Licensing\UpdaterClient;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\Permissions\RoleInstaller;
 use ImaginaCRM\Records\QueryBuilder;
 use ImaginaCRM\Records\RecordRepository;
 use ImaginaCRM\Records\RecordService;
@@ -63,7 +64,10 @@ final class Plugin
     public const TEXT_DOMAIN      = IMAGINA_CRM_TEXT_DOMAIN;
     public const DB_VERSION       = IMAGINA_CRM_DB_VERSION;
     public const ADMIN_PAGE       = 'imagina-crm';
-    public const ADMIN_CAPABILITY = 'manage_options';
+    // Cap canónica para acceder al admin del plugin. La migración de la
+    // Fase 7 garantiza que el rol `administrator` de WP la tenga, así
+    // que cualquier admin existente sigue funcionando sin acción manual.
+    public const ADMIN_CAPABILITY = \ImaginaCRM\Permissions\CapabilityRegistry::CAP_ACCESS_ADMIN;
 
     private static ?self $instance = null;
 
@@ -118,6 +122,13 @@ final class Plugin
         // SchemaManager y SlugManager dependen sólo de Database.
         $this->container->bind(SchemaManager::class, static function (Container $c): SchemaManager {
             return new SchemaManager($c->get(Database::class));
+        });
+
+        // RoleInstaller: sincroniza roles y capabilities del plugin.
+        // Stateless, sin dependencias — se invoca en activación y en
+        // `maybeUpgradeSchema` para mantener idempotencia ante updates.
+        $this->container->bind(RoleInstaller::class, static function (): RoleInstaller {
+            return new RoleInstaller();
         });
 
         $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {
@@ -819,6 +830,13 @@ final class Plugin
         $schema = $this->container->get(\ImaginaCRM\Lists\SchemaManager::class);
         if ($schema instanceof \ImaginaCRM\Lists\SchemaManager) {
             $schema->installSystemTables();
+            // Re-sincroniza roles/caps en cada bump de DB_VERSION. La
+            // operación es idempotente, así que es seguro correrla aun
+            // si la migración no toca roles.
+            $roleInstaller = $this->container->get(RoleInstaller::class);
+            if ($roleInstaller instanceof RoleInstaller) {
+                $roleInstaller->sync();
+            }
             update_option(\ImaginaCRM\Activation\Installer::OPTION_DB_VERSION, self::DB_VERSION, false);
             do_action('imagina_crm/schema_upgraded', $stored, self::DB_VERSION);
         }

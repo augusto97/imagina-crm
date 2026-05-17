@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Standalone;
 
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Plugin;
 
 /**
@@ -387,9 +388,13 @@ CSS;
                 'id'           => $user->ID,
                 'displayName'  => $user->display_name,
                 'avatar'       => get_avatar_url($user->ID, ['size' => 64]) ?: '',
-                'capabilities' => [
-                    'manage_options' => current_user_can('manage_options'),
-                ],
+                'roles'        => array_values($user->roles),
+                'capabilities' => array_merge(
+                    [
+                        'manage_options' => current_user_can('manage_options'),
+                    ],
+                    CapabilityRegistry::currentUserCapabilitiesMap(),
+                ),
             ],
         ];
     }

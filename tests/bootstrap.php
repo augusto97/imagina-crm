@@ -281,6 +281,91 @@ if (! function_exists('get_userdata')) {
     }
 }
 
+/**
+ * Stubs de la API de roles de WP. Estado en `$GLOBALS['imcrm_test_roles']`
+ * con shape `[$slug => WP_Role]`. Reseteable con
+ * `imcrm_test_reset_roles()`.
+ *
+ * El rol `administrator` se pre-crea vacío para que los tests que
+ * comprueban "el admin recibe todas las caps" puedan operar sin setup.
+ */
+if (! class_exists('WP_Role')) {
+    class WP_Role // phpcs:ignore
+    {
+        public string $name;
+
+        /** @var array<string, bool> */
+        public array $capabilities;
+
+        /**
+         * @param array<string, bool> $capabilities
+         */
+        public function __construct(string $name, array $capabilities = [])
+        {
+            $this->name         = $name;
+            $this->capabilities = $capabilities;
+        }
+
+        public function add_cap(string $cap, bool $grant = true): void // phpcs:ignore
+        {
+            $this->capabilities[$cap] = $grant;
+        }
+
+        public function remove_cap(string $cap): void // phpcs:ignore
+        {
+            unset($this->capabilities[$cap]);
+        }
+
+        public function has_cap(string $cap): bool // phpcs:ignore
+        {
+            return ! empty($this->capabilities[$cap]);
+        }
+    }
+}
+
+$GLOBALS['imcrm_test_roles'] = [
+    'administrator' => new WP_Role('administrator', []),
+];
+
+if (! function_exists('imcrm_test_reset_roles')) {
+    function imcrm_test_reset_roles(): void
+    {
+        $GLOBALS['imcrm_test_roles'] = [
+            'administrator' => new WP_Role('administrator', []),
+        ];
+    }
+}
+
+if (! function_exists('get_role')) {
+    function get_role(string $slug): ?WP_Role
+    {
+        return $GLOBALS['imcrm_test_roles'][$slug] ?? null;
+    }
+}
+
+if (! function_exists('add_role')) {
+    /**
+     * @param array<string, bool> $capabilities
+     */
+    function add_role(string $slug, string $displayName, array $capabilities = []): ?WP_Role
+    {
+        unset($displayName);
+        if (isset($GLOBALS['imcrm_test_roles'][$slug])) {
+            return null; // mimic WP: ya existe → no-op
+        }
+        $role = new WP_Role($slug, $capabilities);
+        $GLOBALS['imcrm_test_roles'][$slug] = $role;
+        return $role;
+    }
+}
+
+if (! function_exists('remove_role')) {
+    function remove_role(string $slug): void
+    {
+        unset($GLOBALS['imcrm_test_roles'][$slug]);
+    }
+}
+
 if (! function_exists('wp_kses_post')) {
     function wp_kses_post(string $html): string
     {

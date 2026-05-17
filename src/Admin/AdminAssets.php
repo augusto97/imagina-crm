@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\Admin;
 
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Plugin;
 
 /**
@@ -141,9 +142,16 @@ final class AdminAssets
                 'id'           => $user->ID,
                 'displayName'  => $user->display_name,
                 'avatar'       => get_avatar_url($user->ID, ['size' => 64]) ?: '',
-                'capabilities' => [
-                    'manage_options' => current_user_can('manage_options'),
-                ],
+                'roles'        => array_values($user->roles),
+                'capabilities' => array_merge(
+                    [
+                        // Back-compat: el SPA antes leía solo `manage_options`.
+                        // Nuevo código del front (Fase 7+) debe usar las caps
+                        // `imcrm_*` directamente.
+                        'manage_options' => current_user_can('manage_options'),
+                    ],
+                    CapabilityRegistry::currentUserCapabilitiesMap(),
+                ),
             ],
         ];
     }

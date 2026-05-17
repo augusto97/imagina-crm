@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.9
+Stable tag: 0.37.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,56 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.37.0 =
+**Fase 7 — Roles y permisos (iteración 1.A: foundation).**
+
+Primer paso de la transición del plugin a un modelo multi-stakeholder.
+Sienta la base sobre la que se construirán las listas públicas (Fase 8)
+y el portal del cliente (Fase 9). Ver `docs/multi-stakeholder-design.md`
+para el plan completo.
+
+Esta iteración NO cambia la experiencia del usuario final aún: solo
+añade infraestructura. Cualquier admin WP existente conserva acceso
+total al plugin sin acción manual — la migración suma las nuevas
+capabilities al rol `administrator` automáticamente.
+
+Cambios técnicos
+----------------
+- Nuevo namespace `ImaginaCRM\Permissions` con dos clases:
+    * `CapabilityRegistry`: catálogo de 17 capabilities y mapeo a 5 roles
+      default (crm_admin / crm_manager / crm_agent / crm_viewer / crm_client).
+    * `RoleInstaller`: instala/sincroniza roles en activación y en cada
+      bump de DB_VERSION. Idempotente. Limpia caps obsoletas con prefijo
+      `imcrm_`. Preserva caps custom del sysadmin (otros prefijos).
+- `Plugin::ADMIN_CAPABILITY` ahora es `imcrm_access_admin` en vez de
+  `manage_options`. El cambio se propaga automáticamente a todos los
+  REST controllers (vía `AbstractController::checkAdminPermissions`),
+  al menú wp-admin y al guardia de la página Standalone.
+- DB_VERSION 7 → 8.
+- `GET /imagina-crm/v1/me` y los payloads de bootstrap exponen ahora
+  el set completo de capabilities `imcrm_*` del usuario + sus roles.
+- En desinstalación con `imcrm_purge_on_uninstall=true`: se remueven
+  los 5 roles del plugin y las caps `imcrm_*` del rol `administrator`.
+
+Tests
+-----
+- 17 tests unitarios cubriendo:
+    * Integridad del registro: caps únicas, mapeos consistentes, scope
+      restrictivo correcto en crm_agent (solo `own`), crm_client sin
+      acceso al admin.
+    * Sync de roles: creación, asignación de caps default, idempotencia,
+      drop de caps obsoletas, preservación de caps de otros plugins.
+    * Uninstall: roles removidos, admin recupera caps limpias.
+- Stubs nuevos de la API de roles WP (`WP_Role`, `get_role`, `add_role`,
+  `remove_role`) en `tests/bootstrap.php`, reutilizables.
+
+Próximos pasos de la Fase 7
+---------------------------
+- 1.B — `PermissionService` con scope `own`/`assigned` + ACL por lista
+- 1.C — Integración granular en controllers REST
+- 1.D — `QueryBuilder` con `additionalWhere`
+- 1.E — Frontend gating + tab "Permisos" en List Builder
 
 = 0.36.9 =
 **Widget metric: campo primero + cálculos según el tipo (todos los tipos de campo).**
