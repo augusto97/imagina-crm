@@ -4,6 +4,35 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.39.1] — 2026-05-17
+
+Continuación de la **Fase 9 — Portal del cliente** (iteración 3.B:
+REST + shortcode + auth flow).
+
+### Añadido
+
+- `src/REST/PortalController.php` con 3 endpoints (cap
+  `imcrm_access_portal`):
+    * `GET /portal/me`
+    * `GET /portal/lists/{slug}/records`
+    * `GET /portal/lists/{slug}/records/{id}`
+  Todos inyectan el scope SQL de `PortalScopeService` para garantizar
+  aislamiento de datos.
+- `src/Portal/PortalShortcode.php` — shortcode
+  `[imcrm-client-portal]` con 4 estados de auth gate (no logged-in,
+  no access, unlinked, ok).
+- `src/Portal/PortalAssets.php` — enqueue lazy del CSS solo en
+  páginas con el shortcode.
+- `assets/portal.css` — estilos base con variables override-ables
+  y dark mode automático.
+
+### Próximas iteraciones
+
+- 3.C — Template editor extendido (schema BD).
+- 3.D-3.E — Bloques del template.
+- 3.F — Bundle `app/portal.tsx`.
+- 3.G — Botón "Crear acceso al portal".
+
 ## [0.39.0] — 2026-05-17
 
 Arranque de la **Fase 9 — Portal del cliente** (iteración 3.A:

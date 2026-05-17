@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.39.0
+Stable tag: 0.39.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,84 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.39.1 =
+**Fase 9 — Portal del cliente (iteración 3.B: REST + shortcode + auth flow).**
+
+Trae los endpoints REST del portal + el shortcode `[imcrm-client-portal]`
+que sirve como auth gate en cualquier página del tema. El bundle JS
+del portal (template renderer) llega en 3.F — esta iteración tiene
+todo lo necesario para que un cliente entre, vea su info básica y
+los endpoints respondan correctamente con el scope aplicado.
+
+REST endpoints (cap `imcrm_access_portal`)
+------------------------------------------
+- GET /imagina-crm/v1/portal/me
+    Devuelve el record del cliente actual + metadata. 404 si:
+        * No hay lista de portal configurada.
+        * El user no tiene record asociado.
+    Shape:
+        { data: { list: {id, slug, name}, record: {...}, user: {...},
+                  template_id: int|null } }
+
+- GET /imagina-crm/v1/portal/lists/{slug}/records
+    Records de una lista visibles para el cliente. El scope SQL de
+    PortalScopeService se inyecta vía `additionalWhere` del
+    QueryBuilder — el cliente NO puede ver records ajenos aunque
+    conozca el slug de la lista. Params: page, per_page, sort, search.
+
+- GET /imagina-crm/v1/portal/lists/{slug}/records/{id}
+    Detalle de un record. Devuelve 404 si no está dentro del scope
+    (no se distingue "no existe" de "no autorizado" para data leak
+    prevention). La estrategia es ejecutar `list()` con additionalWhere
+    `AND id = %d <scope>`, lo que combina filtro per-record + scope
+    en una sola query.
+
+Shortcode [imcrm-client-portal]
+-------------------------------
+Cuatro estados de auth gate, cada uno con su card visual:
+
+  1. No logged-in → card "Iniciar sesión" con botón a `wp_login_url`
+     que respeta el `redirect_to` para volver tras login.
+  2. Logged-in sin cap `imcrm_access_portal` (ej. admin curioseando)
+     → card "Esta página es para clientes" + link al admin.
+  3. Logged-in con cap pero sin record asociado → card "Tu cuenta
+     aún no tiene portal" + sugerencia de contactar al admin.
+  4. Logged-in con cap Y record → root del portal con header
+     (saludo personalizado + logout) y placeholder informativo.
+
+El root incluye atributos `data-imcrm-portal` y `data-imcrm-portal-boot`
+con JSON serializado (rest_root, rest_nonce, list_slug, user_id,
+record_id) para que el bundle de 3.F hidrate sin tener que pedir
+metadata extra.
+
+Edge case "portal mal configurado": si NO hay lista de portal en
+toda la instalación, mostramos una card específica solo si el user
+tiene cap (típicamente admins probando) — visitantes anónimos NO
+verían este mensaje porque ya cayeron en el estado 1.
+
+CSS portal
+----------
+`assets/portal.css` con variables `--imcrm-portal-*` override-ables
+por el tema. Mismo patrón que `public-list.css` de Fase 8:
+selectores específicos, sin reset agresivo, dark mode automático.
+
+`src/Portal/PortalAssets.php`: enqueue lazy del CSS solo en páginas
+con el shortcode. Slot listo para el bundle JS de 3.F.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 388 tests (sin nuevos en 3.B — tests integration del REST
+necesitan suite de integration que llegará en 3.D-3.E con bloques
+del template).
+
+Próximas iteraciones
+--------------------
+- 3.C — Template editor extendido: schema BD (`templates.kind`
+  ENUM con valor `client_portal`) + UI para crear templates de portal.
+- 3.D-3.E — Bloques del template (client_data, editable_form,
+  related_records_table, kpi_widget, etc.).
+- 3.F — Bundle `app/portal.tsx` + renderer del template.
+- 3.G — Botón "Crear acceso al portal" en la lista de clientes.
 
 = 0.39.0 =
 **Fase 9 — Portal del cliente (iteración 3.A: foundation + aislamiento).**

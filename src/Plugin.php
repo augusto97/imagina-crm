@@ -207,6 +207,24 @@ final class Plugin
             );
         });
 
+        // Portal — shortcode + assets + REST controller (Fase 9 — 3.B).
+        $this->container->bind(\ImaginaCRM\Portal\PortalShortcode::class, static function (Container $c): \ImaginaCRM\Portal\PortalShortcode {
+            return new \ImaginaCRM\Portal\PortalShortcode(
+                $c->get(ClientResolver::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\Portal\PortalAssets::class, static function (): \ImaginaCRM\Portal\PortalAssets {
+            return new \ImaginaCRM\Portal\PortalAssets();
+        });
+        $this->container->bind(\ImaginaCRM\REST\PortalController::class, static function (Container $c): \ImaginaCRM\REST\PortalController {
+            return new \ImaginaCRM\REST\PortalController(
+                $c->get(ClientResolver::class),
+                $c->get(PortalScopeService::class),
+                $c->get(ListService::class),
+                $c->get(RecordService::class),
+            );
+        });
+
         $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {
             return new SlugManager($c->get(Database::class));
         });
@@ -874,6 +892,18 @@ final class Plugin
         $publicBlock = $this->container->get(\ImaginaCRM\PublicLists\Block::class);
         if ($publicBlock instanceof \ImaginaCRM\PublicLists\Block) {
             $publicBlock->register();
+        }
+
+        // Portal del cliente (Fase 9 — 3.B). Shortcode + enqueue lazy del
+        // CSS. El JS llega en 3.F. El REST controller se registra abajo
+        // junto con todo el resto via RestBootstrap.
+        $portalShortcode = $this->container->get(\ImaginaCRM\Portal\PortalShortcode::class);
+        if ($portalShortcode instanceof \ImaginaCRM\Portal\PortalShortcode) {
+            $portalShortcode->register();
+        }
+        $portalAssets = $this->container->get(\ImaginaCRM\Portal\PortalAssets::class);
+        if ($portalAssets instanceof \ImaginaCRM\Portal\PortalAssets) {
+            $portalAssets->register();
         }
 
         if (is_admin()) {

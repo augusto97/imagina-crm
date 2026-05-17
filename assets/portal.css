@@ -1,0 +1,92 @@
+/**
+ * Estilos base del portal del cliente (Fase 9 — 3.B).
+ *
+ * Mismo modelo que `public-list.css`: selectores específicos
+ * `.imcrm-portal-*` para no chocar con CSS del tema. Variables
+ * `--imcrm-portal-*` override-ables. Sin reset agresivo del tema.
+ */
+
+.imcrm-portal-root,
+.imcrm-portal-card {
+    --imcrm-portal-text: inherit;
+    --imcrm-portal-bg: transparent;
+    --imcrm-portal-card-bg: rgba(0, 0, 0, 0.02);
+    --imcrm-portal-border: rgba(0, 0, 0, 0.12);
+    --imcrm-portal-muted: rgba(0, 0, 0, 0.55);
+    --imcrm-portal-primary: #4f46e5;
+    --imcrm-portal-radius: 0.5rem;
+    --imcrm-portal-font: inherit;
+    font-family: var(--imcrm-portal-font);
+}
+
+/* Cards de estado (login / no access / unlinked / misconfigured) */
+.imcrm-portal-card {
+    margin: 2rem auto;
+    max-width: 480px;
+    padding: 2rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-card-bg);
+    text-align: center;
+}
+.imcrm-portal-card__title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+.imcrm-portal-card__body {
+    margin: 0 0 1.5rem 0;
+    color: var(--imcrm-portal-muted);
+}
+.imcrm-portal-card__btn {
+    display: inline-block;
+    padding: 0.6rem 1.25rem;
+    background: var(--imcrm-portal-primary);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--imcrm-portal-radius);
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+.imcrm-portal-card__btn:hover {
+    opacity: 0.9;
+    color: #fff;
+}
+
+/* Root del portal autenticado */
+.imcrm-portal-root {
+    margin: 1.5rem 0;
+}
+.imcrm-portal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 1rem 0;
+    border-bottom: 1px solid var(--imcrm-portal-border);
+    margin-bottom: 1.5rem;
+}
+.imcrm-portal-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+.imcrm-portal-logout {
+    color: var(--imcrm-portal-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.imcrm-portal-logout:hover {
+    color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-body {
+    color: var(--imcrm-portal-text);
+}
+
+@media (prefers-color-scheme: dark) {
+    .imcrm-portal-root,
+    .imcrm-portal-card {
+        --imcrm-portal-card-bg: rgba(255, 255, 255, 0.04);
+        --imcrm-portal-border: rgba(255, 255, 255, 0.15);
+        --imcrm-portal-muted: rgba(255, 255, 255, 0.6);
+    }
+}

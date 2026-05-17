@@ -18,6 +18,7 @@ final class RestBootstrap
         ListsController::class,
         PermissionsController::class,
         PublicListsController::class,
+        PortalController::class,
         FieldsController::class,
         RecordsController::class,
         ViewsController::class,
