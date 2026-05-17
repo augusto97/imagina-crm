@@ -116,6 +116,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
     padding: 0.75rem 0.2rem 0;
     color: var(--imcrm-public-muted);
     font-size: 0.9em;
@@ -126,6 +127,93 @@
 .imcrm-public-list__total {
     font-size: 0.9em;
     opacity: 0.85;
+}
+
+/* ─── Interactividad (Fase 8 — 2.C, hidratación JS) ─────────────────── */
+
+.imcrm-public-list__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.imcrm-public-list__search {
+    flex: 1;
+    max-width: 320px;
+    height: 2.25rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
+    background: var(--imcrm-public-bg);
+    color: var(--imcrm-public-text);
+    font: inherit;
+    font-size: 0.95em;
+}
+.imcrm-public-list__search:focus {
+    outline: 2px solid var(--imcrm-public-primary);
+    outline-offset: -1px;
+    border-color: var(--imcrm-public-primary);
+}
+
+.imcrm-public-list__loading {
+    color: var(--imcrm-public-muted);
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.imcrm-public-list__error {
+    margin: 0 0 1rem 0;
+    padding: 0.75rem 1rem;
+    background: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    border-left: 3px solid #ef4444;
+    border-radius: var(--imcrm-public-radius);
+    font-size: 0.9em;
+}
+
+.imcrm-public-list__sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+}
+.imcrm-public-list__sort-btn:hover {
+    color: var(--imcrm-public-text);
+}
+.imcrm-public-list__sort-indicator {
+    opacity: 0.55;
+    font-size: 0.85em;
+}
+
+.imcrm-public-list__page-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 2rem;
+    padding: 0 0.85rem;
+    border: 1px solid var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
+    background: var(--imcrm-public-bg);
+    color: var(--imcrm-public-text);
+    font: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.imcrm-public-list__page-btn:hover:not(:disabled) {
+    background: var(--imcrm-public-row-hover);
+}
+.imcrm-public-list__page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* Modo oscuro automático cuando el tema lo declara con prefers-color-scheme.

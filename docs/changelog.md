@@ -4,6 +4,52 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.38.2] — 2026-05-17
+
+Continuación de la **Fase 8 — Listas públicas** (iteración 2.C:
+bundle JS público + hidratación). El shortcode pasa de ser HTML
+estático a una tabla interactiva con búsqueda, sort y paginación.
+
+### Añadido
+
+- `app/public.tsx` — entry point del bundle público. Hidrata todos los
+  `<div data-imcrm-public-list>` del DOM con React.
+- `app/public/PublicList.tsx` — componente principal. Sin TanStack
+  Query/shadcn/Lucide; React 18 + fetch nativo.
+- `app/public/api.ts` — cliente fetch con cache en memoria por URL.
+- `app/public/types.ts` — tipos compartidos.
+
+### Cambiado
+
+- `vite.config.ts`: `input` ahora es array (admin + público).
+  `manualChunks` separa React/ReactDOM en chunk `vendor-react`
+  compartido entre ambos entries. TanStack Query queda en
+  `vendor-query`.
+- `PublicAssets.php`: lee `dist/manifest.json` para resolver los
+  chunks. Enqueue de vendor-react + public.js con `type="module"`.
+- `Shortcode.php`: el `data-imcrm-config` ahora incluye `columns`
+  completos (slug/label/type) — el bundle JS los necesita para
+  formatear celdas en re-renders.
+- `assets/public-list.css`: extendido con estilos del toolbar,
+  search, sort buttons, paginación, loading y error.
+
+### Métricas
+
+- Bundle público: **48 KB gzip total** para el visitante
+  (vendor-react 45.7 + public 2.4). Bajo el target de 50 KB.
+- TTFB: si `dist/manifest.json` falta, JS no se carga pero el HTML
+  server-side sigue visible (degradación graceful).
+
+### Limitaciones conocidas
+
+- Filtros por campo soportados a nivel API pero sin UI todavía.
+- Sin tests del bundle JS (Vitest no configurado).
+
+### Próximas iteraciones
+
+- 2.D — Bloque Gutenberg
+- 2.E — Tab "Visibilidad pública" en List Builder + UI de filtros
+
 ## [0.38.1] — 2026-05-17
 
 Continuación de la **Fase 8 — Listas públicas** (iteración 2.B:

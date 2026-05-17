@@ -5,8 +5,16 @@ import path from 'node:path';
 
 export default defineConfig({
     plugins: [
+        // El plugin `v4wp` produce el `dist/manifest.json` que el
+        // PHP `AdminAssets` lee para resolver el bundle del admin SPA.
+        // Le pasamos AMBOS entry points (admin + público) para que el
+        // manifest los liste juntos y el PHP los resuelva por nombre.
+        // El bundle público (`app/public.tsx`) se enqueuea aparte
+        // desde `PublicAssets` con un path directo, sin pasar por el
+        // manifest — pero igual queremos que Vite lo procese en el
+        // mismo build pipeline.
         v4wp({
-            input: 'app/main.tsx',
+            input: ['app/main.tsx', 'app/public.tsx'],
             outDir: 'dist',
         }),
         react(),
@@ -38,18 +46,28 @@ export default defineConfig({
         emptyOutDir: true,
         rollupOptions: {
             output: {
-                // Fuerza a que React, React-DOM y React-Query SIEMPRE
-                // queden en el chunk principal, nunca en chunks lazy.
-                // Esto es la garantía hard de single-instance que dedupe
-                // no puede dar al 100% — sin ella, code-splitting puede
-                // duplicar libs con context y romper providers.
+                // React/ReactDOM van a un chunk compartido (`vendor-react`)
+                // que tanto el admin SPA como el bundle público importan.
+                //
+                // Motivo: el bundle público (`app/public.tsx`, Fase 8)
+                // debe ser autosuficiente — un visitante del frontend no
+                // tiene por qué descargar el bundle del admin completo.
+                // Con un chunk vendor común, ambos entries comparten una
+                // sola copia de React (single-instance garantizada) y el
+                // browser puede cachear `vendor-react.js` entre admin y
+                // frontend.
+                //
+                // TanStack Query va aparte porque solo lo usa el admin
+                // (el bundle público hace fetch nativo).
                 manualChunks(id) {
                     if (
                         id.includes('node_modules/react/') ||
-                        id.includes('node_modules/react-dom/') ||
-                        id.includes('node_modules/@tanstack/react-query/')
+                        id.includes('node_modules/react-dom/')
                     ) {
-                        return 'main';
+                        return 'vendor-react';
+                    }
+                    if (id.includes('node_modules/@tanstack/react-query/')) {
+                        return 'vendor-query';
                     }
                     return undefined;
                 },

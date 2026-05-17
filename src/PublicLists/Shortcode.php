@@ -118,6 +118,10 @@ final class Shortcode
             'default_sort'         => $config->defaultSort,
             'search_enabled'       => $config->searchEnabled,
             'visible_field_slugs'  => $config->visibleFieldSlugs,
+            // Columnas completas (slug, label, type) — el bundle JS
+            // necesita el `type` para formatear celdas (checkbox, url,
+            // email, etc.) en re-renders tras filtrar/paginar.
+            'columns'              => $columns,
             'rest_root'            => function_exists('rest_url') ? rest_url('imagina-crm/v1') : '',
         ];
 

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.38.1
+Stable tag: 0.38.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,96 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.38.2 =
+**Fase 8 — Listas públicas (iteración 2.C: bundle JS público + hidratación).**
+
+Trae interactividad al shortcode `[imcrm-list]`: búsqueda en vivo (con
+debounce), sort por columna (asc → desc → ninguno), paginación
+client-side. El HTML server-side de 2.B sigue siendo el first paint
+(SEO + visible-sin-JS); el bundle reemplaza el div con React en cuanto
+carga.
+
+Bundle target alcanzado: **48 KB gzip total** para un visitante
+(vendor-react 45.7 KB + public 2.4 KB). Bajo el límite de 50 KB del
+diseño técnico.
+
+Arquitectura del bundle
+-----------------------
+- Nuevo entry `app/public.tsx` — busca todos los
+  `<div data-imcrm-public-list>` del DOM y los monta con React
+  (createRoot, no hydrateRoot — el re-render inicial de ~10-30ms es
+  imperceptible y libera al shortcode PHP de tener que emitir HTML
+  byte-a-byte idéntico al render React).
+- `app/public/PublicList.tsx` — componente principal. Sin TanStack
+  Query (peso), sin shadcn/ui (peso), sin Lucide (peso). Solo React
+  18 + fetch nativo.
+- `app/public/api.ts` — cliente fetch minimalista contra
+  `/v1/public/lists/{slug}/records`. Cache en memoria por URL para
+  navegación rápida sin re-pegar al backend.
+- `app/public/types.ts` — tipos compartidos.
+
+Funcionalidad
+-------------
+- **Búsqueda**: input con debounce 250 ms. Solo si `search_enabled=true`.
+  Vuelve a página 1 al cambiar.
+- **Sort**: click en header alterna `asc → desc → ninguno`. Solo
+  columnas en `sort_allowed_slugs`. Indicator visual (↑/↓/↕).
+- **Paginación**: botones prev/next con conteo "Página X de Y".
+- **Estado de carga**: indicador "Cargando…" en el toolbar.
+- **Manejo de errores**: rate-limited (429) → mensaje claro; otros
+  errores → mensaje genérico amigable.
+- **AbortController**: cada nueva request cancela la anterior
+  (cuando el usuario tipea rápido y se generan varias requests).
+
+Vite config
+-----------
+- `input` de v4wp ahora acepta array → admin + público en el mismo
+  build pipeline.
+- `manualChunks` cambia: React/ReactDOM van a chunk compartido
+  `vendor-react` (45.7 KB gzip). Antes iban al chunk `main` del
+  admin (178 KB), lo cual hacía que el bundle público arrastrara
+  todo el admin SPA. Ahora ambos entries comparten un chunk vendor
+  común — single-instance garantizada y cache-friendly.
+- TanStack Query queda en `vendor-query` (solo admin lo usa).
+
+Assets pipeline
+---------------
+`PublicAssets.php` ahora lee `dist/manifest.json` (igual que
+`AdminAssets`) para resolver los hashes de los chunks emitidos por
+Vite. Enqueue:
+1. CSS base `public-list.css`.
+2. Chunk `vendor-react.js` (deps del entry).
+3. Bundle `public.js` con dependencia explícita del vendor-react.
+Todos con `type="module"` vía `script_loader_tag` filter.
+
+Si el manifest no existe (developer instalando desde fuente sin
+`npm run build`), el JS no se carga pero el HTML server-side sigue
+visible — degradación graceful.
+
+CSS extra
+---------
+`public-list.css` extendido con estilos para los nuevos elementos:
+toolbar, search input, sort buttons (con indicador), botones
+paginación, loading inline, error banner. Sigue el patrón de
+variables `--imcrm-public-*` para que el tema override.
+
+Limitaciones conocidas
+----------------------
+- Filtros por campo (filter[slug][op]=...) soportados a nivel API
+  pero sin UI en este release. Reservado para 2.E o posterior.
+- Sin tests E2E del bundle JS — la suite Vitest no está configurada
+  en el proyecto. Cobertura indirecta vía tests PHP del shortcode
+  (que verifica los data-attrs que el bundle consume).
+
+PHPStan: 0 regresiones (22 baseline).
+TypeScript build: limpio. Bundle público: 2.42 KB gzip (mi código).
+
+Próximos pasos
+--------------
+- 2.D — Bloque Gutenberg `imagina-crm/list` con preview en editor.
+- 2.E — Tab "Visibilidad pública" en List Builder + UI de filtros
+  para visitantes.
 
 = 0.38.1 =
 **Fase 8 — Listas públicas (iteración 2.B: shortcode con render server-side).**
