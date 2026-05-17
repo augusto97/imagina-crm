@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.40.0
+Stable tag: 0.40.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,142 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.40.1 =
+**Fase 10 — Magic links (login sin password para clientes).**
+
+Segunda pieza de la Fase 10. El admin genera un link único para un
+cliente; el cliente lo recibe por email; al hacer click queda
+autenticado en el portal sin tipear password. Útil para onboarding
+("Bienvenido, aquí está tu link de acceso") y recovery ("Olvidé mi
+password, mándame un magic link").
+
+Sin cambios de schema. Tokens viven en transients de WP
+(auto-expiran solo, no necesitan tabla nueva).
+
+Cómo funciona
+-------------
+1. Admin llama POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/magic-link
+   con `target_url` (URL del portal) y opcional `send_email=true`.
+2. Backend genera token aleatorio de 32 bytes (64 chars hex, 256 bits
+   entropía).
+3. Guarda en transient `imcrm_ml_<sha256(token)>` con TTL 7 días.
+   El sha256 protege contra DB leak — un atacante con la BD NO puede
+   usar los tokens.
+4. Devuelve URL: `<target_url>?imcrm_token=<token>` + expires_at.
+5. Si send_email=true, envía email al cliente con el link.
+6. Cliente clickea → `template_redirect` hook detecta el token →
+   `MagicLinkService::consume()` valida → `wp_set_auth_cookie` →
+   redirect a la misma URL sin el query param (browser history queda
+   limpio).
+7. Token se borra del transient inmediatamente al consumir
+   (one-time enforcement).
+
+MagicLinkService
+----------------
+src/Portal/MagicLinkService.php — service stateless con dos métodos
+públicos:
+
+generate(int $userId, string $targetUrl): array|ValidationResult
+- Valida user existe + tiene cap `imcrm_access_portal`.
+- Valida `target_url` con wp_http_validate_url.
+- Genera 32 bytes random hex.
+- Guarda sha256(token) en transient con TTL 7 días.
+- Devuelve { token, url, expires_at }.
+
+consume(string $token): ?int
+- Valida formato del token (length=64, ctype_xdigit).
+- Lee transient por hash.
+- Re-valida user existe + sigue teniendo cap (un admin pudo
+  quitar el rol entre generate y consume).
+- DELETE del transient ANTES de auth (one-time enforcement
+  contra race conditions de consumes paralelos).
+- wp_set_auth_cookie(userId, false, is_ssl()) — sesión normal
+  (no "remember me").
+- Devuelve user_id o null en cualquier fallo (sin distinguir
+  causa para data leak prevention).
+
+MagicLinkConsumer
+-----------------
+src/Portal/MagicLinkConsumer.php — hook en `template_redirect`
+priority 5:
+- Si no hay `?imcrm_token=...`: return inmediato (no-op).
+- Sanea el query param contra inyección.
+- Llama service->consume().
+- Independientemente del resultado, redirige a la URL sin el
+  token (wp_safe_redirect). Si exitoso → user logged-in y el
+  shortcode renderiza el portal. Si falla → login card normal.
+
+Endpoint REST
+-------------
+POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/magic-link
+Cap: imcrm_manage_lists.
+
+Args:
+- target_url (string, required): URL del portal con el shortcode.
+- send_email (bool, default true): mandar email al cliente.
+
+Validaciones:
+- Lista debe ser portal-list configurada.
+- Record debe existir y tener un user_id asociado en owner_field
+  (cliente con cuenta creada previamente via /access).
+- target_url debe pasar wp_http_validate_url.
+- El user_id resuelto debe tener cap imcrm_access_portal.
+
+Returns:
+- 201 Created: { url, expires_at, sent_email }
+- 422 / 404 según el fallo.
+
+Email
+-----
+Texto plano simple via `wp_mail`. Subject "Tu acceso a {site_name}".
+Body: saludo + link + nota de "uno-time, válido hasta {date}".
+El admin puede pisar `wp_mail_*` filters para customizar si necesita
+HTML rico.
+
+Plugin.php
+----------
+- 3 bindings nuevos: MagicLinkService, MagicLinkConsumer.
+- PortalController binding actualizado (9 deps ahora).
+- Registro del consumer en register() — corre siempre en frontend
+  pero es no-op sin token.
+
+Tests
+-----
+15 tests unitarios nuevos en MagicLinkServiceTest:
+- generate devuelve {token, url, expires_at} válidos.
+- generate rechaza: user_id <=0, user inexistente, user sin cap
+  portal, URL inválida.
+- HASH storage: el token raw NO aparece en ninguna key ni value
+  del transient (defensa contra DB leak).
+- consume devuelve user_id para token válido.
+- consume invalida token tras uso (one-time enforcement).
+- consume setea wp_set_auth_cookie con user_id correcto.
+- consume rechaza: token malformado (length, charset), token
+  desconocido, user borrado entre generate-consume, user perdió
+  cap, token expirado.
+- consume fallido NO setea auth cookie (defensa adicional).
+
+Stubs WP nuevos en tests/bootstrap.php (reutilizables):
+- set_transient/get_transient/delete_transient con estado
+  in-memory + flag de expirados.
+- wp_set_auth_cookie con log de calls.
+- wp_set_current_user.
+- wp_http_validate_url (delega a filter_var).
+- add_query_arg.
+- is_ssl (return false).
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 416 tests, +15 nuevos pasan, 0 errores nuevos.
+
+Próximas piezas de Fase 10
+--------------------------
+- Permalinks dedicados para listas públicas — `/precios/` en lugar
+  del shortcode.
+- Roles personalizados — admin define sus propios roles con caps
+  custom.
 
 = 0.40.0 =
 **Fase 10 — Pulidos (parte 1: per-field permissions).**

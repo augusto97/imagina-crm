@@ -222,6 +222,15 @@ final class Plugin
                 $c->get(RecordRepository::class),
             );
         });
+        // Magic links (Fase 10): generación + consumo de tokens one-time.
+        $this->container->bind(\ImaginaCRM\Portal\MagicLinkService::class, static function (): \ImaginaCRM\Portal\MagicLinkService {
+            return new \ImaginaCRM\Portal\MagicLinkService();
+        });
+        $this->container->bind(\ImaginaCRM\Portal\MagicLinkConsumer::class, static function (Container $c): \ImaginaCRM\Portal\MagicLinkConsumer {
+            return new \ImaginaCRM\Portal\MagicLinkConsumer(
+                $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
+            );
+        });
         $this->container->bind(\ImaginaCRM\REST\PortalController::class, static function (Container $c): \ImaginaCRM\REST\PortalController {
             return new \ImaginaCRM\REST\PortalController(
                 $c->get(ClientResolver::class),
@@ -232,6 +241,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Portal\PortalAccountManager::class),
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
                 $c->get(\ImaginaCRM\Activity\ActivityRepository::class),
+                $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
             );
         });
 
@@ -914,6 +924,13 @@ final class Plugin
         $portalAssets = $this->container->get(\ImaginaCRM\Portal\PortalAssets::class);
         if ($portalAssets instanceof \ImaginaCRM\Portal\PortalAssets) {
             $portalAssets->register();
+        }
+        // Magic links (Fase 10): hook en `template_redirect` que
+        // detecta `?imcrm_token=...`, autentica vía cookie y redirige
+        // limpio. Si no hay token presente, es no-op cero-overhead.
+        $magicLinkConsumer = $this->container->get(\ImaginaCRM\Portal\MagicLinkConsumer::class);
+        if ($magicLinkConsumer instanceof \ImaginaCRM\Portal\MagicLinkConsumer) {
+            $magicLinkConsumer->register();
         }
 
         if (is_admin()) {

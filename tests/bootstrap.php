@@ -479,6 +479,89 @@ if (! function_exists('rest_url')) {
     }
 }
 
+/**
+ * Stubs de transients (Fase 10 — magic links). Estado in-memory
+ * reseteable con `imcrm_test_reset_transients()`. No respetan TTL
+ * por defecto — los tests que necesitan verificar expiración pueden
+ * setearlo via `$GLOBALS['imcrm_test_transients_expired']`.
+ */
+$GLOBALS['imcrm_test_transients'] = [];
+$GLOBALS['imcrm_test_transients_expired'] = [];
+
+if (! function_exists('imcrm_test_reset_transients')) {
+    function imcrm_test_reset_transients(): void
+    {
+        $GLOBALS['imcrm_test_transients'] = [];
+        $GLOBALS['imcrm_test_transients_expired'] = [];
+    }
+}
+
+if (! function_exists('set_transient')) {
+    function set_transient(string $key, mixed $value, int $ttl = 0): bool
+    {
+        unset($ttl);
+        $GLOBALS['imcrm_test_transients'][$key] = $value;
+        return true;
+    }
+}
+if (! function_exists('get_transient')) {
+    function get_transient(string $key): mixed
+    {
+        if (in_array($key, $GLOBALS['imcrm_test_transients_expired'] ?? [], true)) {
+            return false;
+        }
+        return $GLOBALS['imcrm_test_transients'][$key] ?? false;
+    }
+}
+if (! function_exists('delete_transient')) {
+    function delete_transient(string $key): bool
+    {
+        if (isset($GLOBALS['imcrm_test_transients'][$key])) {
+            unset($GLOBALS['imcrm_test_transients'][$key]);
+            return true;
+        }
+        return false;
+    }
+}
+
+if (! function_exists('wp_http_validate_url')) {
+    function wp_http_validate_url(string $url): string|false
+    {
+        return filter_var($url, FILTER_VALIDATE_URL);
+    }
+}
+if (! function_exists('add_query_arg')) {
+    function add_query_arg(string $key, string $value, string $url): string
+    {
+        $sep = str_contains($url, '?') ? '&' : '?';
+        return $url . $sep . $key . '=' . rawurlencode($value);
+    }
+}
+if (! function_exists('wp_set_auth_cookie')) {
+    /** @var array<int, array{user_id:int, remember:bool, secure:?bool}> */
+    $GLOBALS['imcrm_test_auth_cookies'] = [];
+    function wp_set_auth_cookie(int $userId, bool $remember = false, ?bool $secure = null): void
+    {
+        $GLOBALS['imcrm_test_auth_cookies'][] = [
+            'user_id'  => $userId,
+            'remember' => $remember,
+            'secure'   => $secure,
+        ];
+    }
+}
+if (! function_exists('wp_set_current_user')) {
+    function wp_set_current_user(int $userId): void
+    {
+        $GLOBALS['imcrm_test_current_user_id'] = $userId;
+    }
+}
+if (! function_exists('is_ssl')) {
+    function is_ssl(): bool
+    {
+        return false;
+    }
+}
+
 if (! function_exists('wp_kses_post')) {
     function wp_kses_post(string $html): string
     {

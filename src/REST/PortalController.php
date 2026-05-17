@@ -9,6 +9,7 @@ use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Portal\ClientResolverInterface;
+use ImaginaCRM\Portal\MagicLinkService;
 use ImaginaCRM\Portal\PortalAccountManager;
 use ImaginaCRM\Portal\PortalScopeService;
 use ImaginaCRM\Portal\PortalTemplate;
@@ -55,6 +56,7 @@ final class PortalController extends AbstractController
         private readonly PortalAccountManager $accounts,
         private readonly RecordAggregator $aggregator,
         private readonly ActivityRepository $activity,
+        private readonly MagicLinkService $magicLinks,
     ) {
         parent::__construct();
     }
@@ -153,6 +155,27 @@ final class PortalController extends AbstractController
                 'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
                 'args'                => [
                     'send_notification' => ['type' => 'boolean', 'default' => true],
+                ],
+            ],
+        );
+
+        // Magic link para un cliente (Fase 10 — pulidos). Cap:
+        // manage_lists. Genera URL con token one-time + opcionalmente
+        // envía email al cliente.
+        register_rest_route(
+            $this->namespace,
+            '/portal/lists/(?P<slug>[a-zA-Z0-9_-]+)/records/(?P<id>\d+)/magic-link',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'createMagicLink'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
+                'args'                => [
+                    'target_url' => [
+                        'type'        => 'string',
+                        'required'    => true,
+                        'description' => 'URL de la página WP con el shortcode [imcrm-client-portal].',
+                    ],
+                    'send_email' => ['type' => 'boolean', 'default' => true],
                 ],
             ],
         );
@@ -340,6 +363,113 @@ final class PortalController extends AbstractController
         }
 
         return new WP_REST_Response(['data' => $result], 201);
+    }
+
+    /**
+     * POST /portal/lists/{slug}/records/{id}/magic-link
+     *
+     * Genera un magic link one-time para el cliente y opcionalmente
+     * lo envía por email. Cap requerida: imcrm_manage_lists.
+     *
+     * Validaciones:
+     *  - El record debe existir en la lista de portal.
+     *  - El record debe tener un user_id asociado en su owner_field
+     *    (cliente con cuenta creada previamente via /access).
+     *  - target_url debe ser una URL válida.
+     */
+    public function createMagicLink(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('slug'));
+        if ($list === null) {
+            return $this->notFound();
+        }
+        $recordId = (int) $request->get_param('id');
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+        $targetUrl = (string) $request->get_param('target_url');
+        $sendEmail = (bool) $request->get_param('send_email');
+
+        // Resolver el record + owner_field → user_id asociado.
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null || $portalList->id !== $list->id) {
+            return $this->validationError(ValidationResult::failWith(
+                'list',
+                __('Esta lista no es la lista de portal configurada.', 'imagina-crm'),
+            ));
+        }
+        $ownerField = $this->resolver->ownerField($portalList);
+        if ($ownerField === null) {
+            return $this->validationError(ValidationResult::failWith(
+                'list',
+                __('La lista de portal no tiene un campo de usuario configurado.', 'imagina-crm'),
+            ));
+        }
+        $row = $this->records->find($list, $recordId);
+        if ($row === null) {
+            return $this->notFound();
+        }
+        $fieldsMap = is_array($row['fields'] ?? null) ? $row['fields'] : [];
+        $userId = isset($fieldsMap[$ownerField->slug]) ? (int) $fieldsMap[$ownerField->slug] : 0;
+        if ($userId <= 0) {
+            return $this->validationError(ValidationResult::failWith(
+                'record',
+                __('El registro no tiene una cuenta de cliente asociada. Crea el acceso primero.', 'imagina-crm'),
+            ));
+        }
+
+        $generated = $this->magicLinks->generate($userId, $targetUrl);
+        if ($generated instanceof ValidationResult) {
+            return $this->validationError($generated);
+        }
+
+        if ($sendEmail) {
+            $this->sendMagicLinkEmail($userId, $generated['url'], $generated['expires_at']);
+        }
+
+        return new WP_REST_Response([
+            'data' => [
+                'url'        => $generated['url'],
+                'expires_at' => $generated['expires_at'],
+                'sent_email' => $sendEmail,
+            ],
+        ], 201);
+    }
+
+    /**
+     * Envía un email simple al cliente con el magic link. Texto plano +
+     * HTML mínimo — el tema del sitio puede pisar el `wp_mail_*` filters
+     * para customizar si necesita.
+     */
+    private function sendMagicLinkEmail(int $userId, string $url, int $expiresAt): void
+    {
+        if (! function_exists('wp_mail')) {
+            return;
+        }
+        $user = get_user_by('id', $userId);
+        if ($user === false || ! is_email($user->user_email)) {
+            return;
+        }
+        $siteName = function_exists('get_bloginfo') ? get_bloginfo('name') : '';
+        $expiresHuman = function_exists('wp_date')
+            ? wp_date(get_option('date_format', 'Y-m-d') . ' ' . get_option('time_format', 'H:i'), $expiresAt)
+            : gmdate('Y-m-d H:i', $expiresAt);
+
+        $subject = sprintf(
+            /* translators: %s: site name */
+            __('Tu acceso a %s', 'imagina-crm'),
+            $siteName,
+        );
+        $bodyText = sprintf(
+            /* translators: 1: display name 2: site name 3: magic link URL 4: expires date */
+            __("Hola %1\$s,\n\nUsa este enlace para acceder a tu portal en %2\$s:\n\n%3\$s\n\nEl enlace es válido hasta %4\$s y se puede usar una sola vez.\n\nSi no solicitaste este acceso, ignora este mensaje.", 'imagina-crm'),
+            $user->display_name !== '' ? $user->display_name : $user->user_email,
+            $siteName,
+            $url,
+            $expiresHuman,
+        );
+
+        wp_mail($user->user_email, $subject, $bodyText);
     }
 
     public function getMe(WP_REST_Request $request): WP_REST_Response|WP_Error

@@ -4,6 +4,28 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.40.1] — 2026-05-17
+
+**Magic links** (Fase 10 — pulidos). Login sin password para clientes
+del portal. Sin schema bump — tokens viven en transients de WP
+auto-expirables.
+
+### Añadido
+
+- `src/Portal/MagicLinkService.php` — generate/consume con tokens
+  one-time, 256 bits de entropía, storage por sha256(token).
+- `src/Portal/MagicLinkConsumer.php` — hook `template_redirect`
+  priority 5 que detecta `?imcrm_token=...`, valida, autentica
+  via `wp_set_auth_cookie`, redirige limpio.
+- `POST /portal/lists/{slug}/records/{id}/magic-link` con cap
+  `imcrm_manage_lists` y email automático opt-in.
+- 15 tests unitarios en `MagicLinkServiceTest`.
+
+### Stubs WP nuevos
+
+- transients + wp_set_auth_cookie + wp_http_validate_url +
+  add_query_arg.
+
 ## [0.40.0] — 2026-05-17
 
 Arranque de la **Fase 10 — Pulidos** (per-field permissions). Cierra
