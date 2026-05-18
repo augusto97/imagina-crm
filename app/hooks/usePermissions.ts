@@ -56,11 +56,27 @@ export function useUpdateListPermissions(idOrSlug: string | number) {
     });
 }
 
+/**
+ * Hook para el catálogo `GET /roles`. Devuelve el shape completo
+ * que el endpoint emite dentro de `data`: lista de roles built-in
+ * + roles custom + capabilities (estas últimas las usa el
+ * CustomRolesCard para renderizar el form de creación).
+ *
+ * El shape del endpoint cambió en 0.40.3 al añadir custom_roles +
+ * capabilities — antes era `data: PluginRole[]` directamente. Ahora
+ * `data: { roles, custom_roles, capabilities }`.
+ */
+export interface RolesCatalog {
+    roles: PluginRole[];
+    custom_roles: Array<{ slug: string; label: string; capabilities: string[] }>;
+    capabilities: string[];
+}
+
 export function useRoles() {
     return useQuery({
         queryKey: permissionsKeys.roles(),
-        queryFn: async () => {
-            const res = await api.get<PluginRole[]>('/roles');
+        queryFn: async (): Promise<RolesCatalog> => {
+            const res = await api.get<RolesCatalog>('/roles');
             return res.data;
         },
         // Catálogo estático en la sesión.

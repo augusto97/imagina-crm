@@ -4,6 +4,26 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.40.4] — 2026-05-18
+
+**Fix:** pantalla en blanco al entrar a Ajustes del plugin
+(`CustomRolesCard` de 0.40.3).
+
+### Causa
+
+El endpoint `GET /roles` devolvía `{ data: [...], custom_roles: [...],
+capabilities: [...] }` pero el wrapper `api.ts` solo expone
+`envelope.data` y descarta el resto — `custom_roles` y `capabilities`
+llegaban como `undefined`, crash en `.map()`.
+
+### Fix
+
+- Backend (`PermissionsController::listRoles`): shape anida todo
+  dentro de `data`: `{ data: { roles, custom_roles, capabilities } }`.
+- Frontend (`CustomRolesCard`): consume el nuevo shape con
+  fallbacks `?? []` defensivos.
+- `useRoles()` actualizado al shape nuevo.
+
 ## [0.40.3] — 2026-05-17
 
 **Roles personalizados** (Fase 10 — pulidos · **CIERRE DE FASE 10**).

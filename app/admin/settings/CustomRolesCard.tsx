@@ -21,8 +21,13 @@ interface CustomRole {
     capabilities: string[];
 }
 
-interface RolesResponse {
-    data: Array<{ slug: string; label: string; can_configure: boolean }>;
+/**
+ * Shape de `data` devuelto por `GET /roles`. El api.ts wrapper expone
+ * solo `envelope.data` al cliente — el backend lo anida adentro
+ * (`{ data: { roles, custom_roles, capabilities } }`).
+ */
+interface RolesData {
+    roles: Array<{ slug: string; label: string; can_configure: boolean }>;
     custom_roles: CustomRole[];
     capabilities: string[];
 }
@@ -52,12 +57,9 @@ export function CustomRolesCard(): JSX.Element {
 
     const rolesQuery = useQuery({
         queryKey: ['roles'],
-        queryFn: async () => {
-            const res = await api.get<RolesResponse['data']>('/roles');
-            // El endpoint devuelve `data` + `custom_roles` + `capabilities`
-            // a nivel raíz, no anidado. ApiResponse<T> envuelve solo `data`.
-            // Acá necesitamos los 3 — hacemos un raw fetch.
-            return res as unknown as RolesResponse;
+        queryFn: async (): Promise<RolesData> => {
+            const res = await api.get<RolesData>('/roles');
+            return res.data;
         },
     });
 
@@ -102,8 +104,11 @@ export function CustomRolesCard(): JSX.Element {
         );
     }
 
-    const customRoles = rolesQuery.data.custom_roles;
-    const allCaps = rolesQuery.data.capabilities;
+    // Defensas con `??`: si el endpoint devuelve un shape distinto
+    // (versión vieja del plugin, error en serialización, etc.), no
+    // crashea la pantalla — muestra el card vacío.
+    const customRoles = rolesQuery.data.custom_roles ?? [];
+    const allCaps = rolesQuery.data.capabilities ?? [];
 
     return (
         <Card>
