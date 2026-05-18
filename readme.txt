@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.40.3
+Stable tag: 0.40.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,50 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.40.4 =
+**Fix: pantalla en blanco en Ajustes (CustomRolesCard).**
+
+El CustomRolesCard introducido en 0.40.3 esperaba un shape JSON
+que NO era el que devolvía el wrapper `api.ts` del frontend.
+
+Síntoma reportado: al entrar a Ajustes la pantalla quedaba en
+blanco con error en consola:
+  TypeError: Cannot read properties of undefined (reading 'length')
+      at SettingsPage-fuVtSN4X.js → CustomRolesCard
+
+Causa
+-----
+El endpoint GET /roles devolvía:
+  { data: [...roles...], custom_roles: [...], capabilities: [...] }
+
+El wrapper `api.ts` solo expone `envelope.data` al cliente y
+descarta los otros campos. Entonces `custom_roles` y `capabilities`
+llegaban como `undefined` al componente. Cuando el JSX iteraba
+`allCaps.map(...)`, crash.
+
+Fix
+---
+- Backend (PermissionsController::listRoles): el shape ahora anida
+  todo dentro de `data`:
+    {
+      data: {
+        roles:        [...],
+        custom_roles: [...],
+        capabilities: [...]
+      }
+    }
+- Frontend (CustomRolesCard): consume `res.data.{roles, custom_roles,
+  capabilities}` con fallbacks `?? []` defensivos.
+- useRoles() (huérfano hasta este release pero documentado en 0.40.3):
+  actualizado al shape nuevo para evitar el mismo bug si alguien lo
+  reusa en el futuro.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 438 tests, 0 errores nuevos.
+TypeScript build: limpio.
 
 = 0.40.3 =
 **Fase 10 — Roles personalizados (CIERRE DE FASE 10).**

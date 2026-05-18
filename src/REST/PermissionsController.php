@@ -216,10 +216,15 @@ final class PermissionsController extends AbstractController
     public function listRoles(WP_REST_Request $request): WP_REST_Response
     {
         unset($request);
+        // El api.ts wrapper expone solo `envelope.data` al cliente.
+        // Por eso anidamos todo dentro de `data` — sino el front no
+        // ve `custom_roles` ni `capabilities`.
         return new WP_REST_Response([
-            'data'         => $this->rolesShape(),
-            'custom_roles' => $this->customRoles->all(),
-            'capabilities' => CapabilityRegistry::allCapabilities(),
+            'data' => [
+                'roles'        => $this->rolesShape(),
+                'custom_roles' => $this->customRoles->all(),
+                'capabilities' => CapabilityRegistry::allCapabilities(),
+            ],
         ]);
     }
 
