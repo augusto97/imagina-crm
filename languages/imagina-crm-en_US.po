@@ -1,0 +1,252 @@
+# English (US) translation for Imagina CRM
+# Copyright (C) 2026 IMAGINA LA WEB S.A.S.
+# This file is distributed under the GPL-2.0-or-later license.
+msgid ""
+msgstr ""
+"Project-Id-Version: Imagina CRM 0.1.0\n"
+"Report-Msgid-Bugs-To: https://imaginawp.com/imagina-crm\n"
+"PO-Revision-Date: 2026-04-25 12:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: English (US)\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: imagina-crm\n"
+
+msgid "Imagina CRM"
+msgstr "Imagina CRM"
+
+msgid "Plataforma de gestión de listas, registros y automatizaciones tipo ClickUp/Airtable nativa en WordPress."
+msgstr "Lists, records, and automations platform — ClickUp/Airtable-style — native to WordPress."
+
+#. Errores comunes
+msgid "El nombre es obligatorio."
+msgstr "Name is required."
+
+msgid "El nombre no puede estar vacío."
+msgstr "Name cannot be empty."
+
+msgid "El slug no puede estar vacío."
+msgstr "Slug cannot be empty."
+
+msgid "Formato inválido. Usa snake_case: minúsculas, números y guiones bajos. Debe empezar por letra."
+msgstr "Invalid format. Use snake_case: lowercase letters, numbers, and underscores. Must start with a letter."
+
+msgid "Ya existe otra entidad con ese slug."
+msgstr "Another entity already uses this slug."
+
+msgid "Ese slug está reservado por el sistema. Elige otro."
+msgstr "That slug is reserved by the system. Choose another."
+
+msgid "La lista no existe."
+msgstr "The list does not exist."
+
+msgid "El campo no existe."
+msgstr "The field does not exist."
+
+msgid "El record no existe."
+msgstr "The record does not exist."
+
+msgid "Tipo de campo desconocido."
+msgstr "Unknown field type."
+
+msgid "Este tipo de campo no soporta unicidad."
+msgstr "This field type does not support uniqueness."
+
+msgid "Este campo es obligatorio."
+msgstr "This field is required."
+
+msgid "Valor inválido."
+msgstr "Invalid value."
+
+msgid "Email inválido."
+msgstr "Invalid email."
+
+msgid "URL inválida."
+msgstr "Invalid URL."
+
+msgid "Fecha inválida. Usa formato YYYY-MM-DD."
+msgstr "Invalid date. Use YYYY-MM-DD format."
+
+#. Acciones generales (frontend)
+msgid "Listas"
+msgstr "Lists"
+
+msgid "Ajustes"
+msgstr "Settings"
+
+msgid "Nueva lista"
+msgstr "New list"
+
+msgid "Nuevo registro"
+msgstr "New record"
+
+msgid "Cargando…"
+msgstr "Loading…"
+
+msgid "Crear lista"
+msgstr "Create list"
+
+msgid "Crear registro"
+msgstr "Create record"
+
+msgid "Crear campo"
+msgstr "Create field"
+
+msgid "Cancelar"
+msgstr "Cancel"
+
+msgid "Guardar cambios"
+msgstr "Save changes"
+
+msgid "Guardando…"
+msgstr "Saving…"
+
+msgid "Eliminar"
+msgstr "Delete"
+
+msgid "Eliminando…"
+msgstr "Deleting…"
+
+msgid "Cerrar"
+msgstr "Close"
+
+msgid "Buscar…"
+msgstr "Search…"
+
+msgid "Configurar lista"
+msgstr "Configure list"
+
+msgid "Configurar campos"
+msgstr "Configure fields"
+
+msgid "Volver"
+msgstr "Back"
+
+msgid "Volver a listas"
+msgstr "Back to lists"
+
+msgid "Disponible"
+msgstr "Available"
+
+msgid "No disponible"
+msgstr "Not available"
+
+msgid "Verificando disponibilidad…"
+msgstr "Checking availability…"
+
+msgid "Cambiar el slug no afectará tus datos ni filtros guardados. URLs externas, webhooks o integraciones que usen el slug actual deberán actualizarse. Imagina CRM mantendrá redirects automáticos del anterior."
+msgstr "Changing the slug will not affect your data or saved filters. External URLs, webhooks, or integrations using the current slug will need to be updated. Imagina CRM will keep automatic redirects from the previous slug."
+
+#. Field types
+msgid "Texto"
+msgstr "Text"
+
+msgid "Texto largo"
+msgstr "Long text"
+
+msgid "Número"
+msgstr "Number"
+
+msgid "Moneda"
+msgstr "Currency"
+
+msgid "Selección única"
+msgstr "Single select"
+
+msgid "Selección múltiple"
+msgstr "Multi-select"
+
+msgid "Fecha"
+msgstr "Date"
+
+msgid "Fecha y hora"
+msgstr "Date and time"
+
+msgid "Casilla"
+msgstr "Checkbox"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Usuario"
+msgstr "User"
+
+msgid "Relación"
+msgstr "Relation"
+
+msgid "Archivo"
+msgstr "File"
+
+#. Filter operators
+msgid "contiene"
+msgstr "contains"
+
+msgid "es"
+msgstr "is"
+
+msgid "no es"
+msgstr "is not"
+
+msgid "empieza con"
+msgstr "starts with"
+
+msgid "termina con"
+msgstr "ends with"
+
+msgid "está vacío"
+msgstr "is empty"
+
+msgid "no está vacío"
+msgstr "is not empty"
+
+msgid "es alguno de"
+msgstr "is any of"
+
+msgid "no es ninguno de"
+msgstr "is none of"
+
+msgid "desde"
+msgstr "from"
+
+msgid "hasta"
+msgstr "to"
+
+#. Saved Views
+msgid "Todos"
+msgstr "All"
+
+msgid "Cambios sin guardar"
+msgstr "Unsaved changes"
+
+msgid "Descartar"
+msgstr "Discard"
+
+msgid "Guardar"
+msgstr "Save"
+
+msgid "Guardar como vista…"
+msgstr "Save as view…"
+
+msgid "Guardar como vista"
+msgstr "Save as view"
+
+msgid "Establecer por defecto"
+msgstr "Set as default"
+
+msgid "Eliminar vista"
+msgstr "Delete view"
+
+msgid "Limpiar selección"
+msgstr "Clear selection"
+
+msgid "Página anterior"
+msgstr "Previous page"
+
+msgid "Página siguiente"
+msgstr "Next page"
