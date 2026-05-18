@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Support\SlugContext;
 use WP_Error;
 use WP_REST_Request;
@@ -33,7 +34,10 @@ final class SlugsController extends AbstractController
         register_rest_route($this->namespace, '/' . $this->rest_base . '/check', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'check'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireAnyCapability(
+                CapabilityRegistry::CAP_MANAGE_LISTS,
+                CapabilityRegistry::CAP_MANAGE_FIELDS,
+            ),
             'args'                => [
                 'type'    => ['type' => 'string', 'required' => true, 'enum' => ['list', 'field']],
                 'slug'    => ['type' => 'string', 'required' => true],
@@ -44,7 +48,10 @@ final class SlugsController extends AbstractController
         register_rest_route($this->namespace, '/' . $this->rest_base . '/history', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'history'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireAnyCapability(
+                CapabilityRegistry::CAP_MANAGE_LISTS,
+                CapabilityRegistry::CAP_MANAGE_FIELDS,
+            ),
             'args'                => [
                 'type'      => ['type' => 'string', 'required' => true, 'enum' => ['list', 'field']],
                 'entity_id' => ['type' => 'integer', 'required' => true],

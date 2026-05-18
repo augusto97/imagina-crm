@@ -5,6 +5,8 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\ListEntity;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
+use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -22,23 +24,30 @@ final class ListsController extends AbstractController
 {
     protected $rest_base = 'lists';
 
-    public function __construct(private readonly ListService $service)
-    {
+    public function __construct(
+        private readonly ListService $service,
+        private readonly PermissionService $permissions,
+    ) {
         parent::__construct();
     }
 
     public function register_routes(): void
     {
+        // GET: cualquier user con acceso al SPA puede pedir la colección;
+        // el filtrado por visibilidad se aplica adentro.
+        $canRead = [$this, 'checkAdminPermissions'];
+        $canManage = $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS);
+
         register_rest_route($this->namespace, '/' . $this->rest_base, [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
                 'args'                => $this->createArgs(),
             ],
         ]);
@@ -53,17 +62,17 @@ final class ListsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
                 'args'                => [
                     'purge' => [
                         'type'    => 'boolean',
@@ -77,11 +86,14 @@ final class ListsController extends AbstractController
     public function getCollection(WP_REST_Request $request): WP_REST_Response
     {
         unset($request);
-        $lists = array_map(
-            static fn (ListEntity $l): array => $l->toArray(),
-            $this->service->all()
-        );
-
+        $user = wp_get_current_user();
+        $lists = [];
+        foreach ($this->service->all() as $list) {
+            if (! $this->permissions->userCanSeeList($user, $list)) {
+                continue;
+            }
+            $lists[] = $list->toArray();
+        }
         return new WP_REST_Response(['data' => $lists]);
     }
 
@@ -91,6 +103,12 @@ final class ListsController extends AbstractController
         $list     = $this->service->findByIdOrSlug($idOrSlug);
 
         if ($list === null) {
+            return $this->notFound();
+        }
+
+        // 404 si el user no puede VER esta lista — evita revelar su
+        // existencia a roles sin acceso.
+        if (! $this->permissions->userCanSeeList(wp_get_current_user(), $list)) {
             return $this->notFound();
         }
 

@@ -9,6 +9,7 @@ use ImaginaCRM\Activity\ActivityRepository;
 use ImaginaCRM\Automations\ActionRegistry;
 use ImaginaCRM\Automations\TriggerRegistry;
 use ImaginaCRM\Fields\FieldTypeRegistry;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Plugin;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -137,9 +138,15 @@ final class SystemController extends AbstractController
                 'display_name' => $user->display_name,
                 'email'        => $user->user_email,
                 'locale'       => get_user_locale($user),
-                'capabilities' => [
-                    'manage_options' => current_user_can(Plugin::ADMIN_CAPABILITY),
-                ],
+                'roles'        => array_values($user->roles),
+                'capabilities' => array_merge(
+                    [
+                        // Back-compat con clientes del endpoint que aún
+                        // miran `manage_options`.
+                        'manage_options' => current_user_can('manage_options'),
+                    ],
+                    CapabilityRegistry::currentUserCapabilitiesMap(),
+                ),
             ],
         ]);
     }

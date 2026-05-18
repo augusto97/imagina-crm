@@ -35,10 +35,17 @@ final class RecordService
      * `$filters` (forma plana legacy) cuando ambos vienen. Permite
      * AND/OR + grupos anidados que el shape plano no expresa.
      *
+     * `$additionalWhere` (Fase 7 — 1.D) es el escape hatch por el que
+     * `PermissionService::recordsScopeWhere()` inyecta el filtro de
+     * scope (own/assigned/none) al WHERE final, sin alterar los
+     * filtros del usuario ni el tree. Si no se pasa, comportamiento
+     * idéntico al pre-1.D.
+     *
      * @param array<string, mixed>                       $filters
      * @param array<int, array{slug:string, dir:string}> $sort
      * @param array<int, string>                         $fields
      * @param array<string, mixed>|null                  $filterTree
+     * @param array{sql:string, args:array<int, mixed>}|null $additionalWhere
      *
      * @return array{
      *     data: array<int, array<string, mixed>>,
@@ -55,6 +62,7 @@ final class RecordService
         int $perPage,
         ?array $filterTree = null,
         ?int $cursor = null,
+        ?array $additionalWhere = null,
     ): array|ValidationResult {
         $listFields = $this->fields->allForList($list->id);
 
@@ -112,6 +120,7 @@ final class RecordService
             $params,
             $whereOverride,
             $idWhitelist,
+            $additionalWhere,
         );
         $result   = $this->records->executeQuery(
             $compiled['sql'],

@@ -40,10 +40,16 @@ final class CsvExporter
      *                                              que aceptan los
      *                                              widgets / saved views.
      */
+    /**
+     * @param list<int>|null                                  $fieldIds
+     * @param array<string, mixed>|null                       $filterTree
+     * @param array{sql:string, args:array<int, mixed>}|null  $additionalWhere
+     */
     public function export(
         ListEntity $list,
         ?array $fieldIds = null,
         ?array $filterTree = null,
+        ?array $additionalWhere = null,
     ): string {
         $allFields  = $this->fields->allForList($list->id);
         $exportable = array_values(array_filter(
@@ -71,17 +77,18 @@ final class CsvExporter
         }
 
         $headers = array_map(static fn (FieldEntity $f): string => $f->label, $columns);
-        $rows    = $this->fetchRows($list, $columns, $filterTree);
+        $rows    = $this->fetchRows($list, $columns, $filterTree, $additionalWhere);
 
         return CsvParser::build($headers, $rows);
     }
 
     /**
-     * @param array<int, FieldEntity>   $columns
-     * @param array<string, mixed>|null $filterTree
+     * @param array<int, FieldEntity>                         $columns
+     * @param array<string, mixed>|null                       $filterTree
+     * @param array{sql:string, args:array<int, mixed>}|null  $additionalWhere
      * @return array<int, array<int, string>>
      */
-    private function fetchRows(ListEntity $list, array $columns, ?array $filterTree): array
+    private function fetchRows(ListEntity $list, array $columns, ?array $filterTree, ?array $additionalWhere = null): array
     {
         $rows  = [];
         $page  = 1;
@@ -89,14 +96,16 @@ final class CsvExporter
 
         while ($total < self::MAX_ROWS) {
             $result = $this->records->list(
-                list:       $list,
-                filters:    [],
-                sort:       [],
-                fields:     [],
-                search:     null,
-                page:       $page,
-                perPage:    self::PAGE_SIZE,
-                filterTree: $filterTree,
+                list:            $list,
+                filters:         [],
+                sort:            [],
+                fields:          [],
+                search:          null,
+                page:            $page,
+                perPage:         self::PAGE_SIZE,
+                filterTree:      $filterTree,
+                cursor:          null,
+                additionalWhere: $additionalWhere,
             );
             if (! is_array($result) || ! isset($result['data']) || ! is_array($result['data'])) {
                 break;

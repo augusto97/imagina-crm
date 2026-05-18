@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
+use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Records\RecordAggregator;
 use WP_Error;
 use WP_REST_Request;
@@ -27,6 +29,7 @@ final class AggregatesController extends AbstractController
     public function __construct(
         private readonly RecordAggregator $aggregator,
         private readonly ListService $lists,
+        private readonly PermissionService $permissions,
     ) {
         parent::__construct();
     }
@@ -39,7 +42,10 @@ final class AggregatesController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'aggregate'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $this->requireAnyCapability(
+                    CapabilityRegistry::CAP_VIEW_RECORDS,
+                    CapabilityRegistry::CAP_VIEW_OWN_RECORDS,
+                ),
             ],
         );
     }
@@ -49,6 +55,22 @@ final class AggregatesController extends AbstractController
         $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
         if ($list === null) {
             return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanSeeList($user, $list)) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        // Scope SQL: si el user no es plugin-admin, los agregados se
+        // limitan a los records que su rol puede ver (Fase 9 — 3.E:
+        // refactor del RecordAggregator para aceptar additionalWhere).
+        // Para admins, $additionalWhere queda null y el SQL es idéntico
+        // al pre-3.E.
+        $additionalWhere = null;
+        if (! $this->permissions->userIsPluginAdmin($user)) {
+            $scope = $this->permissions->recordsScopeWhere($user, $list);
+            if ($scope['sql'] !== '') {
+                $additionalWhere = $scope;
+            }
         }
 
         $rawFields = (string) ($request->get_param('fields') ?? '');
@@ -77,7 +99,7 @@ final class AggregatesController extends AbstractController
             $groupBy = null;
         }
 
-        $result = $this->aggregator->aggregate($list, $fieldIds, $filterTree, $groupBy);
+        $result = $this->aggregator->aggregate($list, $fieldIds, $filterTree, $groupBy, $additionalWhere);
 
         return new WP_REST_Response(['data' => $result]);
     }

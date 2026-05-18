@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\REST;
 
+use ImaginaCRM\Lists\ListEntity;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
+use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Records\RecordAggregator;
 use ImaginaCRM\Records\RecordsETag;
 use ImaginaCRM\Records\RecordService;
@@ -27,6 +30,7 @@ final class RecordsController extends AbstractController
         private readonly ListService $lists,
         private readonly RecordsETag $etag,
         private readonly RecordAggregator $aggregator,
+        private readonly PermissionService $permissions,
     ) {
         parent::__construct();
     }
@@ -35,29 +39,56 @@ final class RecordsController extends AbstractController
     {
         $base = 'lists/(?P<list>[a-zA-Z0-9_-]+)/records';
 
+        // GET requiere cap view_records O view_own_records — el scope
+        // efectivo se aplica abajo via `recordsScopeWhere`.
+        $canRead = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_VIEW_RECORDS,
+            CapabilityRegistry::CAP_VIEW_OWN_RECORDS,
+        );
+        $canCreate = $this->requireCapability(CapabilityRegistry::CAP_CREATE_RECORDS);
+        $canEdit = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_EDIT_RECORDS,
+            CapabilityRegistry::CAP_EDIT_OWN_RECORDS,
+        );
+        $canDelete = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_DELETE_RECORDS,
+            CapabilityRegistry::CAP_DELETE_OWN_RECORDS,
+        );
+
         register_rest_route($this->namespace, '/' . $base, [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canCreate,
             ],
         ]);
+
+        // Bulk: la cap se chequea aquí al nivel mínimo (cualquier cap
+        // de edit/delete pasa). Dentro del callback se valida con
+        // mayor precisión según action y se aplican checks por record.
+        $canBulk = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_BULK_ACTIONS,
+            CapabilityRegistry::CAP_EDIT_RECORDS,
+            CapabilityRegistry::CAP_EDIT_OWN_RECORDS,
+            CapabilityRegistry::CAP_DELETE_RECORDS,
+            CapabilityRegistry::CAP_DELETE_OWN_RECORDS,
+        );
 
         register_rest_route($this->namespace, '/' . $base . '/bulk', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'bulk'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $canBulk,
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/groups', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'getGroups'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $canRead,
         ]);
 
         // Bundle endpoint para vista agrupada — devuelve buckets +
@@ -67,34 +98,52 @@ final class RecordsController extends AbstractController
         register_rest_route($this->namespace, '/' . $base . '/grouped-bundle', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'getGroupedBundle'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $canRead,
         ]);
 
         register_rest_route($this->namespace, '/' . $base . '/(?P<id>\d+)', [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canEdit,
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canDelete,
                 'args'                => ['purge' => ['type' => 'boolean', 'default' => false]],
             ],
         ]);
     }
 
-    public function getCollection(WP_REST_Request $request): WP_REST_Response|WP_Error
+    /**
+     * Helper: chequea visibilidad de la lista para el user actual y
+     * devuelve 404 si no puede acceder (no 403 para no revelar la
+     * existencia de la lista).
+     */
+    private function resolveAccessibleList(WP_REST_Request $request): ListEntity|WP_Error
     {
         $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
         if ($list === null) {
             return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanSeeList($user, $list)) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        return $list;
+    }
+
+    public function getCollection(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
         $page    = max(1, (int) ($request->get_param('page') ?? 1));
@@ -142,9 +191,39 @@ final class RecordsController extends AbstractController
             return $resp;
         }
 
-        $result = $this->service->list($list, $filters, $sort, $proj, $search, $page, $perPage, $filterTree, $cursor);
+        // Scope de permisos (Fase 7 — 1.D): si el user no es admin/manager,
+        // su rol limita qué filas puede ver (own/assigned/none). Se inyecta
+        // al WHERE como cláusula adicional. El admin/crm_admin recibe
+        // `{sql: '', args: []}` → sin filtro extra.
+        $additionalWhere = $this->permissions->recordsScopeWhere(wp_get_current_user(), $list);
+        if ($additionalWhere['sql'] === '') {
+            $additionalWhere = null;
+        }
+
+        $result = $this->service->list(
+            $list,
+            $filters,
+            $sort,
+            $proj,
+            $search,
+            $page,
+            $perPage,
+            $filterTree,
+            $cursor,
+            $additionalWhere,
+        );
         if ($result instanceof ValidationResult) {
             return $this->validationError($result);
+        }
+
+        // Filtrado per-field por rol (Fase 10 — fields_hidden).
+        // Si el ACL declara campos ocultos para el rol del user, los
+        // removemos del payload antes de serializar. Defensa adicional
+        // al gating client-side: si el user mira la network tab o
+        // hace fetch directo al endpoint, no recibe los slugs ocultos.
+        $hidden = $this->permissions->hiddenFieldSlugs(wp_get_current_user(), $list);
+        if ($hidden !== []) {
+            $result['data'] = $this->stripHiddenFields($result['data'], $hidden);
         }
 
         $response = new WP_REST_Response($result);
@@ -184,9 +263,9 @@ final class RecordsController extends AbstractController
 
     public function getItem(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
         $id     = (int) $request->get_param('id');
@@ -194,14 +273,34 @@ final class RecordsController extends AbstractController
         if ($record === null) {
             return $this->notFound();
         }
+        // Check per-record: si el user no puede ver este record concreto
+        // (scope=own y no lo creó él), devolvemos 404 para no revelar la
+        // existencia del record. Admins/managers tienen bypass.
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanViewRecord($user, $list, $record)) {
+            return $this->notFound();
+        }
+        // Filtrado per-field (Fase 10).
+        $hidden = $this->permissions->hiddenFieldSlugs($user, $list);
+        if ($hidden !== []) {
+            $record = $this->stripHiddenFieldsFromRow($record, $hidden);
+        }
         return new WP_REST_Response(['data' => $record]);
     }
 
     public function createItem(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
+        }
+
+        // create requiere ACL.create=true para esta lista en alguno de
+        // los roles del user. La cap `imcrm_create_records` ya se
+        // verificó en el permission_callback.
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanCreateInList($user, $list)) {
+            return $this->forbidden(__('No tienes permiso para crear registros en esta lista.', 'imagina-crm'));
         }
 
         $values = $this->extractValues($request);
@@ -214,13 +313,43 @@ final class RecordsController extends AbstractController
 
     public function updateItem(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
-        $id     = (int) $request->get_param('id');
+        $id      = (int) $request->get_param('id');
+        $current = $this->service->find($list, $id);
+        if ($current === null) {
+            return $this->notFound();
+        }
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanEditRecord($user, $list, $current)) {
+            // 404 cuando ni siquiera lo puede VER (data leak prevention),
+            // 403 cuando lo ve pero no puede editar.
+            if (! $this->permissions->userCanViewRecord($user, $list, $current)) {
+                return $this->notFound();
+            }
+            return $this->forbidden(__('No tienes permiso para editar este registro.', 'imagina-crm'));
+        }
+
         $values = $this->extractValues($request);
+
+        // Validación per-field (Fase 10): si el user pide editar un slug
+        // que está en `fields_hidden` para sus roles → 403. Defensa
+        // contra escritura de campos que ni siquiera puede leer.
+        $hidden = $this->permissions->hiddenFieldSlugs($user, $list);
+        if ($hidden !== []) {
+            $touched = array_intersect(array_keys($values), $hidden);
+            if ($touched !== []) {
+                return $this->forbidden(sprintf(
+                    /* translators: %s: comma-separated field slugs */
+                    __('No tienes permiso para editar los campos: %s', 'imagina-crm'),
+                    implode(', ', $touched),
+                ));
+            }
+        }
+
         $result = $this->service->update($list, $id, $values);
         if ($result instanceof ValidationResult) {
             return $this->validationError($result);
@@ -230,12 +359,24 @@ final class RecordsController extends AbstractController
 
     public function deleteItem(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
-        $id     = (int) $request->get_param('id');
+        $id      = (int) $request->get_param('id');
+        $current = $this->service->find($list, $id);
+        if ($current === null) {
+            return $this->notFound();
+        }
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanDeleteRecord($user, $list, $current)) {
+            if (! $this->permissions->userCanViewRecord($user, $list, $current)) {
+                return $this->notFound();
+            }
+            return $this->forbidden(__('No tienes permiso para eliminar este registro.', 'imagina-crm'));
+        }
+
         $purge  = (bool) $request->get_param('purge');
         $result = $this->service->delete($list, $id, $purge);
         if (! $result->isValid()) {
@@ -254,9 +395,9 @@ final class RecordsController extends AbstractController
      */
     public function getGroups(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
         $groupBy = (int) $request->get_param('group_by');
@@ -302,9 +443,9 @@ final class RecordsController extends AbstractController
      */
     public function getGroupedBundle(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
         $groupBy = (int) $request->get_param('group_by');
@@ -375,6 +516,10 @@ final class RecordsController extends AbstractController
                     $groupByField['type'] ?? 'select',
                     $bucketValue,
                 );
+                // El scope de permisos se inyecta también dentro de
+                // cada bucket — sino el grouped-bundle bypasea el ACL.
+                $bucketScope = $this->permissions->recordsScopeWhere(wp_get_current_user(), $list);
+                $bucketScope = $bucketScope['sql'] === '' ? null : $bucketScope;
                 $records = $this->service->list(
                     $list,
                     [],
@@ -384,6 +529,8 @@ final class RecordsController extends AbstractController
                     1,
                     $perPage,
                     $bucketTree,
+                    null,
+                    $bucketScope,
                 );
                 if ($records instanceof ValidationResult) {
                     continue;
@@ -481,9 +628,9 @@ final class RecordsController extends AbstractController
 
     public function bulk(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $list = $this->resolveAccessibleList($request);
+        if ($list instanceof WP_Error) {
+            return $list;
         }
 
         $params = $request->get_json_params();
@@ -502,8 +649,77 @@ final class RecordsController extends AbstractController
             return new WP_Error('imcrm_no_ids', __('Falta la lista de IDs.', 'imagina-crm'), ['status' => 400]);
         }
 
-        $result = $this->service->bulk($list, $action, array_map('intval', $ids), $values);
+        // Filtramos los IDs a aquellos sobre los que el user tiene permiso
+        // de la operación correspondiente. Los rechazados se reportan al
+        // cliente para que pueda mostrar un warning, pero la operación
+        // sigue con los aprobados (degradación graceful — mejor UX que
+        // bloquear todo el batch por un mal record).
+        $user = wp_get_current_user();
+        $intIds = array_values(array_unique(array_map('intval', $ids)));
+        $allowedIds = [];
+        $deniedIds  = [];
+        foreach ($intIds as $rid) {
+            $rec = $this->service->find($list, $rid);
+            if ($rec === null) {
+                $deniedIds[] = $rid;
+                continue;
+            }
+            $allowed = $action === 'delete'
+                ? $this->permissions->userCanDeleteRecord($user, $list, $rec)
+                : $this->permissions->userCanEditRecord($user, $list, $rec);
+            if ($allowed) {
+                $allowedIds[] = $rid;
+            } else {
+                $deniedIds[] = $rid;
+            }
+        }
+
+        if ($allowedIds === []) {
+            return $this->forbidden(__('No tienes permiso sobre ninguno de los registros seleccionados.', 'imagina-crm'));
+        }
+
+        $result = $this->service->bulk($list, $action, $allowedIds, $values);
+        if ($deniedIds !== []) {
+            $result['denied_ids'] = $deniedIds;
+        }
         return new WP_REST_Response(['data' => $result]);
+    }
+
+    /**
+     * Remueve los slugs hidden del array `fields` (y `relations`) de
+     * cada record antes de serializar al cliente (Fase 10).
+     *
+     * @param list<array<string, mixed>> $records
+     * @param list<string>               $hidden
+     * @return list<array<string, mixed>>
+     */
+    private function stripHiddenFields(array $records, array $hidden): array
+    {
+        if ($hidden === []) {
+            return $records;
+        }
+        $out = [];
+        foreach ($records as $row) {
+            $out[] = $this->stripHiddenFieldsFromRow($row, $hidden);
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string>         $hidden
+     * @return array<string, mixed>
+     */
+    private function stripHiddenFieldsFromRow(array $row, array $hidden): array
+    {
+        $hiddenSet = array_flip($hidden);
+        if (isset($row['fields']) && is_array($row['fields'])) {
+            $row['fields'] = array_diff_key($row['fields'], $hiddenSet);
+        }
+        if (isset($row['relations']) && is_array($row['relations'])) {
+            $row['relations'] = array_diff_key($row['relations'], $hiddenSet);
+        }
+        return $row;
     }
 
     /**

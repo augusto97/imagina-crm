@@ -5,8 +5,12 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Comments\CommentEntity;
 use ImaginaCRM\Comments\CommentService;
+use ImaginaCRM\Lists\ListEntity;
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
+use ImaginaCRM\Permissions\PermissionService;
 use ImaginaCRM\Plugin;
+use ImaginaCRM\Records\RecordService;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -28,6 +32,8 @@ final class CommentsController extends AbstractController
     public function __construct(
         private readonly CommentService $service,
         private readonly ListService $lists,
+        private readonly RecordService $records,
+        private readonly PermissionService $permissions,
     ) {
         parent::__construct();
     }
@@ -36,16 +42,23 @@ final class CommentsController extends AbstractController
     {
         $base = 'lists/(?P<list>[a-zA-Z0-9_-]+)/records/(?P<record>\d+)/comments';
 
+        // GET/POST: requiere view records (la visibilidad del record
+        // específico se chequea en el handler).
+        $canRead = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_VIEW_RECORDS,
+            CapabilityRegistry::CAP_VIEW_OWN_RECORDS,
+        );
+
         register_rest_route($this->namespace, '/' . $base, [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
         ]);
 
@@ -53,23 +66,49 @@ final class CommentsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
         ]);
     }
 
-    public function getCollection(WP_REST_Request $request): WP_REST_Response|WP_Error
+    /**
+     * Resuelve list + record validando visibilidad. 404 cuando el user
+     * no puede ver la lista o el record concreto — no se distingue
+     * "no existe" vs "no autorizado" para no revelar existencia.
+     *
+     * @return array{0: ListEntity, 1: array<string, mixed>}|WP_Error
+     */
+    private function resolveAccessibleRecord(WP_REST_Request $request): array|WP_Error
     {
         $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
         if ($list === null) {
             return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
         }
+        $user = wp_get_current_user();
+        if (! $this->permissions->userCanSeeList($user, $list)) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
         $recordId = (int) $request->get_param('record');
+        $record = $this->records->find($list, $recordId);
+        if ($record === null || ! $this->permissions->userCanViewRecord($user, $list, $record)) {
+            return $this->notFound();
+        }
+        return [$list, $record];
+    }
+
+    public function getCollection(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $resolved = $this->resolveAccessibleRecord($request);
+        if ($resolved instanceof WP_Error) {
+            return $resolved;
+        }
+        [$list, $record] = $resolved;
+        $recordId = (int) ($record['id'] ?? 0);
 
         $items = array_map(
             static fn (CommentEntity $c): array => $c->toArray(),
@@ -80,11 +119,12 @@ final class CommentsController extends AbstractController
 
     public function createItem(WP_REST_Request $request): WP_REST_Response|WP_Error
     {
-        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
-        if ($list === null) {
-            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        $resolved = $this->resolveAccessibleRecord($request);
+        if ($resolved instanceof WP_Error) {
+            return $resolved;
         }
-        $recordId = (int) $request->get_param('record');
+        [$list, $record] = $resolved;
+        $recordId = (int) ($record['id'] ?? 0);
 
         $params = $request->get_json_params();
         if (! is_array($params)) {

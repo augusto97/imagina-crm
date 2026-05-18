@@ -46,11 +46,23 @@ final class RecordAggregator
      *     groups: array<int, array{value: string|null, aggregates: array<string, array<string, mixed>>}>
      * }
      */
+    /**
+     * @param list<int>                                       $fieldIds
+     * @param array<string, mixed>|null                       $filterTree
+     * @param array{sql:string, args:array<int, mixed>}|null  $additionalWhere
+     *   Cláusula adicional appendeable al WHERE (AND). Generada por
+     *   `PermissionService::recordsScopeWhere` o
+     *   `PortalScopeService::recordsScopeWhere`. Permite limitar los
+     *   agregados al scope del usuario sin tocar el `filterTree`.
+     *
+     * @return array<string, mixed>
+     */
     public function aggregate(
         ListEntity $list,
         array $fieldIds,
         ?array $filterTree = null,
         ?int $groupByFieldId = null,
+        ?array $additionalWhere = null,
     ): array {
         $allFields = $this->fields->allForList($list->id);
         $byId      = [];
@@ -87,6 +99,27 @@ final class RecordAggregator
             null,
             false,
         );
+
+        // Inyección del scope (Fase 7 — 1.D / Fase 9 — 3.E): el caller
+        // pasa una cláusula adicional `{sql, args}` que se appendea con
+        // AND al WHERE. Se usa para limitar los agregados al scope del
+        // usuario (PermissionService::recordsScopeWhere o
+        // PortalScopeService::recordsScopeWhere).
+        if ($additionalWhere !== null && isset($additionalWhere['sql']) && $additionalWhere['sql'] !== '') {
+            $scopeSql = (string) $additionalWhere['sql'];
+            $scopeArgs = isset($additionalWhere['args']) && is_array($additionalWhere['args'])
+                ? $additionalWhere['args']
+                : [];
+            if ($filterCtx['where'] === '') {
+                // Sin WHERE previo, el "AND " del scope se convierte en "WHERE ".
+                $filterCtx['where'] = 'WHERE ' . preg_replace('/^AND\s+/i', '', $scopeSql);
+            } else {
+                $filterCtx['where'] .= ' ' . $scopeSql;
+            }
+            foreach ($scopeArgs as $a) {
+                $filterCtx['args'][] = $a;
+            }
+        }
 
         $totals = $this->runAggregates($list->tableSuffix, $targets, $filterCtx);
 

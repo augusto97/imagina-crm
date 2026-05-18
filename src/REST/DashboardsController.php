@@ -6,6 +6,7 @@ namespace ImaginaCRM\REST;
 use ImaginaCRM\Dashboards\DashboardEntity;
 use ImaginaCRM\Dashboards\DashboardService;
 use ImaginaCRM\Dashboards\WidgetEvaluator;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Plugin;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
@@ -31,16 +32,22 @@ final class DashboardsController extends AbstractController
 
     public function register_routes(): void
     {
+        // Lectura: cualquier user con acceso al SPA puede ver sus
+        // propios dashboards (el service ya filtra por user_id +
+        // compartidos). Mutación: requiere manage_dashboards.
+        $canRead = [$this, 'checkAdminPermissions'];
+        $canManage = $this->requireCapability(CapabilityRegistry::CAP_MANAGE_DASHBOARDS);
+
         register_rest_route($this->namespace, '/dashboards', [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
         ]);
 
@@ -48,17 +55,17 @@ final class DashboardsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
         ]);
 
@@ -68,7 +75,7 @@ final class DashboardsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'evaluateWidget'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
         );
     }

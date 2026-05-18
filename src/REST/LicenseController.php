@@ -5,6 +5,7 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Licensing\UpdaterClient;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Support\ValidationResult;
 use WP_Error;
 use WP_REST_Request;
@@ -35,13 +36,13 @@ final class LicenseController extends AbstractController
         register_rest_route($this->namespace, '/license', [
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [$this, 'getState'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/license/activate', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'activate'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
             'args'                => [
                 'key' => ['type' => 'string', 'required' => true],
             ],
@@ -50,13 +51,13 @@ final class LicenseController extends AbstractController
         register_rest_route($this->namespace, '/license/deactivate', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'deactivate'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
 
         register_rest_route($this->namespace, '/license/refresh', [
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'refresh'],
-            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
         ]);
     }
 

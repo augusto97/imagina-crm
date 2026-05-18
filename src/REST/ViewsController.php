@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Lists\ListService;
+use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Support\ValidationResult;
 use ImaginaCRM\Views\SavedViewEntity;
 use ImaginaCRM\Views\SavedViewService;
@@ -31,16 +32,24 @@ final class ViewsController extends AbstractController
     {
         $base = 'lists/(?P<list>[a-zA-Z0-9_-]+)/views';
 
+        // GET puede hacerlo cualquier user con acceso al SPA — para
+        // mostrar las vistas guardadas que aplican a su rol.
+        $canRead = [$this, 'checkAdminPermissions'];
+        $canManage = $this->requireAnyCapability(
+            CapabilityRegistry::CAP_MANAGE_VIEWS,
+            CapabilityRegistry::CAP_MANAGE_LISTS,
+        );
+
         register_rest_route($this->namespace, '/' . $base, [
             [
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getCollection'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canRead,
             ],
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'createItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
         ]);
 
@@ -48,12 +57,12 @@ final class ViewsController extends AbstractController
             [
                 'methods'             => WP_REST_Server::EDITABLE,
                 'callback'            => [$this, 'updateItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
             [
                 'methods'             => WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteItem'],
-                'permission_callback' => [$this, 'checkAdminPermissions'],
+                'permission_callback' => $canManage,
             ],
         ]);
     }

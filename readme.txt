@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.36.9
+Stable tag: 0.40.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,2070 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.40.3 =
+**Fase 10 — Roles personalizados (CIERRE DE FASE 10).**
+
+Última pieza de la Fase 10. El admin puede crear roles custom con
+sus propios sets de capabilities `imcrm_*`. Útil cuando los 5 roles
+built-in no cubren el caso de uso — por ejemplo "Vendedor Senior"
+(manager + bulk_actions sin manage_lists) o "Soporte Cliente"
+(view + comments sin nada más).
+
+Con este release la Fase 10 (y por extensión todo el plan
+multi-stakeholder de las Fases 7-10) queda cerrada.
+
+Sin cambios de schema — los roles custom viven en
+`wp_options.imcrm_custom_roles`.
+
+CustomRoleService
+-----------------
+src/Permissions/CustomRoleService.php
+
+API:
+- all(): list de roles custom desde wp_options. Filtra entries con
+  shape inválido (defensa contra option tampered manualmente).
+- save(slug, label, caps): crea o actualiza. Validaciones:
+    * Slug saneado a `[a-z0-9_]`, length 3-50 chars.
+    * Label requerido, max 100 chars.
+    * Caps filtradas a SOLO las del plugin (`imcrm_*`) — admin no
+      puede asignar `manage_options` ni caps WP core.
+    * No permite override de slugs built-in.
+- delete(slug): remueve del wp_options.
+- wpRoleSlug(slug): prefija con `crm_custom_` para evitar choques
+  con slugs built-in y con WP nativos.
+
+RoleInstaller extendido
+-----------------------
+src/Permissions/RoleInstaller.php — sync() ahora también sincroniza
+roles custom (nuevo método `syncCustomRoles`):
+
+1. Para cada rol custom en options: add_role si no existe, o update
+   caps si existe. Quita caps `imcrm_*` obsoletas que no están en
+   la declaración actual (drift de versiones anteriores).
+
+2. Itera wp_roles() buscando roles con prefijo `crm_custom_` que NO
+   están en options actual → remove_role. Cubre el caso "admin
+   borró un rol desde la UI".
+
+Endpoints REST
+--------------
+PermissionsController ahora maneja CRUD de roles custom (cap:
+manage_lists).
+
+GET /imagina-crm/v1/roles
+- Devuelve roles built-in + custom_roles + capabilities catalog.
+
+POST /imagina-crm/v1/roles
+- Body: { slug, label, capabilities: [...] }.
+- Crea/actualiza el rol custom.
+- Después de persistir, llama RoleInstaller::sync() para que el
+  rol esté listo para asignar a users desde wp-admin → Users
+  inmediatamente.
+
+DELETE /imagina-crm/v1/roles/{slug}
+- Borra del options + resync.
+- Los users que tenían ese rol pierden las caps. NO se desactivan
+  — el admin los gestiona desde wp-admin → Users.
+
+UI: CustomRolesCard
+-------------------
+app/admin/settings/CustomRolesCard.tsx en Settings (después de
+LicenseCard + EmailSignatureCard).
+
+UI:
+- Lista de roles custom existentes como cards clickeables.
+- Cada card: label + slug prefijado + count de caps + botón
+  eliminar (con confirm).
+- Click en una card → expande inline a form de edición.
+- Botón "Agregar rol" → form inline para crear nuevo.
+- Form:
+    * Input slug (disabled si edita un rol existente — slug es la
+      llave inmutable).
+    * Input label.
+    * Grid de checkboxes para cada cap `imcrm_*` (las 17 declaradas
+      en CapabilityRegistry).
+    * Validación client-side: slug saneado en onChange + length
+      mínima de 3.
+- Errores del backend se muestran inline en el form.
+
+Saneo client-side mirror del backend:
+- Slug: lowercase + replace `[^a-z0-9_]` + slice 50.
+- Label: trim + maxLength 100.
+
+Cómo usarlo end-to-end
+----------------------
+1. Admin va a Ajustes → card "Roles personalizados".
+2. Click "Agregar rol" → llena slug + label + marca caps.
+3. Guarda → backend persiste + RoleInstaller crea wp_role
+   `crm_custom_<slug>` con las caps marcadas + cap `read`.
+4. Admin va a wp-admin → Users → Edita un user → ve el nuevo rol
+   en el dropdown de roles disponibles.
+5. Asigna el rol al user → user obtiene las caps.
+
+Tests (15 nuevos)
+-----------------
+tests/Unit/Permissions/CustomRoleServiceTest.php:
+
+- all() devuelve [] sin roles persistidos.
+- save() crea + actualiza (mismo slug no duplica).
+- save() saneo: "Bad-Slug!" → "badslug".
+- save() rechaza slug que post-saneo es vacío.
+- save() rechaza slug too short / too long.
+- save() rechaza label vacío.
+- save() strip de caps NO `imcrm_*` (`manage_options`, fake_caps).
+- save() deduplica caps repetidas.
+- save() saneo case: "Mixed_CASE" → "mixed_case".
+- delete() remueve + rechaza unknown slug.
+- wpRoleSlug() prefija correctamente.
+- all() filtra entries con shape inválido (option tampered).
+
+Stub `wp_roles()` nuevo en tests/bootstrap.php (reutilizable):
+devuelve objeto con `$roles` = array `[slug => ['name' => string]]`
+suficiente para RoleInstaller::syncCustomRoles.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 438 tests, +15 nuevos pasan, 0 errores nuevos.
+TypeScript build: limpio.
+SettingsPage chunk: 4.59 KB gzip (incluye el nuevo CustomRolesCard).
+
+Fase 10 cerrada — resumen
+-------------------------
+| Pieza                       | Versión | Tests nuevos |
+|-----------------------------|---------|--------------|
+| Per-field permissions       | 0.40.0  | 0 (lógica existía) |
+| Magic links                 | 0.40.1  | 15           |
+| Permalinks dedicados        | 0.40.2  | 7            |
+| Roles personalizados        | 0.40.3  | 15           |
+
+Plan multi-stakeholder COMPLETO
+-------------------------------
+Fases 7-10 del docs/multi-stakeholder-design.md están todas cerradas:
+
+- Fase 7 (0.37.0-0.37.3): Roles y permisos básicos.
+- Fase 8 (0.38.0-0.38.4): Listas públicas.
+- Fase 9 (0.39.0-0.39.6 + pulidos en 0.39.7-0.39.9): Portal cliente.
+- Fase 10 (0.40.0-0.40.3): Pulidos del sistema completo.
+
+= 0.40.2 =
+**Fase 10 — Permalinks dedicados para listas públicas.**
+
+Tercera pieza de la Fase 10. Una lista pública con `permalink_base`
+configurado se vuelve accesible en `/{permalink_base}/` además del
+shortcode. URL bonita SEO-friendly sin requerir que el admin cree
+una página WP con el shortcode manualmente.
+
+Cómo funciona
+-------------
+1. Admin entra a Editar lista → tab "Visibilidad pública" → llena
+   el campo "Permalink dedicado" con `precios` y guarda.
+2. El plugin registra una rewrite rule `^precios/?$` → query var
+   `imcrm_public_list=precios`.
+3. El plugin detecta una signature cambiada en `wp_loaded` y hace
+   flush automático de rewrite rules (sin requerir que el admin
+   vaya a Settings → Permalinks → Save).
+4. Cuando un visitante va a `/precios/`:
+   - Hook `template_redirect` priority 5 detecta el query var.
+   - Resuelve la lista por slug.
+   - Renderiza con `get_header()` + `do_shortcode('[imcrm-list slug="precios"]')`
+     + `get_footer()` → preserva el chrome del tema.
+
+PublicListConfig extendido
+--------------------------
+src/PublicLists/PublicListConfig.php — nuevo campo `permalinkBase`.
+
+Sanitización (`PublicListConfig::sanitizePermalink`):
+- lowercase.
+- Solo a-z0-9- permitidos.
+- Strip de hyphens al inicio/fin.
+- Max 64 chars (compat MySQL + SEO).
+- Empty post-sanitize → null.
+
+PublicPermalinks (nuevo)
+------------------------
+src/PublicLists/PublicPermalinks.php — registra todo el flow:
+
+- registerRewriteRules() — hook `init`. Itera ListRepository (cacheado)
+  buscando listas con `enabled=true` Y `permalink_base !== null`.
+  Para cada una, `add_rewrite_rule` priority `top`.
+- registerQueryVar() — agrega `imcrm_public_list` al array de query vars.
+- maybeFlush() — hook `wp_loaded` priority 20. Computa una signature
+  MD5 del map `[list_slug => permalink_base]`. Si difiere de la
+  guardada en `imcrm_public_permalinks_signature` → flush + update
+  option. Cubre el caso "admin cambió un permalink desde la UI"
+  sin requerir intervención manual.
+- maybeRender() — hook `template_redirect` priority 5. Si el query
+  var está, resuelve la lista, valida que sigue siendo pública con
+  permalink_base, y renderiza con header+shortcode+footer. Si algo
+  falla, deja que WP siga su flujo normal (404 del tema).
+
+Convivencia con el sitio
+------------------------
+- Rules registradas con priority `top` → ganan a otras rules. Si
+  hay choque con una page WP, el plugin tiene precedencia. El admin
+  ve esto y puede cambiar el slug.
+- Si admin quita el permalink_base → en el próximo wp_loaded la
+  signature cambia, flush, el slug deja de funcionar.
+- Si admin borra la lista → la rule sigue en .htaccess hasta el
+  próximo flush, pero maybeRender devuelve early (return sin output)
+  → 404 del tema.
+- Sitios con permalinks "plain" (`?p=N`): el feature requiere
+  pretty permalinks activos. Sin pretty permalinks, los rules no
+  funcionan — el admin debe seguir usando el shortcode.
+
+UI en PublicVisibilityPanel
+---------------------------
+app/admin/lists/PublicVisibilityPanel.tsx — input nuevo
+"Permalink dedicado (opcional)" entre el input de cache_ttl y
+los toggles de search/filters.
+
+- Visualización con slash markers: `/{input}/` mostrando el formato
+  final.
+- Saneo client-side en onChange: regex `[^a-z0-9-]` strip, max 64.
+- Hint: "Solo letras minúsculas, números y guiones. Dejá vacío
+  para acceder solo via shortcode."
+
+app/types/publicList.ts — PublicListSettings.permalink_base: string|null.
+PUBLIC_DEFAULTS.permalink_base = null.
+shallowEqual incluye el nuevo campo para el dirty tracking.
+
+Tests (7 nuevos)
+----------------
+tests/Unit/PublicLists/PublicListConfigTest.php:
+
+- permalink_base null por default (sin la key en JSON).
+- Saneo: "Mi Lista Buena!" → "milistabuena".
+- Saneo preserva hyphens: "mi-lista-2026" → "mi-lista-2026".
+- Saneo strip leading/trailing hyphens: "--precios--" → "precios".
+- Clamp a 64 chars (str_repeat('a', 100) → length 64).
+- Sanitize a vacío → null: "!!!@@@###" → null.
+- Tipo wrong → null: int 42 → null.
+- Roundtrip toArray() incluye permalink_base.
+
+Backend del PublicPermalinks (rewrite rules + flush + render) sin
+tests directos — requiere mockear add_rewrite_rule, get_query_var,
+get_header, do_shortcode, get_footer. Cobertura indirecta via
+PublicListConfigTest del shape + manual testing en local.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 423 tests, +7 nuevos pasan, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 17.20 KB gzip (+0.25 KB por el nuevo input).
+
+Próxima pieza de Fase 10
+------------------------
+- Roles personalizados — admin define sus propios roles con caps
+  custom.
+
+= 0.40.1 =
+**Fase 10 — Magic links (login sin password para clientes).**
+
+Segunda pieza de la Fase 10. El admin genera un link único para un
+cliente; el cliente lo recibe por email; al hacer click queda
+autenticado en el portal sin tipear password. Útil para onboarding
+("Bienvenido, aquí está tu link de acceso") y recovery ("Olvidé mi
+password, mándame un magic link").
+
+Sin cambios de schema. Tokens viven en transients de WP
+(auto-expiran solo, no necesitan tabla nueva).
+
+Cómo funciona
+-------------
+1. Admin llama POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/magic-link
+   con `target_url` (URL del portal) y opcional `send_email=true`.
+2. Backend genera token aleatorio de 32 bytes (64 chars hex, 256 bits
+   entropía).
+3. Guarda en transient `imcrm_ml_<sha256(token)>` con TTL 7 días.
+   El sha256 protege contra DB leak — un atacante con la BD NO puede
+   usar los tokens.
+4. Devuelve URL: `<target_url>?imcrm_token=<token>` + expires_at.
+5. Si send_email=true, envía email al cliente con el link.
+6. Cliente clickea → `template_redirect` hook detecta el token →
+   `MagicLinkService::consume()` valida → `wp_set_auth_cookie` →
+   redirect a la misma URL sin el query param (browser history queda
+   limpio).
+7. Token se borra del transient inmediatamente al consumir
+   (one-time enforcement).
+
+MagicLinkService
+----------------
+src/Portal/MagicLinkService.php — service stateless con dos métodos
+públicos:
+
+generate(int $userId, string $targetUrl): array|ValidationResult
+- Valida user existe + tiene cap `imcrm_access_portal`.
+- Valida `target_url` con wp_http_validate_url.
+- Genera 32 bytes random hex.
+- Guarda sha256(token) en transient con TTL 7 días.
+- Devuelve { token, url, expires_at }.
+
+consume(string $token): ?int
+- Valida formato del token (length=64, ctype_xdigit).
+- Lee transient por hash.
+- Re-valida user existe + sigue teniendo cap (un admin pudo
+  quitar el rol entre generate y consume).
+- DELETE del transient ANTES de auth (one-time enforcement
+  contra race conditions de consumes paralelos).
+- wp_set_auth_cookie(userId, false, is_ssl()) — sesión normal
+  (no "remember me").
+- Devuelve user_id o null en cualquier fallo (sin distinguir
+  causa para data leak prevention).
+
+MagicLinkConsumer
+-----------------
+src/Portal/MagicLinkConsumer.php — hook en `template_redirect`
+priority 5:
+- Si no hay `?imcrm_token=...`: return inmediato (no-op).
+- Sanea el query param contra inyección.
+- Llama service->consume().
+- Independientemente del resultado, redirige a la URL sin el
+  token (wp_safe_redirect). Si exitoso → user logged-in y el
+  shortcode renderiza el portal. Si falla → login card normal.
+
+Endpoint REST
+-------------
+POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/magic-link
+Cap: imcrm_manage_lists.
+
+Args:
+- target_url (string, required): URL del portal con el shortcode.
+- send_email (bool, default true): mandar email al cliente.
+
+Validaciones:
+- Lista debe ser portal-list configurada.
+- Record debe existir y tener un user_id asociado en owner_field
+  (cliente con cuenta creada previamente via /access).
+- target_url debe pasar wp_http_validate_url.
+- El user_id resuelto debe tener cap imcrm_access_portal.
+
+Returns:
+- 201 Created: { url, expires_at, sent_email }
+- 422 / 404 según el fallo.
+
+Email
+-----
+Texto plano simple via `wp_mail`. Subject "Tu acceso a {site_name}".
+Body: saludo + link + nota de "uno-time, válido hasta {date}".
+El admin puede pisar `wp_mail_*` filters para customizar si necesita
+HTML rico.
+
+Plugin.php
+----------
+- 3 bindings nuevos: MagicLinkService, MagicLinkConsumer.
+- PortalController binding actualizado (9 deps ahora).
+- Registro del consumer en register() — corre siempre en frontend
+  pero es no-op sin token.
+
+Tests
+-----
+15 tests unitarios nuevos en MagicLinkServiceTest:
+- generate devuelve {token, url, expires_at} válidos.
+- generate rechaza: user_id <=0, user inexistente, user sin cap
+  portal, URL inválida.
+- HASH storage: el token raw NO aparece en ninguna key ni value
+  del transient (defensa contra DB leak).
+- consume devuelve user_id para token válido.
+- consume invalida token tras uso (one-time enforcement).
+- consume setea wp_set_auth_cookie con user_id correcto.
+- consume rechaza: token malformado (length, charset), token
+  desconocido, user borrado entre generate-consume, user perdió
+  cap, token expirado.
+- consume fallido NO setea auth cookie (defensa adicional).
+
+Stubs WP nuevos en tests/bootstrap.php (reutilizables):
+- set_transient/get_transient/delete_transient con estado
+  in-memory + flag de expirados.
+- wp_set_auth_cookie con log de calls.
+- wp_set_current_user.
+- wp_http_validate_url (delega a filter_var).
+- add_query_arg.
+- is_ssl (return false).
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 416 tests, +15 nuevos pasan, 0 errores nuevos.
+
+Próximas piezas de Fase 10
+--------------------------
+- Permalinks dedicados para listas públicas — `/precios/` en lugar
+  del shortcode.
+- Roles personalizados — admin define sus propios roles con caps
+  custom.
+
+= 0.40.0 =
+**Fase 10 — Pulidos (parte 1: per-field permissions).**
+
+Arranque de la Fase 10 del plan original. Esta primera entrega cierra
+el ciclo de `fields_hidden` que existía en el shape de ListPermissions
+desde 0.37.1 pero no estaba enforced server-side ni configurable
+visualmente. Ahora el admin puede ocultar campos específicos por rol
+y el backend rechaza intentos de leer o editar esos campos.
+
+Backend
+-------
+src/REST/RecordsController.php — tres puntos nuevos de enforcement
+basados en `PermissionService::hiddenFieldSlugs(user, list)` (que ya
+existía desde 0.37.1 pero solo se consumía en el frontend):
+
+1. GET /lists/{slug}/records → strip de slugs ocultos del array
+   `fields` y `relations` de cada record antes de serializar.
+2. GET /lists/{slug}/records/{id} → mismo strip per-record.
+3. PATCH /lists/{slug}/records/{id} → si el body tiene algún slug
+   en `hiddenFieldSlugs`, devuelve 403 con lista de slugs no
+   editables. Defensa contra escritura de campos que ni siquiera
+   puede leer.
+
+Helpers privados nuevos:
+- `stripHiddenFields(records, hidden)` — itera array.
+- `stripHiddenFieldsFromRow(row, hidden)` — para un solo record.
+
+Ambos respetan tanto `fields` como `relations` (los hidden_slugs
+aplican a ambos shapes).
+
+Frontend (panel admin)
+----------------------
+app/admin/lists/PermissionsPanel.tsx — nueva sección
+"Campos ocultos por rol" en formato `<details>` colapsable bajo
+la matriz principal:
+
+- Tabla con `campo × rol`: cada celda un checkbox.
+- Marcar checkbox → agrega el slug a `permissions[rol].fields_hidden`.
+- Desmarcar → remueve.
+- La sección solo aparece si la lista tiene fields (`allFields.length > 0`).
+- Texto explicativo: "El backend lo remueve de las respuestas REST
+  y rechaza intentos de edición. Si un campo se oculta para TODOS
+  los roles del user, no aparece en su tabla."
+
+Setter: `toggleHiddenField(role, slug, hide)` actualiza el array
+inmutablemente preservando el resto del shape del rol.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 16.95 KB gzip (+0.46 KB vs 0.39.9 por la
+nueva sección).
+
+Comportamiento end-to-end
+-------------------------
+1. Admin marca campos como ocultos para roles específicos en la
+   tab Permisos.
+2. crm_agent que tenga TODOS sus roles ocultando "precio_costo"
+   no ve esa columna en TableView (porque hiddenFieldSlugs intersect
+   devuelve el slug).
+3. Si solo UNO de sus roles oculta el campo, sigue visible
+   (intersección de todos los roles del user).
+4. crm_admin/administrator: bypass total — siempre ve todos los
+   campos (PermissionService::hiddenFieldSlugs devuelve [] para ellos).
+5. Si el agent intenta PATCH con un campo oculto:
+   `{ fields: { precio_costo: 99 } }` → 403 con mensaje específico.
+
+Próximas piezas de Fase 10
+--------------------------
+- Magic links — login sin password para clientes del portal.
+- Permalinks dedicados para listas públicas — `/precios/` en lugar
+  del shortcode.
+- Roles personalizados — admin define sus propios roles con caps
+  custom.
+
+= 0.39.9 =
+**Editor visual del template del portal del cliente.**
+
+Reemplaza el textarea JSON + botones "Insertar ejemplo" del
+PortalConfigPanel por un editor visual de bloques con cards
+colapsables y forms específicos por tipo. Mantiene modo "Avanzado
+(JSON)" para usuarios power.
+
+UX antes vs después
+-------------------
+Antes (0.39.6 → 0.39.8):
+- Textarea con JSON crudo.
+- Botones "+ Texto" / "+ Datos" / etc. que insertan un ejemplo
+  hardcodeado al final del JSON.
+- El admin tenía que editar el JSON a mano para personalizar.
+- Errores de parsing => mensaje de error.
+- Funcional pero no amigable para no-developers.
+
+Ahora (0.39.9):
+- Lista de cards, una por bloque del template:
+    * Header con badge del type + título + botones acción
+      (subir/bajar/eliminar).
+    * Click expande con form de configuración inline.
+    * Form específico por tipo de bloque:
+        - static_text: textarea HTML.
+        - client_data: input "Slugs visibles" (CSV).
+        - editable_form: slugs editables + texto del botón.
+        - related_records_table: list_slug + slugs visibles + per_page.
+        - kpi_widget: list_slug + field_id + metric + prefix/suffix.
+        - external_link: URL + label + descripción.
+        - activity_timeline: límite de eventos.
+        - download_files: slug del campo de archivo.
+- Botón "Agregar bloque" con dropdown de los 8 tipos.
+- Toggle "Modo avanzado (JSON)" para usuarios que quieren copy-paste
+  el template entre listas o editar configs exóticas.
+
+Archivos nuevos
+---------------
+app/admin/lists/PortalTemplateEditor.tsx
+- PortalTemplateEditor (componente principal).
+- BlockCard (header + expanded form).
+- BlockConfigForm (switch por type con inputs específicos).
+- ConfigField (wrapper label+input+hint).
+- SlugsInput (input CSV → string[]).
+- defaultConfigFor() (config conservadora al crear bloque nuevo).
+
+PortalConfigPanel refactor
+--------------------------
+- State: ahora trabaja con `template: PortalTemplate` directo, no
+  con `templateJson: string`. Sin parsing por edición — el editor
+  visual mantiene el shape correcto.
+- Sin manejo de jsonError local (movido al editor cuando está en
+  modo avanzado).
+- handleSave simplificado: no necesita JSON.parse — directamente
+  pasa el template object al backend.
+
+Modo avanzado preserva al salir
+-------------------------------
+Cuando el usuario está en modo avanzado editando JSON y presiona
+"← Vista de cards", el editor intenta aplicar el JSON actual si es
+válido antes de cambiar al modo cards. Sin pérdida de ediciones.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 16.49 KB gzip (+1.69 KB vs 0.39.8 por el
+editor visual). Mejora UX significativa por el costo de bundle.
+
+= 0.39.8 =
+**Pulidos post-Fase 9 (parte 2): bloques avanzados activity_timeline
+y download_files.**
+
+Dos tipos de bloque nuevos para el portal del cliente. Los más útiles
+de la lista que mencionaba el plan original. Con esto el portal cubre
+ya 8 de los 11 tipos de bloque propuestos.
+
+Bloque `activity_timeline`
+--------------------------
+Timeline de eventos del record del cliente. Muestra cuándo se creó,
+cuándo se actualizó, comentarios agregados, menciones recibidas,
+automatizaciones ejecutadas.
+
+Backend nuevo:
+- `GET /imagina-crm/v1/portal/me/activity?limit=N&offset=N`
+  Cap: imcrm_access_portal.
+  Resuelve list_id + record_id desde el ClientResolver — el cliente
+  NO puede spoofear IDs (defensa contra acceso a actividad ajena).
+  Reusa ActivityRepository::recentForRecord (Fase 7).
+
+Frontend:
+- app/portal/blocks/ActivityTimelineBlock.tsx — fetch on-mount con
+  AbortController.
+- UI: timeline vertical con dots conectados por borde izquierdo.
+- Mapeo de `action` slugs a texto legible (record.created → "Registro
+  creado", etc.) para los 8 más comunes; fallback al string crudo.
+- Sin avatares ni iconos por type (cubrir 20+ types implicaría mucho
+  mapeo; texto crudo es suficiente para esta versión).
+
+Bloque `download_files`
+-----------------------
+Lista los archivos adjuntos al record del cliente.
+
+Implementación 100% client-side:
+- El record ya viene con los IDs de attachment en `record.fields[<slug>]`
+  (el field tipo `file` los guarda como int o array de ints).
+- El bundle llama al endpoint NATIVO de WP `/wp-json/wp/v2/media?include=N,M,O`
+  que es público para attachments.
+- Renderiza la lista con icono + nombre + botón download.
+
+Por qué no agregamos endpoint al plugin:
+- WP ya tiene endpoint público para media. Reusarlo evita duplicar
+  lógica de attachment lookup, permisos de archivos, etc.
+- Si el attachment fue borrado (404), se omite del listado sin
+  romper el render.
+- Single round-trip — usamos `?include=N,M,O` para traer todos los
+  metadata de una vez.
+
+Edge cases manejados:
+- Field con valor null/0/'' → "Sin archivos disponibles".
+- Field single (int) o múltiple (array): mismo path.
+- HTML en title del attachment (raro pero posible) → strip + fallback
+  a "Archivo #ID".
+- Field slug no configurado → mensaje de error.
+
+PortalTemplate ampliado
+-----------------------
+src/Portal/PortalTemplate.php — VALID_BLOCK_TYPES incluye los 2
+nuevos. Drop silencioso de tipos desconocidos sigue funcionando
+(tolerancia a versionado).
+
+Total tipos de bloque soportados en el plugin: 8
+- static_text, client_data, related_records_table (Fase 9 — 3.D)
+- editable_form, external_link, kpi_widget (Fase 9 — 3.E)
+- activity_timeline, download_files (pulidos)
+
+Tipos del plan original NO implementados todavía:
+- related_records_kanban — variante del tabla, baja prioridad.
+- chart_widget — requiere lib de charts (~30 KB extra).
+- comments_thread — requiere endpoint POST para que cliente comente.
+
+Estos 3 quedan disponibles si el usuario los pide explícitamente.
+
+UI del admin
+------------
+app/types/portal.ts — PORTAL_BLOCK_TYPES incluye los 2 nuevos con
+labels legibles ("Timeline de actividad", "Archivos descargables").
+
+app/admin/lists/PortalConfigPanel.tsx — exampleConfigFor() genera
+ejemplos editables para los 2 nuevos tipos cuando el admin presiona
+los botones "+ Timeline" / "+ Archivos descargables".
+
+Estilos
+-------
+assets/portal.css extendido con:
+- .imcrm-portal-activity — lista con border-left + dots posicionados.
+- .imcrm-portal-downloads — lista de cards con icono + link.
+- Hover states + colores via variables --imcrm-portal-*.
+
+Tests
+-----
+PortalTemplateTest: 1 test actualizado para incluir los 2 nuevos
+tipos. Total: 13 tests en PortalTemplateTest verifican el parser.
+
+Backend del endpoint /portal/me/activity sin test unitario directo —
+requiere stub de WP_User + ClientResolver (cubierto por
+PortalScopeServiceTest indirectamente). Tests integration con WP
+real cuando esté el suite.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+Bundle portal: 15.94 KB raw / 4.53 KB gzip (+0.85 KB vs 0.39.7 por
+los 2 nuevos bloques). Total para el cliente: ~50.2 KB gzip.
+
+= 0.39.7 =
+**Pulidos post-Fase 9: botón "Crear acceso", gating per-cell TableView,
+inputs por tipo en editable_form.**
+
+Tres mejoras de UX/seguridad sobre los entregables principales.
+Sin cambios funcionales mayores — afilan los bordes.
+
+1. Botón "Crear acceso al portal" en el panel CRM
+-------------------------------------------------
+Hoy el flujo era: admin abre el record del cliente → POST manual
+con curl/Postman al endpoint `/portal/lists/{slug}/records/{id}/access`.
+Ahora hay un botón visible en el panel CRM cuando aplica:
+
+- Solo aparece si la lista actual es portal-list (settings.portal.enabled
+  + owner_field_id configurados).
+- Lee el valor del owner_field en el record → si ya hay user asociado,
+  muestra "✓ Acceso al portal activo" deshabilitado.
+- Si no hay user, botón "Crear acceso al portal" que llama al endpoint
+  con send_notification=true.
+- Tres feedback states:
+    * 201 Created + created=true → "Cuenta creada. Email enviado."
+    * 201 Created + created=false → "Cuenta existente vinculada."
+    * Error → mensaje específico.
+
+Archivo: app/admin/records/crm/PortalAccessButton.tsx
+Cableado en: app/admin/records/crm/RecordCrmLayout.tsx (después del header).
+
+2. Gating per-cell en TableView
+-------------------------------
+Hoy un viewer (crm_viewer) que hacía doble-click sobre una celda
+para editar inline recibía 403 del backend al intentar guardar.
+UX confusa — el control se veía editable pero rechazaba el submit.
+
+Ahora:
+- EditableCell recibe nueva prop `canEdit?: boolean` (default true).
+- TableView lee `useCanAny(CAP.EDIT_RECORDS, CAP.EDIT_OWN_RECORDS)` y
+  pasa el resultado a cada celda.
+- Si canEdit=false: la celda renderiza read-only sin doble-click
+  → input. Sin opción de submit que vaya a fallar.
+
+Combinación final del check en EditableCell: `canEdit (prop) && !NON_INLINE_TYPES.includes(type)`.
+
+Archivos: app/admin/records/EditableCell.tsx, app/admin/records/views/TableView.tsx.
+
+3. Inputs específicos por tipo en editable_form (portal)
+--------------------------------------------------------
+Hoy los inputs del editable_form del portal eran TODOS type="text".
+Date pickers, multi-selects, checkboxes, etc. quedaban como text
+plano — UX pobre.
+
+Ahora cada slug usa el input apropiado:
+
+- text/email/url → input nativo correspondiente.
+- long_text → textarea con resize vertical.
+- number/currency → input type=number, step=any.
+- date → input type=date.
+- datetime → input type=datetime-local.
+- checkbox → input type=checkbox con accent-color.
+- select → <select> con las options del field.config.options.
+- multi_select → grupo de checkboxes (uno por option).
+- tipos no editables inline (relation/file/user/computed) → text
+  fallback read-only.
+
+Implementación:
+- Backend: PortalController::enrichTemplateBlocks resuelve los slugs
+  de cada bloque editable_form contra los FieldEntity y agrega
+  `editable_fields: [{slug, label, type, config}]` al config del
+  bloque ANTES de enviar al cliente. Sin cambio de schema.
+- Frontend: EditableFormBlock.tsx prefiere `editable_fields` si está;
+  fallback a `editable_field_slugs` con type='text' para back-compat.
+- `<FieldInput>` interno: switch por type que renderiza el input
+  apropiado. Tolera 2 shapes legacy de `config.options` (array de
+  strings o array de {value, label}).
+
+Tipos NO cubiertos en este pulido (mejora futura):
+- user/file/relation editables desde el portal — requieren pickers
+  específicos (autocomplete WP users, upload widget, relation modal).
+  El admin no debería poner esos slugs en `editable_field_slugs` por
+  ahora. Defensa adicional: tipos no reconocidos caen al text fallback
+  read-only.
+
+CSS extendido para textarea, checkbox y checkbox-group en
+assets/portal.css.
+
+Quality gates
+-------------
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+Bundle portal: 3.68 KB gzip (+0.6 KB vs 0.39.6 por inputs por tipo).
+
+= 0.39.6 =
+**Fase 9 — Portal del cliente (UI de configuración) · CIERRE DE FASE 9.**
+
+Trae el panel "Portal del cliente" al List Builder para configurar
+`settings.portal` y `settings.portal_template` desde UI visual en vez
+de tener que editar JSON via REST PATCH manual. Con este release la
+Fase 9 queda 100% cerrada.
+
+Frontend
+--------
+- `app/types/portal.ts`: tipos espejo de `PortalConfig.php` y
+  `PortalTemplate.php` + defaults + lista de tipos de bloque con
+  labels human-readable.
+- `app/admin/lists/PortalConfigPanel.tsx`: panel completo.
+    * Toggle "Habilitar como lista de portal".
+    * Selector de owner_field (filtrado a fields tipo `user`).
+    * Editor JSON del template con validación parse-time.
+    * Botones "Insertar ejemplo" para cada tipo de bloque
+      (static_text, client_data, editable_form, related_records_table,
+      kpi_widget, external_link) — el admin no tiene que memorizar
+      el shape: presiona el botón y aparece un ejemplo editable.
+    * Snippet del shortcode `[imcrm-client-portal]` con botón copiar.
+    * Validación client-side:
+        - JSON parseable + tiene `blocks: []`.
+        - Si enabled=true, owner_field_id es obligatorio.
+        - Si owner_field_id está seteado, debe existir Y ser tipo user.
+    * Cuando enabled=false: panel colapsado con nota explicando que
+      los endpoints /portal/* devuelven 404 mientras la lista no
+      esté marcada como portal.
+
+Por qué editor JSON y no editor visual
+--------------------------------------
+Un editor visual drag-and-drop del template es trabajo significativo
+(~3-5 días de UI) que excede el alcance de esta iteración. El editor
+JSON con botones de "Insertar ejemplo" cubre el caso de uso al 80%
+del esfuerzo — el admin puede:
+1. Ver el shape concreto del template (developer-friendly).
+2. Generar bloques nuevos con un click sin tener que escribir.
+3. Editar config inline sin abrir N modales.
+4. Validar el JSON antes de guardar.
+
+Un editor visual queda como mejora opcional cuando alguien la pida
+explícitamente.
+
+Cableado
+--------
+ListBuilderPage.tsx: nuevo panel renderizado entre
+PublicVisibilityPanel y MaintenancePanel. La página ahora tiene 5
+paneles más allá del General + FieldBuilder:
+- Appearance
+- Permissions (Fase 7)
+- Public Visibility (Fase 8)
+- Portal Config (Fase 9 — este release)
+- Maintenance
+
+Diseño de merge
+---------------
+El panel solo escribe `settings.portal` y `settings.portal_template`.
+El resto de `settings` (permissions, public, otros) queda intacto.
+Evita race conditions con otros paneles que también persisten en
+`settings`.
+
+Fase 9 cerrada
+--------------
+| Iter.  | Versión | Entrega                                          |
+|--------|---------|--------------------------------------------------|
+| 3.A    | 0.39.0  | PortalScopeService + tests aislamiento (17 tests) |
+| 3.B    | 0.39.1  | REST + shortcode + auth flow                     |
+| 3.C    | 0.39.2  | PortalTemplate + default fallback                |
+| 3.D    | 0.39.3  | Bundle JS + bloques base (static_text,
+                    client_data, related_records_table)             |
+| 3.E    | 0.39.5  | Bloques avanzados (editable_form, external_link,
+                    kpi_widget) + fix aggregator scope              |
+| 3.G    | 0.39.4  | PortalAccountManager + endpoint Crear acceso     |
+| UI     | 0.39.6  | Tab "Portal del cliente" en List Builder         |
+
+Cómo usarlo end-to-end ahora (todo via UI admin)
+-------------------------------------------------
+1. Crear lista "Clientes" en admin. Agregar fields incluyendo
+   uno tipo Usuario (ej. "cuenta_wp").
+2. Editar lista → tab "Portal del cliente" → marcar habilitar +
+   elegir "cuenta_wp" como owner_field → guardar.
+3. (Opcional) Editar el template del portal: click "Insertar ejemplo"
+   en los tipos de bloque que quieras + ajustar config.
+4. Para cada cliente:
+   - Crear el record en la lista.
+   - POST /imagina-crm/v1/portal/lists/clientes/records/{id}/access
+     (botón en panel CRM queda como mejora futura).
+   - El cliente recibe email con login + pass.
+5. Crear página WP con shortcode [imcrm-client-portal].
+6. Cliente entra, ve su portal con los bloques configurados.
+   PortalScopeService garantiza aislamiento.
+
+Piezas opcionales que quedan
+----------------------------
+- Botón "Crear acceso al portal" en panel CRM del record (alternativa
+  al curl/POST manual).
+- Bloques aún más avanzados (activity_timeline, comments_thread,
+  chart_widget, related_records_kanban, download_files).
+- Editor visual drag-and-drop del template (en lugar del JSON).
+
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, 0 errores nuevos.
+TypeScript build: limpio.
+ListBuilderPage chunk: 14.80 KB gzip (+1.66 KB vs 0.39.5 por el
+nuevo panel).
+
+= 0.39.5 =
+**Fase 9 — Portal del cliente (iteración 3.E: bloques avanzados +
+fix scope SQL en RecordAggregator).**
+
+Trae 3 nuevos tipos de bloque al portal y cierra de paso la
+limitación temporal del AggregatesController que devolvía 403
+para usuarios con scope acotado desde Fase 7.
+
+Tipos de bloque nuevos
+----------------------
+- `editable_form` — form donde el cliente actualiza un subset
+  whitelisteado de campos propios. La whitelist se respeta TANTO
+  client-side (qué inputs renderiza) COMO server-side (qué slugs
+  acepta el endpoint PATCH /portal/me). Slug fuera de whitelist
+  → 403 explícito (no silencioso) — error visible al cliente y
+  prevención de tampering.
+- `external_link` — CTA con link a recurso externo. Útil para
+  "Pagar factura", "Descargar PDF", "Agendar reunión". Atributos:
+  href, label, title, description, new_window (default true =
+  abre en nueva pestaña con noopener noreferrer).
+- `kpi_widget` — métrica simple (count/sum/avg/min/max) sobre
+  records relacionados al cliente. Reusa el endpoint
+  `/portal/lists/{slug}/aggregates` que aplica el scope SQL del
+  portal automáticamente — el KPI NUNCA incluye records ajenos.
+
+Endpoints REST nuevos
+---------------------
+- PATCH /imagina-crm/v1/portal/me
+  Cliente actualiza su propio record. Whitelist desde el template
+  configurado. Slug fuera de la whitelist → 403. Sin template
+  con bloque editable_form → 403 ("Tu portal no permite edición").
+- GET /imagina-crm/v1/portal/lists/{slug}/aggregates?fields=N,M
+  Aggregates con scope del portal. Reutiliza RecordAggregator
+  con additionalWhere = scope SQL.
+
+RecordAggregator extendido con additionalWhere
+----------------------------------------------
+src/Records/RecordAggregator.php — método aggregate() ahora acepta
+$additionalWhere opcional (mismo shape que en
+QueryBuilder::buildSelect desde Fase 7 — 1.D). La cláusula se
+appendea al WHERE final con AND. Si no se pasa, comportamiento
+idéntico al pre-3.E (back-compat).
+
+Fix de limitación temporal en AggregatesController
+--------------------------------------------------
+src/REST/AggregatesController.php — antes (desde Fase 7 — 1.D)
+devolvía 403 a usuarios con scope acotado (crm_agent con
+view=own) porque el aggregator no soportaba inyectar el filtro.
+Ahora inyecta el scope y devuelve agregados limitados a lo que
+el usuario puede ver. Cierre del TODO documentado en 0.37.2.
+
+Whitelist de campos editables
+-----------------------------
+PortalTemplate::editableFieldSlugs() devuelve la UNIÓN deduplicada
+de los slugs declarados en TODOS los bloques editable_form del
+template. Ejemplo: si el admin pone 2 bloques editable_form
+(uno con [telefono, direccion], otro con [direccion, email]), el
+cliente puede editar [telefono, direccion, email]. Esto permite
+splittear forms visualmente sin perder la semántica de "campos
+editables" en el backend.
+
+Si el template NO tiene ningún bloque editable_form, la whitelist
+es vacía y el endpoint PATCH /portal/me devuelve 403. El default
+template (cuando una lista de portal no tiene `portal_template`
+configurado) NO incluye editable_form → cliente sin admin
+configurando explícitamente NO puede mutar nada. Fail-closed.
+
+Frontend (bundle portal)
+------------------------
+- app/portal/blocks/EditableFormBlock.tsx
+- app/portal/blocks/ExternalLinkBlock.tsx
+- app/portal/blocks/KpiWidgetBlock.tsx
+- PortalRenderer.tsx — dispatcher actualizado con los 3 nuevos
+  cases.
+
+EditableFormBlock:
+- Input por slug (todos `type="text"` en 3.E — tipos específicos
+  por field type llegan en iteración futura, requeriría pasar
+  los types del field en `editable_field_types` del config del
+  bloque).
+- Submit a PATCH /portal/me con AbortController.
+- Estados: submitting, feedback (success/error con role aria
+  apropiado).
+- Errores tipados: 403 (whitelist violation), 422 (validation
+  del backend con mensaje específico del RecordValidator), otros.
+
+KpiWidgetBlock:
+- Fetch on-mount a /portal/lists/{slug}/aggregates.
+- Renderiza prefix + value + suffix (ej. "$1,234 USD").
+- Loading/error states.
+- Soporta count (sin field_id) y sum/avg/min/max (con field_id).
+
+ExternalLinkBlock:
+- Si href vacío → null (no renderiza nada).
+- target=_blank + rel=noopener,noreferrer por default
+  (configurable con new_window: false).
+
+CSS extendido
+-------------
+assets/portal.css con estilos para form fields, feedback banners
+(success verde / error rojo, accesibles con role=alert), KPI
+widget destacado (valor grande en color primary).
+
+Tests
+-----
+4 tests nuevos en PortalTemplateTest:
+- editableFieldSlugs() devuelve [] sin bloques editable_form
+  (defensa crítica: sin bloque → endpoint PATCH /portal/me bloquea
+  todo con 403).
+- Unión deduplicada entre múltiples bloques editable_form.
+- Filtra no-strings de la lista.
+- Los 3 tipos nuevos (editable_form, external_link, kpi_widget)
+  pasan el parser.
+
+Test del RecordAggregator con additionalWhere queda en backlog
+porque requiere FakeWpdb con soporte de `get_row` (actual solo
+tiene `prepare` y `esc_like`). Cobertura indirecta vía PHPStan
+strict y manual testing.
+
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 401 tests, +4 nuevos pasan, 0 errores nuevos.
+
+Bundle portal: 9.46 KB raw / 3.08 KB gzip (+1.19 KB vs 0.39.3).
+Total para el cliente: ~49 KB gzip (vendor-react compartido).
+
+Fase 9 — status
+---------------
+Cerradas:
+- 3.A — PortalScopeService + tests de aislamiento (17 tests).
+- 3.B — REST + shortcode + auth flow.
+- 3.C — PortalTemplate + default fallback.
+- 3.D — Bundle JS + renderer + bloques base (static_text,
+  client_data, related_records_table).
+- 3.E — Bloques avanzados (editable_form, external_link,
+  kpi_widget) + fix aggregator.
+- 3.G — PortalAccountManager + endpoint Crear acceso.
+
+Quedan piezas opcionales:
+- 3.E parte 2 — bloques aún más avanzados (activity_timeline,
+  comments_thread, chart_widget, related_records_kanban,
+  download_files). Implementables uno por uno según necesidad.
+- UI del botón "Crear acceso al portal" en el panel CRM del record.
+- Tab "Configuración del portal" en el List Builder (UI para
+  settings.portal y template editor).
+
+= 0.39.4 =
+**Fase 9 — Portal del cliente (iteración 3.G: PortalAccountManager +
+endpoint REST "Crear acceso").**
+
+Automatiza el flujo manual que el admin tenía que hacer hasta ahora
+para que un cliente acceda al portal: crear user WP + asignar rol
+crm_client + asociar user_id al owner_field del record. Ahora todo
+sucede en un solo POST.
+
+PortalAccountManager
+--------------------
+`src/Portal/PortalAccountManager.php`: orchestrador del flujo.
+- `createAccessFor(ListEntity $portalList, int $recordId, bool $sendNotification = true)`
+- Validaciones:
+    * Lista debe ser portal-list (settings.portal.enabled + owner_field).
+    * Record debe existir.
+    * Email del cliente debe poder resolverse del record + ser válido.
+- Idempotencia: si el record ya tiene user asociado, devuelve éxito
+  sin recrear (útil para reintentos sin efectos colaterales).
+- Reuse de wp_user existente: si ya hay un WP user con el mismo
+  email (caso "el cliente ya tiene cuenta en este WP"), lo reusa
+  asignándole el rol crm_client si no lo tiene.
+- Crea login único basado en local-part del email + sufijo numérico
+  ante colisiones (sanitize_user + retry hasta 99).
+- Si sendNotification=true, envía el email de bienvenida con la
+  pass auto-generada vía wp_send_new_user_notifications($user_id, 'user').
+
+Resolución de email del record
+------------------------------
+Itera columnas del row y devuelve el primer valor que pase
+`is_email()`. Simple y suficiente — no hardcodea slug.
+Mejora futura: settings.portal.email_field_slug para override
+explícito cuando el record tenga múltiples campos email.
+
+Endpoint REST
+-------------
+POST /imagina-crm/v1/portal/lists/{slug}/records/{id}/access
+- Cap: imcrm_manage_lists (solo admins crean accesos).
+- Body params: send_notification (bool, default true).
+- 201 Created: { user_id, created, email }
+- 422 Validation Error: lista no es portal, sin email, etc.
+- 404: lista o record no existen.
+
+UI del admin (queda como mejora)
+--------------------------------
+El endpoint está disponible para ser invocado vía curl/Postman o
+desde un futuro botón "Crear acceso al portal" en el panel CRM
+del record. Para esta iteración no integramos el botón al UI —
+queda como mejora opcional cuando el usuario lo necesite.
+
+Plugin.php
+----------
+Binding nuevo: PortalAccountManager (recibe ClientResolver y
+RecordRepository). PortalController binding actualizado para
+inyectarlo.
+
+Tests
+-----
+0 tests nuevos en 3.G. El manager toca muchas funciones WP
+(wp_create_user, wp_send_new_user_notifications, sanitize_user,
+is_email, is_wp_error, get_user_by, etc.) que requerirían stubs
+elaborados. Cobertura indirecta:
+- Lógica de validación es lineal y se valida con manual testing.
+- Idempotencia: lógica simple de check antes de crear.
+- PHPStan strict garantiza tipos correctos.
+
+PHPStan: 0 regresiones (22 errores baseline = 22 ahora).
+PHPUnit: 397 tests, 0 errores nuevos.
+
+Estado de la Fase 9 ahora
+-------------------------
+Funcional end-to-end:
+1. Admin marca lista como portal (vía REST PATCH a settings.portal —
+   UI de configuración pendiente).
+2. Admin POST /portal/lists/{slug}/records/{id}/access → cuenta WP
+   creada + email enviado al cliente.
+3. Cliente recibe email con login + password, hace login.
+4. Cliente accede a página WP con [imcrm-client-portal].
+5. Ve su saludo, datos en bloque client_data, registros relacionados
+   en related_records_table. PortalScopeService aísla todo.
+
+Próximos pasos (opcionales)
+---------------------------
+- 3.E — Bloques avanzados: editable_form, kpi_widget, chart_widget,
+  activity_timeline, comments_thread.
+- UI del botón "Crear acceso al portal" en el panel CRM del record.
+- Tab "Configuración del portal" en el List Builder (equivalente al
+  PublicVisibilityPanel de Fase 8 pero para portal_template).
+
+= 0.39.3 =
+**Fase 9 — Portal del cliente (iteración 3.D: bundle JS + renderer +
+bloques base).**
+
+Trae el bundle JS del portal que hidrata el placeholder server-side
+y renderiza los bloques del template. Con este release el portal
+queda funcional end-to-end para los casos básicos: cliente entra,
+ve sus datos y registros relacionados.
+
+Bundle: **1.89 KB gzip** (mi código) + 45.7 KB vendor-react
+compartido. Total para el cliente: ~48 KB.
+
+Frontend
+--------
+- `app/portal.tsx` — entry point del bundle. Busca todos los
+  `.imcrm-portal-root` del DOM, parsea `data-imcrm-portal-boot` y
+  monta `PortalRenderer` dentro de `.imcrm-portal-body` (el header
+  con saludo + logout se preserva, no necesita JS).
+- `app/portal/types.ts` — tipos espejo de los shapes PHP.
+- `app/portal/api.ts` — cliente fetch contra `/portal/*`. Diferencias
+  con el cliente público (Fase 8):
+    * Manda `credentials: same-origin` (el portal exige auth).
+    * Envía `X-WP-Nonce` desde el boot data.
+    * Sin cache en memoria (las respuestas pueden cambiar en
+      cualquier momento por updates del admin).
+- `app/portal/PortalRenderer.tsx` — fetch on-mount a `/portal/me`,
+  itera `template.blocks` y monta cada uno con su componente.
+
+Bloques implementados (los 3 declarados en `PortalTemplate`)
+------------------------------------------------------------
+- `StaticTextBlock` — HTML estático del admin. Trusted source
+  (mismo patrón que el `static_text` del panel CRM).
+- `ClientDataBlock` — definition list con los campos del record
+  cliente. Formateo simple por tipo (multi_select→pills,
+  checkbox→✓/✗, null→—).
+- `RelatedRecordsTableBlock` — tabla de records relacionados.
+  Fetch al endpoint `/portal/lists/{slug}/records` (el scope SQL
+  de PortalScopeService lo aísla automáticamente). Loading/error/
+  empty states.
+
+Bloques desconocidos (versionado futuro) → ignorados silenciosamente.
+Mismo patrón que el parser PHP (tolerancia a versionado).
+
+CSS
+---
+`assets/portal.css` extendido con estilos para los bloques:
+- Definition list responsiva para `client_data`.
+- Tabla simple para `related_records_table`.
+- Estados loading/error/empty consistentes.
+- Pills para multi_select.
+- Variables `--imcrm-portal-*` siguen siendo override-ables por el tema.
+
+Vite + assets pipeline
+----------------------
+- `vite.config.ts`: `input` ahora incluye `app/portal.tsx`.
+- `PortalAssets.php` reescrito para leer `dist/manifest.json` y
+  enqueuear el bundle con `vendor-react` como dep. Mismo patrón
+  que `PublicAssets` de Fase 8.
+- Bundle solo se carga en páginas con el shortcode
+  `[imcrm-client-portal]` (detección `has_shortcode`).
+
+Limitaciones conocidas
+----------------------
+- Sin paginación interactiva en `related_records_table` — solo
+  primera página + footer "Mostrando X de Y". Paginación completa
+  llega en 3.E con un componente UI más rico.
+- Sin tests del bundle JS (Vitest no configurado en el proyecto).
+  Cobertura indirecta vía tests PHP del template y scope.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 397 tests sin cambios.
+TypeScript build: limpio.
+Bundle portal: 1.89 KB gzip (mi código) + 45.7 KB vendor-react =
+48 KB total para el cliente.
+
+Próximos pasos de la Fase 9 (opcionales)
+----------------------------------------
+- 3.E — Bloques avanzados: editable_form (para que el cliente
+  actualice campos propios), kpi_widget, chart_widget,
+  activity_timeline, comments_thread.
+- 3.G — Botón "Crear acceso al portal" en el detalle de un cliente
+  (wp_create_user con rol crm_client + asocia user_id al
+  owner_field).
+
+= 0.39.2 =
+**Fase 9 — Portal del cliente (iteración 3.C: template + default fallback).**
+
+Trae el sistema de templates del portal. Decisión de diseño:
+**usar el mismo modelo que `crm_panel_template` (JSON en
+settings)** en vez de una tabla nueva — el doc original
+proponía una tabla `wp_imcrm_templates` pero eso es overkill
+para el shape simple que necesitamos. Resultado: cero schema
+bump, infra reutilizada.
+
+Storage
+-------
+El template vive en `wp_imcrm_lists.settings.portal_template`
+(la lista de portal contiene su propio template). Shape:
+
+    {
+      "portal_template": {
+        "blocks": [
+          { "type": "client_data", "config": {...} },
+          { "type": "related_records_table", "config": {...} },
+          ...
+        ]
+      }
+    }
+
+Cambios técnicos
+----------------
+- `src/Portal/PortalTemplate.php`: value object inmutable.
+    * `fromListSettings()` — parsea con whitelist de tipos
+      válidos (descarta tipos desconocidos silenciosamente
+      para tolerar versionado).
+    * `defaultFor(fields)` — genera un template default cuando
+      la lista no tiene `portal_template` configurado: un
+      bloque `static_text` con mensaje de bienvenida + un
+      bloque `client_data` mostrando todos los fields del
+      record cliente (excepto `relation` y soft-deleted).
+- `PortalController::getMe` ahora devuelve `template: {blocks: [...]}`
+  además de `record` y `user`. Si la lista de portal no tiene
+  template configurado, se inyecta el default — el cliente NUNCA
+  recibe `template: null`.
+
+Tipos de bloque soportados en 3.C
+---------------------------------
+- `client_data` — datos del record cliente (subset de fields).
+- `related_records_table` — tabla de records de otra lista
+  relacionada al cliente.
+- `static_text` — bloque HTML estático (mensaje de bienvenida,
+  instrucciones).
+
+Render JS de estos tres bloques llega en 3.D (bundle `app/portal.tsx`).
+
+Tipos futuros (3.E, opcional)
+-----------------------------
+- `editable_form` — form para que el cliente actualice campos.
+- `kpi_widget`, `chart_widget` — métricas.
+- `activity_timeline`, `comments_thread`.
+
+Tests
+-----
+9 tests unitarios nuevos en `PortalTemplateTest`:
+- Empty cuando no hay `portal_template` o `blocks`.
+- Parsing de blocks válidos.
+- Drop silencioso de tipos desconocidos (tolerancia a
+  versionado: bloques de futuras versiones no rompen).
+- Drop de entradas no-array.
+- Default incluye intro + client_data.
+- Default omite fields `relation` y soft-deleted.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 397 tests, +9 nuevos pasan.
+
+Próximas iteraciones
+--------------------
+- 3.D — Bundle `app/portal.tsx` con renderer que consume
+  `/portal/me` y renderiza los 3 tipos de bloque base.
+- 3.E — Bloques avanzados (kpi, charts, comments, activity,
+  editable_form). Opcional.
+- 3.G — Botón "Crear acceso al portal" en la lista de clientes.
+
+= 0.39.1 =
+**Fase 9 — Portal del cliente (iteración 3.B: REST + shortcode + auth flow).**
+
+Trae los endpoints REST del portal + el shortcode `[imcrm-client-portal]`
+que sirve como auth gate en cualquier página del tema. El bundle JS
+del portal (template renderer) llega en 3.F — esta iteración tiene
+todo lo necesario para que un cliente entre, vea su info básica y
+los endpoints respondan correctamente con el scope aplicado.
+
+REST endpoints (cap `imcrm_access_portal`)
+------------------------------------------
+- GET /imagina-crm/v1/portal/me
+    Devuelve el record del cliente actual + metadata. 404 si:
+        * No hay lista de portal configurada.
+        * El user no tiene record asociado.
+    Shape:
+        { data: { list: {id, slug, name}, record: {...}, user: {...},
+                  template_id: int|null } }
+
+- GET /imagina-crm/v1/portal/lists/{slug}/records
+    Records de una lista visibles para el cliente. El scope SQL de
+    PortalScopeService se inyecta vía `additionalWhere` del
+    QueryBuilder — el cliente NO puede ver records ajenos aunque
+    conozca el slug de la lista. Params: page, per_page, sort, search.
+
+- GET /imagina-crm/v1/portal/lists/{slug}/records/{id}
+    Detalle de un record. Devuelve 404 si no está dentro del scope
+    (no se distingue "no existe" de "no autorizado" para data leak
+    prevention). La estrategia es ejecutar `list()` con additionalWhere
+    `AND id = %d <scope>`, lo que combina filtro per-record + scope
+    en una sola query.
+
+Shortcode [imcrm-client-portal]
+-------------------------------
+Cuatro estados de auth gate, cada uno con su card visual:
+
+  1. No logged-in → card "Iniciar sesión" con botón a `wp_login_url`
+     que respeta el `redirect_to` para volver tras login.
+  2. Logged-in sin cap `imcrm_access_portal` (ej. admin curioseando)
+     → card "Esta página es para clientes" + link al admin.
+  3. Logged-in con cap pero sin record asociado → card "Tu cuenta
+     aún no tiene portal" + sugerencia de contactar al admin.
+  4. Logged-in con cap Y record → root del portal con header
+     (saludo personalizado + logout) y placeholder informativo.
+
+El root incluye atributos `data-imcrm-portal` y `data-imcrm-portal-boot`
+con JSON serializado (rest_root, rest_nonce, list_slug, user_id,
+record_id) para que el bundle de 3.F hidrate sin tener que pedir
+metadata extra.
+
+Edge case "portal mal configurado": si NO hay lista de portal en
+toda la instalación, mostramos una card específica solo si el user
+tiene cap (típicamente admins probando) — visitantes anónimos NO
+verían este mensaje porque ya cayeron en el estado 1.
+
+CSS portal
+----------
+`assets/portal.css` con variables `--imcrm-portal-*` override-ables
+por el tema. Mismo patrón que `public-list.css` de Fase 8:
+selectores específicos, sin reset agresivo, dark mode automático.
+
+`src/Portal/PortalAssets.php`: enqueue lazy del CSS solo en páginas
+con el shortcode. Slot listo para el bundle JS de 3.F.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 388 tests (sin nuevos en 3.B — tests integration del REST
+necesitan suite de integration que llegará en 3.D-3.E con bloques
+del template).
+
+Próximas iteraciones
+--------------------
+- 3.C — Template editor extendido: schema BD (`templates.kind`
+  ENUM con valor `client_portal`) + UI para crear templates de portal.
+- 3.D-3.E — Bloques del template (client_data, editable_form,
+  related_records_table, kpi_widget, etc.).
+- 3.F — Bundle `app/portal.tsx` + renderer del template.
+- 3.G — Botón "Crear acceso al portal" en la lista de clientes.
+
+= 0.39.0 =
+**Fase 9 — Portal del cliente (iteración 3.A: foundation + aislamiento).**
+
+Arranca la Fase 9 (portal del cliente embebido en el tema). Esta
+iteración trae la lógica de autorización pura sin REST controller ni
+UI todavía — todo lo demás de la fase se construye encima.
+
+Pieza crítica de seguridad: `PortalScopeService` genera la cláusula
+WHERE que se inyecta a TODAS las queries del portal. Sin él, un
+cliente podría adivinar IDs de records ajenos y verlos.
+
+Sin cambios de schema. Todo el shape va en `wp_imcrm_lists.settings.portal`.
+
+Modelo de datos
+---------------
+Una lista del CRM se marca como "lista de portal" con:
+- `settings.portal.enabled = true`
+- `settings.portal.owner_field_id = <field_id>` (field tipo `user`
+  que identifica al cliente dueño del record).
+
+Esa lista típicamente se llama "Clientes". Otras listas (ej. "Facturas",
+"Tickets") se vinculan al cliente con:
+- Un field `relation` apuntando a la lista de portal, O
+- Un field `user` directo (caso "creador del record").
+
+Cambios técnicos
+----------------
+- Namespace nuevo `ImaginaCRM\Portal` con tres clases:
+    * `PortalConfig`: value object inmutable. Parsea `settings.portal`,
+      requiere `owner_field_id` para considerar la lista como
+      portal-list (fail-closed).
+    * `ClientResolver`: resuelve `WP_User` → record-cliente.
+      Devuelve null si:
+        - No hay lista de portal configurada.
+        - El owner_field no existe / pertenece a otra lista / no es
+          tipo `user`.
+        - El user no tiene record asociado en la lista de portal.
+    * `PortalScopeService`: genera el WHERE inyectable al QueryBuilder.
+      Tres casos cubiertos + 1 fail-closed:
+        1. Lista de portal → `AND \`id\` = <record_cliente>`.
+        2. Lista con field `user` → `AND \`<col>\` = <user_id>`.
+        3. Lista con field `relation` a la lista de portal →
+           `AND \`id\` IN (SELECT source_record_id FROM relations ...)`.
+        4. Cualquier otro caso → `AND 1=0`.
+- `ClientResolverInterface` (paralelo a `PublicListReader` de Fase 8):
+  permite que `PortalScopeService` y futuros controllers dependan de
+  un contrato testeable sin mockear clases final.
+
+Reglas de oro (no negociables)
+------------------------------
+1. Sin record-cliente resoluble → AND 1=0 en TODAS las listas.
+2. Si hay AMBIGÜEDAD (ej. una lista con field user Y field relation
+   a la lista de portal): se elige `user` primero (más directo).
+   No se hace OR para no agrandar el conjunto visible.
+3. Fail-closed siempre. Cualquier mis-config produce 1=0, NUNCA
+   "ver todo".
+
+Tests CRÍTICOS de aislamiento
+-----------------------------
+17 tests unitarios nuevos en `PortalScopeServiceTest` + 6 en
+`PortalConfigTest`. Cualquier failure en `PortalScopeServiceTest` es
+un data leak en producción.
+
+Cobertura:
+- User sin ID → 1=0.
+- Sin lista de portal configurada → 1=0.
+- User sin record asociado → 1=0.
+- Lista de portal → scope por record_id propio.
+- Verificación explícita: scope usa record_id, NO user_id (defensa
+  contra el bug "user_id 42 coincide con record_id 42 de otro
+  cliente").
+- Lista con field user → scope por user_id.
+- Lista con field relation a portal → subquery a `wp_imcrm_relations`.
+- Lista sin vínculo → 1=0.
+- Relation a OTRA lista (no portal) → 1=0.
+- User field gana cuando ambos presentes (orden documentado).
+- Fields soft-deleted no cuentan como vínculo.
+- client_record con id=0 (mis-config defensiva) → 1=0.
+
+PHPStan: 0 regresiones (22 errores baseline).
+PHPUnit: 388 tests, +23 nuevos pasan, 0 errores nuevos.
+
+Próximas iteraciones de la Fase 9
+---------------------------------
+- 3.B — REST controllers del portal + shortcode `[imcrm-client-portal]`
+  + auth flow (redirect a login si no autenticado, 403 si no es
+  cliente).
+- 3.C — Template editor extendido: schema BD (`wp_imcrm_templates.kind`)
+  + tipos client_portal.
+- 3.D — Bloques nuevos del template: client_data, editable_form,
+  related_records_table.
+- 3.E — Bloques avanzados: kpi_widget, chart_widget, activity_timeline,
+  comments_thread.
+- 3.F — Bundle `app/portal.tsx` + renderer del template.
+- 3.G — Botón "Crear acceso al portal" en la lista de portal.
+
+= 0.38.4 =
+**Fase 8 — Listas públicas (iteración 2.E: UI de configuración) · CIERRE DE LA FASE 8.**
+
+Última iteración de la Fase 8. Trae el panel "Visibilidad pública" al
+List Builder para que el admin configure `settings.public` con UI
+visual en vez de tener que editar JSON via REST PATCH manual. Con
+este release la Fase 8 queda 100% cerrada.
+
+Frontend
+--------
+- `app/types/publicList.ts`: tipos espejo de `PublicListConfig.php`
+  + defaults seguros + limits (`per_page` [1, 100], `cache_ttl`
+  [0, 3600]).
+- `app/admin/lists/PublicVisibilityPanel.tsx`:
+    * Toggle master "Habilitar visibilidad pública". Cuando off:
+      panel colapsado con nota explicando que ningún visitante
+      puede ver datos.
+    * Tabla campo-por-campo con dos checkboxes: "Visible" (incluir
+      en respuesta REST y tabla) y "Ordenable" (permitir sort por
+      este campo). El segundo se deshabilita automáticamente si
+      el campo no está visible.
+    * Inputs numéricos clampeados para `per_page` y `cache_ttl`.
+    * Toggles para `search_enabled` y `viewer_filters_allowed`.
+    * Dropdown "Orden por defecto" que se llena dinámicamente con
+      las combinaciones `slug:asc|desc` de los campos marcados
+      como ordenables.
+    * Snippet del shortcode `[imcrm-list slug="..."]` con botón de
+      copiar al portapapeles (`navigator.clipboard`).
+    * Botón "Guardar visibilidad" con dirty tracking — solo
+      habilitado cuando hay cambios reales (comparación shallow
+      con el estado inicial).
+- Mensajes para casos edge:
+    * Lista sin campos exponibles (solo relations o vacía) →
+      warning amber explicando que se necesita al menos un field.
+    * Error de copy al portapapeles → fallback "selecciónalo
+      manualmente".
+
+Diseño de merge
+---------------
+El panel solo toca la clave `public` dentro de `settings`. El resto
+del shape (`permissions`, `assignment_field_id`, otras keys futuras)
+se preserva intacto. Esto evita race conditions donde dos paneles
+compitan por el mismo `settings`.
+
+Filtros fijos (out of scope)
+----------------------------
+El shape persiste `fixed_filter_tree` pero el panel no lo edita
+visualmente — el editor de filtros con AND/OR anidados (mismo
+shape que el FiltersPanel del admin) requiere refactor para ser
+embebible. Los admins que necesiten filtros fijos pueden setear
+`settings.public.fixed_filter_tree` via REST PATCH directo. UI
+visual queda como mejora futura.
+
+Fase 8 cerrada
+--------------
+| Iter. | Versión | Entrega                                              |
+|-------|---------|------------------------------------------------------|
+| 2.A   | 0.38.0  | PublicListConfig + Service + REST público            |
+| 2.B   | 0.38.1  | Shortcode con render server-side                     |
+| 2.C   | 0.38.2  | Bundle JS público + hidratación                      |
+| 2.D   | 0.38.3  | Bloque Gutenberg                                     |
+| 2.E   | 0.38.4  | Tab "Visibilidad pública" en List Builder            |
+
+Cómo usarlo end-to-end ahora
+----------------------------
+1. Crear lista en admin, agregar fields, llenar records.
+2. Editar lista → tab "Visibilidad pública" → habilitar +
+   marcar campos visibles + configurar opciones → guardar.
+3. Copiar el shortcode del panel.
+4. En cualquier página/post WP: pegar shortcode o insertar bloque
+   "Lista Imagina CRM" + completar slug en el inspector.
+5. Visitar la página: tabla server-rendered + JS hidrata con
+   búsqueda + sort + paginación dinámicos.
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 366 tests, 0 errores nuevos.
+TypeScript build: limpio. ListBuilderPage chunk: 13.14 KB gzip
+(+2.27 KB vs 0.38.3, esperado por el nuevo panel).
+
+Próximos pasos (fuera de Fase 8)
+--------------------------------
+- Fase 9 — Portal del cliente (template editor extendido con
+  bloques especiales: client_data, editable_form,
+  related_records_table, kpi_widget, etc.).
+
+= 0.38.3 =
+**Fase 8 — Listas públicas (iteración 2.D: bloque Gutenberg).**
+
+Trae el bloque `imagina-crm/list` al editor de bloques: tarjeta en el
+inserter con icono propio, atributos editables desde el inspector
+lateral (slug, per_page, clase CSS), render server-side que reutiliza
+el shortcode (sin duplicar lógica).
+
+Decisión técnica
+----------------
+Bloque **server-rendered puro** sin JS de editor custom. Razones:
+- Cero dependencias nuevas en package.json (no traer `@wordpress/blocks`,
+  `@wordpress/block-editor`, etc. que suman ~150 KB al bundle del
+  editor).
+- WP genera automáticamente la UI del inspector desde la `attributes`
+  schema declarada en `register_block_type` (input por atributo).
+- El render usa el mismo `Shortcode::render` que ya está probado en 2.B.
+- Cualquier mejora futura del shortcode (formatters de tipos, hidratación,
+  etc.) aplica automáticamente al bloque.
+
+Una iteración posterior puede agregar JS de editor con autocomplete
+de slugs disponibles y preview en vivo, pero no es bloqueante.
+
+Comportamiento
+--------------
+- Inserter de bloques: categoría "Widgets", título "Lista Imagina CRM",
+  icono `database-view`. Keywords: crm, lista, list, imagina.
+- Atributos: `slug` (string, requerido), `perPage` (integer, opcional),
+  `extraClass` (string, opcional para custom CSS).
+- Soporta `align: wide|full` y `customClassName`. HTML editing
+  deshabilitado (el bloque siempre se renderiza dinámicamente).
+- Sin slug:
+    * Si el visitante puede editar posts (admin/editor): placeholder
+      visible con mensaje "Configura el slug de la lista en el panel
+      lateral del bloque".
+    * Visitante anónimo: string vacío (sin mensajes técnicos).
+- Con slug: delega a `Shortcode::render` con los atributos.
+
+PHP
+---
+- `src/PublicLists/Block.php` — registra el bloque y maneja el
+  render_callback.
+- `Plugin.php` — binding del Block en el container; registro en `init`.
+- `PublicAssets.php` ya detectaba `has_block('imagina-crm/list', ...)`
+  desde 2.B — el CSS y el bundle JS se cargan automáticamente en
+  páginas con el bloque.
+- `assets/public-list.css` — clase `.imcrm-public-list--placeholder`
+  para el estado sin slug en el editor.
+
+Tests
+-----
+5 tests unitarios nuevos en `BlockTest`:
+- Slug vacío + user con `edit_posts` → placeholder visible.
+- Slug vacío + visitante anónimo → string vacío.
+- Con slug → delega al shortcode (verifica que el HTML contiene el
+  output esperado: tabla, atributos `data-imcrm-*`).
+- `extraClass` se transmite al wrapper.
+- `perPage` se transmite al shortcode.
+
+Stub nuevo en `tests/bootstrap.php`: `$GLOBALS['imcrm_test_current_user_can']`
+como callable para override directo de `current_user_can()` en tests
+que no quieren armar un WP_User completo.
+
+PHPStan: 0 regresiones (22 baseline).
+PHPUnit: 366 tests (+5 nuevos), 0 errores nuevos.
+
+Próximo paso de la Fase 8
+-------------------------
+- 2.E — Tab "Visibilidad pública" en el List Builder para configurar
+  `settings.public` desde la UI. Última iteración de la Fase 8.
+
+= 0.38.2 =
+**Fase 8 — Listas públicas (iteración 2.C: bundle JS público + hidratación).**
+
+Trae interactividad al shortcode `[imcrm-list]`: búsqueda en vivo (con
+debounce), sort por columna (asc → desc → ninguno), paginación
+client-side. El HTML server-side de 2.B sigue siendo el first paint
+(SEO + visible-sin-JS); el bundle reemplaza el div con React en cuanto
+carga.
+
+Bundle target alcanzado: **48 KB gzip total** para un visitante
+(vendor-react 45.7 KB + public 2.4 KB). Bajo el límite de 50 KB del
+diseño técnico.
+
+Arquitectura del bundle
+-----------------------
+- Nuevo entry `app/public.tsx` — busca todos los
+  `<div data-imcrm-public-list>` del DOM y los monta con React
+  (createRoot, no hydrateRoot — el re-render inicial de ~10-30ms es
+  imperceptible y libera al shortcode PHP de tener que emitir HTML
+  byte-a-byte idéntico al render React).
+- `app/public/PublicList.tsx` — componente principal. Sin TanStack
+  Query (peso), sin shadcn/ui (peso), sin Lucide (peso). Solo React
+  18 + fetch nativo.
+- `app/public/api.ts` — cliente fetch minimalista contra
+  `/v1/public/lists/{slug}/records`. Cache en memoria por URL para
+  navegación rápida sin re-pegar al backend.
+- `app/public/types.ts` — tipos compartidos.
+
+Funcionalidad
+-------------
+- **Búsqueda**: input con debounce 250 ms. Solo si `search_enabled=true`.
+  Vuelve a página 1 al cambiar.
+- **Sort**: click en header alterna `asc → desc → ninguno`. Solo
+  columnas en `sort_allowed_slugs`. Indicator visual (↑/↓/↕).
+- **Paginación**: botones prev/next con conteo "Página X de Y".
+- **Estado de carga**: indicador "Cargando…" en el toolbar.
+- **Manejo de errores**: rate-limited (429) → mensaje claro; otros
+  errores → mensaje genérico amigable.
+- **AbortController**: cada nueva request cancela la anterior
+  (cuando el usuario tipea rápido y se generan varias requests).
+
+Vite config
+-----------
+- `input` de v4wp ahora acepta array → admin + público en el mismo
+  build pipeline.
+- `manualChunks` cambia: React/ReactDOM van a chunk compartido
+  `vendor-react` (45.7 KB gzip). Antes iban al chunk `main` del
+  admin (178 KB), lo cual hacía que el bundle público arrastrara
+  todo el admin SPA. Ahora ambos entries comparten un chunk vendor
+  común — single-instance garantizada y cache-friendly.
+- TanStack Query queda en `vendor-query` (solo admin lo usa).
+
+Assets pipeline
+---------------
+`PublicAssets.php` ahora lee `dist/manifest.json` (igual que
+`AdminAssets`) para resolver los hashes de los chunks emitidos por
+Vite. Enqueue:
+1. CSS base `public-list.css`.
+2. Chunk `vendor-react.js` (deps del entry).
+3. Bundle `public.js` con dependencia explícita del vendor-react.
+Todos con `type="module"` vía `script_loader_tag` filter.
+
+Si el manifest no existe (developer instalando desde fuente sin
+`npm run build`), el JS no se carga pero el HTML server-side sigue
+visible — degradación graceful.
+
+CSS extra
+---------
+`public-list.css` extendido con estilos para los nuevos elementos:
+toolbar, search input, sort buttons (con indicador), botones
+paginación, loading inline, error banner. Sigue el patrón de
+variables `--imcrm-public-*` para que el tema override.
+
+Limitaciones conocidas
+----------------------
+- Filtros por campo (filter[slug][op]=...) soportados a nivel API
+  pero sin UI en este release. Reservado para 2.E o posterior.
+- Sin tests E2E del bundle JS — la suite Vitest no está configurada
+  en el proyecto. Cobertura indirecta vía tests PHP del shortcode
+  (que verifica los data-attrs que el bundle consume).
+
+PHPStan: 0 regresiones (22 baseline).
+TypeScript build: limpio. Bundle público: 2.42 KB gzip (mi código).
+
+Próximos pasos
+--------------
+- 2.D — Bloque Gutenberg `imagina-crm/list` con preview en editor.
+- 2.E — Tab "Visibilidad pública" en List Builder + UI de filtros
+  para visitantes.
+
+= 0.38.1 =
+**Fase 8 — Listas públicas (iteración 2.B: shortcode con render server-side).**
+
+Trae el shortcode `[imcrm-list slug="..."]` que renderiza la lista en el
+frontend del tema con HTML 100% server-side: indexable por buscadores,
+visible sin JS (first paint cero-frames), y con marcas de hidratación
+preparadas para la próxima iteración (2.C, bundle JS público).
+
+Cambios técnicos
+----------------
+- Nueva interfaz `ImaginaCRM\PublicLists\PublicListReader` que abstrae
+  la lectura pública de listas. Permite que el shortcode y el controller
+  REST público dependan de un contrato testeable sin extender la clase
+  `final` PublicListService.
+- `src/PublicLists/Shortcode.php`: maneja `[imcrm-list]`. Atributos
+  `slug` (requerido), `per_page` (override clampeado), `class` (CSS).
+  Si la lista no existe o no es pública: devuelve string vacío (no
+  rompe el render del tema, no revela existencia).
+- Render server-side con tabla HTML semántica. Cada tipo de campo se
+  formatea apropiadamente:
+    * `url` → enlace target=_blank rel=noopener
+    * `email` → enlace mailto:
+    * `checkbox` → ✓ / ✗ con aria-label
+    * `multi_select` → pills inline
+    * `long_text` → `nl2br()` preservando saltos
+    * resto → texto plano escapado
+- Atributos `data-imcrm-config` y `data-imcrm-initial` con JSON
+  serializado. El bundle JS público (2.C) los leerá para hidratar
+  el div con React preservando el primer paint.
+- `src/PublicLists/PublicAssets.php`: enqueue perezoso del CSS solo
+  en páginas que contienen el shortcode o el bloque (detección via
+  `has_shortcode`/`has_block`). Impacto cero en páginas sin la lista.
+  Filtro `imagina_crm/public_list/force_enqueue` para temas que
+  invocan `do_shortcode` desde widgets/hooks donde la detección
+  estándar no llega.
+- `assets/public-list.css`: estilos base sin Tailwind. Selectores
+  específicos `.imcrm-public-list__*` para no chocar con CSS del
+  tema. Variables `--imcrm-public-*` override-ables. Modo oscuro
+  automático con `prefers-color-scheme`.
+
+Tests
+-----
+- 8 tests unitarios nuevos en `ShortcodeTest`:
+    * slug vacío / no público / service con error → string vacío.
+    * Render de tabla con columnas visibles.
+    * Tipos especiales (email→mailto, url→href, checkbox→✓/✗).
+    * Empty state cuando no hay records.
+    * Atributos data-* presentes para hidratación futura.
+- Stubs nuevos en `tests/bootstrap.php`: `esc_html`, `esc_attr`,
+  `esc_url`, `esc_html__`, `esc_attr__`, `_n`, `rest_url`.
+
+PHPStan: 0 regresiones (22 errores baseline).
+PHPUnit: 361 tests, +8 nuevos pasan.
+
+Cómo usarlo (paso a paso)
+-------------------------
+1. Crear una lista en el admin con algunos records.
+2. Editar la lista → tab "Configuración avanzada" → marcar
+   `settings.public.enabled=true` (UI llega en 2.E; por ahora se
+   edita via REST PATCH /lists/{id} con `settings.public`).
+3. Crear una página WP con shortcode `[imcrm-list slug="mi-lista"]`.
+4. Visitar la página: tabla server-rendered con records.
+
+Próximos pasos de la Fase 8
+---------------------------
+- 2.C — Bundle JS público (`app/public.tsx`) que hidrata el div
+  habilitando filtros/sort/paginación dinámicos.
+- 2.D — Bloque Gutenberg `imagina-crm/list`.
+- 2.E — UI "Visibilidad pública" en el List Builder.
+
+= 0.38.0 =
+**Fase 8 — Listas públicas (iteración 2.A: backend foundation).**
+
+Arranca la Fase 8. Esta primera iteración trae el backend de las listas
+públicas: configuración por lista (`settings.public`), API REST anónima
+con rate limiting, cache HTTP CDN-friendly y serialización limitada a
+campos visibles. Las próximas iteraciones (2.B-2.E) traen el shortcode,
+el bundle JS público, el bloque Gutenberg y la UI de configuración.
+
+Sin frontend en este release — solo la API que las próximas iteraciones
+consumirán. Endpoints listos para probar con curl/Postman:
+
+    GET /wp-json/imagina-crm/v1/public/lists/{slug}
+    GET /wp-json/imagina-crm/v1/public/lists/{slug}/records?page=1&search=...
+
+Sin cambios de schema. Todo el shape va en `wp_imcrm_lists.settings.public`
+(JSON existente).
+
+Cambios técnicos
+----------------
+- Namespace nuevo `ImaginaCRM\PublicLists` con dos clases:
+    * `PublicListConfig`: value object que parsea `settings.public`.
+      Default fail-closed (sin la clave o con `enabled=false` → lista
+      NO se expone). Clamps de `per_page` [1, 100] y `cache_ttl`
+      [0, 3600] para evitar abusos.
+    * `PublicListService`: orquesta lecturas públicas. Aplica el
+      `fixed_filter_tree` ANTES que cualquier filtro del visitante;
+      restringe sort a `sort_allowed_slugs`; proyecta solo campos
+      en `visible_field_slugs`. Cache server-side opcional con TTL
+      del config + invalidación automática por hooks `record_*`.
+- `src/REST/PublicListsController.php` con dos endpoints anónimos
+  (`__return_true` en permission_callback):
+    * GET /public/lists/{slug} — metadata (nombre, descripción, fields
+      visibles, config UI).
+    * GET /public/lists/{slug}/records — records paginados.
+- Rate limit por IP: 60 req/min por (endpoint × IP), vía
+  `set_transient`. Respeta X-Forwarded-For para sitios detrás de CDN.
+  IP no resoluble → no se aplica rate limit (no bloquear NAT).
+- Cache HTTP: header `Cache-Control: public, max-age=<ttl>` cuando
+  TTL > 0. CDN/Varnish puede cachear sin tocar PHP (endpoint sin
+  cookies, sin user-specific data).
+
+Garantías de seguridad
+----------------------
+1. Lista no marcada como pública → 404 (no 403, no revela existencia).
+2. Filtros del visitante restringidos a `visible_field_slugs` —
+   intentos de filtrar por campos privados se descartan silenciosamente.
+3. Sort restringido a `sort_allowed_slugs`. Slugs fuera de whitelist
+   ignorados.
+4. `fixed_filter_tree` siempre se aplica antes que filtros del visitante.
+   Mediante composición AND — no se puede bypassear desde el client.
+5. Serialización excluye `created_by`, `deleted_at` y otros campos
+   internos del envelope. Solo `{id, fields: {...}, relations: {...}}`
+   con sólo los slugs visibles.
+
+Tests
+-----
+17 tests unitarios nuevos en `PublicListConfigTest`:
+- Default cerrado cuando no hay clave `public`.
+- Parsing completo del shape.
+- Clamps de per_page y cache_ttl.
+- Normalización de visible_field_slugs/sort_allowed_slugs (dedup,
+  filtro de no-strings).
+- `fixed_filter_tree` rechazado si no es `{type:'group',...}`.
+- Roundtrip `fromListSettings` → `toArray()`.
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 353 tests, +17 nuevos pasan, 0 errores nuevos.
+
+Próximas iteraciones de la Fase 8
+---------------------------------
+- 2.B — Shortcode `[imcrm-list slug="..."]` con render server-side
+  (HTML inicial para SEO + first paint sin JS).
+- 2.C — Bundle JS público (`app/public.tsx`, target < 50KB gzip)
+  que hidrata el div para habilitar filtros/paginación dinámicos.
+- 2.D — Bloque Gutenberg `imagina-crm/list`.
+- 2.E — Tab "Visibilidad pública" en el List Builder para que el
+  admin configure `settings.public` desde la UI.
+
+= 0.37.3 =
+**Fase 7 — Roles y permisos (iteración 1.E: Frontend gating + tab "Permisos") · CIERRE DE LA FASE 7.**
+
+Última iteración de la Fase 7. Trae al frontend el sistema de permisos
+construido en 1.A-1.D: hooks para consumir capabilities, gating de
+botones/secciones que el usuario no puede usar, y un panel completo
+para que el admin de cada lista configure quién puede hacer qué.
+
+Después de esta iteración la Fase 7 queda 100% cerrada. La base de
+permisos está lista para las Fases 8 (listas públicas) y 9 (portal
+del cliente).
+
+Frontend
+--------
+- `app/lib/permissions.ts`:
+    * Constantes `CAP.*` (espejo de `CapabilityRegistry` en PHP).
+    * Hook `useCan(cap)`: bool de si el user actual tiene la cap.
+    * Hook `useCanAny(...caps)`: OR de varias caps.
+    * Hook `useIsPluginAdmin()`: shortcut para "puedo todo".
+    * Constantes `ROLES.*` de los 5 roles del plugin.
+- Sidebar: oculta "Dashboards" para usuarios sin manage_dashboards;
+  oculta "Configuración" para usuarios sin manage_lists.
+- ListsIndexPage: botón "Nueva lista" + acción del EmptyState solo
+  visibles con manage_lists. Texto del empty state cambia según rol.
+- RecordsPage header: "Automatizaciones" requiere manage_automations,
+  "Configurar lista" requiere manage_lists, "Importar" requiere
+  import_records, "Export" requiere export_records, "Nuevo registro"
+  requiere create_records. Si el user no tiene ninguno, el header
+  queda limpio.
+
+Tab Permisos (List Builder)
+---------------------------
+- `app/admin/lists/PermissionsPanel.tsx`: matriz editable rol × operación
+  con dropdowns de scope (Todos/Asignados/Propios/Ninguno) por
+  view/edit/delete y checkbox para create.
+- Aparece sólo para `crm_manager`/`crm_agent`/`crm_viewer` — `crm_admin`
+  y `crm_client` se ignoran (no se configura su comportamiento).
+- Cuando alguna celda usa scope=Asignados, aparece automáticamente un
+  selector "Campo de asignación" listando los campos de tipo Usuario de
+  la lista. Si no hay ninguno, muestra warning amber explicando que el
+  scope no funcionará hasta agregar uno.
+- `useListPermissions(idOrSlug)` + `useUpdateListPermissions(idOrSlug)`
+  + `useRoles()` en `app/hooks/usePermissions.ts`. Patrón TanStack
+  Query consistente con el resto del front.
+
+Limitaciones conocidas
+----------------------
+- Gating de edición inline (TableView, BulkActionsToolbar) sigue dependiendo
+  del 403 del backend si un viewer intenta editar. Pasarle prop `canEdit`/
+  `canDelete` a esos componentes queda como mejora UX de seguimiento.
+- El tab Permisos no implementa `fields_hidden` todavía (el shape ya
+  existe en el JSON persistido y en el value object PHP, pero la UI
+  de checkboxes per-campo es para fase 10).
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 336 tests, 0 errores nuevos.
+TypeScript build: limpio.
+
+= 0.37.2 =
+**Fase 7 — Roles y permisos (iteración 1.C+D fusionada: REST gating + scope SQL).**
+
+Tercera iteración (combinada con la 1.D del plan) — gating real por endpoint
++ filtrado SQL de records por scope. A partir de este release, las
+capabilities `imcrm_*` se ENFORCEAN de verdad: cada controller REST exige
+la cap correcta para su operación y los records se filtran al WHERE final
+por el rol del user.
+
+Sin cambios visibles para administradores (siguen viendo todo).
+
+Backend
+-------
+- `QueryBuilder::buildSelect` acepta `$additionalWhere = {sql, args}` que
+  se compone con AND al WHERE final. La cláusula del scope viene de
+  `PermissionService::recordsScopeWhere()` (Fase 7 — 1.B). Si scope=all
+  (admins), $additionalWhere es null y el SQL queda idéntico al pre-1.D.
+- `RecordService::list()` propaga $additionalWhere al QueryBuilder. Igual
+  con `CsvExporter::export()` — el CSV ya no expone records ajenos.
+- `AbstractController` con dos nuevos helpers: `requireCapability(cap)`
+  y `requireAnyCapability(...caps)`. Cada controller ahora elige el
+  granular por endpoint en vez de heredar el legado `checkAdminPermissions`.
+
+Gating por controller
+---------------------
+| Controller          | Lectura                          | Mutación                              |
+|---------------------|----------------------------------|---------------------------------------|
+| ListsController     | imcrm_access_admin (filtrado)    | imcrm_manage_lists                    |
+| FieldsController    | imcrm_access_admin               | imcrm_manage_fields | manage_lists    |
+| ViewsController     | imcrm_access_admin               | imcrm_manage_views  | manage_lists    |
+| RecordsController   | view_records | view_own_records   | create/edit/delete + ACL per-record   |
+| AggregatesController| view_records | view_own_records   | (read-only — bloqueado si scope!=all) |
+| AutomationsController | imcrm_manage_automations       | imcrm_manage_automations              |
+| DashboardsController | imcrm_access_admin              | imcrm_manage_dashboards               |
+| CommentsController  | view + per-record visibility    | view + per-record (service valida autor) |
+| ActivityController  | view + per-record visibility    | (read-only)                            |
+| RecurrencesController | view_records | view_own_records | edit_records | edit_own_records    |
+| ImportController    | -                                | imcrm_import_records                  |
+| ExportController    | -                                | imcrm_export_records (scope aplicado) |
+| SearchAdminController | imcrm_manage_lists             | imcrm_manage_lists                    |
+| SlugsController     | imcrm_manage_lists | manage_fields | -                                |
+| LicenseController   | imcrm_manage_lists               | imcrm_manage_lists                    |
+
+RecordsController — chequeos per-record
+---------------------------------------
+- GET /records: filtro SQL automático (own/assigned/none).
+- GET /records/{id}: 404 si el record no es visible para el user.
+- POST /records: requiere ACL.create=true para alguno de los roles del user.
+- PATCH /records/{id}: 404 si no ve el record; 403 si lo ve pero no puede editar.
+- DELETE /records/{id}: idem.
+- POST /records/bulk: filtra IDs aprobados/denegados; devuelve `denied_ids`
+  en la respuesta. Si TODOS son denegados → 403.
+
+ListsController — filtrado de colección
+---------------------------------------
+GET /lists devuelve solo las listas donde `userCanSeeList` retorna true
+para el user actual. Sidebar del front mostrará solo lo accesible.
+
+Aggregates: limitación temporal
+-------------------------------
+RecordAggregator no soporta aún additionalWhere. Para no exponer
+agregados sobre records ajenos, los usuarios con scope acotado
+(no admin, no all) reciben 403 al pedir aggregates. El front
+debe ocultar la barra de totales para esos roles. Refactor del
+aggregator → backlog Fase 7 iteración 1.E o posterior.
+
+Data leak prevention
+--------------------
+Patrón aplicado consistentemente: cuando un user no puede ver un
+recurso (lista o record), se devuelve 404 — no 403 — para no
+revelar la existencia. Solo cuando puede VER pero no MUTAR, se
+devuelve 403 con mensaje específico.
+
+Tests
+-----
+4 tests nuevos en `QueryBuilderTest`:
+- additionalWhere appendea después de los filtros del user.
+- additionalWhere funciona sin filtros del user (WHERE 1=1 + scope).
+- additionalWhere blocking (AND 1=0) propaga al count_sql.
+- additionalWhere omitido = comportamiento legacy pre-1.D (back-compat).
+
+PHPStan: 0 regresiones (22 baseline = 22 ahora).
+PHPUnit: 336 tests, +4 nuevos pasan, 0 errores nuevos.
+
+Próximos pasos
+--------------
+- 1.E — Frontend gating (sidebar, botones, columnas) + tab "Permisos"
+  en List Builder.
+
+= 0.37.1 =
+**Fase 7 — Roles y permisos (iteración 1.B: PermissionService + ACL por lista).**
+
+Segunda iteración de la Fase 7. Sin schema nuevo — todo el ACL vive en
+`wp_imcrm_lists.settings` (JSON existente). Igual que 1.A, NO cambia
+todavía el comportamiento de los endpoints existentes (eso llega en 1.C);
+solo añade la pieza de evaluación de permisos.
+
+Cambios técnicos
+----------------
+- `ImaginaCRM\Permissions\ListPermissions`: value object inmutable
+  que parsea `settings.permissions` + `settings.assignment_field_id`.
+  Implementa `mergeScopes()` (toma el más permisivo entre roles del
+  mismo user) y resuelve defaults legacy seguros (todo `none` para
+  managers/agents/viewers cuando la lista no tiene `permissions`).
+- `ImaginaCRM\Permissions\PermissionService`: centraliza decisiones
+  de autorización (bypass de admin/manage_lists, scopes por operación,
+  filtrado SQL para records). Recibe FieldRepository (o un closure en
+  tests) para resolver el column_name del campo de asignación.
+- Nuevo endpoint REST:
+    * `GET /imagina-crm/v1/lists/{id_or_slug}/permissions` — devuelve
+      la matriz rol × operación de la lista + lista de roles del plugin.
+    * `PATCH /imagina-crm/v1/lists/{id_or_slug}/permissions` — actualiza
+      el shape, mergeando con settings existente. Valida cada scope
+      (`all`/`own`/`assigned`/`none`) y rechaza inputs inválidos con 422.
+    * `GET /imagina-crm/v1/roles` — catálogo de los 5 roles + labels.
+- Cap requerida para gestionar ACL: `imcrm_manage_lists`. Sólo admins.
+
+Reglas de evaluación
+--------------------
+1. `administrator` (WP) y `crm_admin` siempre tienen bypass total.
+2. Schema (crear listas/campos/etc.) NO se restringe por ACL — sólo
+   por la cap global correspondiente.
+3. Records SÍ se restringen por ACL + cap global.
+4. Multi-rol = más permisivo gana (own < assigned < all).
+5. Fail-closed: scope `assigned` sin `assignment_field_id` bloquea
+   todo. Shapes desconocidos caen a `none`.
+
+Tests
+-----
+44 tests unitarios nuevos:
+- `ListPermissionsTest` (16): parsing, defaults, mergeScopes, validación.
+- `PermissionServiceTest` (28): bypass de admins, scope=own/assigned/all/none,
+  intersección de fields_hidden, recordsScopeWhere para inyectar en SQL.
+
+Stubs nuevos en `tests/bootstrap.php`: `WP_User`, `user_can`,
+`current_user_can`, `rest_authorization_required_code` — reutilizables.
+
+Próximos pasos
+--------------
+- 1.C — Integración granular en controllers REST (gating real)
+- 1.D — `QueryBuilder` con `additionalWhere` cableado a recordsScopeWhere
+- 1.E — Frontend gating + tab "Permisos" en List Builder
+
+= 0.37.0 =
+**Fase 7 — Roles y permisos (iteración 1.A: foundation).**
+
+Primer paso de la transición del plugin a un modelo multi-stakeholder.
+Sienta la base sobre la que se construirán las listas públicas (Fase 8)
+y el portal del cliente (Fase 9). Ver `docs/multi-stakeholder-design.md`
+para el plan completo.
+
+Esta iteración NO cambia la experiencia del usuario final aún: solo
+añade infraestructura. Cualquier admin WP existente conserva acceso
+total al plugin sin acción manual — la migración suma las nuevas
+capabilities al rol `administrator` automáticamente.
+
+Cambios técnicos
+----------------
+- Nuevo namespace `ImaginaCRM\Permissions` con dos clases:
+    * `CapabilityRegistry`: catálogo de 17 capabilities y mapeo a 5 roles
+      default (crm_admin / crm_manager / crm_agent / crm_viewer / crm_client).
+    * `RoleInstaller`: instala/sincroniza roles en activación y en cada
+      bump de DB_VERSION. Idempotente. Limpia caps obsoletas con prefijo
+      `imcrm_`. Preserva caps custom del sysadmin (otros prefijos).
+- `Plugin::ADMIN_CAPABILITY` ahora es `imcrm_access_admin` en vez de
+  `manage_options`. El cambio se propaga automáticamente a todos los
+  REST controllers (vía `AbstractController::checkAdminPermissions`),
+  al menú wp-admin y al guardia de la página Standalone.
+- DB_VERSION 7 → 8.
+- `GET /imagina-crm/v1/me` y los payloads de bootstrap exponen ahora
+  el set completo de capabilities `imcrm_*` del usuario + sus roles.
+- En desinstalación con `imcrm_purge_on_uninstall=true`: se remueven
+  los 5 roles del plugin y las caps `imcrm_*` del rol `administrator`.
+
+Tests
+-----
+- 17 tests unitarios cubriendo:
+    * Integridad del registro: caps únicas, mapeos consistentes, scope
+      restrictivo correcto en crm_agent (solo `own`), crm_client sin
+      acceso al admin.
+    * Sync de roles: creación, asignación de caps default, idempotencia,
+      drop de caps obsoletas, preservación de caps de otros plugins.
+    * Uninstall: roles removidos, admin recupera caps limpias.
+- Stubs nuevos de la API de roles WP (`WP_Role`, `get_role`, `add_role`,
+  `remove_role`) en `tests/bootstrap.php`, reutilizables.
+
+Próximos pasos de la Fase 7
+---------------------------
+- 1.B — `PermissionService` con scope `own`/`assigned` + ACL por lista
+- 1.C — Integración granular en controllers REST
+- 1.D — `QueryBuilder` con `additionalWhere`
+- 1.E — Frontend gating + tab "Permisos" en List Builder
 
 = 0.36.9 =
 **Widget metric: campo primero + cálculos según el tipo (todos los tipos de campo).**

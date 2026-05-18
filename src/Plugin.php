@@ -40,6 +40,11 @@ use ImaginaCRM\Licensing\LicenseManager;
 use ImaginaCRM\Licensing\UpdaterClient;
 use ImaginaCRM\Lists\SchemaManager;
 use ImaginaCRM\Lists\SlugManager;
+use ImaginaCRM\Permissions\PermissionService;
+use ImaginaCRM\Permissions\RoleInstaller;
+use ImaginaCRM\Portal\ClientResolver;
+use ImaginaCRM\Portal\PortalScopeService;
+use ImaginaCRM\PublicLists\PublicListService;
 use ImaginaCRM\Records\QueryBuilder;
 use ImaginaCRM\Records\RecordRepository;
 use ImaginaCRM\Records\RecordService;
@@ -63,7 +68,10 @@ final class Plugin
     public const TEXT_DOMAIN      = IMAGINA_CRM_TEXT_DOMAIN;
     public const DB_VERSION       = IMAGINA_CRM_DB_VERSION;
     public const ADMIN_PAGE       = 'imagina-crm';
-    public const ADMIN_CAPABILITY = 'manage_options';
+    // Cap canónica para acceder al admin del plugin. La migración de la
+    // Fase 7 garantiza que el rol `administrator` de WP la tenga, así
+    // que cualquier admin existente sigue funcionando sin acción manual.
+    public const ADMIN_CAPABILITY = \ImaginaCRM\Permissions\CapabilityRegistry::CAP_ACCESS_ADMIN;
 
     private static ?self $instance = null;
 
@@ -118,6 +126,137 @@ final class Plugin
         // SchemaManager y SlugManager dependen sólo de Database.
         $this->container->bind(SchemaManager::class, static function (Container $c): SchemaManager {
             return new SchemaManager($c->get(Database::class));
+        });
+
+        // RoleInstaller: sincroniza roles y capabilities del plugin.
+        // Stateless, sin dependencias — se invoca en activación y en
+        // `maybeUpgradeSchema` para mantener idempotencia ante updates.
+        $this->container->bind(RoleInstaller::class, static function (): RoleInstaller {
+            return new RoleInstaller();
+        });
+
+        // PermissionService: centraliza autorización (caps + ACL por lista).
+        // Recibe FieldRepository para resolver el column_name del campo de
+        // asignación cuando el ACL define scope=assigned. El bind se hace
+        // después que FieldRepository (más abajo), pero al ser lazy
+        // (closure), el orden no importa — se construye en el primer get().
+        $this->container->bind(PermissionService::class, static function (Container $c): PermissionService {
+            return new PermissionService($c->get(FieldRepository::class));
+        });
+
+        // PermissionsController: REST `/lists/{id}/permissions` + `/roles`.
+        // Roles custom (Fase 10): service + binding del RoleInstaller
+        // que ya existía desde Fase 7.
+        $this->container->bind(\ImaginaCRM\Permissions\CustomRoleService::class, static function (): \ImaginaCRM\Permissions\CustomRoleService {
+            return new \ImaginaCRM\Permissions\CustomRoleService();
+        });
+
+        $this->container->bind(\ImaginaCRM\REST\PermissionsController::class, static function (Container $c): \ImaginaCRM\REST\PermissionsController {
+            return new \ImaginaCRM\REST\PermissionsController(
+                $c->get(ListService::class),
+                $c->get(\ImaginaCRM\Permissions\CustomRoleService::class),
+                $c->get(RoleInstaller::class),
+            );
+        });
+
+        // Listas públicas (Fase 8): service + controller del namespace
+        // `/imagina-crm/v1/public/*` sin auth/nonce.
+        $this->container->bind(PublicListService::class, static function (Container $c): PublicListService {
+            return new PublicListService(
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(RecordService::class),
+                $c->get(\ImaginaCRM\Support\Cache::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\PublicListsController::class, static function (Container $c): \ImaginaCRM\REST\PublicListsController {
+            return new \ImaginaCRM\REST\PublicListsController(
+                $c->get(PublicListService::class),
+            );
+        });
+
+        // Shortcode `[imcrm-list]` + assets del frontend público (Fase 8 — 2.B).
+        $this->container->bind(\ImaginaCRM\PublicLists\Shortcode::class, static function (Container $c): \ImaginaCRM\PublicLists\Shortcode {
+            return new \ImaginaCRM\PublicLists\Shortcode(
+                $c->get(PublicListService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\PublicLists\PublicAssets::class, static function (): \ImaginaCRM\PublicLists\PublicAssets {
+            return new \ImaginaCRM\PublicLists\PublicAssets();
+        });
+        // Permalinks dedicados para listas públicas (Fase 10).
+        $this->container->bind(\ImaginaCRM\PublicLists\PublicPermalinks::class, static function (Container $c): \ImaginaCRM\PublicLists\PublicPermalinks {
+            return new \ImaginaCRM\PublicLists\PublicPermalinks(
+                $c->get(ListRepository::class),
+            );
+        });
+
+        // Bloque Gutenberg (Fase 8 — 2.D). Reusa el render del shortcode
+        // via render_callback — sin duplicar lógica de render entre ambos.
+        $this->container->bind(\ImaginaCRM\PublicLists\Block::class, static function (Container $c): \ImaginaCRM\PublicLists\Block {
+            return new \ImaginaCRM\PublicLists\Block(
+                $c->get(\ImaginaCRM\PublicLists\Shortcode::class),
+            );
+        });
+
+        // Portal del cliente (Fase 9 — 3.A). ClientResolver encuentra la
+        // lista de portal + el record-cliente del WP_User actual; el
+        // PortalScopeService genera el WHERE inyectable que aísla los
+        // datos del cliente del resto. Es la pieza crítica de data
+        // isolation — los tests viven en `tests/Unit/Portal/`.
+        $this->container->bind(ClientResolver::class, static function (Container $c): ClientResolver {
+            return new ClientResolver(
+                $c->get(ListRepository::class),
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Support\Database::class),
+                $c->get(\ImaginaCRM\Support\Cache::class),
+            );
+        });
+        $this->container->bind(PortalScopeService::class, static function (Container $c): PortalScopeService {
+            $db = $c->get(\ImaginaCRM\Support\Database::class);
+            return new PortalScopeService(
+                $c->get(ClientResolver::class),
+                $c->get(FieldRepository::class),
+                $db instanceof \ImaginaCRM\Support\Database ? $db : 'wp_imcrm_relations',
+            );
+        });
+
+        // Portal — shortcode + assets + REST controller (Fase 9 — 3.B).
+        $this->container->bind(\ImaginaCRM\Portal\PortalShortcode::class, static function (Container $c): \ImaginaCRM\Portal\PortalShortcode {
+            return new \ImaginaCRM\Portal\PortalShortcode(
+                $c->get(ClientResolver::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\Portal\PortalAssets::class, static function (): \ImaginaCRM\Portal\PortalAssets {
+            return new \ImaginaCRM\Portal\PortalAssets();
+        });
+        $this->container->bind(\ImaginaCRM\Portal\PortalAccountManager::class, static function (Container $c): \ImaginaCRM\Portal\PortalAccountManager {
+            return new \ImaginaCRM\Portal\PortalAccountManager(
+                $c->get(ClientResolver::class),
+                $c->get(RecordRepository::class),
+            );
+        });
+        // Magic links (Fase 10): generación + consumo de tokens one-time.
+        $this->container->bind(\ImaginaCRM\Portal\MagicLinkService::class, static function (): \ImaginaCRM\Portal\MagicLinkService {
+            return new \ImaginaCRM\Portal\MagicLinkService();
+        });
+        $this->container->bind(\ImaginaCRM\Portal\MagicLinkConsumer::class, static function (Container $c): \ImaginaCRM\Portal\MagicLinkConsumer {
+            return new \ImaginaCRM\Portal\MagicLinkConsumer(
+                $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
+            );
+        });
+        $this->container->bind(\ImaginaCRM\REST\PortalController::class, static function (Container $c): \ImaginaCRM\REST\PortalController {
+            return new \ImaginaCRM\REST\PortalController(
+                $c->get(ClientResolver::class),
+                $c->get(PortalScopeService::class),
+                $c->get(ListService::class),
+                $c->get(RecordService::class),
+                $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Portal\PortalAccountManager::class),
+                $c->get(\ImaginaCRM\Records\RecordAggregator::class),
+                $c->get(\ImaginaCRM\Activity\ActivityRepository::class),
+                $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
+            );
         });
 
         $this->container->bind(SlugManager::class, static function (Container $c): SlugManager {
@@ -466,6 +605,7 @@ final class Plugin
             return new \ImaginaCRM\REST\ExportController(
                 $c->get(\ImaginaCRM\Exports\CsvExporter::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
+                $c->get(PermissionService::class),
             );
         });
 
@@ -481,6 +621,7 @@ final class Plugin
             return new \ImaginaCRM\REST\AggregatesController(
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
+                $c->get(PermissionService::class),
             );
         });
     }
@@ -770,6 +911,48 @@ final class Plugin
             $standalone->register();
         }
 
+        // Listas públicas (Fase 8): el shortcode y el enqueue de su CSS
+        // viven en frontend. Es seguro registrarlos siempre — los
+        // assets solo se cargan en páginas que tengan el shortcode (vía
+        // detección perezosa en `PublicAssets`).
+        $publicShortcode = $this->container->get(\ImaginaCRM\PublicLists\Shortcode::class);
+        if ($publicShortcode instanceof \ImaginaCRM\PublicLists\Shortcode) {
+            $publicShortcode->register();
+        }
+        $publicAssets = $this->container->get(\ImaginaCRM\PublicLists\PublicAssets::class);
+        if ($publicAssets instanceof \ImaginaCRM\PublicLists\PublicAssets) {
+            $publicAssets->register();
+        }
+        $publicBlock = $this->container->get(\ImaginaCRM\PublicLists\Block::class);
+        if ($publicBlock instanceof \ImaginaCRM\PublicLists\Block) {
+            $publicBlock->register();
+        }
+        // Permalinks dedicados (Fase 10): rewrite rules + render con
+        // template del tema. Auto-flush cuando cambia la signature.
+        $publicPermalinks = $this->container->get(\ImaginaCRM\PublicLists\PublicPermalinks::class);
+        if ($publicPermalinks instanceof \ImaginaCRM\PublicLists\PublicPermalinks) {
+            $publicPermalinks->register();
+        }
+
+        // Portal del cliente (Fase 9 — 3.B). Shortcode + enqueue lazy del
+        // CSS. El JS llega en 3.F. El REST controller se registra abajo
+        // junto con todo el resto via RestBootstrap.
+        $portalShortcode = $this->container->get(\ImaginaCRM\Portal\PortalShortcode::class);
+        if ($portalShortcode instanceof \ImaginaCRM\Portal\PortalShortcode) {
+            $portalShortcode->register();
+        }
+        $portalAssets = $this->container->get(\ImaginaCRM\Portal\PortalAssets::class);
+        if ($portalAssets instanceof \ImaginaCRM\Portal\PortalAssets) {
+            $portalAssets->register();
+        }
+        // Magic links (Fase 10): hook en `template_redirect` que
+        // detecta `?imcrm_token=...`, autentica vía cookie y redirige
+        // limpio. Si no hay token presente, es no-op cero-overhead.
+        $magicLinkConsumer = $this->container->get(\ImaginaCRM\Portal\MagicLinkConsumer::class);
+        if ($magicLinkConsumer instanceof \ImaginaCRM\Portal\MagicLinkConsumer) {
+            $magicLinkConsumer->register();
+        }
+
         if (is_admin()) {
             $this->registerAdmin();
         }
@@ -819,6 +1002,13 @@ final class Plugin
         $schema = $this->container->get(\ImaginaCRM\Lists\SchemaManager::class);
         if ($schema instanceof \ImaginaCRM\Lists\SchemaManager) {
             $schema->installSystemTables();
+            // Re-sincroniza roles/caps en cada bump de DB_VERSION. La
+            // operación es idempotente, así que es seguro correrla aun
+            // si la migración no toca roles.
+            $roleInstaller = $this->container->get(RoleInstaller::class);
+            if ($roleInstaller instanceof RoleInstaller) {
+                $roleInstaller->sync();
+            }
             update_option(\ImaginaCRM\Activation\Installer::OPTION_DB_VERSION, self::DB_VERSION, false);
             do_action('imagina_crm/schema_upgraded', $stored, self::DB_VERSION);
         }

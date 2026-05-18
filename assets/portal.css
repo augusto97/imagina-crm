@@ -1,0 +1,395 @@
+/**
+ * Estilos base del portal del cliente (Fase 9 — 3.B).
+ *
+ * Mismo modelo que `public-list.css`: selectores específicos
+ * `.imcrm-portal-*` para no chocar con CSS del tema. Variables
+ * `--imcrm-portal-*` override-ables. Sin reset agresivo del tema.
+ */
+
+.imcrm-portal-root,
+.imcrm-portal-card {
+    --imcrm-portal-text: inherit;
+    --imcrm-portal-bg: transparent;
+    --imcrm-portal-card-bg: rgba(0, 0, 0, 0.02);
+    --imcrm-portal-border: rgba(0, 0, 0, 0.12);
+    --imcrm-portal-muted: rgba(0, 0, 0, 0.55);
+    --imcrm-portal-primary: #4f46e5;
+    --imcrm-portal-radius: 0.5rem;
+    --imcrm-portal-font: inherit;
+    font-family: var(--imcrm-portal-font);
+}
+
+/* Cards de estado (login / no access / unlinked / misconfigured) */
+.imcrm-portal-card {
+    margin: 2rem auto;
+    max-width: 480px;
+    padding: 2rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-card-bg);
+    text-align: center;
+}
+.imcrm-portal-card__title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+.imcrm-portal-card__body {
+    margin: 0 0 1.5rem 0;
+    color: var(--imcrm-portal-muted);
+}
+.imcrm-portal-card__btn {
+    display: inline-block;
+    padding: 0.6rem 1.25rem;
+    background: var(--imcrm-portal-primary);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--imcrm-portal-radius);
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+.imcrm-portal-card__btn:hover {
+    opacity: 0.9;
+    color: #fff;
+}
+
+/* Root del portal autenticado */
+.imcrm-portal-root {
+    margin: 1.5rem 0;
+}
+.imcrm-portal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 1rem 0;
+    border-bottom: 1px solid var(--imcrm-portal-border);
+    margin-bottom: 1.5rem;
+}
+.imcrm-portal-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+.imcrm-portal-logout {
+    color: var(--imcrm-portal-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.imcrm-portal-logout:hover {
+    color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-body {
+    color: var(--imcrm-portal-text);
+}
+
+/* ─── Bloques del template (Fase 9 — 3.D) ───────────────────────── */
+
+.imcrm-portal-block {
+    margin-bottom: 1.75rem;
+}
+.imcrm-portal-block__title {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+.imcrm-portal-block__content {
+    color: var(--imcrm-portal-text);
+    line-height: 1.55;
+}
+.imcrm-portal-block__loading {
+    color: var(--imcrm-portal-muted);
+    font-style: italic;
+}
+.imcrm-portal-block__error {
+    color: #b91c1c;
+    padding: 0.75rem 1rem;
+    background: rgba(239, 68, 68, 0.08);
+    border-left: 3px solid #ef4444;
+    border-radius: var(--imcrm-portal-radius);
+}
+.imcrm-portal-block__empty {
+    color: var(--imcrm-portal-muted);
+    font-style: italic;
+}
+
+/* client_data — definition list */
+.imcrm-portal-data-list {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(120px, max-content) 1fr;
+    gap: 0.5rem 1rem;
+    align-items: baseline;
+}
+.imcrm-portal-data-list__item {
+    display: contents;
+}
+.imcrm-portal-data-list__label {
+    color: var(--imcrm-portal-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.imcrm-portal-data-list__value {
+    margin: 0;
+    color: var(--imcrm-portal-text);
+}
+.imcrm-portal-data-list__empty {
+    color: var(--imcrm-portal-muted);
+}
+
+.imcrm-portal-pill {
+    display: inline-block;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--imcrm-portal-primary);
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    margin-right: 0.25rem;
+}
+
+/* related_records_table */
+.imcrm-portal-related-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    overflow: hidden;
+    font-size: 0.95rem;
+}
+.imcrm-portal-related-table thead {
+    background: rgba(0, 0, 0, 0.025);
+}
+.imcrm-portal-related-table th,
+.imcrm-portal-related-table td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--imcrm-portal-border);
+    text-align: left;
+}
+.imcrm-portal-related-table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--imcrm-portal-muted);
+}
+.imcrm-portal-related-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.imcrm-portal-related-table__footer {
+    margin: 0.5rem 0 0;
+    text-align: right;
+    color: var(--imcrm-portal-muted);
+    font-size: 0.85rem;
+}
+
+/* ─── Bloques de Fase 9 — 3.E ────────────────────────────────────── */
+
+/* editable_form */
+.imcrm-portal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 480px;
+}
+.imcrm-portal-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.imcrm-portal-form__label {
+    font-size: 0.85rem;
+    color: var(--imcrm-portal-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.imcrm-portal-form__input {
+    height: 2.25rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-bg);
+    color: var(--imcrm-portal-text);
+    font: inherit;
+    font-size: 0.95rem;
+}
+.imcrm-portal-form__input:focus {
+    outline: 2px solid var(--imcrm-portal-primary);
+    outline-offset: -1px;
+    border-color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-form__input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.imcrm-portal-form__textarea {
+    height: auto;
+    min-height: 4.5rem;
+    resize: vertical;
+}
+.imcrm-portal-form__checkbox {
+    width: 1rem;
+    height: 1rem;
+    align-self: flex-start;
+    accent-color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-form__checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.85rem;
+    padding: 0.4rem 0;
+}
+.imcrm-portal-form__checkbox-label {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+.imcrm-portal-form__checkbox-label input[type='checkbox'] {
+    accent-color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-form__feedback {
+    margin: 0;
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--imcrm-portal-radius);
+    font-size: 0.9rem;
+}
+.imcrm-portal-form__feedback--success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #15803d;
+    border-left: 3px solid #22c55e;
+}
+.imcrm-portal-form__feedback--error {
+    background: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    border-left: 3px solid #ef4444;
+}
+.imcrm-portal-form__submit {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+}
+.imcrm-portal-form__submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* external_link */
+.imcrm-portal-external-link__btn {
+    display: inline-block;
+}
+
+/* kpi_widget */
+.imcrm-portal-block--kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1.25rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-card-bg);
+}
+.imcrm-portal-kpi__label {
+    margin: 0;
+    color: var(--imcrm-portal-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.imcrm-portal-kpi__value {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--imcrm-portal-primary);
+}
+
+/* activity_timeline */
+.imcrm-portal-activity {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 2px solid var(--imcrm-portal-border);
+}
+.imcrm-portal-activity__item {
+    position: relative;
+    padding: 0 0 0.75rem 1rem;
+    margin-left: -1px;
+}
+.imcrm-portal-activity__item:last-child {
+    padding-bottom: 0;
+}
+.imcrm-portal-activity__dot {
+    position: absolute;
+    left: -5px;
+    top: 0.4rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--imcrm-portal-primary);
+}
+.imcrm-portal-activity__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+.imcrm-portal-activity__action {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--imcrm-portal-text);
+}
+.imcrm-portal-activity__meta {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--imcrm-portal-muted);
+}
+
+/* download_files */
+.imcrm-portal-downloads {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.imcrm-portal-downloads__item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--imcrm-portal-border);
+    border-radius: var(--imcrm-portal-radius);
+    background: var(--imcrm-portal-bg);
+    transition: background 0.12s;
+}
+.imcrm-portal-downloads__item:hover {
+    background: var(--imcrm-portal-card-bg);
+}
+.imcrm-portal-downloads__icon {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    color: var(--imcrm-portal-muted);
+}
+.imcrm-portal-downloads__link {
+    flex: 1;
+    color: var(--imcrm-portal-text);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+.imcrm-portal-downloads__link:hover {
+    color: var(--imcrm-portal-primary);
+}
+.imcrm-portal-downloads__action {
+    width: 1rem;
+    height: 1rem;
+    color: var(--imcrm-portal-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+    .imcrm-portal-root,
+    .imcrm-portal-card {
+        --imcrm-portal-card-bg: rgba(255, 255, 255, 0.04);
+        --imcrm-portal-border: rgba(255, 255, 255, 0.15);
+        --imcrm-portal-muted: rgba(255, 255, 255, 0.6);
+    }
+}

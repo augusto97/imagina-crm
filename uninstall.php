@@ -22,6 +22,17 @@ if (! $purge) {
     return;
 }
 
+// Roles y capabilities del plugin (Fase 7). Se remueven incluso en uninstall
+// porque son metadata WP, no datos del usuario — y dejarlos atrás contamina
+// la instalación si el plugin se vuelve a instalar más adelante.
+$autoload_path = __DIR__ . '/vendor/autoload.php';
+if (is_readable($autoload_path)) {
+    require_once $autoload_path;
+    if (class_exists(\ImaginaCRM\Permissions\RoleInstaller::class)) {
+        (new \ImaginaCRM\Permissions\RoleInstaller())->uninstall();
+    }
+}
+
 global $wpdb;
 
 $prefix = $wpdb->prefix . 'imcrm_';
