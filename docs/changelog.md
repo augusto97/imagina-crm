@@ -4,6 +4,49 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.5] — 2026-05-23
+
+**3 bloques nuevos: divider, heading, comments_thread**
+(Fase 11 · Iteración 11.F).
+
+Suma 3 tipos de bloque al editor de plantilla CRM, extendiendo
+la unión `V2BlockType` en `crmTemplates.ts`. Backward-compatible:
+las plantillas anteriores siguen funcionando sin migración.
+
+### Añadido
+
+- **`divider`** (categoría Layout): línea horizontal con label
+  opcional centrado. Sin label es un `<hr>` simple. Default
+  width 12 × height 1.
+- **`heading`** (categoría Layout): título de sección con nivel
+  jerárquico configurable (h2, h3, h4). Sirve para agrupar
+  visualmente bloques relacionados sin chrome de tarjeta. Default
+  width 12 × height 2.
+- **`comments_thread`** (categoría Contenido): wrapper del
+  `CommentsPanel` existente, alimentado por
+  `/lists/{list}/records/{record}/comments`. En el editor visual
+  queda no-interactivo por el `pointer-events-none` del wrapper
+  del GridEditor — en `RecordCrmLayout` es interactivo. Cuando
+  `recordId === 0` (modo mock), muestra placeholder "Seleccioná
+  un record real arriba para previsualizar el hilo".
+
+### Cambiado
+
+- `V2BlockType` union extendida con los 3 nuevos tipos.
+- `ResolvedV2Block` extendido con sus counterparts resolved.
+- `resolveV2` agrega branches para los 3 nuevos.
+- `createBlock` agrega defaults razonables.
+- `BlockInspectorPanel` agrega forms inline (`DividerForm`,
+  `HeadingForm`, `CommentsThreadForm`).
+- `BlockPalettePanel` agrega cards en las categorías Layout y
+  Contenido.
+
+### Mientras estaba ahí
+
+- Fix lint warning en `BlockRenderer.tsx`: el tipo `RecordEntity`
+  ahora se importa con `import type` en lugar de `import()` type
+  annotation inline.
+
 ## [0.41.4] — 2026-05-23
 
 **Preview con record real**

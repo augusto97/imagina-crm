@@ -9,8 +9,11 @@ import type { FieldEntity } from '@/types/field';
 import {
     ActionButtonForm,
     ChartForm,
+    CommentsThreadForm,
+    DividerForm,
     EmbedForm,
     FilesForm,
+    HeadingForm,
     KpiForm,
     MarkdownForm,
     NotesForm,
@@ -135,6 +138,24 @@ export function BlockInspectorPanel({
                         onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
                     />
                 )}
+                {block.type === 'divider' && (
+                    <DividerForm
+                        block={block}
+                        onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                    />
+                )}
+                {block.type === 'heading' && (
+                    <HeadingForm
+                        block={block}
+                        onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                    />
+                )}
+                {block.type === 'comments_thread' && (
+                    <CommentsThreadForm
+                        block={block}
+                        onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                    />
+                )}
             </div>
 
             <footer className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-px-4 imcrm-py-3">
@@ -183,6 +204,9 @@ function titleForType(type: V2Block['type']): string {
         case 'embed':            return __('Embed externo');
         case 'action_button':    return __('Botón de acción');
         case 'markdown':         return __('Markdown');
+        case 'divider':          return __('Divisor');
+        case 'heading':          return __('Título de sección');
+        case 'comments_thread':  return __('Hilo de comentarios');
     }
 }
 
@@ -199,5 +223,8 @@ function descriptionForType(type: V2Block['type']): string {
         case 'embed':            return __('iframe externo (whitelist).');
         case 'action_button':    return __('URL, mailto, tel o copy.');
         case 'markdown':         return __('Texto rich con markdown ligero.');
+        case 'divider':          return __('Línea horizontal con label opcional.');
+        case 'heading':          return __('Título de sección con nivel jerárquico.');
+        case 'comments_thread':  return __('Hilo de comentarios del record.');
     }
 }

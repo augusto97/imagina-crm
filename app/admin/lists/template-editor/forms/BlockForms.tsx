@@ -540,6 +540,82 @@ export function ActionButtonForm({
     );
 }
 
+export function DividerForm({
+    block,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'divider' }>;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'divider' }>>;
+}): JSX.Element {
+    return (
+        <Field label={__('Label (opcional)')}>
+            <Input
+                value={block.config.label ?? ''}
+                onChange={(e) => onUpdate({ config: { label: e.target.value || undefined } })}
+                placeholder={__('Vacío = línea sola')}
+            />
+            <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                {__('Si está vacío, se renderea como una línea horizontal simple. Con texto, aparece centrado entre dos líneas.')}
+            </p>
+        </Field>
+    );
+}
+
+export function HeadingForm({
+    block,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'heading' }>;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'heading' }>>;
+}): JSX.Element {
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Texto')}>
+                <Input
+                    value={block.config.text}
+                    onChange={(e) => updateConfig({ text: e.target.value })}
+                    placeholder={__('Ej. "Información comercial"')}
+                />
+            </Field>
+            <Field label={__('Nivel jerárquico')}>
+                <select
+                    value={block.config.level}
+                    onChange={(e) => updateConfig({ level: Number(e.target.value) as 2 | 3 | 4 })}
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value={2}>{__('H2 — Título grande')}</option>
+                    <option value={3}>{__('H3 — Subtítulo')}</option>
+                    <option value={4}>{__('H4 — Etiqueta pequeña')}</option>
+                </select>
+            </Field>
+        </div>
+    );
+}
+
+export function CommentsThreadForm({
+    block,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'comments_thread' }>;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'comments_thread' }>>;
+}): JSX.Element {
+    return (
+        <Field label={__('Título (opcional)')}>
+            <Input
+                value={block.config.title ?? ''}
+                onChange={(e) => onUpdate({ config: { title: e.target.value || undefined } })}
+                placeholder={__('Comentarios')}
+            />
+            <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                {__('El hilo lista los comentarios del record actual. En el editor se ve read-only; en el panel CRM real es interactivo.')}
+            </p>
+        </Field>
+    );
+}
+
 export function MarkdownForm({
     block,
     onUpdate,

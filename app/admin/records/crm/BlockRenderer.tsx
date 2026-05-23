@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, StickyNote } from 'lucide-react';
+import { ChevronDown, ChevronRight, MessageSquare, StickyNote } from 'lucide-react';
 
+import { CommentsPanel } from '@/admin/comments/CommentsPanel';
 import { RecordFieldsForm } from '@/admin/records/RecordFieldsForm';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { ResolvedV2Block } from '@/lib/crmTemplates';
+import type { RecordEntity } from '@/types/record';
 
 import { ChartBlockView } from './blocks/ChartBlockView';
 import { KpiBlockView } from './blocks/KpiBlockView';
@@ -26,7 +28,7 @@ export interface BlockRendererProps {
     values: Record<string, unknown>;
     onChange: (values: Record<string, unknown>) => void;
     fieldErrors?: Record<string, string>;
-    record: import('@/types/record').RecordEntity;
+    record: RecordEntity;
 }
 
 /**
@@ -84,6 +86,23 @@ export function BlockRenderer({
     }
     if (block.type === 'notes') {
         return <NotesView title={block.config.title} content={block.config.content} />;
+    }
+    if (block.type === 'divider') {
+        return <DividerView label={block.config.label} />;
+    }
+    if (block.type === 'heading') {
+        return <HeadingView text={block.config.text} level={block.config.level} />;
+    }
+    if (block.type === 'comments_thread') {
+        return (
+            <CommentsThreadView
+                title={block.config.title}
+                listId={listId}
+                recordId={recordId}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+            />
+        );
     }
     return null;
 }
@@ -145,6 +164,87 @@ function PropertiesGroupView({
 }
 
 // --- notes view --------------------------------------------------------------
+
+// --- divider view ------------------------------------------------------------
+
+function DividerView({ label }: { label?: string }): JSX.Element {
+    if (! label) {
+        return (
+            <div className="imcrm-flex imcrm-h-full imcrm-items-center" aria-hidden>
+                <hr className="imcrm-w-full imcrm-border-0 imcrm-border-t imcrm-border-border" />
+            </div>
+        );
+    }
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-items-center imcrm-gap-3 imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+            <hr className="imcrm-flex-1 imcrm-border-0 imcrm-border-t imcrm-border-border" />
+            <span className="imcrm-whitespace-nowrap">{label}</span>
+            <hr className="imcrm-flex-1 imcrm-border-0 imcrm-border-t imcrm-border-border" />
+        </div>
+    );
+}
+
+// --- heading view ------------------------------------------------------------
+
+function HeadingView({ text, level }: { text: string; level: 2 | 3 | 4 }): JSX.Element {
+    const sizeClass =
+        level === 2
+            ? 'imcrm-text-lg imcrm-font-semibold'
+            : level === 3
+                ? 'imcrm-text-base imcrm-font-semibold'
+                : 'imcrm-text-sm imcrm-font-medium imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground';
+    const Tag = (`h${level}` as 'h2' | 'h3' | 'h4');
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-items-center">
+            <Tag className={cn('imcrm-tracking-tight', sizeClass)}>
+                {text || (
+                    <span className="imcrm-italic imcrm-text-muted-foreground/60">
+                        {__('Sin título')}
+                    </span>
+                )}
+            </Tag>
+        </div>
+    );
+}
+
+// --- comments thread view ----------------------------------------------------
+
+function CommentsThreadView({
+    title,
+    listId,
+    recordId,
+    currentUserId,
+    isAdmin,
+}: {
+    title?: string;
+    listId: number;
+    recordId: number;
+    currentUserId: number;
+    isAdmin: boolean;
+}): JSX.Element {
+    return (
+        <section className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+            <header className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-border-b imcrm-border-border imcrm-px-4 imcrm-py-2.5 imcrm-text-sm imcrm-font-semibold">
+                <MessageSquare className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" aria-hidden />
+                {title || __('Comentarios')}
+            </header>
+            <div className="imcrm-flex-1 imcrm-overflow-hidden">
+                {recordId > 0 ? (
+                    <CommentsPanel
+                        listId={listId}
+                        recordId={recordId}
+                        currentUserId={currentUserId}
+                        isAdmin={isAdmin}
+                    />
+                ) : (
+                    <div className="imcrm-flex imcrm-h-full imcrm-items-center imcrm-justify-center imcrm-p-4 imcrm-text-center imcrm-text-xs imcrm-text-muted-foreground">
+                        {__('Seleccioná un record real arriba para previsualizar el hilo.')}
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+}
 
 function NotesView({ title, content }: { title: string; content: string }): JSX.Element {
     return (

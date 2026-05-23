@@ -89,6 +89,15 @@ export function createBlock(
     if (type === 'markdown') {
         return { ...base, w: 4, h: 4, type, config: { title: __('Notas'), content: '' } };
     }
+    if (type === 'divider') {
+        return { ...base, w: 12, h: 1, type, config: { label: '' } };
+    }
+    if (type === 'heading') {
+        return { ...base, w: 12, h: 2, type, config: { text: __('Sección'), level: 3 } };
+    }
+    if (type === 'comments_thread') {
+        return { ...base, w: 8, h: 10, type, config: {} };
+    }
     return null;
 }
 

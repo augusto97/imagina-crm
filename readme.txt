@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.4
+Stable tag: 0.41.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,19 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.5 =
+**3 bloques nuevos en el editor de plantilla CRM (Fase 11 · iter 11.F).**
+
+Suma divider, heading y comments_thread a la unión V2BlockType.
+
+- divider (categoría Layout): línea horizontal con label opcional.
+- heading (categoría Layout): título de sección con nivel h2/h3/h4.
+- comments_thread (categoría Contenido): hilo de comentarios del
+  record. Interactivo en el panel CRM real, read-only en el editor.
+
+Backward-compatible: las plantillas guardadas en 0.41.x siguen
+funcionando sin migración.
 
 = 0.41.4 =
 **Preview con record real (Fase 11 · iter 11.E).**

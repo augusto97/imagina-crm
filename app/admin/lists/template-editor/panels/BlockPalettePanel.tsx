@@ -5,6 +5,9 @@ import {
     FileText,
     GripVertical,
     Hash,
+    Heading,
+    MessageSquare,
+    Minus,
     MousePointerClick,
     Network,
     Paperclip,
@@ -415,6 +418,24 @@ function buildCategories(): PaletteCategory[] {
             ],
         },
         {
+            id: 'layout',
+            label: __('Layout'),
+            items: [
+                {
+                    type: 'heading',
+                    label: __('Título de sección'),
+                    description: __('Heading h2/h3/h4 para agrupar visualmente.'),
+                    icon: Heading,
+                },
+                {
+                    type: 'divider',
+                    label: __('Divisor'),
+                    description: __('Línea horizontal con label opcional centrado.'),
+                    icon: Minus,
+                },
+            ],
+        },
+        {
             id: 'content',
             label: __('Contenido'),
             items: [
@@ -435,6 +456,12 @@ function buildCategories(): PaletteCategory[] {
                     label: __('Embed externo'),
                     description: __('iframe: YouTube, Vimeo, Maps, Loom, Figma, Calendly.'),
                     icon: Play,
+                },
+                {
+                    type: 'comments_thread',
+                    label: __('Hilo de comentarios'),
+                    description: __('Lista los comentarios del record. Interactivo en el panel real.'),
+                    icon: MessageSquare,
                 },
             ],
         },
