@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.44.3
+Stable tag: 0.44.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,16 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.44.4 =
+**Cierre de Fase 14 — Polish del editor CRM.**
+
+Resumen: command palette Cmd+K (14.A) + Undo/Redo Cmd+Z (14.B) +
+4 industry presets eCommerce/Agencia/Salud/Inmobiliaria (14.C) +
+modo full-screen Cmd+J (14.D) + cheat-sheet actualizado (14.E).
+
+10 atajos de teclado documentados en el panel "Ajustes de la
+plantilla" del editor.
 
 = 0.44.3 =
 **Modo full-screen del editor (Fase 14 · iter 14.D).**

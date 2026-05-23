@@ -137,8 +137,12 @@ export function TemplateSettingsPanel({
                 <section className="imcrm-mt-6 imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-5">
                     <h4 className="imcrm-text-xs imcrm-font-semibold">{__('Atajos de teclado')}</h4>
                     <ul className="imcrm-space-y-1 imcrm-text-[11px] imcrm-text-muted-foreground">
+                        <ShortcutRow label={__('Command palette')} keys="⌘K" />
                         <ShortcutRow label={__('Guardar plantilla')} keys="⌘S" />
                         <ShortcutRow label={__('Toggle Editor / Preview')} keys="⌘P" />
+                        <ShortcutRow label={__('Toggle full-screen')} keys="⌘J" />
+                        <ShortcutRow label={__('Deshacer')} keys="⌘Z" />
+                        <ShortcutRow label={__('Rehacer')} keys="⌘⇧Z" />
                         <ShortcutRow label={__('Sumar a la selección')} keys="⇧ click" />
                         <ShortcutRow label={__('Duplicar seleccionados')} keys="⌘D" />
                         <ShortcutRow label={__('Eliminar seleccionados')} keys="⌫" />

@@ -4,6 +4,45 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.44.4] — 2026-05-23
+
+**Cierre de Fase 14 — Polish del editor CRM**
+(Fase 14 · Iteración 14.E · **CIERRE DE FASE 14**).
+
+### Resumen Fase 14
+
+```
+0.44.0  · 14.A · Command palette Cmd+K
+0.44.1  · 14.B · Undo / Redo Cmd+Z / Cmd+Shift+Z
+0.44.2  · 14.C · Industry presets (eCommerce, agencia, salud, RE)
+0.44.3  · 14.D · Modo full-screen Cmd+J
+0.44.4  · 14.E · Cheat-sheet actualizado + cierre  ← acá
+```
+
+### Cheat-sheet de atajos completo
+
+El cheat-sheet del `TemplateSettingsPanel` (panel del inspector
+cuando no hay bloque seleccionado) ahora lista los **10 atajos**
+del editor:
+
+- ⌘K — Command palette
+- ⌘S — Guardar plantilla
+- ⌘P — Toggle Editor / Preview
+- ⌘J — Toggle full-screen
+- ⌘Z — Deshacer
+- ⌘⇧Z — Rehacer
+- ⇧ click — Sumar a la selección
+- ⌘D — Duplicar seleccionados
+- ⌫ — Eliminar seleccionados
+- Esc — Deseleccionar (o salir de full-screen)
+
+### Bundle final
+
+- TemplateEditorPage v0.44.4: **78.9 KB / 19.2 KB gzip**.
+- Crecimiento durante Fase 14: 62 KB → 78.9 KB (+27%). Por
+  feature: command palette ~7 KB, undo/redo ~2 KB, presets ~6 KB,
+  full-screen <1 KB.
+
 ## [0.44.3] — 2026-05-23
 
 **Modo full-screen del editor**
