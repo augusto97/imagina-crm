@@ -4,6 +4,54 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.43.3] — 2026-05-23
+
+**Reducir errores PHPStan: 22 → 0**
+(Fase 13 · Iteración 13.D).
+
+PHPStan ahora reporta **cero errores**. Los 22 preexistentes
+documentados en el handoff Fases 7-10 quedan resueltos.
+
+### Causa raíz
+
+Los stubs WP (vía `phpstan-wordpress`) declaran que
+`$wpdb->prepare(): string|null`, pero el método siempre retorna
+string cuando el SQL es válido y los placeholders coinciden con
+los args. Antes esto se silenciaba con `@phpstan-ignore-next-line`
+esparcidos por toda la base de código. Una mejora de los stubs
+en una versión reciente hizo que algunos ignores quedaran
+obsoletos (`No error to ignore is reported on line X`).
+
+Adicionalmente: `FieldRepository::forList()` fue renombrado a
+`allForList()` en algún momento, pero 3 callers no se
+actualizaron.
+
+### Fix
+
+- **3 archivos** (`MysqlSearchEngine`, `InvertedIndexEngine`,
+  `CompositeIndexSuggester`): `->forList(` → `->allForList(`.
+- **`InvertedIndexEngine`**: helper `safePrepare(string, array): string`
+  que normaliza el return de `$wpdb->prepare()` a string siempre.
+  Reemplaza los 6 ignores + ifs sueltos por una llamada limpia.
+- **`InvertedIndexEngine`**: removida property `$lists` (private
+  readonly) que nunca se leía. Container binding actualizado.
+- **`QueryBuilder::buildSelect`**: `@param` annotations agregadas
+  para `$fields`, `$whereOverride`, `$idWhitelist`.
+- **`CompositeIndexSuggester::buildDdl`**: `@param list<string>`
+  annotation agregada.
+- **Ignores obsoletos eliminados** en `DashboardRepository`,
+  `PurgeService`, `RecordRepository`, `CompositeIndexSuggester`,
+  `MysqlSearchEngine`.
+- **`MysqlSearchEngine`**: cast defensivo `is_string($escaped) ? $escaped : ''`
+  para resolver "Binary operation . between '`' and array|string".
+
+### Estado
+
+- Antes: **22 errors** PHPStan (level configurado del proyecto).
+- Después: **0 errors**.
+- PHPUnit: **530 tests, 0 errors** (sin regresiones).
+- Vitest: **38 tests, 0 errors** (sin regresiones).
+
 ## [0.43.2] — 2026-05-23
 
 **Fix 7 errores PHPUnit preexistentes (CommentEntity)**

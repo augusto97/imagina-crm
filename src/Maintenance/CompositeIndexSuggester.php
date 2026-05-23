@@ -66,7 +66,7 @@ final class CompositeIndexSuggester
             return [];
         }
 
-        $fields = $this->fields->forList($listId);
+        $fields = $this->fields->allForList($listId);
         $byId   = [];
         foreach ($fields as $f) {
             $byId[$f->id] = $f;
@@ -234,7 +234,6 @@ final class CompositeIndexSuggester
     {
         $wpdb  = $this->db->wpdb();
         $table = $this->db->dataTable($tableSuffix);
-        /** @phpstan-ignore-next-line */
         $rows  = $wpdb->get_results(
             /** @phpstan-ignore-next-line */
             $wpdb->prepare("SHOW INDEX FROM `{$table}`"),
@@ -252,6 +251,9 @@ final class CompositeIndexSuggester
         return $out;
     }
 
+    /**
+     * @param list<string> $columns
+     */
     private function buildDdl(string $tableSuffix, string $indexName, array $columns): string
     {
         $tbl  = $this->db->dataTable($tableSuffix);

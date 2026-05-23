@@ -65,7 +65,6 @@ class DashboardRepository
     public function allActive(): array
     {
         $wpdb = $this->db->wpdb();
-        /** @phpstan-ignore-next-line */
         $rows = $wpdb->get_results(
             'SELECT * FROM ' . $this->db->systemTable('dashboards') . ' WHERE deleted_at IS NULL',
             ARRAY_A,
