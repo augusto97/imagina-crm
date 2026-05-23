@@ -4,6 +4,36 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.4] — 2026-05-23
+
+**Preview con record real**
+(Fase 11 · Iteración 11.E).
+
+Permite ver la plantilla renderada con datos reales de la lista,
+no solo con el mock generado desde el schema.
+
+### Añadido
+
+- `RecordSelector` — combobox en el toolbar del editor con
+  búsqueda debounced. Lista los primeros 20 records de la lista
+  (filtrados por la búsqueda si hay texto). Labels usan el primary
+  field del record.
+- Opción especial "Datos de muestra" (valor inicial) que vuelve
+  al mock generado a partir del schema de fields.
+- `effectiveRecord` reemplaza a `mockSample` en el `<GridEditor>`:
+  cuando hay record real seleccionado, todos los bloques reciben
+  sus datos. Cuando no, sigue mostrando el mock.
+
+### Detalles
+
+- Search debounced 250ms para no spammear `/records?search=`.
+- Loading inline con `<Loader2>` mientras el endpoint responde.
+- Estados vacíos diferenciados: "Sin resultados para la búsqueda"
+  vs "Esta lista no tiene records todavía".
+- El selector vive en el toolbar del editor permanentemente —
+  visible en modo Editor y en modo Preview por igual. Permite
+  validar el render con datos reales en ambos modos.
+
 ## [0.41.3] — 2026-05-23
 
 **Multi-select + duplicar + atajos de teclado**

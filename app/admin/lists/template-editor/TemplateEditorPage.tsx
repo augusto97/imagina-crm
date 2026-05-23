@@ -24,6 +24,7 @@ import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
 import { GridEditor } from './GridEditor';
+import { RecordSelector } from './RecordSelector';
 import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
 import { BlockPalettePanel } from './panels/BlockPalettePanel';
 import { BulkActionsPanel } from './panels/BulkActionsPanel';
@@ -62,6 +63,9 @@ export function TemplateEditorPage(): JSX.Element {
     const [initialized, setInitialized] = useState(false);
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [preview, setPreview] = useState(false);
+    // Record real elegido como dato de preview. Si null, usa el mock
+    // generado desde el schema (mockSample, ver abajo).
+    const [previewRecord, setPreviewRecord] = useState<RecordEntity | null>(null);
 
     const sample = useRecords(list.data?.id, { per_page: 1, page: 1 });
     const sampleRecord: RecordEntity | null = sample.data?.data[0] ?? null;
@@ -135,6 +139,10 @@ export function TemplateEditorPage(): JSX.Element {
         () => sampleRecord ?? buildMockRecord(fields.data ?? []),
         [sampleRecord, fields.data],
     );
+
+    // Record que recibe el BlockRenderer: el explícitamente
+    // seleccionado en el RecordSelector, o el mock por default.
+    const effectiveRecord: RecordEntity = previewRecord ?? mockSample;
 
     /**
      * Cuando hay exactamente 1 bloque seleccionado, el inspector
@@ -339,6 +347,12 @@ export function TemplateEditorPage(): JSX.Element {
                     </h1>
                 </div>
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <RecordSelector
+                        listId={list.data.id}
+                        fields={fields.data}
+                        value={previewRecord}
+                        onChange={setPreviewRecord}
+                    />
                     <div className="imcrm-flex imcrm-rounded-md imcrm-bg-muted imcrm-p-0.5">
                         <button
                             type="button"
@@ -416,7 +430,7 @@ export function TemplateEditorPage(): JSX.Element {
                         fields={fields.data}
                         config={config}
                         onChange={setConfig}
-                        sampleRecord={mockSample}
+                        sampleRecord={effectiveRecord}
                         selectedBlockIds={selectedBlockIds}
                         onSelectBlock={handleSelectBlock}
                         onDropFromPalette={handleDropFromPalette}

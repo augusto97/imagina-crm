@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.3
+Stable tag: 0.41.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.4 =
+**Preview con record real (Fase 11 · iter 11.E).**
+
+Permite ver la plantilla renderada con datos reales de la lista,
+no solo con el mock generado desde el schema.
+
+Cambios visibles:
+
+- Combobox de records en el toolbar del editor con búsqueda
+  debounced. Lista los primeros 20 records (filtrados por la
+  búsqueda).
+- Opción "Datos de muestra" para volver al mock por default.
+- Funciona tanto en modo Editor como en modo Preview.
 
 = 0.41.3 =
 **Multi-select + duplicar + atajos de teclado (Fase 11 · iter 11.D).**
