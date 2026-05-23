@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.43.1
+Stable tag: 0.43.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,13 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.43.2 =
+**Fix 7 errores PHPUnit preexistentes (Fase 13 · iter 13.C).**
+
+Los 7 errores PHPUnit que arrastraba el repo desde la
+introducción del campo `metadata` en CommentEntity ya están
+resueltos. Tests pasan de 530/7 errors a 530/0 errors.
 
 = 0.43.1 =
 **Tests de createBlock + dragPayload (Fase 13 · iter 13.B).**

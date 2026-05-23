@@ -150,6 +150,7 @@ final class ActivityLoggerTest extends TestCase
             userId: $userId,
             parentId: null,
             content: $content,
+            metadata: [],
             createdAt: '2026-04-25 10:00:00',
             updatedAt: '2026-04-25 10:00:00',
             deletedAt: null,

@@ -4,6 +4,43 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.43.2] — 2026-05-23
+
+**Fix 7 errores PHPUnit preexistentes (CommentEntity)**
+(Fase 13 · Iteración 13.C).
+
+Los 7 errores PHPUnit que arrastraba el repo desde la
+introducción del campo `metadata` en `CommentEntity` (commit
+0.33.0+, documentado en el handoff como issue preexistente) ya
+están resueltos.
+
+### Causa
+
+El constructor de `CommentEntity` se actualizó para sumar el
+parámetro nombrado `metadata: array<string, mixed>` como
+argumento #7, pero los tests que llamaban `new CommentEntity(...)`
+manualmente con argumentos nombrados nunca se actualizaron:
+
+- `CommentEntityTest::test_to_array_omits_deleted_at` (1 error).
+- `ActivityLoggerTest::test_comment_events_attribute_to_author_not_current_user` (1).
+- `ActivityLoggerTest::test_truncates_long_comment_content` (1).
+- `MentionNotifierTest::test_no_mentions_means_no_side_effects` (1).
+- `MentionNotifierTest::test_creates_activity_and_email_per_mention` (1).
+- `MentionNotifierTest::test_unknown_login_is_silently_ignored` (1).
+- `MentionNotifierTest::test_self_mention_does_not_notify` (1).
+
+### Fix
+
+Agregado `metadata: []` en cada construcción (default sensato:
+ningún test estaba evaluando metadata, así que `[]` no cambia
+la semántica).
+
+### Estado
+
+- Antes: **530 tests, 7 errors**.
+- Después: **530 tests, 0 errors** (92 integration skipped por
+  requerir WP env — no relacionados).
+
 ## [0.43.1] — 2026-05-23
 
 **Tests de createBlock + dragPayload**
