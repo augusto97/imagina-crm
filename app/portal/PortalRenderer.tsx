@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { fetchMe } from './api';
 import { ActivityTimelineBlock } from './blocks/ActivityTimelineBlock';
 import { ClientDataBlock } from './blocks/ClientDataBlock';
+import { CommentsThreadBlock } from './blocks/CommentsThreadBlock';
 import { DownloadFilesBlock } from './blocks/DownloadFilesBlock';
 import { EditableFormBlock } from './blocks/EditableFormBlock';
 import { ExternalLinkBlock } from './blocks/ExternalLinkBlock';
@@ -90,6 +91,8 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
                         return <ActivityTimelineBlock key={idx} config={block.config} boot={boot} />;
                     case 'download_files':
                         return <DownloadFilesBlock key={idx} config={block.config} record={data.record} />;
+                    case 'comments_thread':
+                        return <CommentsThreadBlock key={idx} config={block.config} boot={boot} />;
                     default:
                         // Bloques desconocidos: ignorar silenciosamente.
                         return null;

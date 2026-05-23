@@ -256,6 +256,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
                 $c->get(\ImaginaCRM\Activity\ActivityRepository::class),
                 $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
+                $c->get(CommentService::class),
             );
         });
 

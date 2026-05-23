@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.42.2
+Stable tag: 0.42.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.3 =
+**Bloque comments_thread para portal del cliente (Fase 12 · iter 12.D).**
+
+El cliente ahora puede ver y crear comentarios desde su portal.
+
+- Endpoints GET/POST /portal/me/comments resuelven list_id +
+  record_id desde el ClientResolver (sin spoofing).
+- Nuevo bloque comments_thread en el editor del portal template
+  con config: título + checkbox "solo lectura".
+- Estilos del portal extendidos en assets/portal.css.
 
 = 0.42.2 =
 **Cards: editar config en vistas existentes (Fase 12 · iter 12.C).**

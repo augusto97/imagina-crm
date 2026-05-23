@@ -4,6 +4,57 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.3] — 2026-05-23
+
+**Bloque `comments_thread` para portal del cliente**
+(Fase 12 · Iteración 12.D).
+
+El cliente ahora puede ver y crear comentarios desde su portal.
+Cierra el gap del handoff Fases 7-10 que indicaba el bloque como
+"futuro".
+
+### Añadido
+
+- Backend (PHP):
+  - `'comments_thread'` agregado a
+    `PortalTemplate::VALID_BLOCK_TYPES`.
+  - `CommentService` inyectado en `PortalController` via Container.
+  - `GET  /imagina-crm/v1/portal/me/comments` — lista los comments
+    del record del cliente. `list_id` + `record_id` se resuelven
+    desde el `ClientResolver` (sin spoofing posible).
+  - `POST /imagina-crm/v1/portal/me/comments` — crea un comment
+    del cliente. `user_id` viene del WP session; `parent_id` /
+    `metadata` no expuestos (composer simple).
+- Frontend:
+  - `app/portal/blocks/CommentsThreadBlock.tsx`: lista
+    cronológica simple + composer textarea (5000 char cap, igual
+    al CRM).
+  - Wireup en `PortalRenderer` (case `'comments_thread'` del
+    switch).
+  - Modo `readonly` opcional desde la config (cliente ve pero no
+    puede crear).
+- Admin:
+  - `PORTAL_BLOCK_TYPES` extendido con
+    `{ value: 'comments_thread', label: 'Hilo de comentarios' }`.
+  - `PortalTemplateEditor`: form de config con title + checkbox
+    "Solo lectura".
+  - `defaultConfigFor('comments_thread')` → `{ title: 'Comentarios',
+    readonly: false }`.
+- CSS:
+  - `assets/portal.css`: estilos `.imcrm-portal-comments`,
+    `.imcrm-portal-comments__item`, `.imcrm-portal-comments__composer`,
+    `.imcrm-portal-comments__textarea`, `.imcrm-portal-comments__submit`.
+
+### Seguridad
+
+- El cliente NUNCA puede ver ni crear comments sobre records
+  ajenos. Los endpoints resuelven `recordId` desde el
+  `ClientResolver` — no aceptan IDs como params.
+- Mismas reglas de validación del `CommentService` aplican (5000
+  char cap, contenido obligatorio).
+- El admin sigue moderando todo desde el `CommentsPanel` del
+  CRM (edit/delete con `_isAdmin=true`).
+
 ## [0.42.2] — 2026-05-23
 
 **Cards: editar config en vistas existentes**

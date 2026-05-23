@@ -69,6 +69,8 @@ final class PortalTemplate
         // Fase 9 — pulidos
         'activity_timeline',
         'download_files',
+        // Fase 12.D — hilo de comentarios
+        'comments_thread',
     ];
 
     /**

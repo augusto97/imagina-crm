@@ -93,6 +93,15 @@ export type PortalBlock =
               title?: string;
               field_slug?: string;
           };
+      }
+    // Fase 12.D
+    | {
+          type: 'comments_thread';
+          config: {
+              title?: string;
+              /** Solo lectura: cliente ve pero no puede crear comments. */
+              readonly?: boolean;
+          };
       };
 
 export interface PortalMeResponse {

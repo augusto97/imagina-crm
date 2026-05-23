@@ -5,6 +5,7 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Activity\ActivityEntity;
 use ImaginaCRM\Activity\ActivityRepository;
+use ImaginaCRM\Comments\CommentService;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
@@ -57,6 +58,7 @@ final class PortalController extends AbstractController
         private readonly RecordAggregator $aggregator,
         private readonly ActivityRepository $activity,
         private readonly MagicLinkService $magicLinks,
+        private readonly CommentService $comments,
     ) {
         parent::__construct();
     }
@@ -122,6 +124,34 @@ final class PortalController extends AbstractController
                 'args'                => [
                     'limit'  => ['type' => 'integer', 'default' => 50],
                     'offset' => ['type' => 'integer', 'default' => 0],
+                ],
+            ],
+        );
+
+        // Comments del record del cliente (bloque comments_thread del
+        // portal). El record_id viene del ClientResolver — el cliente
+        // NUNCA ve ni puede crear comments sobre otros records.
+        // Fase 12.D.
+        register_rest_route(
+            $this->namespace,
+            '/portal/me/comments',
+            [
+                [
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => [$this, 'getMyComments'],
+                    'permission_callback' => $canAccess,
+                ],
+                [
+                    'methods'             => WP_REST_Server::CREATABLE,
+                    'callback'            => [$this, 'createMyComment'],
+                    'permission_callback' => $canAccess,
+                    'args'                => [
+                        'content' => [
+                            'type'        => 'string',
+                            'required'    => true,
+                            'description' => 'Contenido del comentario.',
+                        ],
+                    ],
                 ],
             ],
         );
@@ -295,6 +325,73 @@ final class PortalController extends AbstractController
             $this->activity->recentForRecord($portalList->id, $recordId, $limit, $offset),
         );
         return new WP_REST_Response(['data' => $items]);
+    }
+
+    /**
+     * GET /portal/me/comments
+     *
+     * Lista los comments del record del cliente. Como list_id +
+     * record_id se resuelven desde el `ClientResolver`, NO se aceptan
+     * IDs como params — protege contra spoofing.
+     */
+    public function getMyComments(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        unset($request);
+        $user = wp_get_current_user();
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null) {
+            return $this->notFound();
+        }
+        $clientRecord = $this->resolver->clientRecordFor($user);
+        if ($clientRecord === null) {
+            return $this->notFound();
+        }
+        $recordId = isset($clientRecord['id']) ? (int) $clientRecord['id'] : 0;
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+
+        $items = array_map(
+            static fn ($c): array => $c->toArray(),
+            $this->comments->allForRecord($portalList->id, $recordId),
+        );
+        return new WP_REST_Response(['data' => $items]);
+    }
+
+    /**
+     * POST /portal/me/comments
+     *
+     * Crea un comment del cliente actual. user_id viene del JWT/session,
+     * list_id + record_id se resuelven del ClientResolver. El composer
+     * multi-modo del CRM (note/call/email/meeting) NO está disponible
+     * en el portal — el cliente solo escribe notas simples.
+     */
+    public function createMyComment(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $user = wp_get_current_user();
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null) {
+            return $this->notFound();
+        }
+        $clientRecord = $this->resolver->clientRecordFor($user);
+        if ($clientRecord === null) {
+            return $this->notFound();
+        }
+        $recordId = isset($clientRecord['id']) ? (int) $clientRecord['id'] : 0;
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+
+        $content = (string) ($request->get_param('content') ?? '');
+        $result = $this->comments->create($portalList->id, $recordId, (int) $user->ID, [
+            'content' => $content,
+            // El portal no expone parent_id ni metadata custom — keep simple.
+        ]);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+
+        return new WP_REST_Response(['data' => $result->toArray()], 201);
     }
 
     /**
