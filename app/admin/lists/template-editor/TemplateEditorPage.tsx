@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, Loader2, Pencil, Redo2, Save, SlidersHorizontal, Undo2 } from 'lucide-react';
+import { ArrowLeft, Eye, Loader2, Maximize2, Minimize2, Pencil, Redo2, Save, SlidersHorizontal, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -74,6 +74,18 @@ export function TemplateEditorPage(): JSX.Element {
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [preview, setPreview] = useState(false);
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const [fullScreen, setFullScreen] = useState(false);
+
+    // Mientras está en full-screen, ocultamos los chromes de WP +
+    // sidebar del plugin via clase en <body>. CSS en globals.css
+    // (Fase 14.D).
+    useEffect(() => {
+        if (! fullScreen) return;
+        document.body.classList.add('imcrm-template-editor-fullscreen');
+        return () => {
+            document.body.classList.remove('imcrm-template-editor-fullscreen');
+        };
+    }, [fullScreen]);
     // Record real elegido como dato de preview. Si null, usa el mock
     // generado desde el schema (mockSample, ver abajo).
     const [previewRecord, setPreviewRecord] = useState<RecordEntity | null>(null);
@@ -100,6 +112,20 @@ export function TemplateEditorPage(): JSX.Element {
             if (mod && e.key.toLowerCase() === 'k') {
                 e.preventDefault();
                 setCommandPaletteOpen((v) => ! v);
+                return;
+            }
+            // Full-screen toggle: Cmd/Ctrl + J (no en inputs).
+            if (mod && e.key.toLowerCase() === 'j' && ! isEditableTarget(e.target)) {
+                e.preventDefault();
+                setFullScreen((v) => ! v);
+                return;
+            }
+            // Escape sale de full-screen (a menos que esté
+            // procesando una selección — el handler de deseleccionar
+            // está más abajo en este mismo listener).
+            if (e.key === 'Escape' && fullScreen && selectedBlockIds.length === 0 && ! isEditableTarget(e.target)) {
+                e.preventDefault();
+                setFullScreen(false);
                 return;
             }
 
@@ -179,7 +205,7 @@ export function TemplateEditorPage(): JSX.Element {
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [preview, selectedBlockIds, config.blocks]);
+    }, [preview, selectedBlockIds, config.blocks, fullScreen]);
 
     useEffect(() => {
         if (! list.data || ! fields.data || initialized) return;
@@ -400,7 +426,7 @@ export function TemplateEditorPage(): JSX.Element {
     }
 
     return (
-        <div className="imcrm-flex imcrm-h-[calc(100vh-8rem)] imcrm-min-h-[640px] imcrm-flex-col imcrm-gap-3">
+        <div className="imcrm-template-editor-root imcrm-flex imcrm-h-[calc(100vh-8rem)] imcrm-min-h-[640px] imcrm-flex-col imcrm-gap-3">
             <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-4">
                 <div className="imcrm-flex imcrm-flex-col imcrm-gap-0.5">
                     <Button
@@ -483,6 +509,21 @@ export function TemplateEditorPage(): JSX.Element {
                             {__('Preview')}
                         </button>
                     </div>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFullScreen((v) => ! v)}
+                        title={fullScreen ? __('Salir de full-screen (⌘J o Esc)') : __('Full-screen (⌘J)')}
+                        aria-label={fullScreen ? __('Salir de full-screen') : __('Full-screen')}
+                        className="imcrm-h-8 imcrm-w-8 imcrm-p-0"
+                    >
+                        {fullScreen ? (
+                            <Minimize2 className="imcrm-h-3.5 imcrm-w-3.5" />
+                        ) : (
+                            <Maximize2 className="imcrm-h-3.5 imcrm-w-3.5" />
+                        )}
+                    </Button>
                     <Button
                         size="sm"
                         className="imcrm-gap-2"

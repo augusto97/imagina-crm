@@ -4,6 +4,34 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.44.3] — 2026-05-23
+
+**Modo full-screen del editor**
+(Fase 14 · Iteración 14.D).
+
+### Añadido
+
+- Botón Maximize2 / Minimize2 en el toolbar para entrar/salir
+  full-screen.
+- Atajo **Cmd/Ctrl + J** toggle (no en inputs editables).
+- **Esc** sale del full-screen cuando no hay bloques
+  seleccionados (los seleccionados tienen prioridad — Esc primero
+  los deselecciona).
+
+### Implementación
+
+- State `fullScreen` boolean en `TemplateEditorPage`.
+- Cuando activo, agrega clase `imcrm-template-editor-fullscreen`
+  al `<body>` (cleanup en el unmount/toggle).
+- CSS en `globals.css`:
+  - Oculta `#wpadminbar`, `#adminmenumain`, `#wpfooter` (chromes
+    de WP).
+  - Resetea margenes/padding de `#wpcontent`, `#wpbody-content`.
+  - Oculta sidebar + topbar del plugin (`.imcrm-admin-sidebar`,
+    `.imcrm-admin-topbar`).
+  - El editor (`.imcrm-template-editor-root`) pasa a `fixed inset-0`
+    z-9999 con padding 1rem.
+
 ## [0.44.2] — 2026-05-23
 
 **Industry presets aplicables**
