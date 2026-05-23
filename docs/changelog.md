@@ -4,6 +4,38 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.43.1] — 2026-05-23
+
+**Tests de createBlock + dragPayload**
+(Fase 13 · Iteración 13.B).
+
+Sigue ampliando la cobertura del editor de plantilla CRM.
+
+### Añadido
+
+- `tests/unit/template-editor/createBlock.test.ts`: **13 tests**:
+  - `createBlock` returns null para related sin relation field,
+    crea bloque para related con relation field disponible.
+  - Posicionamiento por default (`maxY`), posición explícita
+    cuando se pasa.
+  - IDs únicos entre llamadas.
+  - Defaults correctos para `kpi` (currency / number),
+    `divider`, `heading`, `comments_thread`.
+  - `appendBlock` no muta el config input.
+  - `appendFieldAsGroup` usa label del field como label del
+    grupo + slug en field_slugs.
+- `tests/unit/template-editor/dragPayload.test.ts`: **11 tests**:
+  - Roundtrip encode/decode para `block-type` y `field`.
+  - Decode devuelve null para JSON malformado, shape inválido,
+    `kind` desconocido, falta de campos requeridos.
+  - `readDropPayload` lee del MIME custom, fallback a `text/plain`,
+    null cuando no hay nada o cuando hay garbage.
+
+### Estado
+
+- **Total: 38 tests passing** (14 resolver + 13 createBlock +
+  11 dragPayload), 653ms.
+
 ## [0.43.0] — 2026-05-23
 
 **Vitest setup + tests del resolver V2**
