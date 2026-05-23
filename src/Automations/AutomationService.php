@@ -31,6 +31,18 @@ final class AutomationService
         return $this->repo->allForList($listId);
     }
 
+    /**
+     * Lista todas las automatizaciones cross-list que tengan al menos
+     * una action del tipo dado. Usado por el "Webhooks manager" del
+     * settings (Fase 15.C).
+     *
+     * @return array<int, AutomationEntity>
+     */
+    public function allWithActionType(string $actionType): array
+    {
+        return $this->repo->allWithActionType($actionType);
+    }
+
     public function find(int $id): ?AutomationEntity
     {
         return $this->repo->find($id);

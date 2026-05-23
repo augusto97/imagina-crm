@@ -107,6 +107,39 @@ class AutomationRepository
     }
 
     /**
+     * Devuelve todas las automatizaciones cross-list cuya `actions` JSON
+     * contiene una action del tipo dado (ej. `call_webhook`). Útil para
+     * la vista "Webhooks" del settings que muestra todas las conexiones
+     * outgoing del workspace. (Fase 15.C)
+     *
+     * @return array<int, AutomationEntity>
+     */
+    public function allWithActionType(string $actionType): array
+    {
+        if ($actionType === '') {
+            return [];
+        }
+        $wpdb = $this->db->wpdb();
+        // Filtramos por substring en el JSON (no es óptimo pero es
+        // un endpoint de admin con baja frecuencia — usamos LIKE
+        // sobre el campo `actions` con un patrón seguro).
+        $like = '%' . $wpdb->esc_like('"type":"' . $actionType . '"') . '%';
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                'SELECT * FROM ' . $this->db->systemTable('automations')
+                . ' WHERE deleted_at IS NULL AND actions LIKE %s'
+                . ' ORDER BY created_at DESC',
+                $like,
+            ),
+            ARRAY_A,
+        );
+        if (! is_array($rows)) {
+            return [];
+        }
+        return array_map(static fn (array $r): AutomationEntity => AutomationEntity::fromRow($r), $rows);
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     public function insert(array $data): int

@@ -4,6 +4,59 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.45.2] — 2026-05-23
+
+**Webhooks manager en Ajustes**
+(Fase 15 · Iteración 15.C).
+
+Vista cross-list de todas las automatizaciones del workspace que
+disparan `call_webhook`. Card en la página de Ajustes con tabla
++ toggle activo/pausado + delete inline + link a edición.
+
+### Diseño
+
+En lugar de crear infra paralela (tabla `wp_imcrm_webhooks` +
+listener + delivery propio), el manager **reutiliza el motor
+de Automations** que ya soporta `call_webhook` como action. Esto:
+
+- Cero código nuevo de delivery / retry / logging — todo lo
+  hereda del `AutomationEngine` (Action Scheduler, retries,
+  AutomationRunRepository).
+- Misma UI de edición avanzada (merge tags, headers custom,
+  body template, condiciones de trigger) — accesible desde
+  "Editar en Automatizaciones".
+- Toggle / delete usan los endpoints existentes
+  `PATCH/DELETE /lists/{slug}/automations/{id}`.
+
+### Añadido
+
+- Backend:
+  - `AutomationRepository::allWithActionType(string)`: scan
+    cross-list de automations cuyo JSON `actions` contiene
+    una action del tipo dado. LIKE seguro sobre el JSON.
+  - `AutomationService::allWithActionType(string)`: passthrough.
+  - REST: `GET /imagina-crm/v1/webhooks` (cap:
+    `manage_automations`). Enriquece cada item con `list_name`
+    + `list_slug` para evitar N+1 lookups en el frontend.
+- Frontend:
+  - `app/admin/settings/WebhooksCard.tsx`: tabla con columnas
+    Webhook (nombre + URL truncada), Lista, Trigger, Estado,
+    Acciones. Toggle play/pause, link al editor de
+    Automations, delete con confirm.
+  - Wireup en `SettingsPage` después de `CustomRolesCard`.
+
+### Limitaciones conocidas
+
+- La URL en la tabla solo muestra la primera de las actions
+  `call_webhook` de la automation. Si una automation tiene varias
+  (raro), se indica con un badge `+N` y se ven completas al
+  editarla.
+- "Nueva conexión" linkea a `/automations` genérico (no
+  pre-puebla call_webhook como action). Pre-poblar requeriría
+  query params adicionales del builder. Scope futuro.
+- No hay HMAC signature configurable desde aquí (vive como
+  feature del action `call_webhook` via header custom).
+
 ## [0.45.1] — 2026-05-23
 
 **Bulk export mejorado: selector de fields + delimiter + BOM**

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.45.1
+Stable tag: 0.45.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,15 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.45.2 =
+**Webhooks manager en Ajustes (Fase 15 · iter 15.C).**
+
+Card en Ajustes con tabla cross-list de todas las
+automatizaciones del workspace que disparan call_webhook.
+Toggle play/pause, link al editor de Automations, delete con
+confirm. Reutiliza el motor de Automations existente — sin
+infra paralela.
 
 = 0.45.1 =
 **Bulk export con opciones (Fase 15 · iter 15.B).**
