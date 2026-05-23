@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.42.5
+Stable tag: 0.42.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.6 =
+**Docs + cierre de Fase 12 (Fase 12 · iter 12.G · CIERRE DE FASE).**
+
+Doc de Cards en vistas-guardadas.md. Fase 12 cierra con:
+
+- Vista Cards (12.A-12.C): última fase del roadmap original
+  que faltaba.
+- Bloque comments_thread para portal (12.D).
+- UI de filtros en bundle público (12.E).
+- Magic link UI con auto-detect de página (12.F).
+
+Pasamos de 0.41.6 a 0.42.6 en 7 commits. 4 items pendientes del
+handoff Fases 7-10 cerrados.
 
 = 0.42.5 =
 **Magic link UI en panel CRM (Fase 12 · iter 12.F).**

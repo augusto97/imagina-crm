@@ -4,6 +4,50 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.6] — 2026-05-23
+
+**Docs + cierre de Fase 12**
+(Fase 12 · Iteración 12.G · **CIERRE DE FASE 12**).
+
+### Añadido
+
+- `docs/vistas-guardadas.md`: sección "Tipos de vista" con docs
+  para Cards (campos, cover, densidad, editar config). Las
+  secciones Kanban / Calendar también quedaron documentadas
+  formalmente en el mismo archivo.
+
+### Resumen Fase 12 — Cards + portal mejorado
+
+```
+0.42.0  · 12.A · SavedViewType='cards' + componente base
+0.42.1  · 12.B · Editor de config + resolución coverField
+0.42.2  · 12.C · Editar config de vistas Cards existentes
+0.42.3  · 12.D · Bloque comments_thread para portal
+0.42.4  · 12.E · UI de filtros en bundle público
+0.42.5  · 12.F · Magic link UI en panel CRM
+0.42.6  · 12.G · Docs + cierre  ← acá
+```
+
+### Cobertura
+
+Con este release cierran 4 items pendientes del handoff de Fases
+7-10:
+
+- ✅ `comments_thread` para portal (Fase 12.D).
+- ✅ "Magic link UI en panel CRM" (Fase 12.F).
+- ✅ "Filtros UI en bundle público" (Fase 12.E).
+- ✅ Cards view, última fase del roadmap original CLAUDE.md §15
+  que faltaba (Fase 6 → ahora cubierta).
+
+Quedan en el backlog del handoff (no críticos):
+
+- `chart_widget` para portal (requiere lib de charts ~30 KB).
+- UI para `fixed_filter_tree` en `PublicVisibilityPanel`.
+- Inputs por tipo en `editable_form` (user / file / relation).
+- Filtros UI en bundle público para tipos no-discretos (text /
+  number / date).
+- Mensaje específico cuando WP no tiene pretty permalinks.
+
 ## [0.42.5] — 2026-05-23
 
 **Magic link UI en panel CRM**

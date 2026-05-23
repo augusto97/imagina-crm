@@ -46,6 +46,32 @@ Click en el `⋯` de la pestaña activa → **Eliminar vista**. Se te pedirá co
 
 ⚠️ Eliminar una vista NO afecta los registros. Solo se elimina la "configuración guardada".
 
+## Tipos de vista
+
+Cada vista guardada tiene un **tipo** elegido al crearla. No se puede cambiar después; para cambiar el tipo, eliminá la vista y creá una nueva.
+
+### Tabla (default)
+
+La vista de tabla clásica con filtros, sort, columnas visibles y agrupación opcional. Captura todo el estado actual de la lista cuando guardás.
+
+### Kanban
+
+Tablero de columnas agrupadas por un campo tipo **Select**. Las opciones del campo definen las columnas; arrastrar una tarjeta cambia el valor del campo. Requiere al menos un campo Select en la lista.
+
+### Calendar
+
+Calendario mensual donde cada registro aparece en el día de un campo tipo **Date** o **DateTime** elegido. Requiere al menos un campo de fecha en la lista.
+
+### Cards
+
+Grid de tarjetas. Cada tarjeta muestra:
+- **Título** (el campo primario del registro, automático).
+- **Hasta N campos extra** debajo del título, con label inline. Los elegís al crear la vista.
+- **Imagen de portada** opcional desde un campo tipo **Archivo** (si la lista tiene). Sin imagen, se renderea un avatar colorizado generado desde el título.
+- **Densidad** configurable: Compacta (3-4 col), Normal (2-3 col), Espaciada (1-2 col).
+
+Para editar la config de una vista Cards existente: click en el `⋯` de la pestaña → **Editar configuración**.
+
 ## Vistas por usuario vs compartidas
 
 Por defecto, las vistas que creas son **personales**: solo tú las ves. En próximas versiones se podrá compartir vistas con otros usuarios o el equipo entero.
