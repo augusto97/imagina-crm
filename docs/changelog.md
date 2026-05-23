@@ -4,6 +4,43 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.43.0] — 2026-05-23
+
+**Vitest setup + tests del resolver V2**
+(Fase 13 · Iteración 13.A).
+
+Arranca la **Fase 13 — Quality Pass**. Bootstrap del runner de
+tests Vitest (que estaba en `package.json` desde Fase 1 pero sin
+specs) y primer test file cubriendo el contrato del resolver V2.
+
+### Añadido
+
+- `vite.config.ts`: sección `test` con jsdom environment, setup
+  file global, include pattern `tests/unit/**/*.test.{ts,tsx}`,
+  coverage config básica.
+- `tests/unit/setup.ts`: mock global de `@wordpress/i18n`
+  (`__`, `_x`, `_n`, `sprintf` devuelven el string fuente para
+  que los componentes/units no dependan de un runtime WP).
+- `tests/unit/lib/crmTemplates.test.ts`: **14 tests** del
+  `resolveV2`:
+  - Header: title field resolution, missing slug fallback,
+    quickActions kind mapping (email/url/phone).
+  - `properties_group`: inflado de field_slugs a FieldEntity,
+    drop silencioso de fields inexistentes.
+  - `related`: drop cuando el field no es type relation, keep
+    cuando sí.
+  - `files`: default a todos los file fields cuando array vacío,
+    filtro por slugs declarados cuando no.
+  - Fase 11.F: pass-through correcto de `divider` /
+    `heading` / `comments_thread` configs.
+  - Preservación del orden de bloques en el output.
+
+### Detalles
+
+- Los tests del resolver usan `// @vitest-environment node`
+  per-file porque no tocan DOM — corren más rápido.
+- Total: 633ms para 14 tests. Sin tests previos en el repo.
+
 ## [0.42.6] — 2026-05-23
 
 **Docs + cierre de Fase 12**
