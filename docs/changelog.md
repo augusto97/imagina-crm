@@ -4,6 +4,44 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.44.1] — 2026-05-23
+
+**Undo / Redo del editor (Cmd+Z / Cmd+Shift+Z)**
+(Fase 14 · Iteración 14.B).
+
+### Añadido
+
+- `hooks/useConfigHistory.ts`: hook que wrappea el state del
+  `CustomTemplateConfigV2` con stacks `past` y `future`. Cap a
+  `MAX_HISTORY=50` entradas para evitar crecimiento sin límite.
+  API: `{ config, setConfig, undo, redo, reset, canUndo, canRedo }`.
+- Botones Undo / Redo en el toolbar del editor (icono `Undo2` /
+  `Redo2`). Deshabilitados cuando no hay history o estamos en
+  preview.
+- Atajos de teclado:
+  - **Cmd/Ctrl + Z** → undo.
+  - **Cmd/Ctrl + Shift + Z** (o Cmd/Ctrl + Y) → redo.
+  - Solo se activan cuando el foco NO está en un input editable
+    (el navegador maneja undo nativo del texto del input
+    primero).
+
+### Detalles de implementación
+
+- El first paint (load del config desde backend) usa `resetConfig`
+  para NO meter el "estado inicial" al historial — undo desde
+  el primer cambio te devuelve al config cargado, no a uno vacío.
+- "Restaurar desde plantilla" también usa `resetConfig` — el
+  built-in es un nuevo punto cero. Si se quiere volver atrás,
+  hay que cambiar de plantilla, no usar undo.
+- `setConfig` skipea agregar al history si el config nuevo es
+  referencialmente igual al anterior (`prev === resolved`) —
+  evita basura en el stack por re-renders.
+
+### Bundle
+
+- TemplateEditorPage: 69.5 KB → 71.4 KB (gzip 16.4 → 16.9). +0.5 KB
+  gzip por el hook + botones.
+
 ## [0.44.0] — 2026-05-23
 
 **Command palette del editor (Cmd+K)**

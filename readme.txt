@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.44.0
+Stable tag: 0.44.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.44.1 =
+**Undo/Redo del editor con Cmd+Z (Fase 14 · iter 14.B).**
+
+Botones Undo/Redo en el toolbar + atajos Cmd+Z (undo) y
+Cmd+Shift+Z (redo). Historial cap a 50 entries. El load
+inicial y "Restaurar desde plantilla" son puntos cero del
+history (no se puede undo más atrás).
 
 = 0.44.0 =
 **Command palette del editor con Cmd+K (Fase 14 · iter 14.A).**

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, Loader2, Pencil, Save, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Eye, Loader2, Pencil, Redo2, Save, SlidersHorizontal, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -15,7 +15,6 @@ import {
     customConfigV2FromBuiltin,
     emptyCustomConfigV2,
     ensureV2,
-    type CustomTemplateConfigV2,
     type V2BlockType,
     type V2Block,
 } from '@/lib/crmTemplates';
@@ -26,6 +25,7 @@ import type { RecordEntity } from '@/types/record';
 import { EditorCommandPalette } from './EditorCommandPalette';
 import { GridEditor } from './GridEditor';
 import { RecordSelector } from './RecordSelector';
+import { useConfigHistory } from './hooks/useConfigHistory';
 import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
 import { BlockPalettePanel } from './panels/BlockPalettePanel';
 import { BulkActionsPanel } from './panels/BulkActionsPanel';
@@ -60,7 +60,15 @@ export function TemplateEditorPage(): JSX.Element {
     const toast = useToast();
     const confirm = useConfirm();
 
-    const [config, setConfig] = useState<CustomTemplateConfigV2>(emptyCustomConfigV2());
+    const {
+        config,
+        setConfig,
+        undo,
+        redo,
+        reset: resetConfig,
+        canUndo,
+        canRedo,
+    } = useConfigHistory(emptyCustomConfigV2());
     const [initialized, setInitialized] = useState(false);
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [preview, setPreview] = useState(false);
@@ -98,6 +106,27 @@ export function TemplateEditorPage(): JSX.Element {
             if (mod && e.key.toLowerCase() === 's') {
                 e.preventDefault();
                 void handleSave();
+                return;
+            }
+            // Undo: Cmd/Ctrl + Z (siempre activo, incluso dentro de
+            // inputs — el navegador lo trata como "undo" en el input
+            // pero si no hay foco textual, va a nuestro history).
+            if (mod && ! e.shiftKey && e.key.toLowerCase() === 'z') {
+                // Si el foco está en un input editable, dejamos que el
+                // navegador maneje el undo nativo (sobre el texto que
+                // está escribiendo). Sino, undo del config del editor.
+                if (! isEditableTarget(e.target)) {
+                    e.preventDefault();
+                    undo();
+                }
+                return;
+            }
+            // Redo: Cmd/Ctrl + Shift + Z (o Cmd+Y).
+            if (mod && ((e.shiftKey && e.key.toLowerCase() === 'z') || e.key.toLowerCase() === 'y')) {
+                if (! isEditableTarget(e.target)) {
+                    e.preventDefault();
+                    redo();
+                }
                 return;
             }
             // Toggle Preview: Cmd/Ctrl + P (no en inputs porque
@@ -157,12 +186,15 @@ export function TemplateEditorPage(): JSX.Element {
             crm_template_id?: string;
             crm_template_custom?: unknown;
         };
+        // Load inicial NO entra al history (no querés undo a un config
+        // vacío). Usamos `resetConfig` para setear sin tracking.
         if (settings.crm_template_custom) {
-            setConfig(ensureV2(settings.crm_template_custom));
+            resetConfig(ensureV2(settings.crm_template_custom));
         } else {
-            setConfig(customConfigV2FromBuiltin(settings.crm_template_id ?? 'auto', fields.data));
+            resetConfig(customConfigV2FromBuiltin(settings.crm_template_id ?? 'auto', fields.data));
         }
         setInitialized(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [list.data, fields.data, initialized]);
 
     const mockSample = useMemo<RecordEntity>(
@@ -225,7 +257,8 @@ export function TemplateEditorPage(): JSX.Element {
             confirmLabel: __('Restaurar'),
         });
         if (! ok) return;
-        setConfig(customConfigV2FromBuiltin(builtinId, fields.data));
+        // Restaurar es punto cero — tiramos historial.
+        resetConfig(customConfigV2FromBuiltin(builtinId, fields.data));
         setSelectedBlockIds([]);
         toast.info(__('Restaurada — recordá guardar para aplicar.'));
     };
@@ -377,6 +410,32 @@ export function TemplateEditorPage(): JSX.Element {
                     </h1>
                 </div>
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <div className="imcrm-flex imcrm-gap-0.5">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={undo}
+                            disabled={! canUndo || preview}
+                            title={__('Deshacer (⌘Z)')}
+                            aria-label={__('Deshacer')}
+                            className="imcrm-h-8 imcrm-w-8 imcrm-p-0"
+                        >
+                            <Undo2 className="imcrm-h-3.5 imcrm-w-3.5" />
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={redo}
+                            disabled={! canRedo || preview}
+                            title={__('Rehacer (⌘⇧Z)')}
+                            aria-label={__('Rehacer')}
+                            className="imcrm-h-8 imcrm-w-8 imcrm-p-0"
+                        >
+                            <Redo2 className="imcrm-h-3.5 imcrm-w-3.5" />
+                        </Button>
+                    </div>
                     <RecordSelector
                         listId={list.data.id}
                         fields={fields.data}
