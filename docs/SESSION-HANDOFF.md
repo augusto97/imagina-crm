@@ -801,4 +801,74 @@ tests/bootstrap.php                             (12+ stubs WP nuevos)
 
 ---
 
+## 11. Cómo trabajar con Augusto (patrones de conversación)
+
+Esta sección captura lo "soft" que no se ve en el código: cómo se conduce el desarrollo en este repo, qué espera el dueño, qué fricciones se evitan. Si sos una sesión nueva de Claude leyendo esto, asumí lo que sigue como instrucciones reales — fueron aprendidas a lo largo de Fases 7-10 en interacción directa.
+
+### 11.1 Idioma
+
+- **Toda la comunicación con el usuario es en español rioplatense/neutro.** El usuario escribe en español; nunca le respondas en inglés.
+- **Comentarios en código: en español.** Mirá cualquier archivo de `src/` o `app/` — los comentarios del "por qué" están en castellano. Mantenelo así.
+- **Mensajes de commit: en español.** Patrón usado: `feat(area): descripción corta (X.Y.Z)` o `fix(area): descripción (X.Y.Z)`. Ejemplo real: `feat(permissions): Fase 10 roles personalizados (0.40.3) · CIERRE DE FASE 10`.
+- **Identificadores de código: en inglés** (variables, clases, funciones). La barrera idiomática queda solo en los comentarios y mensajes humanos.
+- **Errores y validación al usuario final del plugin: en español** (es el idioma primario del producto). Strings en `i18n/es.json` con fallback a `en.json`.
+
+### 11.2 Ritmo de desarrollo
+
+- **Fase por fase, sin saltar.** Las Fases 7→8→9→10 se ejecutaron en orden estricto, con cierre explícito de cada una antes de empezar la siguiente. No mezcles trabajo de fases distintas en el mismo commit.
+- **Iteración por iteración dentro de cada fase.** Cada iteración (ej. "Fase 9 — 3.A scope service") es un commit. Los commits suelen ser de 200-800 líneas, no más.
+- **Version bump por iteración.** El `Plugin::VERSION` y el header del plugin suben en cada commit relevante. Patrón: `0.X.Y` donde X es la fase y Y la iteración. Ejemplo: 0.40.0 = Fase 10 iteración 0, 0.40.4 = hotfix sobre la iteración 3.
+- **Tests con cada feature.** Si agregás un service nuevo, agregás su PHPUnit en `tests/Unit/<Module>/`. Si tocás el frontend, idealmente con types fuertes (Vitest aún no está configurado).
+
+### 11.3 Confirmaciones explícitas
+
+- **No abrir PRs salvo orden explícita.** El usuario nunca pidió PR durante toda la sesión. Si sentís ganas de abrirlo, no lo hagas — preguntá primero.
+- **No hacer push a `release` salvo orden explícita.** El branch `release` solo se actualiza cuando el usuario dice "haz el release" o equivalente. Hay un script `bin/build-release.sh` para esto.
+- **No hacer commits proactivos.** El usuario espera que commitees cuando termines una iteración. Si dudás, preguntá.
+- **Sí hacer push de la branch de desarrollo (`claude/bootstrap-wp-plugin-qGRaH`) después de cada commit.** Eso sí se asumió como flujo normal.
+- **Sí actualizar `readme.txt` (changelog) y `docs/changelog.md` con cada release.** Es parte del cierre de fase, no es una tarea aparte.
+
+### 11.4 Estilo de respuesta esperado
+
+- **Conciso pero con contexto.** El usuario no quiere "ok hecho" pelado, ni un ensayo de 500 palabras. Patrón: 2-4 líneas explicando qué se hizo + lista breve de archivos tocados si es relevante.
+- **Mencioná números cuando importan.** "438 tests passing", "bundle público 19 KB gzip", "PHPStan 22 errors baseline (preexistentes)". Los números calibran expectativas.
+- **No esconder problemas.** Si hay un baseline preexistente, mencionalo. Si una decisión tiene trade-off, decilo. El usuario aceptó la limitación de "Aggregator no tiene scope en Fase 7" porque se le explicó honestamente; después se cerró en Fase 9.
+- **Cuando termines una fase, decilo claro:** "Fase X cerrada · versión bump a 0.X.Y · push hecho a la branch dev". Eso le da al usuario el cierre mental.
+
+### 11.5 Preferencias técnicas observadas
+
+- **PHP estricto.** `declare(strict_types=1)` siempre. Sin `mixed` salvo en boundaries justificados. Value objects readonly cuando se pueda.
+- **TypeScript estricto.** Sin `any`. Si necesitás un cast, preferí `as TipoConcreto` sobre `as unknown as TipoConcreto` (lección aprendida del bug 0.40.4 — el doble cast desactiva el chequeo).
+- **Tests primero o casi.** PHPUnit antes de PR/release. No es TDD ortodoxo, pero cada feature termina con tests.
+- **Comentarios del "por qué", no del "qué".** Mirá `Portal/PortalScopeService.php` para el patrón canónico: cada bloque crítico tiene comentario en español explicando la razón, no la mecánica.
+- **DI por constructor.** Nada de `global $wpdb`, nada de `Plugin::getInstance()` desde adentro de un service. Todo se resuelve por el `Container`.
+- **No agregar dependencias livianas en el bundle público.** El bundle `public.tsx` debe quedar <30 KB gzip. Eso descarta TanStack Query, shadcn, Lucide. Para el portal y el admin sí valen.
+- **Fail-closed siempre que toque permisos.** Si dudás entre "default permite" y "default niega", andá con niega. Casos: `PublicListConfig::disabled()`, `PermissionService::can()` retornando false ante ambigüedad, `PortalScopeService` retornando `1=0` ante config inválida.
+
+### 11.6 Lo que NO hacer
+
+- **No refactorices código de fases previas "de paso".** Si tocás `RecordService` para algo de Fase 10, no reordenes los métodos ni renombres variables que no son tuyas. Cada cambio se queda en su scope.
+- **No introduzcas abstracciones especulativas.** Si un patrón aparece 1 vez, no lo factorizes. Si aparece 3 veces, ahí sí. Ejemplo: la interface `PublicListReader` se creó cuando hubo 2 implementaciones reales (test + real), no antes.
+- **No hagas cleanup del PHPStan/PHPUnit baseline preexistente.** Esos 22 errores y 7 fails de `CommentEntity` son anteriores a esta sesión. Cleanup es trabajo separado, no lo mezcles en una fase de features.
+- **No uses `--no-verify`, `--no-gpg-sign`, ni saltees hooks.** Si un hook falla, investigá y arreglá la causa. (El usuario nunca pidió saltearlos en toda la sesión.)
+- **No toques el branch `release` directamente.** Solo vía `bin/build-release.sh`. Si el script tiene un bug (ej. el `.map` cleanup), arreglalo en el script, no manualmente sobre la branch.
+- **No metas emojis en código ni commits.** El usuario no los usa, no los pidió. Mantené texto plano (excepto el separador `·` que se usa en commits de cierre de fase).
+
+### 11.7 Recursos a la mano
+
+- **`CLAUDE.md`** — masterplan del plugin. Léelo primero siempre.
+- **`docs/multi-stakeholder-design.md`** — diseño de Fases 7-10.
+- **`docs/SESSION-HANDOFF.md`** — este archivo.
+- **`docs/changelog.md`** — historial de releases con notas técnicas.
+- **`readme.txt`** — changelog formato WordPress (para el usuario final del plugin).
+- **`bin/build-release.sh`** — script de release.
+- **`tests/bootstrap.php`** — stubs de WP. Si una función `wp_*` te falta en tests, agregala acá.
+- **`composer.json` / `package.json`** — dependencias confirmadas. No bajar versiones de React/TanStack sin razón.
+
+### 11.8 En una palabra
+
+**Disciplina sobre velocidad.** Fase por fase, test por feature, commit con bump, push después, cierre explícito. El usuario premia consistencia visible (números, fases cerradas, commits limpios) más que volumen.
+
+---
+
 **Fin de la memoria.** Si vas a continuar el desarrollo, leé `CLAUDE.md` + `docs/multi-stakeholder-design.md` + este archivo, en ese orden. Después podés hacer `git log --oneline` para ver los commits y `git show <sha>` para detalles de cualquier release.
