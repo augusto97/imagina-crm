@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Eye, Loader2, Pencil, Save, SlidersHorizontal } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -9,6 +9,7 @@ import { useFields } from '@/hooks/useFields';
 import { useList, useUpdateList } from '@/hooks/useLists';
 import { useRecords } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import {
     CUSTOM_TEMPLATE_ID,
     customConfigV2FromBuiltin,
@@ -59,6 +60,7 @@ export function TemplateEditorPage(): JSX.Element {
     const [config, setConfig] = useState<CustomTemplateConfigV2>(emptyCustomConfigV2());
     const [initialized, setInitialized] = useState(false);
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+    const [preview, setPreview] = useState(false);
 
     const sample = useRecords(list.data?.id, { per_page: 1, page: 1 });
     const sampleRecord: RecordEntity | null = sample.data?.data[0] ?? null;
@@ -155,6 +157,37 @@ export function TemplateEditorPage(): JSX.Element {
         }
     };
 
+    /**
+     * Drop sobre un bloque existente del canvas. Solo respondemos
+     * al caso "field sobre properties_group" — el field se agrega
+     * al `field_slugs` del grupo si no estaba ya. Retornamos true
+     * cuando el drop fue manejado (el GridEditor lo usa para
+     * prevenir que se propague al drop handler del grid).
+     */
+    const handleDropOnBlock = (blockId: string, payload: PalettePayload): boolean => {
+        if (payload.kind !== 'field') return false;
+        const target = config.blocks.find((b) => b.id === blockId);
+        if (! target || target.type !== 'properties_group') return false;
+        if (target.config.field_slugs.includes(payload.slug)) {
+            toast.info(__('Este campo ya está en el grupo.'));
+            return true;
+        }
+        const nextBlocks = config.blocks.map((b) =>
+            b.id === blockId && b.type === 'properties_group'
+                ? {
+                    ...b,
+                    config: {
+                        ...b.config,
+                        field_slugs: [...b.config.field_slugs, payload.slug],
+                    },
+                }
+                : b,
+        );
+        setConfig({ ...config, blocks: nextBlocks });
+        setSelectedBlockId(blockId);
+        return true;
+    };
+
     const handleUpdateBlock = (id: string, patch: Partial<V2Block>): void => {
         setConfig({
             ...config,
@@ -210,32 +243,79 @@ export function TemplateEditorPage(): JSX.Element {
                         {__('Editor de plantilla CRM')}
                     </h1>
                 </div>
-                <Button
-                    size="sm"
-                    className="imcrm-gap-2"
-                    onClick={() => void handleSave()}
-                    disabled={update.isPending}
-                >
-                    {update.isPending ? (
-                        <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />
-                    ) : (
-                        <Save className="imcrm-h-3.5 imcrm-w-3.5" />
-                    )}
-                    {__('Guardar plantilla')}
-                </Button>
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <div className="imcrm-flex imcrm-rounded-md imcrm-bg-muted imcrm-p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setPreview(false)}
+                            className={cn(
+                                'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-text-xs imcrm-font-medium imcrm-transition-colors',
+                                ! preview
+                                    ? 'imcrm-bg-card imcrm-text-foreground imcrm-shadow-imcrm-sm'
+                                    : 'imcrm-text-muted-foreground hover:imcrm-text-foreground',
+                            )}
+                        >
+                            <Pencil className="imcrm-h-3 imcrm-w-3" />
+                            {__('Editor')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setPreview(true);
+                                setSelectedBlockId(null);
+                            }}
+                            className={cn(
+                                'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-text-xs imcrm-font-medium imcrm-transition-colors',
+                                preview
+                                    ? 'imcrm-bg-card imcrm-text-foreground imcrm-shadow-imcrm-sm'
+                                    : 'imcrm-text-muted-foreground hover:imcrm-text-foreground',
+                            )}
+                        >
+                            <Eye className="imcrm-h-3 imcrm-w-3" />
+                            {__('Preview')}
+                        </button>
+                    </div>
+                    <Button
+                        size="sm"
+                        className="imcrm-gap-2"
+                        onClick={() => void handleSave()}
+                        disabled={update.isPending}
+                    >
+                        {update.isPending ? (
+                            <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />
+                        ) : (
+                            <Save className="imcrm-h-3.5 imcrm-w-3.5" />
+                        )}
+                        {__('Guardar plantilla')}
+                    </Button>
+                </div>
             </header>
 
-            <div className="imcrm-grid imcrm-flex-1 imcrm-grid-cols-[260px_1fr_320px] imcrm-gap-3 imcrm-overflow-hidden">
-                <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                    <BlockPalettePanel
-                        config={config}
-                        fields={fields.data}
-                        onAddBlock={(type) => handleAddBlock(type)}
-                        onAddFieldAsGroup={(slug) => handleAddFieldAsGroup(slug)}
-                    />
-                </aside>
+            <div
+                className={cn(
+                    'imcrm-grid imcrm-flex-1 imcrm-gap-3 imcrm-overflow-hidden',
+                    preview
+                        ? 'imcrm-grid-cols-1'
+                        : 'imcrm-grid-cols-[260px_1fr_320px]',
+                )}
+            >
+                {! preview && (
+                    <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                        <BlockPalettePanel
+                            config={config}
+                            fields={fields.data}
+                            onAddBlock={(type) => handleAddBlock(type)}
+                            onAddFieldAsGroup={(slug) => handleAddFieldAsGroup(slug)}
+                        />
+                    </aside>
+                )}
 
-                <main className="imcrm-overflow-y-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-background imcrm-p-3">
+                <main
+                    className={cn(
+                        'imcrm-overflow-y-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-p-3',
+                        preview ? 'imcrm-bg-card' : 'imcrm-bg-background',
+                    )}
+                >
                     <GridEditor
                         listId={list.data.id}
                         fields={fields.data}
@@ -245,26 +325,30 @@ export function TemplateEditorPage(): JSX.Element {
                         selectedBlockId={selectedBlockId}
                         onSelectBlock={setSelectedBlockId}
                         onDropFromPalette={handleDropFromPalette}
+                        onDropOnBlock={handleDropOnBlock}
+                        preview={preview}
                     />
                 </main>
 
-                <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                    {selectedBlock ? (
-                        <BlockInspectorPanel
-                            block={selectedBlock}
-                            fields={fields.data}
-                            onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
-                            onDelete={() => handleDeleteBlock(selectedBlock.id)}
-                        />
-                    ) : (
-                        <TemplateSettingsPanel
-                            fields={fields.data}
-                            config={config}
-                            onChange={setConfig}
-                            onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
-                        />
-                    )}
-                </aside>
+                {! preview && (
+                    <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                        {selectedBlock ? (
+                            <BlockInspectorPanel
+                                block={selectedBlock}
+                                fields={fields.data}
+                                onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
+                                onDelete={() => handleDeleteBlock(selectedBlock.id)}
+                            />
+                        ) : (
+                            <TemplateSettingsPanel
+                                fields={fields.data}
+                                config={config}
+                                onChange={setConfig}
+                                onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
+                            />
+                        )}
+                    </aside>
+                )}
             </div>
         </div>
     );

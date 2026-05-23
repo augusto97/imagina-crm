@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.1
+Stable tag: 0.41.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.2 =
+**Drop sobre grupo, grid guides, toggle Editor/Preview (Fase 11 · iter 11.C).**
+
+Cierra el flujo DnD del editor: arrastrar un field sobre un
+grupo de propiedades existente lo agrega al grupo en lugar de
+crear uno nuevo. Suma grid guides sutiles y modo Preview WYSIWYG.
+
+Cambios visibles:
+
+- Arrastrar un campo sobre un grupo del canvas → ring primary +
+  overlay "Soltar para agregar al grupo". Drop suma el campo
+  al grupo en una sola operación.
+- Líneas verticales sutiles cada columna del grid (12 cols),
+  visibles solo en modo editor.
+- Toggle Editor / Preview en el toolbar. Preview deshabilita
+  drag/resize/selección y oculta paleta+inspector para mostrar
+  el panel CRM final tal cual lo verá el user.
 
 = 0.41.1 =
 **Drag-from-palette + tab Campos en el editor de plantilla CRM (Fase 11 · iter 11.B).**

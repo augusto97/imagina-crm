@@ -4,6 +4,54 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.2] — 2026-05-23
+
+**Drop sobre grupo, grid guides, toggle Editor/Preview**
+(Fase 11 · Iteración 11.C).
+
+Cierra el flujo de drag-and-drop del editor: arrastrar un field
+sobre un `properties_group` existente lo agrega al grupo en lugar
+de crear uno nuevo. Suma feedback visual del drop target, grid
+guides sutiles, y un modo Preview WYSIWYG.
+
+### Añadido
+
+- **Drop sobre grupo existente**: al arrastrar un field desde la
+  tab Campos sobre un `properties_group` del canvas, el field se
+  agrega al `field_slugs` del grupo (si no estaba ya). El bloque
+  target muestra ring `primary` + overlay "Soltar para agregar
+  al grupo" durante el dragover.
+- **Grid guides**: 13 líneas verticales sutiles (`border/40`)
+  cada columna del grid (12 cols), posicionadas `z-0` debajo del
+  contenido del grid. Solo visibles en modo editor — ayudan a
+  anticipar dónde se alinearán los bloques.
+- **Toggle Editor / Preview** en el toolbar:
+  - **Editor**: estado normal (drag, drop, selección, ring del
+    bloque activo, paleta+inspector visibles).
+  - **Preview**: deshabilita drag/resize/drop/selección. La paleta
+    y el inspector se ocultan y el canvas pasa a full-width sobre
+    fondo `card` — vista WYSIWYG fiel al panel CRM final.
+
+### Cambiado
+
+- `GridEditor` acepta props `onDropOnBlock(blockId, payload)` y
+  `preview?: boolean`. `onDropOnBlock` retorna `true` cuando el
+  drop fue manejado (el grid evita propagación al handler global).
+- Validación del MIME `application/x-imcrm-palette` en
+  `onDragOver` antes de mostrar feedback visual — evita reaccionar
+  a drags ajenos al editor (archivos del SO, links, etc.).
+- `handleBlockDragLeave` discrimina entre "salir del bloque" vs
+  "cruzar a un hijo" con `relatedTarget.contains` — evita flicker
+  del feedback durante el dragover.
+
+### UX
+
+- Drop de field ya presente en el grupo → toast info "Este campo
+  ya está en el grupo", el drop se considera manejado.
+- En modo Preview no se muestra ring de selección ni hover —
+  experiencia idéntica al `RecordCrmLayout` real (sin chrome del
+  editor).
+
 ## [0.41.1] — 2026-05-23
 
 **Drag-from-palette + tab Campos**
