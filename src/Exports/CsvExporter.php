@@ -44,12 +44,16 @@ final class CsvExporter
      * @param list<int>|null                                  $fieldIds
      * @param array<string, mixed>|null                       $filterTree
      * @param array{sql:string, args:array<int, mixed>}|null  $additionalWhere
+     * @param string                                          $delimiter  CSV delimiter (`,` default, `;` para locales europeos).
+     * @param bool                                            $withBom    Si true, prepende UTF-8 BOM — Excel respeta el encoding al abrir. (Fase 15.B)
      */
     public function export(
         ListEntity $list,
         ?array $fieldIds = null,
         ?array $filterTree = null,
         ?array $additionalWhere = null,
+        string $delimiter = ',',
+        bool $withBom = false,
     ): string {
         $allFields  = $this->fields->allForList($list->id);
         $exportable = array_values(array_filter(
@@ -79,7 +83,22 @@ final class CsvExporter
         $headers = array_map(static fn (FieldEntity $f): string => $f->label, $columns);
         $rows    = $this->fetchRows($list, $columns, $filterTree, $additionalWhere);
 
-        return CsvParser::build($headers, $rows);
+        // Whitelist de delimiters — solo comma o semicolon. Cualquier
+        // otra cosa (incluyendo tab '\t') se normaliza a ',' por
+        // seguridad: un delimiter custom inyectado podría producir
+        // CSVs malformados.
+        $safeDelimiter = $delimiter === ';' ? ';' : ',';
+
+        $csv = CsvParser::build($headers, $rows, $safeDelimiter);
+
+        if ($withBom) {
+            // UTF-8 BOM. Excel respeta el encoding cuando abre el
+            // archivo y los acentos no se rompen. Solo ~3 bytes
+            // extra al inicio del file.
+            $csv = "\xEF\xBB\xBF" . $csv;
+        }
+
+        return $csv;
     }
 
     /**

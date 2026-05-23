@@ -75,7 +75,19 @@ final class ExportController extends AbstractController
         $scope = $this->permissions->recordsScopeWhere($user, $list);
         $additionalWhere = $scope['sql'] === '' ? null : $scope;
 
-        $csv = $this->exporter->export($list, $fieldIds, $filterTree, $additionalWhere);
+        // Opciones de formato (Fase 15.B).
+        $delimiter = (string) ($request->get_param('delimiter') ?? ',');
+        $withBom   = $request->get_param('with_bom') === '1'
+            || $request->get_param('with_bom') === true;
+
+        $csv = $this->exporter->export(
+            $list,
+            $fieldIds,
+            $filterTree,
+            $additionalWhere,
+            $delimiter,
+            $withBom,
+        );
 
         $filename = sprintf(
             '%s-%s.csv',

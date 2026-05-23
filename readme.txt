@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.45.0
+Stable tag: 0.45.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,21 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.45.1 =
+**Bulk export con opciones (Fase 15 · iter 15.B).**
+
+El botón "Exportar" ahora abre un dialog con:
+- Selección granular de fields a incluir.
+- Delimiter: coma o punto y coma.
+- Checkbox UTF-8 BOM (default ON, recomendado para Excel).
+
+Backend: ExportController acepta ?delimiter= y ?with_bom=1.
+CsvExporter normaliza delimiter a coma/punto-y-coma (whitelist
+defensiva).
+
+XLSX nativo NO incluido (requiere lib pesada). CSV con BOM
+cubre el caso "abrir en Excel" sin sumar peso.
 
 = 0.45.0 =
 **Command palette global Cmd+K (Fase 15 · iter 15.A).**

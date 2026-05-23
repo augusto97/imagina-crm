@@ -341,6 +341,7 @@ export function RecordsPage(): JSX.Element {
                     )}
                     {canExportRecords && (
                         <ExportButton
+                            listId={list.data.id}
                             listSlug={list.data.slug}
                             filterTree={state.filterTree}
                             disabled={!fields.data || fields.data.length === 0}

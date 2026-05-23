@@ -4,6 +4,43 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.45.1] — 2026-05-23
+
+**Bulk export mejorado: selector de fields + delimiter + BOM**
+(Fase 15 · Iteración 15.B).
+
+El export de records ahora abre un dialog con opciones en lugar
+de descargar inmediatamente.
+
+### Añadido
+
+- **Dialog de export** en `ExportButton`:
+  - Multi-checkbox para elegir qué fields incluir (default:
+    todos los no-relation).
+  - Atajos "Todos" / "Ninguno" para selección rápida.
+  - Toggle de delimitador: coma (`,`) por default o punto y
+    coma (`;`) para locales europeos que usan coma como decimal.
+  - Checkbox "UTF-8 con BOM" (default ON): Excel respeta el
+    encoding al abrir y los acentos no se rompen.
+  - Counter "%d campos seleccionados de %d".
+- Backend (`ExportController` + `CsvExporter`):
+  - Query params nuevos `?delimiter=...` y `?with_bom=1`.
+  - `CsvExporter::export()` acepta `delimiter` y `withBom`.
+  - Whitelist de delimiters en el exporter — solo `,` o `;`.
+    Cualquier otro valor (incluyendo tab) se normaliza a `,`
+    por seguridad.
+  - BOM `\xEF\xBB\xBF` prepended cuando `withBom=true`.
+
+### Notas
+
+- **No incluye XLSX nativo**: requeriría una dep grande
+  (PhpSpreadsheet ~5 MB) o reimplementación de Office Open XML.
+  CSV con BOM cubre el 90% del use case "exporto a Excel" sin
+  agregar peso al plugin.
+- El orden de fields en el CSV respeta el orden del schema, no
+  el orden de checkboxes clickeados — evita columnas barajadas
+  si el user clickea desordenado.
+
 ## [0.45.0] — 2026-05-23
 
 **Global command palette (Cmd+K) en admin shell**
