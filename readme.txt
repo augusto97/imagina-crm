@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.2
+Stable tag: 0.41.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.3 =
+**Multi-select + duplicar + atajos de teclado (Fase 11 · iter 11.D).**
+
+Permite operar con múltiples bloques a la vez en el editor de
+plantilla CRM.
+
+Cambios visibles:
+
+- Shift+click sobre un bloque del canvas acumula selección.
+- Panel "Selección múltiple" en el inspector con acciones bulk
+  Duplicar todos / Eliminar todos + cheat-sheet de atajos.
+- Atajos de teclado globales (solo modo Editor, no en inputs):
+  - Cmd/Ctrl + D → duplicar
+  - Backspace o Delete → eliminar
+  - Esc → deseleccionar
+- Botón "Duplicar" del inspector individual ahora funcional
+  (en 11.A se renderizaba pero estaba sin cablear).
 
 = 0.41.2 =
 **Drop sobre grupo, grid guides, toggle Editor/Preview (Fase 11 · iter 11.C).**

@@ -23,8 +23,8 @@ interface GridEditorProps {
     config: CustomTemplateConfigV2;
     onChange: (next: CustomTemplateConfigV2) => void;
     sampleRecord: RecordEntity;
-    selectedBlockId: string | null;
-    onSelectBlock: (id: string | null) => void;
+    selectedBlockIds: string[];
+    onSelectBlock: (id: string | null, additive?: boolean) => void;
     onDropFromPalette: (payload: PalettePayload, position: { x: number; y: number }) => void;
     onDropOnBlock: (blockId: string, payload: PalettePayload) => boolean;
     preview?: boolean;
@@ -57,7 +57,7 @@ export function GridEditor({
     config,
     onChange,
     sampleRecord,
-    selectedBlockId,
+    selectedBlockIds,
     onSelectBlock,
     onDropFromPalette,
     onDropOnBlock,
@@ -65,6 +65,7 @@ export function GridEditor({
 }: GridEditorProps): JSX.Element {
     const resolved = useMemo(() => resolveV2(config, fields), [config, fields]);
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+    const selectedSet = useMemo(() => new Set(selectedBlockIds), [selectedBlockIds]);
 
     const gridLayout: LayoutItem[] = useMemo(
         () =>
@@ -163,7 +164,7 @@ export function GridEditor({
                 onDrop={handleDrop}
             >
                 {resolved.blocks.map((b) => {
-                    const isSelected = ! preview && selectedBlockId === b.id;
+                    const isSelected = ! preview && selectedSet.has(b.id);
                     const isDropTarget = hoveredBlockId === b.id;
                     return (
                         <div
@@ -171,7 +172,7 @@ export function GridEditor({
                             onClickCapture={(e) => {
                                 if (preview) return;
                                 e.stopPropagation();
-                                onSelectBlock(b.id);
+                                onSelectBlock(b.id, e.shiftKey);
                             }}
                             onDragOver={preview ? undefined : (e) => handleBlockDragOver(b.id, e)}
                             onDragLeave={preview ? undefined : handleBlockDragLeave}

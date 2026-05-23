@@ -26,6 +26,7 @@ import type { RecordEntity } from '@/types/record';
 import { GridEditor } from './GridEditor';
 import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
 import { BlockPalettePanel } from './panels/BlockPalettePanel';
+import { BulkActionsPanel } from './panels/BulkActionsPanel';
 import { TemplateSettingsPanel } from './panels/TemplateSettingsPanel';
 import { appendBlock, appendFieldAsGroup } from './utils/createBlock';
 import type { PalettePayload } from './utils/dragPayload';
@@ -59,11 +60,62 @@ export function TemplateEditorPage(): JSX.Element {
 
     const [config, setConfig] = useState<CustomTemplateConfigV2>(emptyCustomConfigV2());
     const [initialized, setInitialized] = useState(false);
-    const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+    const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [preview, setPreview] = useState(false);
 
     const sample = useRecords(list.data?.id, { per_page: 1, page: 1 });
     const sampleRecord: RecordEntity | null = sample.data?.data[0] ?? null;
+
+    // Atajos de teclado del editor (11.D). Activos cuando hay
+    // bloques seleccionados y no estamos en preview ni dentro de
+    // un input/textarea editable (para no interferir con el inspector).
+    useEffect(() => {
+        if (preview || selectedBlockIds.length === 0) return;
+
+        const isEditableTarget = (target: EventTarget | null): boolean => {
+            if (! (target instanceof HTMLElement)) return false;
+            const tag = target.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+        };
+
+        const onKeyDown = (e: KeyboardEvent): void => {
+            if (isEditableTarget(e.target)) return;
+            const mod = e.metaKey || e.ctrlKey;
+
+            // Duplicar: Cmd/Ctrl + D
+            if (mod && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                handleDuplicateBlocks(selectedBlockIds);
+                return;
+            }
+            // Eliminar: Backspace o Delete
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                e.preventDefault();
+                if (selectedBlockIds.length > 1) {
+                    void confirm({
+                        title: __('Eliminar bloques'),
+                        description: __('Se eliminarán %d bloques. La acción es reversible deshaciendo el cambio en el inspector.').replace('%d', String(selectedBlockIds.length)),
+                        destructive: true,
+                        confirmLabel: __('Eliminar'),
+                    }).then((ok) => {
+                        if (ok) handleDeleteBlocks(selectedBlockIds);
+                    });
+                } else {
+                    handleDeleteBlocks(selectedBlockIds);
+                }
+                return;
+            }
+            // Deseleccionar: Escape
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                setSelectedBlockIds([]);
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [preview, selectedBlockIds, config.blocks]);
 
     useEffect(() => {
         if (! list.data || ! fields.data || initialized) return;
@@ -84,10 +136,29 @@ export function TemplateEditorPage(): JSX.Element {
         [sampleRecord, fields.data],
     );
 
+    /**
+     * Cuando hay exactamente 1 bloque seleccionado, el inspector
+     * muestra su form normal. Cuando hay 0, muestra Template
+     * Settings. Cuando hay 2+, muestra bulk actions panel.
+     */
     const selectedBlock = useMemo<V2Block | null>(
-        () => (selectedBlockId ? config.blocks.find((b) => b.id === selectedBlockId) ?? null : null),
-        [selectedBlockId, config.blocks],
+        () =>
+            selectedBlockIds.length === 1
+                ? config.blocks.find((b) => b.id === selectedBlockIds[0]) ?? null
+                : null,
+        [selectedBlockIds, config.blocks],
     );
+
+    const handleSelectBlock = (id: string | null, additive = false): void => {
+        if (id === null) {
+            setSelectedBlockIds([]);
+            return;
+        }
+        setSelectedBlockIds((prev) => {
+            if (! additive) return [id];
+            return prev.includes(id) ? prev.filter((bid) => bid !== id) : [...prev, id];
+        });
+    };
 
     const handleSave = async (): Promise<void> => {
         if (! list.data) return;
@@ -117,7 +188,7 @@ export function TemplateEditorPage(): JSX.Element {
         });
         if (! ok) return;
         setConfig(customConfigV2FromBuiltin(builtinId, fields.data));
-        setSelectedBlockId(null);
+        setSelectedBlockIds([]);
         toast.info(__('Restaurada — recordá guardar para aplicar.'));
     };
 
@@ -129,7 +200,7 @@ export function TemplateEditorPage(): JSX.Element {
             return;
         }
         setConfig(result.config);
-        setSelectedBlockId(result.addedId);
+        setSelectedBlockIds([result.addedId]);
     };
 
     const handleAddFieldAsGroup = (slug: string, position?: { x: number; y: number }): void => {
@@ -141,7 +212,7 @@ export function TemplateEditorPage(): JSX.Element {
         }
         const result = appendFieldAsGroup(config, field, position);
         setConfig(result.config);
-        setSelectedBlockId(result.addedId);
+        setSelectedBlockIds([result.addedId]);
     };
 
     const handleDropFromPalette = (
@@ -184,7 +255,7 @@ export function TemplateEditorPage(): JSX.Element {
                 : b,
         );
         setConfig({ ...config, blocks: nextBlocks });
-        setSelectedBlockId(blockId);
+        setSelectedBlockIds([blockId]);
         return true;
     };
 
@@ -195,9 +266,33 @@ export function TemplateEditorPage(): JSX.Element {
         });
     };
 
-    const handleDeleteBlock = (id: string): void => {
-        setConfig({ ...config, blocks: config.blocks.filter((b) => b.id !== id) });
-        if (selectedBlockId === id) setSelectedBlockId(null);
+    const handleDeleteBlocks = (ids: string[]): void => {
+        const idSet = new Set(ids);
+        setConfig({ ...config, blocks: config.blocks.filter((b) => ! idSet.has(b.id)) });
+        setSelectedBlockIds((prev) => prev.filter((id) => ! idSet.has(id)));
+    };
+
+    const handleDuplicateBlocks = (ids: string[]): void => {
+        const idSet = new Set(ids);
+        const toDup = config.blocks.filter((b) => idSet.has(b.id));
+        if (toDup.length === 0) return;
+        const fallbackY = config.blocks.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+        const newBlocks: V2Block[] = toDup.map((b) => ({
+            ...b,
+            id: `${b.type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            // Offset visual: dup va abajo del último bloque. Si son
+            // múltiples se distribuyen vertical para que sean visibles.
+            y: fallbackY,
+        }));
+        // Distribuimos verticalmente con offset acumulado.
+        let offset = 0;
+        const offseted = newBlocks.map((b) => {
+            const out = { ...b, y: fallbackY + offset };
+            offset += b.h;
+            return out;
+        });
+        setConfig({ ...config, blocks: [...config.blocks, ...offseted] });
+        setSelectedBlockIds(offseted.map((b) => b.id));
     };
 
     if (list.isLoading || fields.isLoading || ! initialized) {
@@ -262,7 +357,7 @@ export function TemplateEditorPage(): JSX.Element {
                             type="button"
                             onClick={() => {
                                 setPreview(true);
-                                setSelectedBlockId(null);
+                                setSelectedBlockIds([]);
                             }}
                             className={cn(
                                 'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded imcrm-px-2.5 imcrm-py-1 imcrm-text-xs imcrm-font-medium imcrm-transition-colors',
@@ -322,8 +417,8 @@ export function TemplateEditorPage(): JSX.Element {
                         config={config}
                         onChange={setConfig}
                         sampleRecord={mockSample}
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={setSelectedBlockId}
+                        selectedBlockIds={selectedBlockIds}
+                        onSelectBlock={handleSelectBlock}
                         onDropFromPalette={handleDropFromPalette}
                         onDropOnBlock={handleDropOnBlock}
                         preview={preview}
@@ -332,12 +427,29 @@ export function TemplateEditorPage(): JSX.Element {
 
                 {! preview && (
                     <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                        {selectedBlock ? (
+                        {selectedBlockIds.length > 1 ? (
+                            <BulkActionsPanel
+                                count={selectedBlockIds.length}
+                                onDuplicate={() => handleDuplicateBlocks(selectedBlockIds)}
+                                onDelete={() => {
+                                    void confirm({
+                                        title: __('Eliminar bloques'),
+                                        description: __('Se eliminarán %d bloques.').replace('%d', String(selectedBlockIds.length)),
+                                        destructive: true,
+                                        confirmLabel: __('Eliminar'),
+                                    }).then((ok) => {
+                                        if (ok) handleDeleteBlocks(selectedBlockIds);
+                                    });
+                                }}
+                                onDeselect={() => setSelectedBlockIds([])}
+                            />
+                        ) : selectedBlock ? (
                             <BlockInspectorPanel
                                 block={selectedBlock}
                                 fields={fields.data}
                                 onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
-                                onDelete={() => handleDeleteBlock(selectedBlock.id)}
+                                onDelete={() => handleDeleteBlocks([selectedBlock.id])}
+                                onDuplicate={() => handleDuplicateBlocks([selectedBlock.id])}
                             />
                         ) : (
                             <TemplateSettingsPanel

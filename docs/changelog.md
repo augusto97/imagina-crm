@@ -4,6 +4,46 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.3] — 2026-05-23
+
+**Multi-select + duplicar + atajos de teclado**
+(Fase 11 · Iteración 11.D).
+
+Permite operar con múltiples bloques a la vez. Shift+click acumula
+selección. Cmd/Ctrl+D duplica. Backspace o Delete eliminan. Esc
+deselecciona.
+
+### Añadido
+
+- **Shift+click** sobre un bloque del canvas suma/quita de la
+  selección. Click sin modifier selecciona uno solo (reemplaza la
+  selección anterior).
+- **`BulkActionsPanel`** (nuevo panel del inspector cuando hay
+  2+ bloques seleccionados): resumen "N bloques seleccionados" +
+  acciones Duplicar todos / Eliminar todos + cheat-sheet de
+  atajos.
+- **`BlockInspectorPanel` + duplicar**: el botón Duplicar al pie
+  del inspector ahora está cableado (en 11.A se renderizaba pero
+  `onDuplicate` venía `undefined`). Funciona para selección
+  individual.
+- **Atajos de teclado** globales (solo en modo Editor, no en
+  Preview, y solo cuando el foco no está en input/textarea/select
+  editable):
+  - `Cmd/Ctrl + D` → duplicar seleccionados
+  - `Backspace` / `Delete` → eliminar (con confirm si son 2+)
+  - `Esc` → deseleccionar
+
+### Cambiado
+
+- Estado de selección pasó de `selectedBlockId: string | null` a
+  `selectedBlockIds: string[]`. El inspector switchea entre tres
+  modos: bulk (≥2) / single (1) / template settings (0).
+- Duplicar genera nuevos IDs con timestamp+random suffix y posiciona
+  cada copia debajo del último bloque con offset acumulado para
+  evitar que se monten visualmente.
+- Borrar con confirmación cuando son 2+ bloques (single block
+  borra directo sin confirmación).
+
 ## [0.41.2] — 2026-05-23
 
 **Drop sobre grupo, grid guides, toggle Editor/Preview**
