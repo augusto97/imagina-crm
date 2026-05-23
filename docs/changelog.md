@@ -4,6 +4,49 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.43.5] — 2026-05-23
+
+**Cierre de Fase 13 — Quality Pass**
+(Fase 13 · Iteración 13.F · **CIERRE DE FASE 13**).
+
+### Resumen Fase 13 — Quality Pass
+
+```
+0.43.0  · 13.A · Vitest setup + tests del resolver V2
+0.43.1  · 13.B · Tests createBlock + dragPayload
+0.43.2  · 13.C · Fix 7 errores PHPUnit preexistentes
+0.43.3  · 13.D · Reducir errores PHPStan: 22 → 0
+0.43.4  · 13.E · PHPCS WordPress sniffs unblock
+0.43.5  · 13.F · Cierre  ← acá
+```
+
+### Estado de salud del repo
+
+| Tool | Antes | Después |
+|---|---|---|
+| **Vitest** | sin specs | 38 tests, 0 errors |
+| **PHPUnit** | 530 tests, 7 errors | 530 tests, 0 errors |
+| **PHPStan** | 22 errors | 0 errors |
+| **PHPCS** | no corría | 379 violations reales |
+
+Los 3 items "preexistentes" documentados en el handoff de Fases
+7-10 quedan **resueltos**:
+
+- ✅ "7 errores PHPUnit por CommentEntity::__construct" (13.C).
+- ✅ "22 errores PHPStan en Search/Records" (13.D).
+- ✅ "PHPCS bloqueado por sniffs WP no registrados" (13.E).
+
+### Items que quedan abiertos del handoff (no críticos)
+
+- **PHPStan 2.x upgrade**: actualmente en 1.x. Sería trabajo
+  de migración del config + posibles cambios de sintaxis.
+- **Tests integration con WP real**: `bin/install-wp-tests.sh`
+  existe pero la suite real requeriría DB + WP install. Fuera
+  de scope para una iteración rápida.
+- **Auditoría de las 379 PHPCS violations**: la mayoría son
+  `PreparedSQL` false positives. Útil revisar caso por caso pero
+  no urgente.
+
 ## [0.43.4] — 2026-05-23
 
 **PHPCS WordPress sniffs unblock**
