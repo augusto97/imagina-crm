@@ -4,6 +4,62 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.43.4] — 2026-05-23
+
+**PHPCS WordPress sniffs unblock**
+(Fase 13 · Iteración 13.E).
+
+`composer phpcs` ahora corre exitosamente desde un install limpio.
+Antes fallaba con `ERROR: Referenced sniff "WordPress-Extra" does
+not exist` porque los standards de `wp-coding-standards/wpcs` no
+estaban registrados con PHPCS.
+
+### Causa raíz
+
+El plugin `dealerdirect/phpcodesniffer-composer-installer` que
+registra los standards automáticamente se deshabilita en entornos
+non-interactive con privilegios root (containers, CI sin
+`COMPOSER_ALLOW_SUPERUSER=1`).
+
+### Fix
+
+- `composer.json`: el script `phpcs` ahora invoca un sub-script
+  `phpcs:register-paths` antes que ejecuta
+  `phpcs --config-set installed_paths <vendor paths>`. Idempotente
+  (no falla si ya estaba registrado).
+- Mismo wireup para `phpcbf`.
+
+### Ruleset alineado con el estilo PSR-12-ish del proyecto
+
+El proyecto usa espacios (no tabs), arrays cortos, camelCase para
+variables internas, K&R braces — todo distinto del WordPress
+Core style. El ruleset original heredaba `WordPress-Extra` sin
+exclusions, lo que generaba 44k+ violaciones cosméticas que
+ahogaban los issues reales.
+
+Sniffs excluidos en `phpcs.xml.dist`:
+
+- Cosméticos: `DisallowSpaceIndent`, `DisallowShortArraySyntax`,
+  `ValidVariableName`, `OpeningFunctionBraceKernighanRitchie`,
+  `YodaConditions`, `FunctionDeclarationArgumentSpacing`,
+  `FunctionCallSignature`, `ControlStructureSpacing`,
+  `OperatorSpacing`, `ArrayBraceSpacing`, etc.
+- Conflictivos con PHP 8.2+ typed: `Squiz.Commenting`,
+  `Generic.Commenting`, `FunctionComment.MissingParamComment`.
+- `WordPress.WP.AlternativeFunctions` (el proyecto usa la API
+  moderna de PHP donde aplica).
+
+### Estado
+
+- Antes: PHPCS no corría (sniffs no registrados).
+- Después: PHPCS corre, reporta **379 violations** reales.
+  Mayoría son `WordPress.DB.PreparedSQL.NotPrepared` (171) — el
+  sniff no detecta sanitización indirecta en algunos call sites
+  (false positives), pero quedan como signal útil para hacer un
+  audit de seguridad SQL en una iteración futura.
+- Lo importante: PHPCS ahora es usable en CI / development
+  flow. Antes era equivalente a no tener PHPCS configurado.
+
 ## [0.43.3] — 2026-05-23
 
 **Reducir errores PHPStan: 22 → 0**

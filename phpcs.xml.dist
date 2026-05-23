@@ -16,12 +16,77 @@
     <arg name="parallel" value="8"/>
     <arg value="ps"/>
 
+    <!--
+        WordPress / PHPCompatibility standards: registrados via
+        `composer phpcs:register-paths` (ver composer.json), porque
+        el plugin `dealerdirect/phpcodesniffer-composer-installer`
+        no corre en entornos non-interactive con privilegios root
+        por seguridad. El composer script `phpcs` ya invoca
+        register-paths antes — el usuario solo necesita
+        `composer phpcs`. Fase 13.E.
+    -->
     <config name="testVersion" value="8.2-"/>
     <config name="minimum_supported_wp_version" value="6.4"/>
 
     <rule ref="WordPress-Extra">
+        <!--
+            File naming: WordPress espera class-foo.php pero usamos
+            PSR-4 (FooBar.php directamente).
+        -->
         <exclude name="WordPress.Files.FileName"/>
+
+        <!--
+            Estilo del proyecto (PSR-12-ish), no WordPress Core:
+            - Indent con espacios (4), no tabs.
+            - Arrays cortos `[]`, no `array()`.
+            - camelCase para variables internas (las public properties
+              de entities siguen snake_case en el persistido).
+            - K&R braces (`function foo() {` en la misma línea).
+            - No Yoda conditions (legibilidad > cargo-cult historic).
+            Decisiones tomadas en el bootstrap del plugin (CLAUDE.md
+            §16 — Estándares de Código). El ruleset WordPress-Extra
+            queda como guard para los sniffs de seguridad / i18n /
+            prefijos / WP-API-misuse, no para el estilo cosmético.
+            Fase 13.E.
+        -->
+        <exclude name="Generic.WhiteSpace.DisallowSpaceIndent"/>
+        <exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+        <exclude name="WordPress.NamingConventions.ValidVariableName"/>
+        <exclude name="Generic.Functions.OpeningFunctionBraceKernighanRitchie"/>
+        <exclude name="WordPress.PHP.YodaConditions"/>
+        <exclude name="Squiz.Functions.FunctionDeclarationArgumentSpacing"/>
+        <exclude name="PEAR.Functions.FunctionCallSignature"/>
+        <exclude name="WordPress.WhiteSpace.ControlStructureSpacing"/>
         <exclude name="Universal.Operators.DisallowShortTernary.Found"/>
+
+        <!--
+            Reglas de WP Core que conflictan con strict PHP 8.2+:
+            usamos type hints + return types nativos que estos sniffs
+            no anticipan.
+        -->
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamComment"/>
+        <exclude name="Squiz.Commenting.FileComment"/>
+        <exclude name="Generic.Commenting.DocComment"/>
+        <exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+
+        <!--
+            Más cosméticos del estilo PSR-12-ish del proyecto.
+        -->
+        <exclude name="NormalizedArrays.Arrays.ArrayBraceSpacing"/>
+        <exclude name="WordPress.WhiteSpace.OperatorSpacing"/>
+        <exclude name="Generic.Formatting.MultipleStatementAlignment"/>
+        <exclude name="WordPress.Arrays.ArrayDeclarationSpacing"/>
+        <exclude name="Generic.WhiteSpace.ArbitraryParenthesesSpacing"/>
+        <exclude name="WordPress.Arrays.ArrayKeySpacingRestrictions"/>
+        <exclude name="WordPress.Arrays.MultipleStatementAlignment"/>
+        <exclude name="Generic.Classes.OpeningBraceSameLine"/>
+        <exclude name="WordPress.WhiteSpace.CastStructureSpacing"/>
+        <exclude name="WordPress.NamingConventions.ValidFunctionName"/>
+        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames"/>
+        <exclude name="Squiz.Commenting"/>
+        <exclude name="Generic.Commenting"/>
+        <exclude name="Generic.WhiteSpace"/>
+        <exclude name="WordPress.WP.AlternativeFunctions"/>
     </rule>
 
     <rule ref="WordPress.WP.I18n">

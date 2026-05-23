@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.43.3
+Stable tag: 0.43.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.43.4 =
+**PHPCS WordPress sniffs unblock (Fase 13 · iter 13.E).**
+
+composer phpcs ahora corre exitosamente. composer.json incluye
+sub-script phpcs:register-paths que registra los standards
+WordPress / PHPCompatibility en cada invocación (idempotente).
+Ruleset alineado con el estilo PSR-12-ish del proyecto.
 
 = 0.43.3 =
 **Reducir errores PHPStan: 22 → 0 (Fase 13 · iter 13.D).**
