@@ -4,6 +4,47 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.45.0] — 2026-05-23
+
+**Global command palette (Cmd+K) en admin shell**
+(Fase 15 · Iteración 15.A).
+
+Arranque de **Fase 15 — Features nuevas cherry-picked**. Suma un
+command palette global accesible con Cmd/Ctrl+K desde cualquier
+página del plugin.
+
+### Añadido
+
+- `app/admin/layout/GlobalCommandPalette.tsx`: palette estilo
+  Linear/Raycast con sections:
+  - **Listas**: todas las listas del workspace + "Crear lista
+    nueva".
+  - **Dashboards** (si tiene cap): todos los dashboards + "Ver
+    todos".
+  - **Navegar**: Automatizaciones, Ajustes del plugin, Mi cuenta.
+- Wireup en `AdminShell`: listener global de Cmd/Ctrl+K que
+  abre el palette. Coexistencia con el `EditorCommandPalette` —
+  cuando la ruta actual contiene `/template-editor`, este global
+  palette se deshabilita (el del editor toma prioridad porque
+  tiene comandos contextuales más útiles ahí).
+
+### Diferencias con `EditorCommandPalette`
+
+| | Global | Editor |
+|---|---|---|
+| **Activo en** | Resto del admin | Solo `/template-editor` |
+| **Comandos** | Navegación + jump a entidades | Bloques + selección + presets |
+| **Implementación** | `app/admin/layout/GlobalCommandPalette.tsx` | `app/admin/lists/template-editor/EditorCommandPalette.tsx` |
+
+### Notas
+
+- No incluye búsqueda de records cross-list — eso requeriría un
+  endpoint global de search. El user navega a la lista y usa el
+  search interno.
+- Gating por capabilities (`MANAGE_DASHBOARDS`, `MANAGE_AUTOMATIONS`,
+  `MANAGE_LISTS`, `manage_options`) — la sección Dashboards no
+  aparece si el user no la puede ver.
+
 ## [0.44.4] — 2026-05-23
 
 **Cierre de Fase 14 — Polish del editor CRM**
