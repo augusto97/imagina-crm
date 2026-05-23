@@ -4,6 +4,44 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.5] — 2026-05-23
+
+**Magic link UI en panel CRM**
+(Fase 12 · Iteración 12.F).
+
+Cierra el gap del handoff: el endpoint `POST .../magic-link`
+existía desde Fase 10 pero no tenía UI en el `PortalAccessButton`.
+Hoy queda accesible con dos botones: "Enviar magic link" (por
+email) y "Copiar link" (al clipboard).
+
+### Añadido
+
+- Backend (`PortalController`):
+  - `GET /portal/page-url`: auto-detect de la URL de la página del
+    portal buscando el primer post/page publicado con el
+    shortcode `[imcrm-client-portal]`. Devuelve `{ url: string | null }`.
+    Cap: `manage_lists`.
+- Frontend:
+  - `hooks/usePortalPageUrl.ts`: hook con TanStack Query, cachea
+    5min.
+  - `PortalAccessButton`: cuando `hasAccess === true` y la página
+    del portal está detectada, aparecen 2 botones nuevos:
+    - **"Enviar magic link"** (icono Mail): llama `POST .../magic-link`
+      con `send_email=true`. Toast de éxito.
+    - **"Copiar link"** (icono Copy): mismo endpoint con
+      `send_email=false`, copia la URL al clipboard via
+      `navigator.clipboard`. Fallback a toast con la URL si no se
+      puede acceder al clipboard (HTTP, browsers viejos).
+  - Si no hay página del portal detectada, muestra mensaje
+    "Agregá el shortcode [imcrm-client-portal] a una página".
+
+### UX
+
+- `magicLink.variables` (boolean) se usa para distinguir cuál de
+  los dos botones está pendiente — solo ese muestra el spinner.
+- Toast errors específicos (mensaje del backend si vino, sino
+  default).
+
 ## [0.42.4] — 2026-05-23
 
 **UI de filtros en bundle público de listas**

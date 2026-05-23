@@ -189,6 +189,21 @@ final class PortalController extends AbstractController
             ],
         );
 
+        // Auto-detect de la página del portal (Fase 12.F). Cap:
+        // manage_lists. Busca la primera página publicada con el
+        // shortcode [imcrm-client-portal] y devuelve su URL. Permite
+        // al frontend ofrecer "Enviar magic link" sin que el admin
+        // configure la URL manualmente.
+        register_rest_route(
+            $this->namespace,
+            '/portal/page-url',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getPortalPageUrl'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
+            ],
+        );
+
         // Magic link para un cliente (Fase 10 — pulidos). Cap:
         // manage_lists. Genera URL con token one-time + opcionalmente
         // envía email al cliente.
@@ -531,6 +546,48 @@ final class PortalController extends AbstractController
                 'sent_email' => $sendEmail,
             ],
         ], 201);
+    }
+
+    /**
+     * GET /portal/page-url
+     *
+     * Auto-detect de la página del portal: busca la primera página
+     * publicada con el shortcode `[imcrm-client-portal]` en su
+     * contenido y devuelve su URL.
+     *
+     * Devuelve `{ url: string }` si encontró, `{ url: null }` si no.
+     * El frontend usa este URL para `target_url` en
+     * `POST .../magic-link` sin que el admin configure nada.
+     *
+     * Si hay múltiples páginas con el shortcode (raro), devuelve la
+     * primera por `post_date DESC`. El admin puede pasar manualmente
+     * un target_url alternativo al magic-link endpoint si necesita
+     * una página específica.
+     */
+    public function getPortalPageUrl(WP_REST_Request $request): WP_REST_Response
+    {
+        unset($request);
+        global $wpdb;
+        $shortcode = '[' . \ImaginaCRM\Portal\PortalShortcode::TAG;
+        $like = '%' . $wpdb->esc_like($shortcode) . '%';
+        $sql = $wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} "
+            . "WHERE post_status = %s "
+            . "AND post_type IN ('page', 'post') "
+            . "AND post_content LIKE %s "
+            . "ORDER BY post_date DESC "
+            . "LIMIT 1",
+            'publish',
+            $like,
+        );
+        $postId = $wpdb->get_var($sql);
+        if ($postId === null) {
+            return new WP_REST_Response(['data' => ['url' => null]]);
+        }
+        $url = get_permalink((int) $postId);
+        return new WP_REST_Response([
+            'data' => ['url' => $url === false ? null : $url],
+        ]);
     }
 
     /**

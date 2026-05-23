@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Check, Loader2, UserPlus } from 'lucide-react';
+import { Check, Copy, Loader2, Mail, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useFields } from '@/hooks/useFields';
+import { usePortalPageUrl } from '@/hooks/usePortalPageUrl';
+import { useToast } from '@/components/ui/toast';
 import { api, ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
 import type { ListSummary } from '@/types/list';
@@ -36,6 +38,8 @@ interface Props {
 export function PortalAccessButton({ list, record }: Props): JSX.Element | null {
     const portalCfg = useMemo(() => readPortal(list.settings), [list.settings]);
     const fields = useFields(list.id);
+    const portalPageUrl = usePortalPageUrl();
+    const toast = useToast();
 
     // Resolvemos owner_field_id → slug usando los fields cargados.
     // Si fields aún no cargó, el botón espera (return null abajo).
@@ -73,6 +77,42 @@ export function PortalAccessButton({ list, record }: Props): JSX.Element | null 
         },
     });
 
+    /**
+     * Magic link (Fase 12.F). El endpoint genera un token one-time
+     * y opcionalmente envía un email al cliente. La `target_url` se
+     * detecta automáticamente del shortcode publicado.
+     */
+    const magicLink = useMutation({
+        mutationFn: async (sendEmail: boolean): Promise<{ url: string; expires_at: string; sent_email: boolean }> => {
+            const targetUrl = portalPageUrl.data;
+            if (! targetUrl) {
+                throw new Error(__('No hay página del portal publicada. Agregá el shortcode [imcrm-client-portal] a una página.'));
+            }
+            const res = await api.post<{ url: string; expires_at: string; sent_email: boolean }>(
+                `/portal/lists/${encodeURIComponent(list.slug)}/records/${record.id}/magic-link`,
+                { target_url: targetUrl, send_email: sendEmail },
+            );
+            return res.data;
+        },
+        onSuccess: async (data, sendEmail) => {
+            if (sendEmail) {
+                toast.success(__('Magic link enviado por email.'));
+            } else {
+                // Copy al clipboard.
+                try {
+                    await navigator.clipboard.writeText(data.url);
+                    toast.success(__('Magic link copiado al portapapeles.'));
+                } catch {
+                    toast.info(__('Magic link generado.'), data.url);
+                }
+            }
+        },
+        onError: (err: unknown) => {
+            const msg = err instanceof ApiError || err instanceof Error ? err.message : __('No se pudo generar el magic link.');
+            toast.error(msg);
+        },
+    });
+
     // Out: no es lista de portal → no renderizamos nada.
     if (!portalCfg.enabled) {
         return null;
@@ -91,7 +131,7 @@ export function PortalAccessButton({ list, record }: Props): JSX.Element | null 
     const showSuccess = optimisticDone;
 
     return (
-        <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2 imcrm-text-sm">
+        <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2 imcrm-text-sm">
             {hasAccess || showSuccess ? (
                 <>
                     <Check className="imcrm-h-4 imcrm-w-4 imcrm-text-green-600" aria-hidden />
@@ -100,6 +140,45 @@ export function PortalAccessButton({ list, record }: Props): JSX.Element | null 
                     </span>
                     {feedback !== null && (
                         <span className="imcrm-text-xs imcrm-text-muted-foreground">— {feedback}</span>
+                    )}
+                    {portalPageUrl.data && (
+                        <div className="imcrm-ml-auto imcrm-flex imcrm-gap-1.5">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="imcrm-gap-1.5"
+                                onClick={() => magicLink.mutate(true)}
+                                disabled={magicLink.isPending}
+                                title={__('Genera un token one-time y se lo envía al cliente por email.')}
+                            >
+                                {magicLink.isPending && magicLink.variables === true ? (
+                                    <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />
+                                ) : (
+                                    <Mail className="imcrm-h-3.5 imcrm-w-3.5" />
+                                )}
+                                {__('Enviar magic link')}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="imcrm-gap-1.5"
+                                onClick={() => magicLink.mutate(false)}
+                                disabled={magicLink.isPending}
+                                title={__('Genera el link y lo copia al portapapeles, sin enviar email.')}
+                            >
+                                {magicLink.isPending && magicLink.variables === false ? (
+                                    <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />
+                                ) : (
+                                    <Copy className="imcrm-h-3.5 imcrm-w-3.5" />
+                                )}
+                                {__('Copiar link')}
+                            </Button>
+                        </div>
+                    )}
+                    {portalPageUrl.data === null && (
+                        <span className="imcrm-ml-auto imcrm-text-[11px] imcrm-text-warning">
+                            {__('Agregá el shortcode [imcrm-client-portal] a una página para habilitar magic links.')}
+                        </span>
                     )}
                 </>
             ) : (

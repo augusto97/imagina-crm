@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.42.4
+Stable tag: 0.42.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.5 =
+**Magic link UI en panel CRM (Fase 12 · iter 12.F).**
+
+Botones "Enviar magic link" y "Copiar link" en el
+PortalAccessButton cuando el cliente ya tiene acceso al portal.
+La URL de la página del portal se auto-detecta del shortcode
+publicado — el admin no tiene que configurar nada.
 
 = 0.42.4 =
 **UI de filtros en bundle público (Fase 12 · iter 12.E).**
