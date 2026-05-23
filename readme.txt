@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.42.3
+Stable tag: 0.42.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.4 =
+**UI de filtros en bundle público (Fase 12 · iter 12.E).**
+
+Cuando `viewer_filters` está habilitado, los visitantes de una
+lista pública pueden filtrar por campos discretos (select,
+multi_select, checkbox) desde dropdowns en el toolbar. Botón
+"Limpiar filtros" cuando hay al menos uno activo.
+
+Solo tipos discretos por ahora. Text/number/date llegarán en una
+iteración futura.
 
 = 0.42.3 =
 **Bloque comments_thread para portal del cliente (Fase 12 · iter 12.D).**

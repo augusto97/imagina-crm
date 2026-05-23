@@ -39,9 +39,16 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [page, setPage] = useState(1);
     const [sort, setSort] = useState<FetchParams['sort']>(parseDefaultSort(config.default_sort));
+    const [filters, setFilters] = useState<Record<string, string>>({});
     const [payload, setPayload] = useState<PublicInitialPayload>(initial);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Fields filtrables: solo discretos por ahora (select / multi_select /
+    // checkbox). Text/number requieren input + operator, scope futuro.
+    const filterableColumns = config.viewer_filters
+        ? columns.filter((c) => c.type === 'select' || c.type === 'multi_select' || c.type === 'checkbox')
+        : [];
 
     // ¿La page-1 sin search y con el sort default es el "initial"?
     // Si sí, evitamos re-fetch (ahorramos un round-trip al primer
@@ -57,19 +64,21 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
         return () => window.clearTimeout(t);
     }, [search]);
 
-    // Cuando cambia el search, volvemos a página 1.
+    // Cuando cambia el search/sort/filtro, volvemos a página 1.
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, sort]);
+    }, [debouncedSearch, sort, filters]);
 
     // Fetcher central — sin TanStack Query.
     useEffect(() => {
         const isInitial = isInitialRequest.current;
         isInitialRequest.current = false;
 
+        const hasActiveFilters = Object.values(filters).some((v) => v !== '');
         const isDefaultParams =
             page === 1 &&
             debouncedSearch === '' &&
+            ! hasActiveFilters &&
             sortsEqual(sort, parseDefaultSort(config.default_sort));
 
         if (isInitial && isDefaultParams) {
@@ -81,7 +90,7 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
         const ac = new AbortController();
         setLoading(true);
         setError(null);
-        fetchPage(config, { page, search: debouncedSearch, sort }, ac.signal)
+        fetchPage(config, { page, search: debouncedSearch, sort, filters }, ac.signal)
             .then(({ payload: next }) => {
                 setPayload(next);
                 setLoading(false);
@@ -98,7 +107,7 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
                 setLoading(false);
             });
         return () => ac.abort();
-    }, [config, page, debouncedSearch, sort]);
+    }, [config, page, debouncedSearch, sort, filters]);
 
     const toggleSort = useCallback(
         (slug: string) => {
@@ -123,7 +132,7 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
                 <p className="imcrm-public-list__description">{config.description}</p>
             ) : null}
 
-            {(config.search_enabled || config.sort_allowed_slugs.length > 0) && (
+            {(config.search_enabled || config.sort_allowed_slugs.length > 0 || filterableColumns.length > 0) && (
                 <div className="imcrm-public-list__toolbar">
                     {config.search_enabled ? (
                         <input
@@ -135,6 +144,24 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
                             aria-label="Buscar en la lista"
                         />
                     ) : null}
+                    {filterableColumns.map((col) => (
+                        <FilterDropdown
+                            key={col.slug}
+                            column={col}
+                            value={filters[col.slug] ?? ''}
+                            onChange={(v) => setFilters((prev) => ({ ...prev, [col.slug]: v }))}
+                        />
+                    ))}
+                    {Object.values(filters).some((v) => v !== '') && (
+                        <button
+                            type="button"
+                            className="imcrm-public-list__clear-filters"
+                            onClick={() => setFilters({})}
+                            aria-label="Limpiar filtros"
+                        >
+                            Limpiar filtros
+                        </button>
+                    )}
                     {loading ? <span className="imcrm-public-list__loading">Cargando…</span> : null}
                 </div>
             )}
@@ -194,6 +221,53 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
                 <Footer meta={payload.meta} />
             )}
         </>
+    );
+}
+
+function FilterDropdown({
+    column,
+    value,
+    onChange,
+}: {
+    column: PublicFieldMeta;
+    value: string;
+    onChange: (next: string) => void;
+}): JSX.Element {
+    // Para checkbox damos un toggle 3-estados (vacío/sí/no).
+    if (column.type === 'checkbox') {
+        return (
+            <select
+                className="imcrm-public-list__filter"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                aria-label={`Filtrar por ${column.label}`}
+            >
+                <option value="">{column.label}: todos</option>
+                <option value="1">{column.label}: sí</option>
+                <option value="0">{column.label}: no</option>
+            </select>
+        );
+    }
+
+    const options = column.config?.options ?? [];
+    if (options.length === 0) {
+        return <></>;
+    }
+
+    return (
+        <select
+            className="imcrm-public-list__filter"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label={`Filtrar por ${column.label}`}
+        >
+            <option value="">{column.label}: todos</option>
+            {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                    {opt.label ?? opt.value}
+                </option>
+            ))}
+        </select>
     );
 }
 

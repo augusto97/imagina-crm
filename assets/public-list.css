@@ -134,13 +134,14 @@
 .imcrm-public-list__toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
 }
 
 .imcrm-public-list__search {
     flex: 1;
+    min-width: 200px;
     max-width: 320px;
     height: 2.25rem;
     padding: 0.4rem 0.75rem;
@@ -155,6 +156,39 @@
     outline: 2px solid var(--imcrm-public-primary);
     outline-offset: -1px;
     border-color: var(--imcrm-public-primary);
+}
+
+/* Filter dropdowns (Fase 12.E) */
+.imcrm-public-list__filter {
+    height: 2.25rem;
+    padding: 0.4rem 1.75rem 0.4rem 0.75rem;
+    border: 1px solid var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
+    background: var(--imcrm-public-bg);
+    color: var(--imcrm-public-text);
+    font: inherit;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+.imcrm-public-list__filter:focus {
+    outline: 2px solid var(--imcrm-public-primary);
+    outline-offset: -1px;
+    border-color: var(--imcrm-public-primary);
+}
+.imcrm-public-list__clear-filters {
+    height: 2.25rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px dashed var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
+    background: transparent;
+    color: var(--imcrm-public-muted);
+    font: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+.imcrm-public-list__clear-filters:hover {
+    color: var(--imcrm-public-text);
+    border-color: var(--imcrm-public-text);
 }
 
 .imcrm-public-list__loading {

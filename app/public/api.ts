@@ -60,5 +60,16 @@ function buildUrl(config: PublicListConfig, params: FetchParams): string {
     if (params.sort !== null) {
         q.set('sort', `${params.sort.slug}:${params.sort.dir}`);
     }
+    // filter[slug][op]=value — el backend acepta `eq` por default si
+    // se pasa el value directo. Para arrays (multi_select), usamos `in`.
+    // Fase 12.E.
+    for (const [slug, value] of Object.entries(params.filters)) {
+        if (value === '' || value == null) continue;
+        if (value.includes(',')) {
+            q.append(`filter[${slug}][in]`, value);
+        } else {
+            q.append(`filter[${slug}][eq]`, value);
+        }
+    }
     return `${base}/public/lists/${encodeURIComponent(config.slug)}/records?${q.toString()}`;
 }

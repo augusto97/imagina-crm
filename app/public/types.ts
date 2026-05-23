@@ -10,6 +10,13 @@ export interface PublicFieldMeta {
     slug: string;
     label: string;
     type: string;
+    /** Config del field — el bundle JS la usa para armar dropdowns de
+     * filtro con las options correctas. Opcional para backward-compat
+     * con shortcodes antiguos. (Fase 12.E) */
+    config?: {
+        options?: Array<{ value: string; label?: string; color?: string }>;
+        [k: string]: unknown;
+    };
 }
 
 /** Lo que el shortcode mete en `data-imcrm-config`. */
@@ -51,4 +58,8 @@ export interface FetchParams {
     page: number;
     search: string;
     sort: { slug: string; dir: 'asc' | 'desc' } | null;
+    /** Filtros activos: map `slug -> string value`. Operador implícito
+     * `eq` para select / checkbox; `in` para multi_select cuando el
+     * value se splitea por `,`. (Fase 12.E) */
+    filters: Record<string, string>;
 }

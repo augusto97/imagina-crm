@@ -4,6 +4,46 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.4] — 2026-05-23
+
+**UI de filtros en bundle público de listas**
+(Fase 12 · Iteración 12.E).
+
+El visitante anónimo de una lista pública ahora puede filtrar la
+tabla por campos discretos (select / multi_select / checkbox). Si
+`viewer_filters` está habilitado en la lista pública, dropdowns
+aparecen en el toolbar junto al search.
+
+### Añadido
+
+- Backend (`PublicLists/Shortcode.php`): el `config` de cada
+  field se incluye en las columnas serializadas
+  (`data-imcrm-config`). Permite al bundle JS armar dropdowns con
+  options correctas sin exponer datos sensibles.
+- Frontend:
+  - `PublicFieldMeta.config?` opcional con `options?: [...]`.
+  - `FetchParams.filters: Record<slug, string>` — payload de
+    filtros activos.
+  - `api.ts#buildUrl` serializa `filter[slug][eq]=value`. Para
+    valores con `,` usa `filter[slug][in]=v1,v2`.
+  - `FilterDropdown` component: select nativo con la lista de
+    options del field. Para `checkbox` el toggle es 3-estados
+    (todos/sí/no).
+  - Botón "Limpiar filtros" aparece cuando hay al menos uno activo.
+- CSS (`public-list.css`): estilos `.imcrm-public-list__filter`
+  y `.imcrm-public-list__clear-filters`. Toolbar pasó a
+  `flex-wrap` para acomodar varios dropdowns.
+
+### Detalles
+
+- Solo tipos discretos por ahora (select / multi_select /
+  checkbox). Text/number/date requieren input + operator,
+  scope futuro.
+- Cambio de filtro vuelve a página 1 (igual que search y sort).
+- Backend ya soportaba `?filter[slug][op]=value` con whitelist
+  por `visible_field_slugs` desde Fase 8 — esta iteración solo
+  expone la UI.
+
 ## [0.42.3] — 2026-05-23
 
 **Bloque `comments_thread` para portal del cliente**
