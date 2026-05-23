@@ -4,6 +4,51 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.6] — 2026-05-23
+
+**Polish + cierre de Fase 11**
+(Fase 11 · Iteración 11.G · **CIERRE DE FASE 11**).
+
+Pequeños retoques de UX, atajos globales del editor y mejor empty
+state. Con este release la Fase 11 (Editor de plantilla CRM v3)
+queda cerrada.
+
+### Añadido
+
+- **Cmd/Ctrl + S** desde cualquier punto del editor (incluyendo
+  inputs) → Guardar plantilla. Previene el "guardar página" del
+  browser.
+- **Cmd/Ctrl + P** → toggle Editor / Preview. Cuando entra a
+  Preview limpia la selección. Solo activo fuera de inputs para
+  no interferir con tipeo.
+- **Cheat-sheet de atajos** en el panel "Ajustes de la plantilla"
+  (inspector cuando no hay bloque seleccionado): lista todos los
+  atajos del editor con `<kbd>` styled.
+- **Empty state** del canvas mejorado: icono `LayoutGrid` en
+  círculo + mensaje contextual diferente para Editor vs Preview.
+- `title` con `(⌘S)` en el botón Guardar.
+
+### Resumen Fase 11 — Editor de plantilla CRM v3
+
+```
+0.41.0  · 11.A · Layout 3 columnas (paleta + canvas + inspector)
+0.41.1  · 11.B · Drag-from-palette + tab Campos
+0.41.2  · 11.C · Drop-on-block + grid guides + toggle Preview
+0.41.3  · 11.D · Multi-select + duplicar + atajos por-bloque
+0.41.4  · 11.E · Preview con record real
+0.41.5  · 11.F · divider + heading + comments_thread
+0.41.6  · 11.G · Polish + atajos globales + cierre  ← acá
+```
+
+El contrato persistido (`CustomTemplateConfigV2`) NO cambió en
+toda la Fase 11. Las plantillas guardadas en 0.40.x abren en
+0.41.6 sin migración. Lo único que se agregaron son 3 tipos de
+bloque nuevos a la unión `V2BlockType` — backward-compatible.
+
+Bundle del editor: 38KB (gzip 9KB) en 11.A → 62KB (gzip 14.5KB)
+en 11.G. +24KB de funcionalidad: paleta visual, drag&drop,
+multi-select, preview con record real, 3 bloques nuevos, atajos.
+
 ## [0.41.5] — 2026-05-23
 
 **3 bloques nuevos: divider, heading, comments_thread**

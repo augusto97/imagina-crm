@@ -133,8 +133,31 @@ export function TemplateSettingsPanel({
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </section>
+
+                <section className="imcrm-mt-6 imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-5">
+                    <h4 className="imcrm-text-xs imcrm-font-semibold">{__('Atajos de teclado')}</h4>
+                    <ul className="imcrm-space-y-1 imcrm-text-[11px] imcrm-text-muted-foreground">
+                        <ShortcutRow label={__('Guardar plantilla')} keys="⌘S" />
+                        <ShortcutRow label={__('Toggle Editor / Preview')} keys="⌘P" />
+                        <ShortcutRow label={__('Sumar a la selección')} keys="⇧ click" />
+                        <ShortcutRow label={__('Duplicar seleccionados')} keys="⌘D" />
+                        <ShortcutRow label={__('Eliminar seleccionados')} keys="⌫" />
+                        <ShortcutRow label={__('Deseleccionar')} keys="Esc" />
+                    </ul>
+                </section>
             </div>
         </div>
+    );
+}
+
+function ShortcutRow({ label, keys }: { label: string; keys: string }): JSX.Element {
+    return (
+        <li className="imcrm-flex imcrm-items-center imcrm-justify-between">
+            <span>{label}</span>
+            <kbd className="imcrm-rounded imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-mono">
+                {keys}
+            </kbd>
+        </li>
     );
 }
 

@@ -70,12 +70,12 @@ export function TemplateEditorPage(): JSX.Element {
     const sample = useRecords(list.data?.id, { per_page: 1, page: 1 });
     const sampleRecord: RecordEntity | null = sample.data?.data[0] ?? null;
 
-    // Atajos de teclado del editor (11.D). Activos cuando hay
-    // bloques seleccionados y no estamos en preview ni dentro de
-    // un input/textarea editable (para no interferir con el inspector).
+    // Atajos de teclado globales del editor. Cmd+S / Cmd+P están
+    // activos siempre (incluso desde inputs) porque overridean
+    // shortcuts del browser. Los atajos por-bloque (D, Backspace,
+    // Esc) solo si el foco NO está en un input editable y hay
+    // selección.
     useEffect(() => {
-        if (preview || selectedBlockIds.length === 0) return;
-
         const isEditableTarget = (target: EventTarget | null): boolean => {
             if (! (target instanceof HTMLElement)) return false;
             const tag = target.tagName;
@@ -83,8 +83,29 @@ export function TemplateEditorPage(): JSX.Element {
         };
 
         const onKeyDown = (e: KeyboardEvent): void => {
-            if (isEditableTarget(e.target)) return;
             const mod = e.metaKey || e.ctrlKey;
+
+            // Guardar: Cmd/Ctrl + S (siempre activo).
+            if (mod && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                void handleSave();
+                return;
+            }
+            // Toggle Preview: Cmd/Ctrl + P (no en inputs porque
+            // sino el user no puede tipear "p" en el inspector).
+            if (mod && e.key.toLowerCase() === 'p' && ! isEditableTarget(e.target)) {
+                e.preventDefault();
+                setPreview((v) => {
+                    if (! v) setSelectedBlockIds([]);
+                    return ! v;
+                });
+                return;
+            }
+
+            // Atajos por-bloque (requieren selección + no en input).
+            if (preview || selectedBlockIds.length === 0 || isEditableTarget(e.target)) {
+                return;
+            }
 
             // Duplicar: Cmd/Ctrl + D
             if (mod && e.key.toLowerCase() === 'd') {
@@ -98,7 +119,7 @@ export function TemplateEditorPage(): JSX.Element {
                 if (selectedBlockIds.length > 1) {
                     void confirm({
                         title: __('Eliminar bloques'),
-                        description: __('Se eliminarán %d bloques. La acción es reversible deshaciendo el cambio en el inspector.').replace('%d', String(selectedBlockIds.length)),
+                        description: __('Se eliminarán %d bloques.').replace('%d', String(selectedBlockIds.length)),
                         destructive: true,
                         confirmLabel: __('Eliminar'),
                     }).then((ok) => {
@@ -389,6 +410,7 @@ export function TemplateEditorPage(): JSX.Element {
                         className="imcrm-gap-2"
                         onClick={() => void handleSave()}
                         disabled={update.isPending}
+                        title={__('Guardar (⌘S)')}
                     >
                         {update.isPending ? (
                             <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />

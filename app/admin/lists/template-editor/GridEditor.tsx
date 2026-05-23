@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
+import { LayoutGrid } from 'lucide-react';
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -213,11 +214,14 @@ export function GridEditor({
             </SizedGrid>
 
             {isEmpty && (
-                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-3 imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-px-6 imcrm-text-center">
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-3 imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-md imcrm-px-6 imcrm-text-center">
+                    <div className="imcrm-flex imcrm-h-12 imcrm-w-12 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted/50 imcrm-text-muted-foreground">
+                        <LayoutGrid className="imcrm-h-5 imcrm-w-5" aria-hidden />
+                    </div>
                     <p className="imcrm-max-w-sm imcrm-text-sm imcrm-text-muted-foreground">
                         {preview
                             ? __('Sin bloques — la plantilla está vacía.')
-                            : __('Canvas vacío. Arrastrá un bloque desde la paleta de la izquierda o usá "Restaurar desde plantilla" en el panel derecho.')}
+                            : __('Canvas vacío. Arrastrá un bloque desde la paleta de la izquierda o restaurá una plantilla built-in desde el panel derecho.')}
                     </p>
                 </div>
             )}

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.5
+Stable tag: 0.41.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,21 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.6 =
+**Polish + cierre de Fase 11 (Fase 11 · iter 11.G · CIERRE DE FASE).**
+
+Pequeños retoques al editor de plantilla CRM:
+
+- Cmd/Ctrl + S → Guardar plantilla (desde cualquier punto).
+- Cmd/Ctrl + P → Toggle Editor / Preview.
+- Cheat-sheet de atajos en el panel "Ajustes de la plantilla".
+- Empty state del canvas con icono y mensaje contextual.
+
+Con este release la Fase 11 (Editor de plantilla CRM v3 — layout
+3 columnas + DnD + multi-select + preview con record real + 3
+bloques nuevos) queda cerrada. Contrato persistido sin cambios
+desde 0.40.x.
 
 = 0.41.5 =
 **3 bloques nuevos en el editor de plantilla CRM (Fase 11 · iter 11.F).**
