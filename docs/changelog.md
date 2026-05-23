@@ -4,6 +4,46 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.1] — 2026-05-23
+
+**Cards: editor de config + cover image resoluble**
+(Fase 12 · Iteración 12.B).
+
+Termina la experiencia de Cards: al crear una vista de tipo
+`cards` el dialog ahora muestra el editor visual de su config y
+las imágenes de portada se resuelven correctamente desde
+attachment IDs.
+
+### Añadido
+
+- `hooks/useAttachments.ts`: hook reutilizable que batchea IDs de
+  attachments en un único request a `/wp-json/wp/v2/media?include=...`
+  y devuelve un `Map<id, { url, thumbUrl, title, mimeType }>`.
+  Cacheado con TanStack Query (5 min stale time).
+- Editor de config de Cards en `SaveViewDialog`:
+  - Multi-select con checkboxes para `card_field_ids` (cualquier
+    field excepto `relation`).
+  - Single-select para `card_cover_field_id` (solo `file` fields;
+    se desactiva si no hay ninguno).
+  - Segmented control Compacta / Normal / Espaciada para `card_size`.
+
+### Cambiado
+
+- `CardsView` ahora usa `useAttachments` para resolver los IDs de
+  cover de todos los records visibles en un solo fetch. Antes
+  esperaba que el backend devolviera URL string o `{url}` directo
+  (que no era el caso — el backend devuelve attachment ID).
+- Card component recibe `coverUrl: string | null` directo en
+  lugar de `coverField` + record. Cleaner separation.
+
+### Detalles
+
+- `useAttachments` dedup + sort de IDs para `queryKey` estable.
+- Pide solo `_fields=id,source_url,mime_type,title,media_details`
+  para minimizar payload.
+- Prefiere `media_details.sizes.medium` para el thumb, fallback
+  a `thumbnail`, fallback a `source_url`.
+
 ## [0.42.0] — 2026-05-23
 
 **Vista Cards — schema + componente base**

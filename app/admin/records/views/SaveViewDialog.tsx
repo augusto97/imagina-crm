@@ -40,6 +40,9 @@ export function SaveViewDialog({
     const [type, setType] = useState<SavedViewType>('table');
     const [groupByFieldId, setGroupByFieldId] = useState<number>(0);
     const [dateFieldId, setDateFieldId] = useState<number>(0);
+    const [cardFieldIds, setCardFieldIds] = useState<number[]>([]);
+    const [cardCoverFieldId, setCardCoverFieldId] = useState<number>(0);
+    const [cardSize, setCardSize] = useState<'compact' | 'comfortable' | 'spacious'>('comfortable');
     const [error, setError] = useState<string | null>(null);
 
     const selectFields = useMemo(
@@ -50,6 +53,15 @@ export function SaveViewDialog({
         () => (fields.data ?? []).filter((f) => f.type === 'date' || f.type === 'datetime'),
         [fields.data],
     );
+    const fileFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type === 'file'),
+        [fields.data],
+    );
+    // Cards: cualquier field excepto relation/file (lo cover es aparte).
+    const cardCandidateFields = useMemo(
+        () => (fields.data ?? []).filter((f) => f.type !== 'relation'),
+        [fields.data],
+    );
 
     useEffect(() => {
         if (!open) {
@@ -58,6 +70,9 @@ export function SaveViewDialog({
             setType('table');
             setGroupByFieldId(0);
             setDateFieldId(0);
+            setCardFieldIds([]);
+            setCardCoverFieldId(0);
+            setCardSize('comfortable');
             setError(null);
             create.reset();
         }
@@ -84,7 +99,13 @@ export function SaveViewDialog({
                 ? { group_by_field_id: groupByFieldId }
                 : type === 'calendar'
                   ? { date_field_id: dateFieldId }
-                  : config;
+                  : type === 'cards'
+                    ? {
+                        card_field_ids: cardFieldIds,
+                        ...(cardCoverFieldId > 0 ? { card_cover_field_id: cardCoverFieldId } : {}),
+                        card_size: cardSize,
+                    }
+                    : config;
 
         try {
             const view = await create.mutateAsync({
@@ -205,6 +226,96 @@ export function SaveViewDialog({
                                     {__('Cada registro aparecerá en el día de este campo.')}
                                 </p>
                             </div>
+                        )}
+
+                        {type === 'cards' && (
+                            <>
+                                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                    <Label>{__('Campos en la tarjeta')}</Label>
+                                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                        {__('Aparecen debajo del título. El título es siempre el campo primario.')}
+                                    </p>
+                                    <div className="imcrm-flex imcrm-max-h-[160px] imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-p-2">
+                                        {cardCandidateFields.length === 0 ? (
+                                            <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                                {__('Sin campos disponibles.')}
+                                            </p>
+                                        ) : (
+                                            cardCandidateFields.map((f) => (
+                                                <label
+                                                    key={f.id}
+                                                    className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={cardFieldIds.includes(f.id)}
+                                                        onChange={(e) => {
+                                                            setCardFieldIds((prev) =>
+                                                                e.target.checked
+                                                                    ? [...prev, f.id]
+                                                                    : prev.filter((id) => id !== f.id),
+                                                            );
+                                                        }}
+                                                    />
+                                                    <span className="imcrm-truncate">
+                                                        {f.label}
+                                                        <span className="imcrm-ml-1 imcrm-text-muted-foreground">
+                                                            ({f.type})
+                                                        </span>
+                                                    </span>
+                                                </label>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                    <Label htmlFor="view-cover">{__('Imagen de portada (opcional)')}</Label>
+                                    <Select
+                                        id="view-cover"
+                                        value={cardCoverFieldId}
+                                        onChange={(e) => setCardCoverFieldId(Number(e.target.value))}
+                                        disabled={fileFields.length === 0}
+                                    >
+                                        <option value={0}>{__('— Sin portada (avatar colorizado) —')}</option>
+                                        {fileFields.map((f) => (
+                                            <option key={f.id} value={f.id}>
+                                                {f.label}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                    {fileFields.length === 0 && (
+                                        <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                            {__('Necesitás un campo tipo Archivo para usar portada.')}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                                    <Label>{__('Densidad del grid')}</Label>
+                                    <div className="imcrm-flex imcrm-gap-1 imcrm-rounded-md imcrm-bg-muted imcrm-p-0.5">
+                                        {(['compact', 'comfortable', 'spacious'] as const).map((s) => (
+                                            <button
+                                                key={s}
+                                                type="button"
+                                                onClick={() => setCardSize(s)}
+                                                className={cn(
+                                                    'imcrm-flex-1 imcrm-rounded imcrm-px-2 imcrm-py-1 imcrm-text-xs imcrm-font-medium imcrm-transition-colors',
+                                                    cardSize === s
+                                                        ? 'imcrm-bg-card imcrm-text-foreground imcrm-shadow-imcrm-sm'
+                                                        : 'imcrm-text-muted-foreground hover:imcrm-text-foreground',
+                                                )}
+                                            >
+                                                {s === 'compact'
+                                                    ? __('Compacta')
+                                                    : s === 'comfortable'
+                                                      ? __('Normal')
+                                                      : __('Espaciada')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
                         )}
 
                         <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">

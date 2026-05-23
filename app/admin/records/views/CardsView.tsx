@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { renderCellValue } from '@/admin/records/renderCellValue';
+import { useAttachments } from '@/hooks/useAttachments';
 import { colorFromString, pickPrimaryField } from '@/lib/recordCategorize';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,18 @@ export function CardsView({
 }: CardsViewProps): JSX.Element {
     const primary = useMemo(() => pickPrimaryField(fields), [fields]);
 
+    // Resolución batch de attachment IDs → URLs. Cuando coverField
+    // está set, recolectamos todos los IDs de cover de los records
+    // visibles en un solo fetch a /wp/v2/media?include=...
+    const coverIds = useMemo(() => {
+        if (! coverField) return [];
+        return records
+            .map((r) => normalizeAttachmentId(r.fields[coverField.slug]))
+            .filter((id): id is number => id !== null && id > 0);
+    }, [records, coverField]);
+
+    const attachments = useAttachments(coverIds);
+
     if (records.length === 0) {
         return (
             <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-6 imcrm-py-12 imcrm-text-center">
@@ -65,36 +78,52 @@ export function CardsView({
 
     return (
         <div className={cn('imcrm-grid imcrm-gap-3', SIZE_CLASSES[size])}>
-            {records.map((rec) => (
-                <Card
-                    key={rec.id}
-                    record={rec}
-                    primaryField={primary}
-                    extraFields={extraFields}
-                    coverField={coverField}
-                    onClick={() => onCardClick(rec)}
-                />
-            ))}
+            {records.map((rec) => {
+                const coverId = coverField ? normalizeAttachmentId(rec.fields[coverField.slug]) : null;
+                const cover = coverId !== null ? attachments.data?.get(coverId) ?? null : null;
+                return (
+                    <Card
+                        key={rec.id}
+                        record={rec}
+                        primaryField={primary}
+                        extraFields={extraFields}
+                        coverUrl={cover?.thumbUrl ?? cover?.url ?? null}
+                        onClick={() => onCardClick(rec)}
+                    />
+                );
+            })}
         </div>
     );
+}
+
+function normalizeAttachmentId(value: unknown): number | null {
+    if (value == null || value === '' || value === 0) return null;
+    if (typeof value === 'number') return value > 0 ? value : null;
+    if (typeof value === 'string') {
+        const n = parseInt(value, 10);
+        return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    if (Array.isArray(value) && value.length > 0) {
+        return normalizeAttachmentId(value[0]);
+    }
+    return null;
 }
 
 function Card({
     record,
     primaryField,
     extraFields,
-    coverField,
+    coverUrl,
     onClick,
 }: {
     record: RecordEntity;
     primaryField: FieldEntity | null;
     extraFields: FieldEntity[];
-    coverField: FieldEntity | null;
+    coverUrl: string | null;
     onClick: () => void;
 }): JSX.Element {
     const title = primaryField ? String(record.fields[primaryField.slug] ?? '') : '';
     const displayTitle = title || `#${record.id}`;
-    const coverUrl = coverField ? extractCoverUrl(record, coverField) : null;
     const avatarBg = colorFromString(displayTitle);
     const initials = makeInitials(displayTitle);
 
@@ -153,19 +182,4 @@ function makeInitials(title: string): string {
     const words = title.trim().split(/\s+/).slice(0, 2);
     if (words.length === 0) return '?';
     return words.map((w) => w.charAt(0).toUpperCase()).join('');
-}
-
-function extractCoverUrl(record: RecordEntity, coverField: FieldEntity): string | null {
-    const raw = record.fields[coverField.slug];
-    if (! raw) return null;
-    // El backend devuelve el attachment ID. Para el preview directo necesitaríamos
-    // resolver a URL — en 12.A asumimos que ya viene como string URL o como
-    // objeto con .url. Si no se puede resolver, retornamos null y la card
-    // muestra el avatar.
-    if (typeof raw === 'string' && raw.startsWith('http')) return raw;
-    if (typeof raw === 'object' && raw !== null && 'url' in raw) {
-        const url = (raw as { url: unknown }).url;
-        return typeof url === 'string' ? url : null;
-    }
-    return null;
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.42.0
+Stable tag: 0.42.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,19 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.1 =
+**Cards: editor de config + cover image resoluble (Fase 12 · iter 12.B).**
+
+- Editor visual de config al crear una vista Cards: multi-select
+  de campos a mostrar, selector de field tipo Archivo para
+  portada, y radio de densidad (Compacta/Normal/Espaciada).
+- Hook useAttachments que batchea IDs en un único request a
+  /wp-json/wp/v2/media — eficiente para grids con muchas
+  imágenes.
+- CardsView ahora resuelve correctamente los attachment IDs a
+  URLs (antes solo funcionaba si el backend devolvía URL string,
+  que no era el caso).
 
 = 0.42.0 =
 **Vista Cards — schema + componente base (Fase 12 · iter 12.A).**
