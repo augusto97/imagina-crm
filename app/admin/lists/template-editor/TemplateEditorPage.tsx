@@ -23,6 +23,7 @@ import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
+import { EditorCommandPalette } from './EditorCommandPalette';
 import { GridEditor } from './GridEditor';
 import { RecordSelector } from './RecordSelector';
 import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
@@ -63,6 +64,7 @@ export function TemplateEditorPage(): JSX.Element {
     const [initialized, setInitialized] = useState(false);
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
     const [preview, setPreview] = useState(false);
+    const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     // Record real elegido como dato de preview. Si null, usa el mock
     // generado desde el schema (mockSample, ver abajo).
     const [previewRecord, setPreviewRecord] = useState<RecordEntity | null>(null);
@@ -84,6 +86,13 @@ export function TemplateEditorPage(): JSX.Element {
 
         const onKeyDown = (e: KeyboardEvent): void => {
             const mod = e.metaKey || e.ctrlKey;
+
+            // Command palette: Cmd/Ctrl + K (siempre activo).
+            if (mod && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setCommandPaletteOpen((v) => ! v);
+                return;
+            }
 
             // Guardar: Cmd/Ctrl + S (siempre activo).
             if (mod && e.key.toLowerCase() === 's') {
@@ -498,6 +507,32 @@ export function TemplateEditorPage(): JSX.Element {
                     </aside>
                 )}
             </div>
+
+            <EditorCommandPalette
+                open={commandPaletteOpen}
+                onOpenChange={setCommandPaletteOpen}
+                config={config}
+                selectedBlockIds={selectedBlockIds}
+                preview={preview}
+                onAddBlock={(type) => handleAddBlock(type)}
+                onSelectBlock={(id) => handleSelectBlock(id)}
+                onDeleteSelected={() => {
+                    if (selectedBlockIds.length === 0) return;
+                    handleDeleteBlocks(selectedBlockIds);
+                }}
+                onDuplicateSelected={() => {
+                    if (selectedBlockIds.length === 0) return;
+                    handleDuplicateBlocks(selectedBlockIds);
+                }}
+                onTogglePreview={() => {
+                    setPreview((v) => {
+                        if (! v) setSelectedBlockIds([]);
+                        return ! v;
+                    });
+                }}
+                onSave={() => void handleSave()}
+                onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
+            />
         </div>
     );
 }

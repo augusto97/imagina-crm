@@ -4,6 +4,42 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.44.0] — 2026-05-23
+
+**Command palette del editor (Cmd+K)**
+(Fase 14 · Iteración 14.A).
+
+Arranque de **Fase 14 — Polish del editor CRM**. Suma un command
+palette estilo Linear/Raycast accesible con Cmd/Ctrl+K que
+centraliza todas las acciones del editor.
+
+### Añadido
+
+- `EditorCommandPalette.tsx`: Dialog modal con input de búsqueda
+  + lista filtrable + navegación por teclado (↑↓ + Enter, Esc
+  cierra). Filter fuzzy simple por label + description + keywords.
+- Comandos disponibles, agrupados:
+  - **Editor**: Guardar, Cambiar a preview / editor (con su
+    keybinding visible).
+  - **Selección** (solo si hay bloques seleccionados): Duplicar
+    todos, Eliminar todos.
+  - **Bloques del canvas**: lista todos los bloques actuales —
+    seleccionar uno equivale a click en el canvas.
+  - **Agregar bloque**: las 14 entradas de tipos de bloque (mismas
+    que la paleta lateral, pero sin scroll). Singletons en uso
+    se deshabilitan.
+  - **Restaurar plantilla**: lista todos los `CRM_TEMPLATES`
+    built-in.
+- Cmd/Ctrl+K toggle abre/cierra el palette desde cualquier punto
+  del editor.
+- Footer del palette con cheat-sheet `↑↓ navegar / ⏎ ejecutar /
+  Esc cerrar`.
+
+### Bundle
+
+- TemplateEditorPage: 62 KB → 69.5 KB (gzip 14.6 → 16.4). +1.8 KB
+  gzip por el component.
+
 ## [0.43.5] — 2026-05-23
 
 **Cierre de Fase 13 — Quality Pass**
