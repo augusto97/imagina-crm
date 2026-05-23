@@ -4,6 +4,57 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.45.3] — 2026-05-23
+
+**Cierre de Fase 15 — Features nuevas cherry-picked**
+(Fase 15 · Iteración 15.D · **CIERRE DE FASE 15**).
+
+### Resumen Fase 15
+
+```
+0.45.0  · 15.A · Command palette global Cmd+K en admin shell
+0.45.1  · 15.B · Bulk export con selección de fields + BOM
+0.45.2  · 15.C · Webhooks manager en Ajustes
+0.45.3  · 15.D · Cierre  ← acá
+```
+
+---
+
+## Cierre del trabajo del PR completo (Fases 12-15)
+
+Con la Fase 15 cerrada terminan **4 fases de trabajo** en este
+branch (`claude/session-handoff-docs-qK1LW`):
+
+```
+Fase 12 — Cards view + portal mejorado          0.42.0 - 0.42.6  (7 commits)
+Fase 13 — Quality Pass                          0.43.0 - 0.43.5  (6 commits)
+Fase 14 — Polish del editor CRM                 0.44.0 - 0.44.4  (5 commits)
+Fase 15 — Features nuevas (Cmd+K, export, webhooks)
+                                                0.45.0 - 0.45.3  (4 commits)
+```
+
+### Estado de salud al cierre
+
+| Tool | Estado |
+|---|---|
+| **Vitest** | 38 tests, 0 errors |
+| **PHPUnit** | 530 tests, 0 errors |
+| **PHPStan** | 0 errors |
+| **PHPCS** | runs, 379 violations cosméticas |
+| **TypeScript** | strict, sin errors |
+| **Build** | OK |
+
+### Items pendientes del backlog (opcionales)
+
+- **XLSX export nativo** (requiere PhpSpreadsheet ~5MB).
+- **PHPStan 2.x upgrade**.
+- **Tests integration con WP real**.
+- **Auditoría de 379 PHPCS violations** (mayoría false positives
+  de PreparedSQL).
+- **Fase 7 del roadmap original — Facturación propia**: requiere
+  planning extenso aparte (CLAUDE.md lo marca como "fase futura,
+  doc separado").
+
 ## [0.45.2] — 2026-05-23
 
 **Webhooks manager en Ajustes**

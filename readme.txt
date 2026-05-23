@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.45.2
+Stable tag: 0.45.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,21 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.45.3 =
+**Cierre de Fase 15 — Features nuevas cherry-picked.**
+
+Resumen Fase 15:
+- 15.A · Global command palette Cmd+K en admin shell.
+- 15.B · Bulk export con selección de fields + BOM + delimiter.
+- 15.C · Webhooks manager en Ajustes (cross-list, reusa
+  motor de Automations).
+- 15.D · Cierre.
+
+Con esto se cierran las 4 fases del PR (12-15): Cards view +
+portal mejorado, Quality Pass, Polish editor CRM, Features
+nuevas. 22 commits totales, branch
+claude/session-handoff-docs-qK1LW.
 
 = 0.45.2 =
 **Webhooks manager en Ajustes (Fase 15 · iter 15.C).**
