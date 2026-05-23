@@ -1,4 +1,4 @@
-export type SavedViewType = 'table' | 'kanban' | 'calendar';
+export type SavedViewType = 'table' | 'kanban' | 'calendar' | 'cards';
 
 export interface SavedViewConfig {
     visible_fields?: number[];
@@ -56,6 +56,27 @@ export interface SavedViewConfig {
     group_by_field_id?: number;
     /** Sólo para vistas tipo `calendar`: id del campo `date`/`datetime` que ubica cada record. */
     date_field_id?: number;
+    /**
+     * Sólo para vistas tipo `cards`: ids de los fields que se
+     * muestran en cada tarjeta debajo del título. Vacío = solo
+     * primary field. Orden = orden visual dentro de la tarjeta.
+     * (Fase 12.A+)
+     */
+    card_field_ids?: number[];
+    /**
+     * Sólo para vistas tipo `cards`: id del field `file` que se usa
+     * como imagen de portada de la tarjeta. Si no se setea, la
+     * tarjeta usa un avatar colorizado generado desde el título.
+     * (Fase 12.A+)
+     */
+    card_cover_field_id?: number;
+    /**
+     * Sólo para vistas tipo `cards`: tamaño de cada tarjeta del grid.
+     * `compact` = más densas (3-4 col), `comfortable` = default
+     * (2-3 col), `spacious` = grandes (1-2 col).
+     * (Fase 12.A+)
+     */
+    card_size?: 'compact' | 'comfortable' | 'spacious';
 }
 
 export interface SavedViewEntity {

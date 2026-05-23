@@ -1,4 +1,4 @@
-import { Calendar, Columns3, MoreHorizontal, Plus, Save, Star, Table, Undo2 } from 'lucide-react';
+import { Calendar, Columns3, LayoutGrid, MoreHorizontal, Plus, Save, Star, Table, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -105,6 +105,8 @@ export function ViewsTabs({
                                 <Columns3 className="imcrm-h-3 imcrm-w-3" />
                             ) : view.type === 'calendar' ? (
                                 <Calendar className="imcrm-h-3 imcrm-w-3" />
+                            ) : view.type === 'cards' ? (
+                                <LayoutGrid className="imcrm-h-3 imcrm-w-3" />
                             ) : (
                                 <Table className="imcrm-h-3 imcrm-w-3" />
                             )

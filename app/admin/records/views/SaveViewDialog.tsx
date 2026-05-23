@@ -163,6 +163,7 @@ export function SaveViewDialog({
                                         ? __('Calendar (necesitas al menos un campo Date o DateTime)')
                                         : __('Calendar')}
                                 </option>
+                                <option value="cards">{__('Cards (grid de tarjetas)')}</option>
                             </Select>
                         </div>
 

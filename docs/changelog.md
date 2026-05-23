@@ -4,6 +4,45 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.0] — 2026-05-23
+
+**Vista Cards — schema + componente base**
+(Fase 12 · Iteración 12.A).
+
+Suma `cards` como cuarto `SavedViewType` (después de `table`,
+`kanban`, `calendar`). Cierra la única fase del roadmap original
+(CLAUDE.md §15 — Fase 6 "Cards + Extras") que faltaba.
+
+### Añadido
+
+- Backend (`SavedViewService.php`):
+  - `'cards'` agregado a `ALLOWED_TYPES`.
+  - Validación de `config.card_field_ids[]` (deben pertenecer a
+    la lista), `config.card_cover_field_id` (debe ser tipo `file`)
+    y `config.card_size` (compact/comfortable/spacious).
+- Types (`app/types/view.ts`):
+  - `SavedViewType = ... | 'cards'`.
+  - `SavedViewConfig` agrega `card_field_ids?`, `card_cover_field_id?`,
+    `card_size?`.
+- Frontend (`app/admin/records/views/CardsView.tsx`):
+  - Grid CSS auto-fill con `minmax()` ajustado por densidad.
+  - Cada card: cover image (si hay coverField y URL resoluble)
+    o avatar colorizado generado desde el título; título grande
+    (primary field); hasta N campos extra con label inline.
+- `RecordsPage.tsx` detecta `isCards`, calcula `cardsExtraFields`
+  y `cardsCoverField` desde el config, y rendera `CardsView`.
+- `SaveViewDialog`: opción "Cards (grid de tarjetas)" en el
+  selector de tipo.
+- `ViewsTabs`: icono `LayoutGrid` para vistas tipo cards.
+
+### Pendiente para 12.B
+
+- Editor de config visual (card_field_ids + card_cover_field_id +
+  card_size) en `SaveViewDialog`.
+- Resolución de `coverField` desde attachment ID a URL (hoy solo
+  funciona si el field devuelve URL string o `{url}` directo).
+- Virtualización si records.length > 200 (por ahora full render).
+
 ## [0.41.6] — 2026-05-23
 
 **Polish + cierre de Fase 11**

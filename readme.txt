@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.6
+Stable tag: 0.42.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.0 =
+**Vista Cards — schema + componente base (Fase 12 · iter 12.A).**
+
+Suma "cards" como cuarto tipo de vista guardada (después de
+table, kanban, calendar). Cierra Fase 6 del roadmap original
+(CLAUDE.md §15) que faltaba.
+
+Cambios visibles:
+
+- Nueva opción "Cards (grid de tarjetas)" al crear una vista.
+- Cada tarjeta muestra el primary field como título grande, un
+  avatar colorizado generado desde el título (o imagen de
+  portada si hay un field tipo file configurado), y N campos
+  extra con label inline.
+- Densidad configurable (compact/comfortable/spacious) que ajusta
+  el grid CSS auto-fill.
+
+El editor de config visual (qué campos van en la card, cover
+image, tamaño) llega en 0.42.1 (iter 12.B).
 
 = 0.41.6 =
 **Polish + cierre de Fase 11 (Fase 11 · iter 11.G · CIERRE DE FASE).**
