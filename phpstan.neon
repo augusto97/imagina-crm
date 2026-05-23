@@ -1,0 +1,30 @@
+parameters:
+    level: 8
+    parallel:
+        maximumNumberOfProcesses: 2
+    paths:
+        - src
+        - imagina-crm.php
+    excludePaths:
+        - vendor
+        - dist
+        - node_modules
+        - tests
+    bootstrapFiles:
+        - vendor/autoload.php
+        - phpstan-bootstrap.php
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # Las queries SQL del plugin se construyen interpolando nombres de
+        # tabla obtenidos de Database::systemTable() / Database::dataTable().
+        # Esos nombres son strings controlados internamente (prefijo WP +
+        # sufijo validado por SlugManager / hardcoded), nunca input del
+        # usuario. La extensión WordPress de PHPStan marca esto porque no
+        # puede deducir literal-string a través de la concatenación, pero
+        # es seguro por construcción.
+        -
+            message: '#expects literal-string, .* given\.#'
+            path: src/*
+
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon

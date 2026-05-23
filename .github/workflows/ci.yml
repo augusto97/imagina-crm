@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  php-quality:
+    name: PHP quality (PHPStan + unit + integration)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mariadb:10.11
+        ports:
+          - 3306:3306
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: imcrm_tests
+          MARIADB_USER: imcrm
+          MARIADB_PASSWORD: imcrm
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, intl, mysqli, json
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Composer install
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Wait for MariaDB
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -uimcrm -pimcrm --silent; then
+              echo "MariaDB ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "MariaDB never became ready"; exit 1
+
+      - name: PHPStan (level 8)
+        run: vendor/bin/phpstan analyse --memory-limit=2G --no-progress --error-format=github
+
+      - name: PHPUnit (unit)
+        run: vendor/bin/phpunit --testsuite Unit
+
+      - name: PHPUnit (integration, sin performance)
+        env:
+          IMCRM_TEST_DB_HOST: 127.0.0.1
+          IMCRM_TEST_DB_PORT: '3306'
+          IMCRM_TEST_DB_NAME: imcrm_tests
+          IMCRM_TEST_DB_USER: imcrm
+          IMCRM_TEST_DB_PASS: imcrm
+        run: vendor/bin/phpunit -c phpunit-integration.xml.dist --exclude-group performance
+
+      - name: PHPUnit (performance benchmark contra contratos §11)
+        env:
+          IMCRM_TEST_DB_HOST: 127.0.0.1
+          IMCRM_TEST_DB_PORT: '3306'
+          IMCRM_TEST_DB_NAME: imcrm_tests
+          IMCRM_TEST_DB_USER: imcrm
+          IMCRM_TEST_DB_PASS: imcrm
+        run: vendor/bin/phpunit -c phpunit-integration.xml.dist --group performance
+
+  js-quality:
+    name: JS quality (tsc strict + build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: npm ci
+        run: npm ci
+
+      - name: TypeScript strict check
+        run: npm run type-check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

@@ -1,0 +1,47 @@
+# Composer
+/vendor/
+composer.phar
+
+# Node
+/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+/dist/
+/.vite/
+# Output del script bin/build-release.sh — se publica vía CI a la rama
+# `release`, no se trackea en main.
+/build/
+
+# Tooling caches
+.eslintcache
+.stylelintcache
+.tsbuildinfo
+*.tsbuildinfo
+.phpunit.cache/
+.phpunit.result.cache
+.phpcs-cache
+.phpstan-cache/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Languages compiled
+languages/*.mo
+
+# Local test artifacts
+/coverage/
+/tests/.cache/
