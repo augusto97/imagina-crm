@@ -26,7 +26,8 @@ import { GridEditor } from './GridEditor';
 import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
 import { BlockPalettePanel } from './panels/BlockPalettePanel';
 import { TemplateSettingsPanel } from './panels/TemplateSettingsPanel';
-import { appendBlock } from './utils/createBlock';
+import { appendBlock, appendFieldAsGroup } from './utils/createBlock';
+import type { PalettePayload } from './utils/dragPayload';
 
 /**
  * Editor visual de la plantilla CRM custom de una lista
@@ -118,15 +119,40 @@ export function TemplateEditorPage(): JSX.Element {
         toast.info(__('Restaurada — recordá guardar para aplicar.'));
     };
 
-    const handleAddBlock = (type: V2BlockType): void => {
+    const handleAddBlock = (type: V2BlockType, position?: { x: number; y: number }): void => {
         if (! fields.data) return;
-        const result = appendBlock(config, type, fields.data);
+        const result = appendBlock(config, type, fields.data, position);
         if (! result) {
             toast.warning(__('Este bloque necesita un relation field en la lista.'));
             return;
         }
         setConfig(result.config);
         setSelectedBlockId(result.addedId);
+    };
+
+    const handleAddFieldAsGroup = (slug: string, position?: { x: number; y: number }): void => {
+        if (! fields.data) return;
+        const field = fields.data.find((f) => f.slug === slug);
+        if (! field) {
+            toast.error(__('Campo no encontrado.'));
+            return;
+        }
+        const result = appendFieldAsGroup(config, field, position);
+        setConfig(result.config);
+        setSelectedBlockId(result.addedId);
+    };
+
+    const handleDropFromPalette = (
+        payload: PalettePayload,
+        position: { x: number; y: number },
+    ): void => {
+        if (payload.kind === 'block-type') {
+            handleAddBlock(payload.type, position);
+            return;
+        }
+        if (payload.kind === 'field') {
+            handleAddFieldAsGroup(payload.slug, position);
+        }
     };
 
     const handleUpdateBlock = (id: string, patch: Partial<V2Block>): void => {
@@ -201,7 +227,12 @@ export function TemplateEditorPage(): JSX.Element {
 
             <div className="imcrm-grid imcrm-flex-1 imcrm-grid-cols-[260px_1fr_320px] imcrm-gap-3 imcrm-overflow-hidden">
                 <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                    <BlockPalettePanel config={config} onAdd={handleAddBlock} />
+                    <BlockPalettePanel
+                        config={config}
+                        fields={fields.data}
+                        onAddBlock={(type) => handleAddBlock(type)}
+                        onAddFieldAsGroup={(slug) => handleAddFieldAsGroup(slug)}
+                    />
                 </aside>
 
                 <main className="imcrm-overflow-y-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-background imcrm-p-3">
@@ -213,6 +244,7 @@ export function TemplateEditorPage(): JSX.Element {
                         sampleRecord={mockSample}
                         selectedBlockId={selectedBlockId}
                         onSelectBlock={setSelectedBlockId}
+                        onDropFromPalette={handleDropFromPalette}
                     />
                 </main>
 

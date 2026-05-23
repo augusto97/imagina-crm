@@ -13,6 +13,8 @@ import type { RecordEntity } from '@/types/record';
 
 import { BlockRenderer } from '@/admin/records/crm/BlockRenderer';
 
+import { type PalettePayload, readDropPayload } from './utils/dragPayload';
+
 const SizedGrid = WidthProvider(GridLayout);
 
 interface GridEditorProps {
@@ -23,24 +25,27 @@ interface GridEditorProps {
     sampleRecord: RecordEntity;
     selectedBlockId: string | null;
     onSelectBlock: (id: string | null) => void;
+    onDropFromPalette: (payload: PalettePayload, position: { x: number; y: number }) => void;
 }
+
+const DROPPING_ITEM_ID = '__imcrm_dropping__';
+// `x` y `y` son placeholders — rgl los recalcula según donde se
+// suelte el item. El shape los requiere por tipo (LayoutItem).
+const DROPPING_ITEM: LayoutItem = { i: DROPPING_ITEM_ID, x: 0, y: 0, w: 4, h: 4 };
 
 /**
  * Canvas drag-resize-able del editor visual de plantillas
- * (Fase 11.A+).
+ * (Fase 11.A+, drop-from-palette agregado en 11.B).
  *
- * Cambios desde la 11.0:
- *  - La selección de bloque ahora la controla el parent
- *    (`TemplateEditorPage`) — un click selecciona, otro click en el
- *    canvas vacío deselecciona. Eso permite que el inspector lateral
- *    quede sincronizado.
- *  - Se removió el dropdown "Agregar bloque" (vive en la paleta
- *    izquierda) y el botón ✏ de cada bloque (selección = inspector).
- *  - Se removió el `BlockConfigDialog` modal (su contenido vive en
- *    `BlockInspectorPanel`).
+ * El componente expone tres responsabilidades:
+ *  1. Drag/resize del grid (vía react-grid-layout).
+ *  2. Selección por click — el bloque activo recibe ring `primary`.
+ *  3. Aceptar drops desde la paleta — el parent recibe el payload
+ *     decodeado y la posición `{ x, y }` calculada por el grid.
  *
- * El componente sigue siendo responsable del drag/resize del grid y
- * del rendering visual de los bloques con `BlockRenderer`.
+ * El placeholder visual del drop (ghost) viene del `droppingItem`
+ * prop de rgl. Cuando el drop ocurre, el handler `onDrop` recibe
+ * el ítem con `x, y` ya calculadas según donde se soltó.
  */
 export function GridEditor({
     listId,
@@ -50,6 +55,7 @@ export function GridEditor({
     sampleRecord,
     selectedBlockId,
     onSelectBlock,
+    onDropFromPalette,
 }: GridEditorProps): JSX.Element {
     const resolved = useMemo(() => resolveV2(config, fields), [config, fields]);
 
@@ -68,7 +74,11 @@ export function GridEditor({
     );
 
     const handleLayoutStop = (next: Layout): void => {
-        const byId = new Map(next.map((l) => [l.i, l]));
+        // Ignoramos el item placeholder del drop si está presente
+        // (rgl lo agrega temporalmente al layout durante el drag).
+        const byId = new Map(
+            next.filter((l) => l.i !== DROPPING_ITEM_ID).map((l) => [l.i, l]),
+        );
         const updated = config.blocks
             .map((b) => {
                 const l = byId.get(b.id);
@@ -79,24 +89,22 @@ export function GridEditor({
         onChange({ ...config, blocks: updated });
     };
 
-    if (config.blocks.length === 0) {
-        return (
-            <div
-                className="imcrm-flex imcrm-h-full imcrm-min-h-[420px] imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-6 imcrm-py-12 imcrm-text-center"
-                onClick={() => onSelectBlock(null)}
-            >
-                <p className="imcrm-max-w-sm imcrm-text-sm imcrm-text-muted-foreground">
-                    {__('Canvas vacío. Agregá bloques desde la paleta de la izquierda o usá "Restaurar desde plantilla" en el panel derecho.')}
-                </p>
-            </div>
-        );
-    }
+    const handleDrop = (_layout: Layout, item: LayoutItem | undefined, e: Event): void => {
+        if (! item) return;
+        const payload = readDropPayload(e as DragEvent);
+        if (! payload) return;
+        onDropFromPalette(payload, { x: item.x, y: item.y });
+    };
+
+    const isEmpty = config.blocks.length === 0;
 
     return (
         <div
-            className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/10 imcrm-p-3"
+            className={cn(
+                'imcrm-relative imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/10 imcrm-p-3',
+                isEmpty && 'imcrm-min-h-[420px]',
+            )}
             onClick={(e) => {
-                // Click en el background vacío deselecciona.
                 if (e.target === e.currentTarget) onSelectBlock(null);
             }}
         >
@@ -110,10 +118,13 @@ export function GridEditor({
                 layout={gridLayout}
                 isDraggable
                 isResizable
+                isDroppable
+                droppingItem={DROPPING_ITEM}
                 compactType="vertical"
                 draggableCancel=".imcrm-no-drag"
                 onDragStop={handleLayoutStop}
                 onResizeStop={handleLayoutStop}
+                onDrop={handleDrop}
             >
                 {resolved.blocks.map((b) => {
                     const isSelected = selectedBlockId === b.id;
@@ -121,8 +132,6 @@ export function GridEditor({
                         <div
                             key={b.id}
                             onClickCapture={(e) => {
-                                // Solo selecciona en click directo (no drag).
-                                // react-grid-layout cancela onClick si fue drag.
                                 e.stopPropagation();
                                 onSelectBlock(b.id);
                             }}
@@ -149,6 +158,14 @@ export function GridEditor({
                     );
                 })}
             </SizedGrid>
+
+            {isEmpty && (
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-3 imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-px-6 imcrm-text-center">
+                    <p className="imcrm-max-w-sm imcrm-text-sm imcrm-text-muted-foreground">
+                        {__('Canvas vacío. Arrastrá un bloque desde la paleta de la izquierda o usá "Restaurar desde plantilla" en el panel derecho.')}
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

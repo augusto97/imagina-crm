@@ -11,15 +11,25 @@ import type { FieldEntity } from '@/types/field';
  * Para los tipos que necesitan un field para tener sentido
  * (`related`), retorna `null` si no hay candidato disponible — el
  * caller decide qué hacer (típicamente: mostrar toast).
+ *
+ * Fase 11.B: acepta `position` opcional `{ x, y }` para soportar
+ * drop-from-palette. Si no se provee, posiciona al final.
  */
 export function createBlock(
     type: V2BlockType,
     fields: FieldEntity[],
     existing: V2Block[],
+    position?: { x: number; y: number },
 ): V2Block | null {
     const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const maxY = existing.reduce((m, b) => Math.max(m, b.y + b.h), 0);
-    const base = { id, x: 0, y: maxY, w: 4, h: 4 };
+    const fallbackY = existing.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+    const base = {
+        id,
+        x: position?.x ?? 0,
+        y: position?.y ?? fallbackY,
+        w: 4,
+        h: 4,
+    };
 
     if (type === 'properties_group') {
         return { ...base, type, config: { label: __('Grupo nuevo'), icon_key: 'database', field_slugs: [], collapsed_by_default: false } };
@@ -86,14 +96,52 @@ export function createBlock(
  * Append helper que mantiene el contrato de `CustomTemplateConfigV2`.
  * Si `type` requiere un field que no existe, retorna `null` y el
  * caller decide qué hacer.
+ *
+ * Fase 11.B: acepta `position` opcional para drop-from-palette.
  */
 export function appendBlock(
     config: CustomTemplateConfigV2,
     type: V2BlockType,
     fields: FieldEntity[],
+    position?: { x: number; y: number },
 ): { config: CustomTemplateConfigV2; addedId: string } | null {
-    const block = createBlock(type, fields, config.blocks);
+    const block = createBlock(type, fields, config.blocks, position);
     if (! block) return null;
+    return {
+        config: { ...config, blocks: [...config.blocks, block] },
+        addedId: block.id,
+    };
+}
+
+/**
+ * Crea un `properties_group` que contiene un único field
+ * pre-seleccionado. Usado al hacer drop de un field desde la tab
+ * "Campos" sobre el canvas (Fase 11.B).
+ *
+ * El label del grupo arranca como el label del field (más útil
+ * que "Grupo nuevo" como default cuando hay un único field).
+ */
+export function appendFieldAsGroup(
+    config: CustomTemplateConfigV2,
+    field: FieldEntity,
+    position?: { x: number; y: number },
+): { config: CustomTemplateConfigV2; addedId: string } {
+    const id = `properties_group-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const fallbackY = config.blocks.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+    const block: V2Block = {
+        id,
+        x: position?.x ?? 0,
+        y: position?.y ?? fallbackY,
+        w: 4,
+        h: 3,
+        type: 'properties_group',
+        config: {
+            label: field.label,
+            icon_key: 'database',
+            field_slugs: [field.slug],
+            collapsed_by_default: false,
+        },
+    };
     return {
         config: { ...config, blocks: [...config.blocks, block] },
         addedId: block.id,

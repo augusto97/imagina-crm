@@ -4,6 +4,60 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.1] — 2026-05-23
+
+**Drag-from-palette + tab Campos**
+(Fase 11 · Iteración 11.B).
+
+Hace el editor de plantilla CRM verdaderamente DnD: las cards de
+la paleta ahora se pueden arrastrar al canvas y soltarse en la
+posición exacta deseada. Click-to-add se mantiene como atajo
+rápido.
+
+### Añadido
+
+- `panels/BlockPalettePanel`: tabs **Bloques** / **Campos** con
+  filtro de búsqueda inline. Tab Campos muestra los fields
+  disponibles de la lista (excluyendo `relation`).
+- Drag-from-palette: cards arrastrables vía HTML5 DnD nativo.
+  Drop en el canvas crea el bloque en la posición soltada.
+- Drop de un field al canvas crea automáticamente un
+  `properties_group` con ese campo y el label del field como
+  nombre del grupo.
+- `utils/dragPayload.ts`: payload tipado discriminado
+  (`block-type` | `field`) con MIME custom `application/x-imcrm-palette`
+  para distinguir drops del editor de drops externos del SO.
+- `utils/createBlock.ts#appendFieldAsGroup`: factory para crear un
+  properties_group inicializado con un único field.
+- `GripVertical` icon en las cards de la paleta como affordance
+  visual del drag. `cursor: grab` cuando está sobre la card.
+
+### Cambiado
+
+- `GridEditor` ahora declara `isDroppable={true}` + `droppingItem`
+  + `onDrop`. El placeholder visual aparece mientras se arrastra
+  un item desde la paleta sobre el canvas.
+- El estado vacío del canvas ya no oculta el grid — se renderea
+  un overlay no-interactivo encima del grid para que el drop area
+  siga existiendo cuando no hay bloques.
+- `appendBlock` y `createBlock` aceptan posición `{ x, y }`
+  opcional para soportar drops en coordenadas específicas.
+
+### UX
+
+- Cuando se hace drop de un block-type singleton (`timeline` /
+  `stats`) que ya existe en el canvas, la card de la paleta
+  aparece con `cursor: not-allowed` y `opacity: 50%`. El drag se
+  cancela en `onDragStart` si la card está disabled.
+- Cuando se hace drop de un field que no existe (caso edge), el
+  toast lo reporta como error.
+
+### Contrato persistido
+
+Sin cambios — `CustomTemplateConfigV2`. Drop-from-palette es
+azúcar para la operación "agregar bloque", el resultado en disco
+es indistinguible de click-to-add.
+
 ## [0.41.0] — 2026-05-23
 
 **Editor de plantilla CRM v3 — layout 3 columnas**

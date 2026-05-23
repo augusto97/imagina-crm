@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.41.0
+Stable tag: 0.41.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,28 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.1 =
+**Drag-from-palette + tab Campos en el editor de plantilla CRM (Fase 11 · iter 11.B).**
+
+Las cards de la paleta ahora se pueden arrastrar al canvas y
+soltarse en la posición exacta deseada. Click-to-add se mantiene
+como atajo rápido.
+
+Cambios visibles:
+
+- Tabs Bloques / Campos en la paleta izquierda.
+- Tab Campos muestra los fields disponibles de la lista. Soltar
+  un campo al canvas crea automáticamente un grupo de propiedades
+  con ese campo.
+- Filtro de búsqueda inline en cada tab.
+- Affordance visual del drag con icono GripVertical y cursor
+  grab/grabbing.
+- Las cards singleton ya en uso (timeline / stats) cancelan el
+  drag y se muestran con apariencia disabled.
+
+Contrato persistido sin cambios. Compatible con templates de
+0.41.0.
 
 = 0.41.0 =
 **Editor de plantilla CRM v3 — layout 3 columnas (Fase 11 · iter 11.A).**
