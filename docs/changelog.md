@@ -4,6 +4,34 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.42.2] — 2026-05-23
+
+**Cards: editar config en vistas existentes**
+(Fase 12 · Iteración 12.C).
+
+Hasta acá, una vista Cards solo se podía configurar al crearla.
+Para cambiar qué campos muestra había que borrar y crear de
+nuevo. Ahora hay un editor accesible desde el dropdown menu de
+la vista.
+
+### Añadido
+
+- `CardsConfigPanel` (componente compartido): el editor de
+  config de cards extraído como pieza reusable.
+- `EditCardsViewDialog`: dialog para editar nombre + config de
+  una vista Cards existente. Pre-rellena valores desde
+  `activeView.config`. Submit dispara `useUpdateSavedView`.
+- ViewsTabs: opción "Editar configuración" en el dropdown menu
+  de cada vista cuando `view.type === 'cards'`. Solo aparece en
+  cards por ahora (Kanban / Calendar requieren tratamiento
+  separado por la complejidad de cambiar `group_by_field_id` o
+  `date_field_id` sobre una vista en uso).
+
+### Cambiado
+
+- `SaveViewDialog` ahora usa `CardsConfigPanel` en lugar de su
+  versión inline. Cero cambio funcional, mejor mantenibilidad.
+
 ## [0.42.1] — 2026-05-23
 
 **Cards: editor de config + cover image resoluble**

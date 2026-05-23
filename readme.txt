@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.42.1
+Stable tag: 0.42.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,12 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.42.2 =
+**Cards: editar config en vistas existentes (Fase 12 · iter 12.C).**
+
+Editor de config accesible desde el dropdown de cada vista
+Cards. Antes había que borrar y crear de nuevo.
 
 = 0.42.1 =
 **Cards: editor de config + cover image resoluble (Fase 12 · iter 12.B).**
