@@ -4,6 +4,66 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-05-23
+
+**Editor de plantilla CRM v3 — layout 3 columnas**
+(Fase 11 · Iteración 11.A).
+
+Rework del editor visual de plantilla. El layout pasa de "header
+colapsable + canvas + Dialog modal por bloque" a una experiencia
+estilo Figma/Webflow:
+
+```
+┌────────────────────────────────────────────────────┐
+│ Topbar: breadcrumb + Guardar                        │
+├──────────┬──────────────────────┬──────────────────┤
+│ Paleta   │       Canvas         │    Inspector     │
+│ (left)   │   (drag/resize)      │     (right)      │
+└──────────┴──────────────────────┴──────────────────┘
+```
+
+### Añadido
+
+- `panels/BlockPalettePanel.tsx` — columna izquierda con cards de
+  bloques agrupados por categoría (Datos, Visualización, Contenido,
+  Acciones). Click agrega al canvas. Singleton blocks (`timeline`,
+  `stats`) se deshabilitan cuando ya existe uno.
+- `panels/BlockInspectorPanel.tsx` — columna derecha persistente.
+  Muestra los settings del bloque seleccionado con acciones
+  Duplicar/Eliminar al pie. Reemplaza el `BlockConfigDialog` modal.
+- `panels/TemplateSettingsPanel.tsx` — fallback del inspector cuando
+  no hay bloque seleccionado. Incluye los slots del header (título,
+  subtítulos, badges, acciones rápidas) y "Restaurar desde
+  plantilla".
+- `forms/BlockForms.tsx` — forms inline por tipo de bloque,
+  extraídos del Dialog modal.
+- `utils/createBlock.ts` — factory de bloques compartida entre
+  GridEditor y BlockPalettePanel.
+- Selección de bloque por click. Click en background vacío
+  deselecciona. Ring `primary` visible en el bloque activo.
+
+### Cambiado
+
+- `TemplateEditorPage.tsx` reescrito con grid CSS 3 columnas
+  (`260px_1fr_320px`) y altura `calc(100vh-8rem)` para layout
+  estilo IDE.
+- `GridEditor.tsx` ya no abre Dialog ni muestra dropdown "Agregar
+  bloque": esos responsabilidades migran a paleta + inspector.
+  Sigue siendo responsable solo del drag/resize del grid.
+
+### Eliminado
+
+- `template-editor/HeaderEditor.tsx` (su lógica vive en
+  `TemplateSettingsPanel`).
+- `template-editor/blocks/BlockConfigDialog.tsx` (su lógica vive
+  en `BlockInspectorPanel` + `forms/BlockForms.tsx`).
+
+### Contrato persistido
+
+Sin cambios — sigue siendo `CustomTemplateConfigV2`. Backward-
+compatible: las plantillas guardadas con 0.40.x abren sin migración
+en 0.41.0.
+
 ## [0.40.4] — 2026-05-18
 
 **Fix:** pantalla en blanco al entrar a Ajustes del plugin

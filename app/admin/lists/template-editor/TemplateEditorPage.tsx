@@ -1,43 +1,50 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, RotateCcw, Save, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, SlidersHorizontal } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/toast';
 import { useFields } from '@/hooks/useFields';
 import { useList, useUpdateList } from '@/hooks/useLists';
 import { useRecords } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
 import {
-    CRM_TEMPLATES,
     CUSTOM_TEMPLATE_ID,
     customConfigV2FromBuiltin,
     emptyCustomConfigV2,
     ensureV2,
     type CustomTemplateConfigV2,
+    type V2BlockType,
+    type V2Block,
 } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
+import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
 import { GridEditor } from './GridEditor';
-import { HeaderEditor } from './HeaderEditor';
+import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
+import { BlockPalettePanel } from './panels/BlockPalettePanel';
+import { TemplateSettingsPanel } from './panels/TemplateSettingsPanel';
+import { appendBlock } from './utils/createBlock';
 
 /**
- * Editor visual de la plantilla CRM custom de una lista (0.35.0+).
+ * Editor visual de la plantilla CRM custom de una lista
+ * (Fase 11.A — layout 3 columnas).
  *
- * Se redibuja cada vez que el config cambia. Layout:
- *   - Top: header bar con Save / Restaurar.
- *   - HeaderEditor (colapsable) — slots fijos arriba del panel.
- *   - GridEditor — canvas drag-resize-able con bloques V2.
+ * Layout:
+ *   ┌──────────────────────────────────────────────────────────┐
+ *   │ Topbar: breadcrumb + Guardar                              │
+ *   ├──────────┬─────────────────────────────────┬─────────────┤
+ *   │ Paleta   │            Canvas                │  Inspector  │
+ *   │ (left)   │   (drag-resize del grid)        │   (right)   │
+ *   │          │                                  │             │
+ *   │ Bloques  │                                  │ Bloque/     │
+ *   │ por      │                                  │ Settings    │
+ *   │ categoría│                                  │             │
+ *   └──────────┴─────────────────────────────────┴─────────────┘
  *
- * Persiste en `list.settings.crm_template_custom` como
+ * El config persiste en `list.settings.crm_template_custom` como
  * `CustomTemplateConfigV2`. Auto-migra V1 → V2 al cargar.
  */
 export function TemplateEditorPage(): JSX.Element {
@@ -50,8 +57,8 @@ export function TemplateEditorPage(): JSX.Element {
 
     const [config, setConfig] = useState<CustomTemplateConfigV2>(emptyCustomConfigV2());
     const [initialized, setInitialized] = useState(false);
+    const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
-    // Sample record para el preview en el canvas.
     const sample = useRecords(list.data?.id, { per_page: 1, page: 1 });
     const sampleRecord: RecordEntity | null = sample.data?.data[0] ?? null;
 
@@ -61,12 +68,6 @@ export function TemplateEditorPage(): JSX.Element {
             crm_template_id?: string;
             crm_template_custom?: unknown;
         };
-        // 0.35.2 fix: priorizamos `crm_template_custom` SIEMPRE que
-        // exista, sin importar qué plantilla esté activa. El custom
-        // es trabajo del user — switchear a una built-in y volver
-        // NO debería borrarlo. Antes el chequeo era
-        // `&& crm_template_id === 'custom'` y al volver del switch
-        // veías un fresh built-in en lugar de tu config personal.
         if (settings.crm_template_custom) {
             setConfig(ensureV2(settings.crm_template_custom));
         } else {
@@ -78,6 +79,11 @@ export function TemplateEditorPage(): JSX.Element {
     const mockSample = useMemo<RecordEntity>(
         () => sampleRecord ?? buildMockRecord(fields.data ?? []),
         [sampleRecord, fields.data],
+    );
+
+    const selectedBlock = useMemo<V2Block | null>(
+        () => (selectedBlockId ? config.blocks.find((b) => b.id === selectedBlockId) ?? null : null),
+        [selectedBlockId, config.blocks],
     );
 
     const handleSave = async (): Promise<void> => {
@@ -108,7 +114,31 @@ export function TemplateEditorPage(): JSX.Element {
         });
         if (! ok) return;
         setConfig(customConfigV2FromBuiltin(builtinId, fields.data));
+        setSelectedBlockId(null);
         toast.info(__('Restaurada — recordá guardar para aplicar.'));
+    };
+
+    const handleAddBlock = (type: V2BlockType): void => {
+        if (! fields.data) return;
+        const result = appendBlock(config, type, fields.data);
+        if (! result) {
+            toast.warning(__('Este bloque necesita un relation field en la lista.'));
+            return;
+        }
+        setConfig(result.config);
+        setSelectedBlockId(result.addedId);
+    };
+
+    const handleUpdateBlock = (id: string, patch: Partial<V2Block>): void => {
+        setConfig({
+            ...config,
+            blocks: config.blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as V2Block) : b)),
+        });
+    };
+
+    const handleDeleteBlock = (id: string): void => {
+        setConfig({ ...config, blocks: config.blocks.filter((b) => b.id !== id) });
+        if (selectedBlockId === id) setSelectedBlockId(null);
     };
 
     if (list.isLoading || fields.isLoading || ! initialized) {
@@ -135,9 +165,9 @@ export function TemplateEditorPage(): JSX.Element {
     }
 
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-4">
+        <div className="imcrm-flex imcrm-h-[calc(100vh-8rem)] imcrm-min-h-[640px] imcrm-flex-col imcrm-gap-3">
             <header className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-4">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-0.5">
                     <Button
                         asChild
                         variant="ghost"
@@ -154,60 +184,61 @@ export function TemplateEditorPage(): JSX.Element {
                         {__('Editor de plantilla CRM')}
                     </h1>
                 </div>
-                <div className="imcrm-flex imcrm-gap-2">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="imcrm-gap-2">
-                                <RotateCcw className="imcrm-h-3.5 imcrm-w-3.5" />
-                                {__('Restaurar desde…')}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="imcrm-min-w-[260px]">
-                            {CRM_TEMPLATES.map((t) => (
-                                <DropdownMenuItem
-                                    key={t.id}
-                                    onSelect={() => void handleResetFromBuiltin(t.id)}
-                                >
-                                    <span className="imcrm-flex imcrm-flex-col imcrm-items-start">
-                                        <span className="imcrm-font-medium">{t.name}</span>
-                                        <span className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                                            {t.description}
-                                        </span>
-                                    </span>
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button
-                        size="sm"
-                        className="imcrm-gap-2"
-                        onClick={() => void handleSave()}
-                        disabled={update.isPending}
-                    >
-                        {update.isPending ? (
-                            <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />
-                        ) : (
-                            <Save className="imcrm-h-3.5 imcrm-w-3.5" />
-                        )}
-                        {__('Guardar plantilla')}
-                    </Button>
-                </div>
+                <Button
+                    size="sm"
+                    className="imcrm-gap-2"
+                    onClick={() => void handleSave()}
+                    disabled={update.isPending}
+                >
+                    {update.isPending ? (
+                        <Loader2 className="imcrm-h-3.5 imcrm-w-3.5 imcrm-animate-spin" />
+                    ) : (
+                        <Save className="imcrm-h-3.5 imcrm-w-3.5" />
+                    )}
+                    {__('Guardar plantilla')}
+                </Button>
             </header>
 
-            <HeaderEditor fields={fields.data} config={config} onChange={setConfig} />
+            <div className="imcrm-grid imcrm-flex-1 imcrm-grid-cols-[260px_1fr_320px] imcrm-gap-3 imcrm-overflow-hidden">
+                <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                    <BlockPalettePanel config={config} onAdd={handleAddBlock} />
+                </aside>
 
-            <GridEditor
-                listId={list.data.id}
-                fields={fields.data}
-                config={config}
-                onChange={setConfig}
-                sampleRecord={mockSample}
-            />
+                <main className="imcrm-overflow-y-auto imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-background imcrm-p-3">
+                    <GridEditor
+                        listId={list.data.id}
+                        fields={fields.data}
+                        config={config}
+                        onChange={setConfig}
+                        sampleRecord={mockSample}
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={setSelectedBlockId}
+                    />
+                </main>
+
+                <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                    {selectedBlock ? (
+                        <BlockInspectorPanel
+                            block={selectedBlock}
+                            fields={fields.data}
+                            onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
+                            onDelete={() => handleDeleteBlock(selectedBlock.id)}
+                        />
+                    ) : (
+                        <TemplateSettingsPanel
+                            fields={fields.data}
+                            config={config}
+                            onChange={setConfig}
+                            onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
+                        />
+                    )}
+                </aside>
+            </div>
         </div>
     );
 }
 
-function buildMockRecord(fields: import('@/types/field').FieldEntity[]): RecordEntity {
+function buildMockRecord(fields: FieldEntity[]): RecordEntity {
     const sampleByType: Record<string, unknown> = {
         text: 'Ejemplo',
         long_text: 'Texto largo de muestra para previsualizar el campo.',

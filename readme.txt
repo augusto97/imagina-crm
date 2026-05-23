@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.40.4
+Stable tag: 0.41.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,27 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.41.0 =
+**Editor de plantilla CRM v3 — layout 3 columnas (Fase 11 · iter 11.A).**
+
+Rework del editor visual de plantilla CRM. Antes era "header
+colapsable + canvas + Dialog modal por bloque". Ahora es estilo
+Figma/Webflow: paleta de bloques a la izquierda, canvas drag/resize
+en el centro, inspector persistente a la derecha. Selección de
+bloque por click; click en background vacío deselecciona.
+
+Cambios visibles:
+
+- Paleta izquierda con cards de bloques agrupados por categoría
+  (Datos, Visualización, Contenido, Acciones).
+- Inspector derecho persistente que reemplaza al Dialog modal.
+- Cuando no hay bloque seleccionado el inspector muestra los
+  settings globales (header del panel + "Restaurar desde plantilla").
+- Ring `primary` visible en el bloque activo del canvas.
+
+Contrato persistido sin cambios — sigue siendo `CustomTemplateConfigV2`.
+Las plantillas guardadas en 0.40.x abren sin migración.
 
 = 0.40.4 =
 **Fix: pantalla en blanco en Ajustes (CustomRolesCard).**

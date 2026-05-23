@@ -1,186 +1,33 @@
 import { useEffect, useState } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowDown, ArrowUp, X } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SIDEBAR_ICON_OPTIONS, type V2Block } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
-interface BlockConfigDialogProps {
-    block: V2Block;
-    fields: FieldEntity[];
-    onUpdate: (patch: Partial<V2Block>) => void;
-    onClose: () => void;
-}
-
 /**
- * Dialog que abre al click ✏ sobre un bloque del editor visual.
- * Switchea por `block.type` y rendera el form apropiado para ese
- * tipo. Los cambios se aplican en vivo (vía `onUpdate` callback) —
- * el dialog es solo el contenedor + helper.
+ * Forms inline para cada tipo de bloque del editor de plantilla CRM.
+ * Antes vivían en `BlockConfigDialog.tsx` (Fase 11.0–11.A0). Desde
+ * Fase 11.A se rendean dentro del `BlockInspectorPanel` (columna
+ * derecha persistente) en lugar de un Dialog modal.
  *
- * Para `timeline` y `stats` no hay nada que configurar, así que el
- * dialog muestra un mensaje y solo permite cerrar.
+ * Cada form recibe `block` (ya narrowed por tipo) y un `onUpdate`
+ * que aplica un patch parcial al config del bloque.
  */
-export function BlockConfigDialog({
-    block,
-    fields,
-    onUpdate,
-    onClose,
-}: BlockConfigDialogProps): JSX.Element {
-    return (
-        <Dialog.Root open onOpenChange={(open) => ! open && onClose()}>
-            <Dialog.Portal>
-                <Dialog.Overlay className="imcrm-fixed imcrm-inset-0 imcrm-z-50 imcrm-bg-black/40 imcrm-backdrop-blur-sm" />
-                <Dialog.Content
-                    className={cn(
-                        'imcrm-fixed imcrm-left-1/2 imcrm-top-1/2 imcrm-z-50 imcrm-w-full imcrm-max-w-lg',
-                        'imcrm--translate-x-1/2 imcrm--translate-y-1/2',
-                        'imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6 imcrm-shadow-imcrm-lg',
-                    )}
-                >
-                    <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
-                        <div>
-                            <Dialog.Title className="imcrm-text-base imcrm-font-semibold">
-                                {titleForType(block.type)}
-                            </Dialog.Title>
-                            <Dialog.Description className="imcrm-text-sm imcrm-text-muted-foreground">
-                                {descriptionForType(block.type)}
-                            </Dialog.Description>
-                        </div>
-                        <Dialog.Close asChild>
-                            <Button variant="ghost" size="icon" aria-label={__('Cerrar')}>
-                                <X className="imcrm-h-4 imcrm-w-4" />
-                            </Button>
-                        </Dialog.Close>
-                    </div>
 
-                    <div className="imcrm-mt-4">
-                        {block.type === 'properties_group' && (
-                            <PropertiesGroupForm
-                                block={block}
-                                fields={fields}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'notes' && (
-                            <NotesForm
-                                block={block}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'related' && (
-                            <RelatedForm
-                                block={block}
-                                fields={fields}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {(block.type === 'timeline' || block.type === 'stats') && (
-                            <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                                {__('Este bloque no tiene opciones configurables. Movelo o cambiá su tamaño con el grid.')}
-                            </p>
-                        )}
-                        {block.type === 'kpi' && (
-                            <KpiForm
-                                block={block}
-                                fields={fields}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'chart' && (
-                            <ChartForm
-                                block={block}
-                                fields={fields}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'files' && (
-                            <FilesForm
-                                block={block}
-                                fields={fields}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'embed' && (
-                            <EmbedForm
-                                block={block}
-                                fields={fields}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'action_button' && (
-                            <ActionButtonForm
-                                block={block}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                        {block.type === 'markdown' && (
-                            <MarkdownForm
-                                block={block}
-                                onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
-                            />
-                        )}
-                    </div>
+type UpdateFn<B extends V2Block> = (patch: { config: B['config'] }) => void;
 
-                    <div className="imcrm-mt-5 imcrm-flex imcrm-justify-end">
-                        <Dialog.Close asChild>
-                            <Button>{__('Listo')}</Button>
-                        </Dialog.Close>
-                    </div>
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog.Root>
-    );
-}
-
-function titleForType(type: V2Block['type']): string {
-    switch (type) {
-        case 'properties_group': return __('Editar grupo de propiedades');
-        case 'notes':            return __('Editar bloque de notas');
-        case 'related':          return __('Editar bloque de relacionados');
-        case 'timeline':         return __('Bloque Timeline');
-        case 'stats':            return __('Bloque Resumen');
-        case 'kpi':              return __('Editar KPI');
-        case 'chart':            return __('Editar gráfico');
-        case 'files':            return __('Editar bloque de archivos');
-        case 'embed':            return __('Editar embed');
-        case 'action_button':    return __('Editar botón de acción');
-        case 'markdown':         return __('Editar markdown');
-    }
-}
-
-function descriptionForType(type: V2Block['type']): string {
-    switch (type) {
-        case 'properties_group': return __('Nombre, icono y campos de este grupo.');
-        case 'notes':            return __('Texto custom que se mostrará a todos los users en cada record de la lista.');
-        case 'related':          return __('Elegí qué relation field se renderea en este bloque.');
-        case 'timeline':         return __('Feed de actividad y comentarios. Configuración fija.');
-        case 'stats':            return __('Resumen del record (días, # comentarios, # cambios). Configuración fija.');
-        case 'kpi':              return __('Número grande con label opcional y barra de progreso a meta.');
-        case 'chart':            return __('Distribución de records relacionados agrupados por un field destino.');
-        case 'files':            return __('Archivos adjuntos del record (file fields).');
-        case 'embed':            return __('iframe externo (YouTube, Vimeo, Maps, Loom, Figma, Calendly).');
-        case 'action_button':    return __('Botón configurable: URL externa, mailto, tel o copy al clipboard.');
-        case 'markdown':         return __('Texto rich con headings, listas, negrita, links, código.');
-    }
-}
-
-// --- properties_group form ---------------------------------------------------
-
-function PropertiesGroupForm({
+export function PropertiesGroupForm({
     block,
     fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'properties_group' }>;
     fields: FieldEntity[];
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'properties_group' }>>;
 }): JSX.Element {
     const updateConfig = (patch: Partial<typeof block.config>): void => {
         onUpdate({ config: { ...block.config, ...patch } });
@@ -211,18 +58,14 @@ function PropertiesGroupForm({
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-4">
             <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="g-label" className="imcrm-text-xs">{__('Nombre')}</Label>
+                <Field label={__('Nombre')}>
                     <Input
-                        id="g-label"
                         value={block.config.label}
                         onChange={(e) => updateConfig({ label: e.target.value })}
                     />
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="g-icon" className="imcrm-text-xs">{__('Icono')}</Label>
+                </Field>
+                <Field label={__('Icono')}>
                     <select
-                        id="g-icon"
                         value={block.config.icon_key}
                         onChange={(e) => updateConfig({ icon_key: e.target.value })}
                         className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -231,7 +74,7 @@ function PropertiesGroupForm({
                             <option key={o.key} value={o.key}>{o.label}</option>
                         ))}
                     </select>
-                </div>
+                </Field>
             </div>
 
             <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
@@ -254,43 +97,16 @@ function PropertiesGroupForm({
                         {block.config.field_slugs.map((slug, i) => {
                             const f = bySlug.get(slug);
                             return (
-                                <li
+                                <SlugListItem
                                     key={slug}
-                                    className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-2.5 imcrm-py-1.5 imcrm-text-xs"
-                                >
-                                    <span className="imcrm-flex imcrm-flex-1 imcrm-flex-col">
-                                        <span className="imcrm-truncate imcrm-font-medium">{f ? f.label : slug}</span>
-                                        <span className="imcrm-text-[10px] imcrm-text-muted-foreground">
-                                            {f ? f.type : __('campo no encontrado')}
-                                        </span>
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => move(slug, -1)}
-                                        disabled={i === 0}
-                                        className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent disabled:imcrm-opacity-30"
-                                        aria-label={__('Subir')}
-                                    >
-                                        <ArrowUp className="imcrm-h-3 imcrm-w-3" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => move(slug, 1)}
-                                        disabled={i === block.config.field_slugs.length - 1}
-                                        className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent disabled:imcrm-opacity-30"
-                                        aria-label={__('Bajar')}
-                                    >
-                                        <ArrowDown className="imcrm-h-3 imcrm-w-3" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => remove(slug)}
-                                        className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
-                                        aria-label={__('Quitar')}
-                                    >
-                                        <X className="imcrm-h-3 imcrm-w-3" />
-                                    </button>
-                                </li>
+                                    label={f ? f.label : slug}
+                                    meta={f ? f.type : __('campo no encontrado')}
+                                    canUp={i > 0}
+                                    canDown={i < block.config.field_slugs.length - 1}
+                                    onUp={() => move(slug, -1)}
+                                    onDown={() => move(slug, 1)}
+                                    onRemove={() => remove(slug)}
+                                />
                             );
                         })}
                     </ul>
@@ -320,14 +136,12 @@ function PropertiesGroupForm({
     );
 }
 
-// --- notes form --------------------------------------------------------------
-
-function NotesForm({
+export function NotesForm({
     block,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'notes' }>;
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'notes' }>>;
 }): JSX.Element {
     const [draft, setDraft] = useState(block.config);
 
@@ -335,27 +149,22 @@ function NotesForm({
         setDraft(block.config);
     }, [block.config]);
 
-    // Commit on blur to no spamear renders al tipear.
     const commit = (): void => {
         onUpdate({ config: draft });
     };
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="n-title" className="imcrm-text-xs">{__('Título')}</Label>
+            <Field label={__('Título')}>
                 <Input
-                    id="n-title"
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                     onBlur={commit}
                     placeholder={__('Ej. Recordatorios')}
                 />
-            </div>
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="n-content" className="imcrm-text-xs">{__('Contenido')}</Label>
+            </Field>
+            <Field label={__('Contenido')}>
                 <Textarea
-                    id="n-content"
                     rows={6}
                     value={draft.content}
                     onChange={(e) => setDraft({ ...draft, content: e.target.value })}
@@ -363,23 +172,21 @@ function NotesForm({
                     placeholder={__('Texto que verán todos en esta lista. Saltos de línea respetados.')}
                 />
                 <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                    {__('Este texto es STATIC para todos los records de la lista — no varía por record. Útil para recordatorios al operador.')}
+                    {__('Este texto es STATIC para todos los records de la lista — no varía por record.')}
                 </p>
-            </div>
+            </Field>
         </div>
     );
 }
 
-// --- related form ------------------------------------------------------------
-
-function RelatedForm({
+export function RelatedForm({
     block,
     fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'related' }>;
     fields: FieldEntity[];
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'related' }>>;
 }): JSX.Element {
     const relations = fields.filter((f) => f.type === 'relation');
 
@@ -392,10 +199,8 @@ function RelatedForm({
     }
 
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-            <Label htmlFor="r-field" className="imcrm-text-xs">{__('Relation field')}</Label>
+        <Field label={__('Relation field')}>
             <select
-                id="r-field"
                 value={block.config.field_slug}
                 onChange={(e) => onUpdate({ config: { field_slug: e.target.value } })}
                 className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -406,20 +211,18 @@ function RelatedForm({
                     </option>
                 ))}
             </select>
-        </div>
+        </Field>
     );
 }
 
-// --- KPI form ----------------------------------------------------------------
-
-function KpiForm({
+export function KpiForm({
     block,
     fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'kpi' }>;
     fields: FieldEntity[];
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'kpi' }>>;
 }): JSX.Element {
     const updateConfig = (patch: Partial<typeof block.config>): void => {
         onUpdate({ config: { ...block.config, ...patch } });
@@ -428,10 +231,8 @@ function KpiForm({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="kpi-field" className="imcrm-text-xs">{__('Campo numérico')}</Label>
+            <Field label={__('Campo numérico')}>
                 <select
-                    id="kpi-field"
                     value={block.config.field_slug}
                     onChange={(e) => updateConfig({ field_slug: e.target.value })}
                     className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -441,21 +242,17 @@ function KpiForm({
                         <option key={f.id} value={f.slug}>{f.label} ({f.type})</option>
                     ))}
                 </select>
-            </div>
+            </Field>
             <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="kpi-label" className="imcrm-text-xs">{__('Label (opcional)')}</Label>
+                <Field label={__('Label (opcional)')}>
                     <Input
-                        id="kpi-label"
                         value={block.config.label ?? ''}
                         onChange={(e) => updateConfig({ label: e.target.value || undefined })}
                         placeholder={__('Ej. "Monto total"')}
                     />
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="kpi-format" className="imcrm-text-xs">{__('Formato')}</Label>
+                </Field>
+                <Field label={__('Formato')}>
                     <select
-                        id="kpi-format"
                         value={block.config.format ?? 'number'}
                         onChange={(e) => updateConfig({ format: e.target.value as 'number' | 'currency' | 'percent' })}
                         className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -464,49 +261,41 @@ function KpiForm({
                         <option value="currency">{__('Moneda')}</option>
                         <option value="percent">{__('Porcentaje')}</option>
                     </select>
-                </div>
+                </Field>
             </div>
             <div className="imcrm-grid imcrm-grid-cols-3 imcrm-gap-3">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="kpi-prefix" className="imcrm-text-xs">{__('Prefijo')}</Label>
+                <Field label={__('Prefijo')}>
                     <Input
-                        id="kpi-prefix"
                         value={block.config.prefix ?? ''}
                         onChange={(e) => updateConfig({ prefix: e.target.value || undefined })}
                     />
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="kpi-suffix" className="imcrm-text-xs">{__('Sufijo')}</Label>
+                </Field>
+                <Field label={__('Sufijo')}>
                     <Input
-                        id="kpi-suffix"
                         value={block.config.suffix ?? ''}
                         onChange={(e) => updateConfig({ suffix: e.target.value || undefined })}
                     />
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="kpi-goal" className="imcrm-text-xs">{__('Meta (opcional)')}</Label>
+                </Field>
+                <Field label={__('Meta (opcional)')}>
                     <Input
-                        id="kpi-goal"
                         type="number"
                         value={block.config.goal_value ?? ''}
                         onChange={(e) => updateConfig({ goal_value: e.target.value === '' ? undefined : Number(e.target.value) })}
                     />
-                </div>
+                </Field>
             </div>
         </div>
     );
 }
 
-// --- Chart form --------------------------------------------------------------
-
-function ChartForm({
+export function ChartForm({
     block,
     fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'chart' }>;
     fields: FieldEntity[];
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'chart' }>>;
 }): JSX.Element {
     const updateConfig = (patch: Partial<typeof block.config>): void => {
         onUpdate({ config: { ...block.config, ...patch } });
@@ -515,10 +304,8 @@ function ChartForm({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="chart-rel" className="imcrm-text-xs">{__('Relation field')}</Label>
+            <Field label={__('Relation field')}>
                 <select
-                    id="chart-rel"
                     value={block.config.relation_field_slug}
                     onChange={(e) => updateConfig({ relation_field_slug: e.target.value })}
                     className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -533,11 +320,9 @@ function ChartForm({
                         {__('Esta lista no tiene relation fields. Creá uno primero.')}
                     </p>
                 )}
-            </div>
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="chart-group" className="imcrm-text-xs">{__('Field de agrupación (slug en lista destino)')}</Label>
+            </Field>
+            <Field label={__('Field de agrupación (slug en lista destino)')}>
                 <Input
-                    id="chart-group"
                     value={block.config.group_by_field_slug}
                     onChange={(e) => updateConfig({ group_by_field_slug: e.target.value })}
                     placeholder={__('Ej. status, etapa, prioridad')}
@@ -545,29 +330,25 @@ function ChartForm({
                 <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
                     {__('Slug del field en la lista destino por el cual agrupar (ideal: select / multi_select).')}
                 </p>
-            </div>
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="chart-title" className="imcrm-text-xs">{__('Título (opcional)')}</Label>
+            </Field>
+            <Field label={__('Título (opcional)')}>
                 <Input
-                    id="chart-title"
                     value={block.config.title ?? ''}
                     onChange={(e) => updateConfig({ title: e.target.value || undefined })}
                 />
-            </div>
+            </Field>
         </div>
     );
 }
 
-// --- Files form --------------------------------------------------------------
-
-function FilesForm({
+export function FilesForm({
     block,
     fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'files' }>;
     fields: FieldEntity[];
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'files' }>>;
 }): JSX.Element {
     const fileFields = fields.filter((f) => f.type === 'file');
 
@@ -589,15 +370,13 @@ function FilesForm({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="files-title" className="imcrm-text-xs">{__('Título')}</Label>
+            <Field label={__('Título')}>
                 <Input
-                    id="files-title"
                     value={block.config.title ?? ''}
                     onChange={(e) => onUpdate({ config: { ...block.config, title: e.target.value || undefined } })}
                     placeholder={__('Archivos')}
                 />
-            </div>
+            </Field>
             <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
                 <Label className="imcrm-text-xs">{__('Fields a mostrar')}</Label>
                 <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
@@ -622,16 +401,14 @@ function FilesForm({
     );
 }
 
-// --- Embed form --------------------------------------------------------------
-
-function EmbedForm({
+export function EmbedForm({
     block,
     fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'embed' }>;
     fields: FieldEntity[];
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'embed' }>>;
 }): JSX.Element {
     const updateConfig = (patch: Partial<typeof block.config>): void => {
         onUpdate({ config: { ...block.config, ...patch } });
@@ -642,7 +419,7 @@ function EmbedForm({
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
                 <Label className="imcrm-text-xs">{__('Fuente del URL')}</Label>
-                <div className="imcrm-flex imcrm-gap-3 imcrm-text-xs">
+                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-text-xs">
                     <label className="imcrm-flex imcrm-items-center imcrm-gap-1.5">
                         <input
                             type="radio"
@@ -664,10 +441,8 @@ function EmbedForm({
                 </div>
             </div>
             {block.config.source === 'literal' ? (
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="embed-url" className="imcrm-text-xs">{__('URL')}</Label>
+                <Field label={__('URL')}>
                     <Input
-                        id="embed-url"
                         value={block.config.url ?? ''}
                         onChange={(e) => updateConfig({ url: e.target.value })}
                         placeholder="https://www.youtube.com/embed/..."
@@ -675,12 +450,10 @@ function EmbedForm({
                     <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
                         {__('Solo se permiten: YouTube, Vimeo, Google Maps, Loom, Figma, Calendly.')}
                     </p>
-                </div>
+                </Field>
             ) : (
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="embed-field" className="imcrm-text-xs">{__('Field URL')}</Label>
+                <Field label={__('Field URL')}>
                     <select
-                        id="embed-field"
                         value={block.config.field_slug ?? ''}
                         onChange={(e) => updateConfig({ field_slug: e.target.value })}
                         className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -695,48 +468,40 @@ function EmbedForm({
                             {__('No hay fields tipo url en esta lista.')}
                         </p>
                     )}
-                </div>
+                </Field>
             )}
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="embed-title" className="imcrm-text-xs">{__('Título (opcional)')}</Label>
+            <Field label={__('Título (opcional)')}>
                 <Input
-                    id="embed-title"
                     value={block.config.title ?? ''}
                     onChange={(e) => updateConfig({ title: e.target.value || undefined })}
                 />
-            </div>
+            </Field>
         </div>
     );
 }
 
-// --- Action button form ------------------------------------------------------
-
-function ActionButtonForm({
+export function ActionButtonForm({
     block,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'action_button' }>;
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'action_button' }>>;
 }): JSX.Element {
     const updateConfig = (patch: Partial<typeof block.config>): void => {
         onUpdate({ config: { ...block.config, ...patch } });
     };
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="ab-label" className="imcrm-text-xs">{__('Label del botón')}</Label>
+            <Field label={__('Label del botón')}>
                 <Input
-                    id="ab-label"
                     value={block.config.label}
                     onChange={(e) => updateConfig({ label: e.target.value })}
                     placeholder={__('Ej. "Llamar"')}
                 />
-            </div>
+            </Field>
             <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="ab-action" className="imcrm-text-xs">{__('Tipo')}</Label>
+                <Field label={__('Tipo')}>
                     <select
-                        id="ab-action"
                         value={block.config.action_type}
                         onChange={(e) => updateConfig({ action_type: e.target.value as 'url' | 'mailto' | 'tel' | 'copy' })}
                         className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -746,11 +511,9 @@ function ActionButtonForm({
                         <option value="tel">{__('Teléfono (tel:)')}</option>
                         <option value="copy">{__('Copiar al clipboard')}</option>
                     </select>
-                </div>
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                    <Label htmlFor="ab-variant" className="imcrm-text-xs">{__('Variante')}</Label>
+                </Field>
+                <Field label={__('Variante')}>
                     <select
-                        id="ab-variant"
                         value={block.config.variant ?? 'default'}
                         onChange={(e) => updateConfig({ variant: e.target.value as 'default' | 'outline' | 'destructive' })}
                         className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
@@ -759,12 +522,10 @@ function ActionButtonForm({
                         <option value="outline">{__('Outline')}</option>
                         <option value="destructive">{__('Destructivo')}</option>
                     </select>
-                </div>
+                </Field>
             </div>
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="ab-target" className="imcrm-text-xs">{__('Target')}</Label>
+            <Field label={__('Target')}>
                 <Input
-                    id="ab-target"
                     value={block.config.target}
                     onChange={(e) => updateConfig({ target: e.target.value })}
                     placeholder={
@@ -774,19 +535,17 @@ function ActionButtonForm({
                         __('Texto a copiar')
                     }
                 />
-            </div>
+            </Field>
         </div>
     );
 }
 
-// --- Markdown form -----------------------------------------------------------
-
-function MarkdownForm({
+export function MarkdownForm({
     block,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'markdown' }>;
-    onUpdate: (patch: { config: typeof block.config }) => void;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'markdown' }>>;
 }): JSX.Element {
     const [draft, setDraft] = useState(block.config);
 
@@ -798,19 +557,15 @@ function MarkdownForm({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="md-title" className="imcrm-text-xs">{__('Título')}</Label>
+            <Field label={__('Título')}>
                 <Input
-                    id="md-title"
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                     onBlur={commit}
                 />
-            </div>
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                <Label htmlFor="md-content" className="imcrm-text-xs">{__('Contenido (markdown)')}</Label>
+            </Field>
+            <Field label={__('Contenido (markdown)')}>
                 <Textarea
-                    id="md-content"
                     rows={8}
                     value={draft.content}
                     onChange={(e) => setDraft({ ...draft, content: e.target.value })}
@@ -820,7 +575,71 @@ function MarkdownForm({
                 <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
                     {__('Markdown ligero: # ## ### · - · 1. · **bold** · *italic* · `code` · [link](url)')}
                 </p>
-            </div>
+            </Field>
         </div>
+    );
+}
+
+// --- helpers compartidos -----------------------------------------------------
+
+function Field({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+            <Label className="imcrm-text-xs">{label}</Label>
+            {children}
+        </div>
+    );
+}
+
+function SlugListItem({
+    label,
+    meta,
+    canUp,
+    canDown,
+    onUp,
+    onDown,
+    onRemove,
+}: {
+    label: string;
+    meta: string;
+    canUp: boolean;
+    canDown: boolean;
+    onUp: () => void;
+    onDown: () => void;
+    onRemove: () => void;
+}): JSX.Element {
+    return (
+        <li className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-2.5 imcrm-py-1.5 imcrm-text-xs">
+            <span className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-overflow-hidden">
+                <span className="imcrm-truncate imcrm-font-medium">{label}</span>
+                <span className="imcrm-truncate imcrm-text-[10px] imcrm-text-muted-foreground">{meta}</span>
+            </span>
+            <button
+                type="button"
+                onClick={onUp}
+                disabled={! canUp}
+                className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent disabled:imcrm-opacity-30"
+                aria-label={__('Subir')}
+            >
+                <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+            </button>
+            <button
+                type="button"
+                onClick={onDown}
+                disabled={! canDown}
+                className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent disabled:imcrm-opacity-30"
+                aria-label={__('Bajar')}
+            >
+                <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+            </button>
+            <button
+                type="button"
+                onClick={onRemove}
+                className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                aria-label={__('Quitar')}
+            >
+                <X className="imcrm-h-3 imcrm-w-3" />
+            </button>
+        </li>
     );
 }

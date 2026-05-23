@@ -1,65 +1,78 @@
-import { useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, RotateCcw, X } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { CRM_TEMPLATES, type CustomTemplateConfigV2 } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
-import type { CustomTemplateConfigV2 } from '@/lib/crmTemplates';
 import type { FieldEntity } from '@/types/field';
 
-interface HeaderEditorProps {
+interface TemplateSettingsPanelProps {
     fields: FieldEntity[];
     config: CustomTemplateConfigV2;
     onChange: (next: CustomTemplateConfigV2) => void;
+    onResetFromBuiltin: (builtinId: string) => void;
 }
 
 /**
- * Editor del header (zona fija arriba del panel CRM). El header
- * NO está en el grid — su posición es fija por diseño porque es el
- * ancla visual del registro. Lo que se edita acá son los SLOTS:
- *  - Título principal (1 field).
- *  - Subtítulo (multi).
- *  - Status badges (multi).
- *  - Acciones rápidas (multi).
+ * Panel del inspector cuando NO hay bloque seleccionado (Fase 11.A+).
+ * Muestra los ajustes globales del template: slots del header
+ * (título, subtítulos, badges, acciones) y un quick-access a
+ * "Restaurar desde plantilla" built-in.
  *
- * Sección colapsable arriba del GridEditor para no saturar la vista.
+ * Reemplaza al `HeaderEditor` colapsable que vivía arriba del canvas
+ * en el editor v2 — la información es la misma pero ahora vive en
+ * la columna derecha permanente.
  */
-export function HeaderEditor({ fields, config, onChange }: HeaderEditorProps): JSX.Element {
-    const [open, setOpen] = useState(false);
-
+export function TemplateSettingsPanel({
+    fields,
+    config,
+    onChange,
+    onResetFromBuiltin,
+}: TemplateSettingsPanelProps): JSX.Element {
     const isPhoneLike = (f: FieldEntity): boolean =>
         f.type === 'text'
-        && /\b(phone|tel|telefono|teléfono|celular|movil|móvil|whatsapp|wsp|sms|fax)\b/i.test(f.slug + ' ' + f.label);
+        && /\b(phone|tel|telefono|teléfono|celular|movil|móvil|whatsapp|wsp|sms|fax)\b/i.test(
+            f.slug + ' ' + f.label,
+        );
 
     const updateHeader = (patch: Partial<CustomTemplateConfigV2['header']>): void => {
         onChange({ ...config, header: { ...config.header, ...patch } });
     };
 
     return (
-        <section className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-            <button
-                type="button"
-                onClick={() => setOpen((v) => ! v)}
-                aria-expanded={open}
-                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-px-4 imcrm-py-3 imcrm-text-left imcrm-transition-colors hover:imcrm-bg-accent/40"
-            >
-                {open ? (
-                    <ChevronDown className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" />
-                ) : (
-                    <ChevronRight className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" />
-                )}
-                <span className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-0.5">
-                    <span className="imcrm-text-sm imcrm-font-semibold">{__('Encabezado del panel')}</span>
-                    <span className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                        {__('Avatar, título, subtítulos, badges de estado y acciones rápidas. Posición fija arriba.')}
-                    </span>
-                </span>
-            </button>
-            {open && (
-                <div className="imcrm-flex imcrm-flex-col imcrm-gap-4 imcrm-border-t imcrm-border-border imcrm-px-4 imcrm-py-3">
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col">
+            <header className="imcrm-flex imcrm-flex-col imcrm-gap-0.5 imcrm-border-b imcrm-border-border imcrm-px-4 imcrm-py-3">
+                <p className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                    {__('Plantilla')}
+                </p>
+                <h3 className="imcrm-text-sm imcrm-font-semibold imcrm-tracking-tight">
+                    {__('Ajustes de la plantilla')}
+                </h3>
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Seleccioná un bloque para configurarlo. Acá vivien los ajustes globales del panel.')}
+                </p>
+            </header>
+
+            <div className="imcrm-flex-1 imcrm-overflow-y-auto imcrm-px-4 imcrm-py-4">
+                <section className="imcrm-flex imcrm-flex-col imcrm-gap-4">
+                    <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                        <h4 className="imcrm-text-xs imcrm-font-semibold">
+                            {__('Encabezado del panel')}
+                        </h4>
+                        <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                            {__('Avatar, título, subtítulos, badges y acciones rápidas. Zona fija arriba del panel CRM.')}
+                        </p>
+                    </div>
+
                     <SingleSlot
                         label={__('Título principal')}
-                        description={__('Campo cuyo valor es el título grande. Vacío = primary auto-detectado.')}
+                        description={__('Vacío = primary auto-detectado.')}
                         fields={fields}
                         valueSlug={config.header.title_field_slug}
                         onChange={(slug) => updateHeader({ title_field_slug: slug })}
@@ -89,9 +102,39 @@ export function HeaderEditor({ fields, config, onChange }: HeaderEditorProps): J
                         valueSlugs={config.header.quick_action_field_slugs}
                         onChange={(slugs) => updateHeader({ quick_action_field_slugs: slugs })}
                     />
-                </div>
-            )}
-        </section>
+                </section>
+
+                <section className="imcrm-mt-6 imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-border-t imcrm-border-border imcrm-pt-5">
+                    <h4 className="imcrm-text-xs imcrm-font-semibold">{__('Restaurar')}</h4>
+                    <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Reemplaza el contenido actual con una plantilla built-in. No es reversible.')}
+                    </p>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="imcrm-w-full imcrm-justify-start imcrm-gap-2">
+                                <RotateCcw className="imcrm-h-3.5 imcrm-w-3.5" />
+                                {__('Restaurar desde plantilla…')}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="imcrm-min-w-[260px]">
+                            {CRM_TEMPLATES.map((t) => (
+                                <DropdownMenuItem
+                                    key={t.id}
+                                    onSelect={() => onResetFromBuiltin(t.id)}
+                                >
+                                    <span className="imcrm-flex imcrm-flex-col imcrm-items-start">
+                                        <span className="imcrm-font-medium">{t.name}</span>
+                                        <span className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                                            {t.description}
+                                        </span>
+                                    </span>
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </section>
+            </div>
+        </div>
     );
 }
 
@@ -175,9 +218,9 @@ function MultiSlot({
                                 key={slug}
                                 className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-2.5 imcrm-py-1.5 imcrm-text-xs"
                             >
-                                <span className="imcrm-flex imcrm-flex-1 imcrm-flex-col">
+                                <span className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-overflow-hidden">
                                     <span className="imcrm-truncate imcrm-font-medium">{f ? f.label : slug}</span>
-                                    <span className="imcrm-text-[10px] imcrm-text-muted-foreground">
+                                    <span className="imcrm-truncate imcrm-text-[10px] imcrm-text-muted-foreground">
                                         {f ? f.type : __('campo no encontrado')}
                                     </span>
                                 </span>
@@ -194,9 +237,7 @@ function MultiSlot({
                                     type="button"
                                     onClick={() => move(slug, 1)}
                                     disabled={i === valueSlugs.length - 1}
-                                    className={cn(
-                                        'imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent disabled:imcrm-opacity-30',
-                                    )}
+                                    className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent disabled:imcrm-opacity-30"
                                     aria-label={__('Bajar')}
                                 >
                                     <ArrowDown className="imcrm-h-3 imcrm-w-3" />
