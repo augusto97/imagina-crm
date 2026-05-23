@@ -26,6 +26,7 @@ import { EditorCommandPalette } from './EditorCommandPalette';
 import { GridEditor } from './GridEditor';
 import { RecordSelector } from './RecordSelector';
 import { useConfigHistory } from './hooks/useConfigHistory';
+import { applyPreset, INDUSTRY_PRESETS, type PresetId } from './presets/industryPresets';
 import { BlockInspectorPanel } from './panels/BlockInspectorPanel';
 import { BlockPalettePanel } from './panels/BlockPalettePanel';
 import { BulkActionsPanel } from './panels/BulkActionsPanel';
@@ -284,6 +285,15 @@ export function TemplateEditorPage(): JSX.Element {
         const result = appendFieldAsGroup(config, field, position);
         setConfig(result.config);
         setSelectedBlockIds([result.addedId]);
+    };
+
+    const handleApplyPreset = (id: PresetId): void => {
+        if (! fields.data) return;
+        const preset = INDUSTRY_PRESETS.find((p) => p.id === id);
+        if (! preset) return;
+        const next = applyPreset(config, preset, fields.data);
+        setConfig(next);
+        toast.success(__('Preset aplicado: %s').replace('%s', preset.name));
     };
 
     const handleDropFromPalette = (
@@ -591,6 +601,7 @@ export function TemplateEditorPage(): JSX.Element {
                 }}
                 onSave={() => void handleSave()}
                 onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
+                onApplyPreset={handleApplyPreset}
             />
         </div>
     );

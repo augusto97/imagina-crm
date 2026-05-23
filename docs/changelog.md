@@ -4,6 +4,54 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.44.2] — 2026-05-23
+
+**Industry presets aplicables**
+(Fase 14 · Iteración 14.C).
+
+4 presets pre-armados que appendean bloques al canvas según el
+caso de uso (eCommerce, Agencia, Salud, Inmobiliaria). Accesibles
+desde el command palette (Cmd+K → "Aplicar preset: ...").
+
+### Diseño
+
+En lugar de built-in templates completas (que reemplazan todo el
+config), los presets **suman** bloques al final del canvas — más
+útil porque:
+
+- No destruye trabajo existente del admin.
+- Se pueden combinar (aplicar dos presets para casos híbridos).
+- Más simples de mantener (no necesitan resolveV2 propio ni
+  header).
+
+### Añadido
+
+- `presets/industryPresets.ts`:
+  - **`ecommerce`**: heading + contacto (email/url/phone) +
+    dirección de envío + KPIs de monto/pedidos + bloque
+    `related` para pedidos + notas con recordatorios.
+  - **`agency`**: contacto + facturación (cuit/nif/rut) +
+    proyectos relacionados + KPI MRR + `comments_thread` para
+    notas internas.
+  - **`health`**: ficha del paciente (dni/edad/género) + contacto
+    + historia clínica (long_text) + citas relacionadas + notas
+    de alergias.
+  - **`realestate`**: características (tipo/m2/dormitorios) + KPI
+    precio + ubicación + galería de archivos + leads
+    relacionados.
+- `applyPreset(config, preset, fields)`: appendea bloques con
+  layout flow horizontal hasta llenar 12 cols, después wrap a
+  fila siguiente. Genera IDs únicos.
+- Comando palette: "Aplicar preset: X" por cada preset.
+
+### Defensive design
+
+Cada preset es **defensivo respecto al schema**: solo agrega un
+bloque si los fields requeridos existen. Si la lista no tiene
+email, el preset eCommerce no agrega un grupo email — pero el
+resto del preset se sigue aplicando. Pattern matching por
+slug/label común a la industry (regex).
+
 ## [0.44.1] — 2026-05-23
 
 **Undo / Redo del editor (Cmd+Z / Cmd+Shift+Z)**

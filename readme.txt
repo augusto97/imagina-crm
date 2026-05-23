@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.44.1
+Stable tag: 0.44.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,15 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.44.2 =
+**Industry presets aplicables (Fase 14 · iter 14.C).**
+
+4 presets pre-armados (eCommerce, Agencia, Salud, Inmobiliaria)
+que appendean bloques al canvas. Accesibles desde el command
+palette (Cmd+K → "Aplicar preset: X"). Defensivos respecto al
+schema: solo agregan bloques cuando los fields requeridos
+existen en la lista.
 
 = 0.44.1 =
 **Undo/Redo del editor con Cmd+Z (Fase 14 · iter 14.B).**

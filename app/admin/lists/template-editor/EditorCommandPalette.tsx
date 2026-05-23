@@ -8,6 +8,7 @@ import {
     FileText,
     Hash,
     Heading,
+    LayoutTemplate,
     MessageSquare,
     Minus,
     MousePointerClick,
@@ -34,6 +35,8 @@ import {
     type V2BlockType,
 } from '@/lib/crmTemplates';
 
+import { INDUSTRY_PRESETS, type PresetId } from './presets/industryPresets';
+
 interface EditorCommandPaletteProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -47,6 +50,7 @@ interface EditorCommandPaletteProps {
     onTogglePreview: () => void;
     onSave: () => void;
     onResetFromBuiltin: (id: string) => void;
+    onApplyPreset: (id: PresetId) => void;
 }
 
 interface Command {
@@ -88,6 +92,7 @@ export function EditorCommandPalette({
     onTogglePreview,
     onSave,
     onResetFromBuiltin,
+    onApplyPreset,
 }: EditorCommandPaletteProps): JSX.Element {
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
@@ -105,6 +110,7 @@ export function EditorCommandPalette({
             onTogglePreview,
             onSave,
             onResetFromBuiltin,
+            onApplyPreset,
         }),
         [
             config,
@@ -117,6 +123,7 @@ export function EditorCommandPalette({
             onTogglePreview,
             onSave,
             onResetFromBuiltin,
+            onApplyPreset,
         ],
     );
 
@@ -303,6 +310,7 @@ function buildCommands({
     onTogglePreview,
     onSave,
     onResetFromBuiltin,
+    onApplyPreset,
 }: Omit<EditorCommandPaletteProps, 'open' | 'onOpenChange'>): Command[] {
     const cmds: Command[] = [];
 
@@ -390,6 +398,19 @@ function buildCommands({
             keywords: bt.type,
             action: () => onAddBlock(bt.type),
             disabled: !! bt.singleton && existingTypes.has(bt.type),
+        });
+    }
+
+    // Industry presets (Fase 14.C).
+    for (const preset of INDUSTRY_PRESETS) {
+        cmds.push({
+            id: `preset-${preset.id}`,
+            label: __('Aplicar preset: %s').replace('%s', preset.name),
+            description: preset.description,
+            icon: LayoutTemplate,
+            section: __('Industry presets'),
+            keywords: 'preset industry ' + preset.id,
+            action: () => onApplyPreset(preset.id),
         });
     }
 
