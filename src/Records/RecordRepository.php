@@ -193,6 +193,87 @@ final class RecordRepository
         return $result !== false;
     }
 
+    /**
+     * Bulk UPDATE para `RecordService::bulk('update', ...)` (Fase
+     * 17.B — DEFERRED #3). Aplica los MISMOS column values a TODOS
+     * los IDs en una sola query SQL.
+     *
+     * No incluye sync de relations — el caller debe garantizar que
+     * `$row` solo contiene columnas físicas de la tabla dinámica
+     * (sin slugs tipo `relation`). El RecordService verifica esto
+     * antes de invocar.
+     *
+     * Devuelve filas afectadas. Importante: IDs ya soft-deleted o
+     * inexistentes NO cuentan (el WHERE filtra por `deleted_at IS
+     * NULL`). Si `$row === []`, retorna 0 sin query.
+     *
+     * @param list<int>            $ids
+     * @param array<string, mixed> $row Columnas físicas (column_name
+     *                                  → valor ya serializado).
+     */
+    public function bulkUpdate(string $tableSuffix, array $ids, array $row): int
+    {
+        if ($ids === [] || $row === []) {
+            return 0;
+        }
+        $row['updated_at'] = current_time('mysql', true);
+
+        $sets = [];
+        $args = [];
+        foreach ($row as $col => $value) {
+            $colSql = '`' . esc_sql($col) . '`';
+            if ($value === null) {
+                $sets[] = $colSql . ' = NULL';
+                continue;
+            }
+            $sets[] = $colSql . ' = ' . $this->placeholderForValue($value);
+            $args[] = $value;
+        }
+
+        $table = $this->qualifiedTable($tableSuffix);
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $sql = "UPDATE {$table} SET " . implode(', ', $sets)
+            . " WHERE id IN ({$placeholders}) AND deleted_at IS NULL";
+        $args = array_merge($args, array_map('intval', $ids));
+
+        $wpdb     = $this->db->wpdb();
+        $prepared = (string) $wpdb->prepare($sql, $args);
+        $result   = $wpdb->query($prepared);
+        return is_int($result) ? $result : 0;
+    }
+
+    /**
+     * Pre-fetch de N records por id en una sola query. Usado por
+     * `RecordService::bulk('update', ...)` para obtener los snapshots
+     * pre-update sin N find() separados (Fase 17.B).
+     *
+     * @param list<int> $ids
+     * @return array<int, array<string, mixed>>  map idRecord → row
+     *                                            (column_name → value).
+     */
+    public function findManyByIds(string $tableSuffix, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $table = $this->qualifiedTable($tableSuffix);
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $sql = "SELECT * FROM {$table} WHERE id IN ({$placeholders}) AND deleted_at IS NULL";
+        $args = array_map('intval', $ids);
+
+        $wpdb = $this->db->wpdb();
+        $rows = $wpdb->get_results((string) $wpdb->prepare($sql, $args), ARRAY_A);
+        if (! is_array($rows)) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if (! isset($r['id'])) continue;
+            $out[(int) $r['id']] = $r;
+        }
+        return $out;
+    }
+
     public function softDelete(string $tableSuffix, int $id): bool
     {
         $table  = $this->qualifiedTable($tableSuffix);

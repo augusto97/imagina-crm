@@ -57,6 +57,7 @@ final class SchemaManager
             $this->sqlRecurrences($charset),
             $this->sqlSearchTokens($charset),
             $this->sqlSearchDocuments($charset),
+            $this->sqlExportJobs($charset),
         ];
 
         foreach ($statements as $sql) {
@@ -590,6 +591,41 @@ final class SchemaManager
             indexed_at DATETIME NOT NULL,
             PRIMARY KEY  (list_id, record_id),
             KEY idx_indexed (list_id, indexed_at)
+        ) {$charset};";
+    }
+
+    /**
+     * Export jobs (Fase 17.A — DEFERRED #2).
+     *
+     * Diferimos exports de listas grandes a Action Scheduler en lugar
+     * de ejecutar el `CsvExporter` síncrono en la request del user
+     * (que acumula hasta 50k filas en memoria y puede tirar OOM /
+     * timeout HTTP). Cada job tiene status pendiente/en-proceso/listo/
+     * fallido, file_path al CSV en `uploads/imagina-crm/exports/`, y
+     * los params originales del request (filter_tree, fields,
+     * delimiter, with_bom) para que el worker reconstruya el export.
+     *
+     * Cleanup: jobs > 7 días se eliminan automáticamente en
+     * `MaintenanceCron` (sus archivos también).
+     */
+    private function sqlExportJobs(string $charset): string
+    {
+        $table = $this->db->systemTable('export_jobs');
+        return "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            list_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            params LONGTEXT NULL,
+            row_count BIGINT UNSIGNED NULL,
+            file_path VARCHAR(255) NULL,
+            error TEXT NULL,
+            created_at DATETIME NOT NULL,
+            completed_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            KEY idx_user (user_id, created_at),
+            KEY idx_list (list_id, created_at),
+            KEY idx_status (status, created_at)
         ) {$charset};";
     }
 

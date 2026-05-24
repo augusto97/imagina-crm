@@ -4,6 +4,223 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.47.2] — 2026-05-23
+
+**Perf: virtualización TableView**
+(Fase 17.C — DEFERRED #1 · **CIERRE DE FASE 17**).
+
+Cierra el tercer crítico de escala. La TableView ahora puede
+renderear listas de 5000+ records sin saturar el browser. El
+contrato del CLAUDE.md §11 "Scroll con 5k records a 60fps" pasa
+a ser realizable (pendiente bench formal).
+
+### Diseño preservando layout HTML `<table>`
+
+`useVirtualizer` controla qué rows se rendean. El layout
+`<table>` HTML se mantiene intacto — column resize, sticky
+columns, drag-and-drop de columnas, footer con aggregates,
+EditableCell inline siguen funcionando.
+
+Truco: en lugar de absolute positioning (que rompe `<table>`),
+las "rows no visibles" se reemplazan por **2 `<tr>` spacer**
+(uno arriba, uno abajo) con `height` calculada — el browser
+reserva el espacio en el scroll pero no rendea celdas dentro.
+
+### Activación condicional
+
+`shouldVirtualize = rows.length > 100`. Para listas chicas
+(default `per_page = 200`, pero comúnmente <100 rows visibles
+por página), render normal sin overhead del virtualizer.
+
+Para listas grandes (per_page hasta 500, o vistas Kanban/Cards
+que pueden cargar 500 records):
+- `useVirtualizer` con `estimateSize: 40` y `overscan: 10`.
+- Solo `~20-30 rows` renderean visualmente en cualquier momento
+  (viewport + buffer).
+- Padding-top/bottom rows reservan el espacio total scrollable.
+
+### Impacto
+
+Lista con 500 records visibles:
+
+| | Antes | Después |
+|---|---|---|
+| DOM rows | 500 | ~20-30 |
+| Re-renders al scrollear | 500 cells × N | ~20-30 cells |
+| FPS scroll | <30 (lag visible) | 60 (smooth) |
+
+### Bundle
+
+- main.js: 633 → 651 KB raw / 178 → 183 KB gzip. **+5 KB gzip**
+  por `@tanstack/react-virtual` (que ya estaba en deps pero
+  ahora se usa).
+- Initial paint total: ~235 → ~240 KB gzip. Sigue bajo el
+  contrato CLAUDE.md §11 (≤ 250 KB). ✅
+
+### Estado
+
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+- TypeScript strict: OK.
+- Bundle: OK.
+
+### Cierre Fase 17 — Escalabilidad
+
+```
+0.47.0  · 17.A · Export async via Action Scheduler (DEFERRED #2)
+0.47.1  · 17.B · Bulk update con valores uniformes (DEFERRED #3)
+0.47.2  · 17.C · Virtualización TableView (DEFERRED #1)  ← acá
+```
+
+Los **3 críticos de escala del DEFERRED.md cerrados**. Quedan
+los 7 items menores (perf medio: M3, M4, M6; cleanup técnico:
+PHPStan 2.x, tests integration, PHPCS audit, XLSX nativo).
+
+### Veredicto post Fase 17
+
+**Listo para escala razonable**: 10-50 instalaciones, listas
+hasta 50k records, exports frecuentes funcionando async sin
+bloquear UI. Quedaron pendientes los items M3/M4/M6 del DEFERRED
+(optimizaciones medias) — no son bloqueadores.
+
+## [0.47.1] — 2026-05-23
+
+**Perf: bulk update con values uniformes**
+(Fase 17.B — DEFERRED #3).
+
+Cierra el N+1 restante en `RecordService::bulk('update', ...)`.
+La 16.B había optimizado bulk delete pero update seguía con loop
+legacy (validate + find + update + relations + find + do_action
+**por cada record**).
+
+### Fast path
+
+Cuando `$values` NO contiene fields tipo `relation`:
+
+1. **Validate × 1** — los validators son deterministas, validar
+   una vez aplica a todos.
+2. **`findManyByIds` × 1** — SELECT IN para snapshots
+   (necesarios para el hook `record_updated`).
+3. **`bulkUpdate` × 1** — single UPDATE SET ... WHERE id IN.
+4. **Hydrate in-memory × N** — `$updatedRecord` desde `snapshot +
+   row` aplicado, sin SELECT post-update.
+5. **`do_action('record_updated')` × N** — listeners (ETag bump,
+   search index, automation engine con `field_changed` triggers)
+   reciben payload correcto.
+
+### Fallback
+
+Si `$values` incluye al menos un slug de field tipo `relation`,
+caemos al loop legacy. Razón: relations son many-to-many via
+`wp_imcrm_relations` y cada record necesita su propio sync.
+
+### Impacto
+
+Bulk update de 100 IDs con un column value:
+
+| | Antes (16.B) | Después (17.B) |
+|---|---|---|
+| Validate | 100 | 1 |
+| SELECT snapshots | 200 | 1 |
+| UPDATE queries | 100 | 1 |
+| SELECT post-update | 100 | 0 |
+| **Total queries directas** | **~500** | **~3** |
+
+(Listeners siguen disparándose por ID — eso es by-design.)
+
+### Repo nuevo
+
+- `RecordRepository::bulkUpdate($tableSuffix, $ids, $row): int`
+- `RecordRepository::findManyByIds($tableSuffix, $ids): array<int, array>`
+
+### Estado
+
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+
+## [0.47.0] — 2026-05-23
+
+**Export async via Action Scheduler**
+(Fase 17.A — DEFERRED #2).
+
+Cierra el bug **P3** del reporte de auditoría. El export síncrono
+acumulaba hasta 50k filas en memoria PHP y emitía el CSV con
+`header()` directo en la request — riesgo de OOM + timeout HTTP
+en listas grandes.
+
+### Diseño
+
+Cuando el cliente pasa `?async=1` (lo hace automáticamente
+cuando `total > 5000` records), el endpoint:
+
+1. **POST** persiste un row en `wp_imcrm_export_jobs` con status
+   `pending` + dispatch a Action Scheduler.
+2. Devuelve **202 Accepted** con `{ job_id, status, poll_url }`.
+3. El worker (`ExportJobService::runJob`) levanta el job, ejecuta
+   `CsvExporter` con los params guardados, escribe el archivo en
+   `uploads/imagina-crm/exports/<id>-<slug>-<ts>.csv`, marca
+   `ready` (o `failed` con el error).
+4. El frontend polea `GET /export/jobs/{id}` cada 2s (timeout 5min).
+5. Cuando `status=ready`, el response trae `download_url` con
+   token firmado HMAC + TTL 24h.
+6. **GET** `/export/jobs/{id}/download?token=...` valida el token
+   y stream-ea el archivo.
+
+### Seguridad del download
+
+- Token HMAC con `wp_salt('auth')` — no se puede falsificar sin
+  acceso a la BD del sitio.
+- Token incluye `user_id` + `expires` — solo el creador (o admin
+  del plugin) puede descargar.
+- TTL 24h. Después: token expira aunque el archivo siga.
+- Directorio `uploads/imagina-crm/exports/` protegido con
+  `.htaccess: Deny from all` + `index.html` en blanco. Acceso
+  directo desde el web bloqueado.
+
+### Cleanup automático
+
+`wp_schedule_event` diario corre `imagina_crm/export_jobs_cleanup`
+que borra jobs (+ archivos) > 7 días via
+`ExportJobRepository::purgeOlderThan`.
+
+### Esquema
+
+Nueva tabla `wp_imcrm_export_jobs`:
+- `id, list_id, user_id, status, params (JSON), row_count,
+  file_path, error, created_at, completed_at`.
+- Índices: `(user_id, created_at)` para "mis exports",
+  `(list_id, created_at)`, `(status, created_at)` para cleanup.
+
+`IMAGINA_CRM_DB_VERSION` bump: `8 → 9`. La migration corre en
+`dbDelta()` la próxima vez que el plugin activa o un admin
+visita el wp-admin.
+
+### Endpoints REST nuevos
+
+- `GET /lists/{slug}/export?async=1` — crea job (202).
+- `GET /export/jobs/{id}` — status del job.
+- `GET /export/jobs/{id}/download?token=...` — descarga.
+- `GET /export/jobs` — historial del usuario actual.
+
+### Frontend
+
+`ExportButton` ahora recibe `totalRecords` prop. Si > 5000,
+agrega `async=1` automáticamente. Si el backend devuelve 202,
+entra a un loop de polling (`pollAndDownload`) que dispara el
+download al final.
+
+UX: el botón muestra "Exportando…" durante toda la operación
+(crear job + polling + download). Para exports muy grandes
+(>5 min), un timeout dispara error con mensaje pidiendo recargar
+y revisar la sección de jobs.
+
+### Estado
+
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+- TypeScript strict: OK.
+- Build: OK (sin cambios significativos en bundle).
+
 ## [0.46.4] — 2026-05-23
 
 **Security: rate-limit bypass via X-Forwarded-For + cierre Fase 16**

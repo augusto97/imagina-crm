@@ -10,75 +10,39 @@ retomarlos con contexto suficiente.
 
 ## 🟡 Performance — diferidos
 
-### 1. Virtualización de TableView (bug perf P4)
+### 1. Virtualización de TableView — ✅ CERRADO en 0.47.2
 
-**Severidad**: media. Aplica solo cuando el user setea `per_page > 200`
-en una lista activa. El default es 200 y los EditableCell ya están
-memoizados (Fase 16.D), así que renders típicos andan bien.
+Fase 17.C. `useVirtualizer` con activación condicional
+(`shouldVirtualize = rows.length > 100`). Preserva el layout
+`<table>` HTML usando 2 `<tr>` spacer (top/bottom) con height
+calculada en lugar de absolute positioning. Column resize,
+sticky, drag-and-drop, EditableCell inline siguen funcionando.
 
-**Lo que falta**:
-- Integrar `@tanstack/react-virtual` (ya está en `package.json`).
-- Refactorizar `<table>` HTML a divs con `position: absolute` para
-  cada row, porque tables HTML no permiten skip-rendering rows
-  fuera del viewport.
-- Mantener compatibility con: column resize (`columnSizing`), drag
-  & drop de columnas (`columnOrder`), header sticky, selected row
-  highlighting, edit mode (EditableCell pop-up).
-- Tests de scroll smoothness con 5k records.
-
-**Estimación**: 2-3 días de trabajo enfocado. Bottleneck principal
-es mantener todas las features actuales sin regresiones.
-
-**Workaround actual**: el plugin pagina por defecto a 200 records.
-Para listas >>5000, recomendar al user mantener `per_page=200` o
-menos (la UI no expone selector de per_page, así que ya está
-acotado).
+Bundle creció +5 KB gzip (`@tanstack/react-virtual`). Initial
+paint sigue bajo el contrato CLAUDE.md §11 (≤250 KB gzip).
 
 ---
 
-### 2. Export síncrono → Action Scheduler (bug perf P3)
+### 2. Export síncrono → Action Scheduler — ✅ CERRADO en 0.47.0
 
-**Severidad**: alta para listas grandes. `CsvExporter::MAX_ROWS=50000`
-acumula hasta 50k filas en memoria PHP y emite el CSV con `header()`
-directo en la request del user. Riesgo de OOM + timeout HTTP en
-exports grandes.
+Fase 17.A. Cuando `total > 5000` records el cliente automáticamente
+pasa `?async=1` y el backend devuelve 202 con `job_id`. Worker
+en Action Scheduler procesa, escribe el archivo en
+`uploads/imagina-crm/exports/`, frontend polea cada 2s hasta
+`ready` y dispara download via URL firmada (HMAC + TTL 24h).
 
-**Lo que falta**:
-- Endpoint `POST /lists/{slug}/export/jobs` que crea un job en
-  Action Scheduler.
-- Worker que escribe el CSV a un archivo en `uploads/imagina-crm/exports/`
-  y notifica via email + activity log al completar.
-- Endpoint `GET /lists/{slug}/export/jobs/{jobId}/download` con
-  URL firmada (signed nonce + TTL 24h).
-- UI: progress indicator + email notification al user.
-
-**Estimación**: 3-4 días. Action Scheduler ya está integrado para
-otros jobs (reindex, automation actions, recurrence tick) — patrón
-conocido en el codebase.
-
-**Workaround actual**: el cap a 50k es defensivo pero en prácticas
-reales, listas con 10k+ records ya pueden timeout. Hard cap en
-`CsvExporter::MAX_ROWS` previene OOM completo pero no es ideal.
+Cleanup diario `imagina_crm/export_jobs_cleanup` borra jobs > 7d.
 
 ---
 
-### 3. Bulk update con valores uniformes (perf — postergado de 16.B)
+### 3. Bulk update con valores uniformes — ✅ CERRADO en 0.47.1
 
-**Severidad**: media. Bulk delete ya está optimizado (16.B).
-Bulk update con MISMOS values (caso común: "selecciono 100 records
-y les cambio status=cerrado") sigue ejecutando N updates secuenciales.
-
-**Lo que falta**:
-- `RecordRepository::bulkUpdate($tableSuffix, $ids, $values): int`.
-- `RecordService::bulk('update', ...)` fast path que valide $values
-  una sola vez y haga single UPDATE WHERE id IN.
-- Dispatch del hook `imagina_crm/record_updated` por cada ID (igual
-  patrón que bulk delete).
-- **Cuidado**: el snapshot pre-update lo usan los triggers
-  `field_changed` de Automations. Hay que hacer un SELECT bulk
-  pre-update para obtener todos los snapshots antes del UPDATE.
-
-**Estimación**: 1-2 días.
+Fase 17.B. `RecordRepository::bulkUpdate` + `findManyByIds` +
+fast path en `RecordService::bulk('update', ...)` que valida
+$values una vez, pre-fetchea snapshots con SELECT IN, hace
+single UPDATE bulk, y dispatcha hooks per ID con payload
+hidratado in-memory. Fallback a loop legacy si `$values`
+incluye fields tipo `relation`.
 
 ---
 
