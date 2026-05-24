@@ -4,6 +4,51 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.46.1] — 2026-05-23
+
+**Perf: fix N+1 en `RecordService::bulk('delete', ...)`**
+(Fase 16 · Iteración 16.B).
+
+**Bug P1** del reporte de auditoría. Severidad alta — un bulk
+delete de 500 IDs ejecutaba ~1000-2000 queries (find + softDelete
++ relations + do_action per record + listener queries) y saturaba
+la DB / timeout HTTP en listas activas.
+
+### Fix
+
+- **`RecordRepository::bulkSoftDelete($tableSuffix, $ids): int`**
+  — single `UPDATE ... SET deleted_at = NOW() WHERE id IN (...)
+  AND deleted_at IS NULL`. Devuelve filas afectadas.
+- **`RecordRepository::bulkHardDelete($tableSuffix, $ids): int`**
+  — análogo con `DELETE FROM`. Para el purge mode (futuro uso).
+- **`RecordService::bulk`** ahora tiene fast path para
+  `action='delete'`: 1 query SQL + N `do_action` calls. Los
+  listeners (ETag bump, search index, automation engine) reciben
+  cada ID via `imagina_crm/record_deleted` igual que antes —
+  semántica de eventos preservada, sin queries adicionales en el
+  loop.
+
+### Trade-off documentado
+
+Si un ID viene ya soft-deleted o no existe, el bulk NO los
+distingue de los exitosos (lo haría con un SELECT extra). Para
+bulk delete la semántica "ya estaba borrado" es aceptable; todos
+se marcan como `succeeded`. Si alguna integración necesita
+distinguir, puede hacer un SELECT pre-bulk antes del POST.
+
+### Pendiente para iteración siguiente
+
+- `bulk('update', ...)` sigue con el loop legacy. Requiere
+  re-implementar la pipeline de validación + serialize +
+  relations + activity log fuera del flow normal. El use case
+  caliente (bulk delete) ya cubierto; bulk update con values
+  uniformes queda para 16.C+.
+
+### Estado
+
+- PHPUnit: 530/0 errors (sin regresiones).
+- PHPStan: 0 errors.
+
 ## [0.46.0] — 2026-05-23
 
 **Security fix: per-field permissions bypass en 5 endpoints**
