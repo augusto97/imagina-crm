@@ -4,6 +4,7 @@ import { __ } from '@/lib/i18n';
 import { CustomRolesCard } from './CustomRolesCard';
 import { EmailSignatureCard } from './EmailSignatureCard';
 import { LicenseCard } from './LicenseCard';
+import { WebhooksCard } from './WebhooksCard';
 
 export function SettingsPage(): JSX.Element {
     const boot = getBootData();
@@ -24,6 +25,8 @@ export function SettingsPage(): JSX.Element {
             <EmailSignatureCard />
 
             <CustomRolesCard />
+
+            <WebhooksCard />
 
             <section className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                 <h2 className="imcrm-text-base imcrm-font-semibold">{__('Entorno')}</h2>

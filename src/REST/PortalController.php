@@ -5,6 +5,7 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Activity\ActivityEntity;
 use ImaginaCRM\Activity\ActivityRepository;
+use ImaginaCRM\Comments\CommentService;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
@@ -57,6 +58,7 @@ final class PortalController extends AbstractController
         private readonly RecordAggregator $aggregator,
         private readonly ActivityRepository $activity,
         private readonly MagicLinkService $magicLinks,
+        private readonly CommentService $comments,
     ) {
         parent::__construct();
     }
@@ -126,6 +128,34 @@ final class PortalController extends AbstractController
             ],
         );
 
+        // Comments del record del cliente (bloque comments_thread del
+        // portal). El record_id viene del ClientResolver — el cliente
+        // NUNCA ve ni puede crear comments sobre otros records.
+        // Fase 12.D.
+        register_rest_route(
+            $this->namespace,
+            '/portal/me/comments',
+            [
+                [
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => [$this, 'getMyComments'],
+                    'permission_callback' => $canAccess,
+                ],
+                [
+                    'methods'             => WP_REST_Server::CREATABLE,
+                    'callback'            => [$this, 'createMyComment'],
+                    'permission_callback' => $canAccess,
+                    'args'                => [
+                        'content' => [
+                            'type'        => 'string',
+                            'required'    => true,
+                            'description' => 'Contenido del comentario.',
+                        ],
+                    ],
+                ],
+            ],
+        );
+
         // Aggregates de records relacionados al cliente (Fase 9 — 3.E).
         // Sirve a los bloques kpi_widget del template del portal. El
         // scope SQL del PortalScopeService se inyecta automáticamente
@@ -156,6 +186,21 @@ final class PortalController extends AbstractController
                 'args'                => [
                     'send_notification' => ['type' => 'boolean', 'default' => true],
                 ],
+            ],
+        );
+
+        // Auto-detect de la página del portal (Fase 12.F). Cap:
+        // manage_lists. Busca la primera página publicada con el
+        // shortcode [imcrm-client-portal] y devuelve su URL. Permite
+        // al frontend ofrecer "Enviar magic link" sin que el admin
+        // configure la URL manualmente.
+        register_rest_route(
+            $this->namespace,
+            '/portal/page-url',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'getPortalPageUrl'],
+                'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_LISTS),
             ],
         );
 
@@ -298,6 +343,73 @@ final class PortalController extends AbstractController
     }
 
     /**
+     * GET /portal/me/comments
+     *
+     * Lista los comments del record del cliente. Como list_id +
+     * record_id se resuelven desde el `ClientResolver`, NO se aceptan
+     * IDs como params — protege contra spoofing.
+     */
+    public function getMyComments(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        unset($request);
+        $user = wp_get_current_user();
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null) {
+            return $this->notFound();
+        }
+        $clientRecord = $this->resolver->clientRecordFor($user);
+        if ($clientRecord === null) {
+            return $this->notFound();
+        }
+        $recordId = isset($clientRecord['id']) ? (int) $clientRecord['id'] : 0;
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+
+        $items = array_map(
+            static fn ($c): array => $c->toArray(),
+            $this->comments->allForRecord($portalList->id, $recordId),
+        );
+        return new WP_REST_Response(['data' => $items]);
+    }
+
+    /**
+     * POST /portal/me/comments
+     *
+     * Crea un comment del cliente actual. user_id viene del JWT/session,
+     * list_id + record_id se resuelven del ClientResolver. El composer
+     * multi-modo del CRM (note/call/email/meeting) NO está disponible
+     * en el portal — el cliente solo escribe notas simples.
+     */
+    public function createMyComment(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $user = wp_get_current_user();
+        $portalList = $this->resolver->portalList();
+        if ($portalList === null) {
+            return $this->notFound();
+        }
+        $clientRecord = $this->resolver->clientRecordFor($user);
+        if ($clientRecord === null) {
+            return $this->notFound();
+        }
+        $recordId = isset($clientRecord['id']) ? (int) $clientRecord['id'] : 0;
+        if ($recordId <= 0) {
+            return $this->notFound();
+        }
+
+        $content = (string) ($request->get_param('content') ?? '');
+        $result = $this->comments->create($portalList->id, $recordId, (int) $user->ID, [
+            'content' => $content,
+            // El portal no expone parent_id ni metadata custom — keep simple.
+        ]);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+
+        return new WP_REST_Response(['data' => $result->toArray()], 201);
+    }
+
+    /**
      * GET /portal/lists/{slug}/aggregates?fields=1,2,3
      *
      * Aggregates de records relacionados al cliente. Reutiliza el
@@ -434,6 +546,48 @@ final class PortalController extends AbstractController
                 'sent_email' => $sendEmail,
             ],
         ], 201);
+    }
+
+    /**
+     * GET /portal/page-url
+     *
+     * Auto-detect de la página del portal: busca la primera página
+     * publicada con el shortcode `[imcrm-client-portal]` en su
+     * contenido y devuelve su URL.
+     *
+     * Devuelve `{ url: string }` si encontró, `{ url: null }` si no.
+     * El frontend usa este URL para `target_url` en
+     * `POST .../magic-link` sin que el admin configure nada.
+     *
+     * Si hay múltiples páginas con el shortcode (raro), devuelve la
+     * primera por `post_date DESC`. El admin puede pasar manualmente
+     * un target_url alternativo al magic-link endpoint si necesita
+     * una página específica.
+     */
+    public function getPortalPageUrl(WP_REST_Request $request): WP_REST_Response
+    {
+        unset($request);
+        global $wpdb;
+        $shortcode = '[' . \ImaginaCRM\Portal\PortalShortcode::TAG;
+        $like = '%' . $wpdb->esc_like($shortcode) . '%';
+        $sql = $wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} "
+            . "WHERE post_status = %s "
+            . "AND post_type IN ('page', 'post') "
+            . "AND post_content LIKE %s "
+            . "ORDER BY post_date DESC "
+            . "LIMIT 1",
+            'publish',
+            $like,
+        );
+        $postId = $wpdb->get_var($sql);
+        if ($postId === null) {
+            return new WP_REST_Response(['data' => ['url' => null]]);
+        }
+        $url = get_permalink((int) $postId);
+        return new WP_REST_Response([
+            'data' => ['url' => $url === false ? null : $url],
+        ]);
     }
 
     /**

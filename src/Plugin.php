@@ -256,6 +256,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
                 $c->get(\ImaginaCRM\Activity\ActivityRepository::class),
                 $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
+                $c->get(CommentService::class),
             );
         });
 
@@ -354,7 +355,6 @@ final class Plugin
         $this->container->bind(\ImaginaCRM\Search\InvertedIndexEngine::class, static function (Container $c): \ImaginaCRM\Search\InvertedIndexEngine {
             return new \ImaginaCRM\Search\InvertedIndexEngine(
                 $c->get(Database::class),
-                $c->get(ListRepository::class),
                 $c->get(FieldRepository::class),
                 $c->get(\ImaginaCRM\Search\Tokenizer::class),
             );

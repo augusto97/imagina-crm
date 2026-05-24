@@ -1537,7 +1537,10 @@ export type V2BlockType =
     | 'files'
     | 'embed'
     | 'action_button'
-    | 'markdown';
+    | 'markdown'
+    | 'divider'
+    | 'heading'
+    | 'comments_thread';
 
 interface V2BlockBase {
     id: string;
@@ -1675,6 +1678,46 @@ export interface V2MarkdownBlock extends V2BlockBase {
     };
 }
 
+/**
+ * Divisor visual horizontal con label opcional centrado. Útil para
+ * separar secciones del panel sin generar contenido. Si `label`
+ * está vacío se renderea como `<hr>` simple. (Fase 11.F)
+ */
+export interface V2DividerBlock extends V2BlockBase {
+    type: 'divider';
+    config: {
+        label?: string;
+    };
+}
+
+/**
+ * Título de sección. Texto + nivel jerárquico h2/h3/h4. Diferente
+ * de `notes` y `markdown` porque ocupa una sola línea sin chrome
+ * de tarjeta — útil para agrupar visualmente bloques relacionados.
+ * (Fase 11.F)
+ */
+export interface V2HeadingBlock extends V2BlockBase {
+    type: 'heading';
+    config: {
+        text: string;
+        level: 2 | 3 | 4;
+    };
+}
+
+/**
+ * Hilo de comentarios del record actual. Renderea el `CommentsPanel`
+ * normal que ya alimenta `/lists/{list}/records/{record}/comments`.
+ * En el editor visual queda no-interactivo por el wrapper
+ * `pointer-events-none` del GridEditor — en RecordCrmLayout es
+ * interactivo. (Fase 11.F)
+ */
+export interface V2CommentsThreadBlock extends V2BlockBase {
+    type: 'comments_thread';
+    config: {
+        title?: string;
+    };
+}
+
 export type V2Block =
     | V2PropertiesGroupBlock
     | V2TimelineBlock
@@ -1686,7 +1729,10 @@ export type V2Block =
     | V2FilesBlock
     | V2EmbedBlock
     | V2ActionButtonBlock
-    | V2MarkdownBlock;
+    | V2MarkdownBlock
+    | V2DividerBlock
+    | V2HeadingBlock
+    | V2CommentsThreadBlock;
 
 export interface CustomTemplateConfigV2 {
     v: 2;
@@ -1907,7 +1953,10 @@ export type ResolvedV2Block =
             target: string;
             variant?: 'default' | 'outline' | 'destructive';
         } })
-    | (ResolvedBase & { type: 'markdown'; config: { title: string; content: string } });
+    | (ResolvedBase & { type: 'markdown'; config: { title: string; content: string } })
+    | (ResolvedBase & { type: 'divider'; config: { label?: string } })
+    | (ResolvedBase & { type: 'heading'; config: { text: string; level: 2 | 3 | 4 } })
+    | (ResolvedBase & { type: 'comments_thread'; config: { title?: string } });
 
 export function resolveV2(
     config: CustomTemplateConfigV2,
@@ -2009,6 +2058,24 @@ export function resolveV2(
                 ...base,
                 type: 'markdown',
                 config: { title: b.config.title, content: b.config.content },
+            });
+        } else if (b.type === 'divider') {
+            blocks.push({
+                ...base,
+                type: 'divider',
+                config: { label: b.config.label },
+            });
+        } else if (b.type === 'heading') {
+            blocks.push({
+                ...base,
+                type: 'heading',
+                config: { text: b.config.text, level: b.config.level },
+            });
+        } else if (b.type === 'comments_thread') {
+            blocks.push({
+                ...base,
+                type: 'comments_thread',
+                config: { title: b.config.title },
             });
         }
     }

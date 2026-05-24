@@ -101,9 +101,15 @@ final class Shortcode
                     continue;
                 }
                 $columns[] = [
-                    'slug'  => (string) ($f['slug'] ?? ''),
-                    'label' => (string) ($f['label'] ?? ''),
-                    'type'  => (string) ($f['type'] ?? 'text'),
+                    'slug'   => (string) ($f['slug'] ?? ''),
+                    'label'  => (string) ($f['label'] ?? ''),
+                    'type'   => (string) ($f['type'] ?? 'text'),
+                    // Config del field — útil para que el bundle JS arme
+                    // dropdowns de filtro con las options correctas
+                    // (select / multi_select) y no exponga nada sensible
+                    // (es la misma config que se serializa al admin).
+                    // Fase 12.E.
+                    'config' => isset($f['config']) && is_array($f['config']) ? $f['config'] : [],
                 ];
             }
         }

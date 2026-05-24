@@ -4,6 +4,1230 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.45.3] — 2026-05-23
+
+**Cierre de Fase 15 — Features nuevas cherry-picked**
+(Fase 15 · Iteración 15.D · **CIERRE DE FASE 15**).
+
+### Resumen Fase 15
+
+```
+0.45.0  · 15.A · Command palette global Cmd+K en admin shell
+0.45.1  · 15.B · Bulk export con selección de fields + BOM
+0.45.2  · 15.C · Webhooks manager en Ajustes
+0.45.3  · 15.D · Cierre  ← acá
+```
+
+---
+
+## Cierre del trabajo del PR completo (Fases 12-15)
+
+Con la Fase 15 cerrada terminan **4 fases de trabajo** en este
+branch (`claude/session-handoff-docs-qK1LW`):
+
+```
+Fase 12 — Cards view + portal mejorado          0.42.0 - 0.42.6  (7 commits)
+Fase 13 — Quality Pass                          0.43.0 - 0.43.5  (6 commits)
+Fase 14 — Polish del editor CRM                 0.44.0 - 0.44.4  (5 commits)
+Fase 15 — Features nuevas (Cmd+K, export, webhooks)
+                                                0.45.0 - 0.45.3  (4 commits)
+```
+
+### Estado de salud al cierre
+
+| Tool | Estado |
+|---|---|
+| **Vitest** | 38 tests, 0 errors |
+| **PHPUnit** | 530 tests, 0 errors |
+| **PHPStan** | 0 errors |
+| **PHPCS** | runs, 379 violations cosméticas |
+| **TypeScript** | strict, sin errors |
+| **Build** | OK |
+
+### Items pendientes del backlog (opcionales)
+
+- **XLSX export nativo** (requiere PhpSpreadsheet ~5MB).
+- **PHPStan 2.x upgrade**.
+- **Tests integration con WP real**.
+- **Auditoría de 379 PHPCS violations** (mayoría false positives
+  de PreparedSQL).
+- **Fase 7 del roadmap original — Facturación propia**: requiere
+  planning extenso aparte (CLAUDE.md lo marca como "fase futura,
+  doc separado").
+
+## [0.45.2] — 2026-05-23
+
+**Webhooks manager en Ajustes**
+(Fase 15 · Iteración 15.C).
+
+Vista cross-list de todas las automatizaciones del workspace que
+disparan `call_webhook`. Card en la página de Ajustes con tabla
++ toggle activo/pausado + delete inline + link a edición.
+
+### Diseño
+
+En lugar de crear infra paralela (tabla `wp_imcrm_webhooks` +
+listener + delivery propio), el manager **reutiliza el motor
+de Automations** que ya soporta `call_webhook` como action. Esto:
+
+- Cero código nuevo de delivery / retry / logging — todo lo
+  hereda del `AutomationEngine` (Action Scheduler, retries,
+  AutomationRunRepository).
+- Misma UI de edición avanzada (merge tags, headers custom,
+  body template, condiciones de trigger) — accesible desde
+  "Editar en Automatizaciones".
+- Toggle / delete usan los endpoints existentes
+  `PATCH/DELETE /lists/{slug}/automations/{id}`.
+
+### Añadido
+
+- Backend:
+  - `AutomationRepository::allWithActionType(string)`: scan
+    cross-list de automations cuyo JSON `actions` contiene
+    una action del tipo dado. LIKE seguro sobre el JSON.
+  - `AutomationService::allWithActionType(string)`: passthrough.
+  - REST: `GET /imagina-crm/v1/webhooks` (cap:
+    `manage_automations`). Enriquece cada item con `list_name`
+    + `list_slug` para evitar N+1 lookups en el frontend.
+- Frontend:
+  - `app/admin/settings/WebhooksCard.tsx`: tabla con columnas
+    Webhook (nombre + URL truncada), Lista, Trigger, Estado,
+    Acciones. Toggle play/pause, link al editor de
+    Automations, delete con confirm.
+  - Wireup en `SettingsPage` después de `CustomRolesCard`.
+
+### Limitaciones conocidas
+
+- La URL en la tabla solo muestra la primera de las actions
+  `call_webhook` de la automation. Si una automation tiene varias
+  (raro), se indica con un badge `+N` y se ven completas al
+  editarla.
+- "Nueva conexión" linkea a `/automations` genérico (no
+  pre-puebla call_webhook como action). Pre-poblar requeriría
+  query params adicionales del builder. Scope futuro.
+- No hay HMAC signature configurable desde aquí (vive como
+  feature del action `call_webhook` via header custom).
+
+## [0.45.1] — 2026-05-23
+
+**Bulk export mejorado: selector de fields + delimiter + BOM**
+(Fase 15 · Iteración 15.B).
+
+El export de records ahora abre un dialog con opciones en lugar
+de descargar inmediatamente.
+
+### Añadido
+
+- **Dialog de export** en `ExportButton`:
+  - Multi-checkbox para elegir qué fields incluir (default:
+    todos los no-relation).
+  - Atajos "Todos" / "Ninguno" para selección rápida.
+  - Toggle de delimitador: coma (`,`) por default o punto y
+    coma (`;`) para locales europeos que usan coma como decimal.
+  - Checkbox "UTF-8 con BOM" (default ON): Excel respeta el
+    encoding al abrir y los acentos no se rompen.
+  - Counter "%d campos seleccionados de %d".
+- Backend (`ExportController` + `CsvExporter`):
+  - Query params nuevos `?delimiter=...` y `?with_bom=1`.
+  - `CsvExporter::export()` acepta `delimiter` y `withBom`.
+  - Whitelist de delimiters en el exporter — solo `,` o `;`.
+    Cualquier otro valor (incluyendo tab) se normaliza a `,`
+    por seguridad.
+  - BOM `\xEF\xBB\xBF` prepended cuando `withBom=true`.
+
+### Notas
+
+- **No incluye XLSX nativo**: requeriría una dep grande
+  (PhpSpreadsheet ~5 MB) o reimplementación de Office Open XML.
+  CSV con BOM cubre el 90% del use case "exporto a Excel" sin
+  agregar peso al plugin.
+- El orden de fields en el CSV respeta el orden del schema, no
+  el orden de checkboxes clickeados — evita columnas barajadas
+  si el user clickea desordenado.
+
+## [0.45.0] — 2026-05-23
+
+**Global command palette (Cmd+K) en admin shell**
+(Fase 15 · Iteración 15.A).
+
+Arranque de **Fase 15 — Features nuevas cherry-picked**. Suma un
+command palette global accesible con Cmd/Ctrl+K desde cualquier
+página del plugin.
+
+### Añadido
+
+- `app/admin/layout/GlobalCommandPalette.tsx`: palette estilo
+  Linear/Raycast con sections:
+  - **Listas**: todas las listas del workspace + "Crear lista
+    nueva".
+  - **Dashboards** (si tiene cap): todos los dashboards + "Ver
+    todos".
+  - **Navegar**: Automatizaciones, Ajustes del plugin, Mi cuenta.
+- Wireup en `AdminShell`: listener global de Cmd/Ctrl+K que
+  abre el palette. Coexistencia con el `EditorCommandPalette` —
+  cuando la ruta actual contiene `/template-editor`, este global
+  palette se deshabilita (el del editor toma prioridad porque
+  tiene comandos contextuales más útiles ahí).
+
+### Diferencias con `EditorCommandPalette`
+
+| | Global | Editor |
+|---|---|---|
+| **Activo en** | Resto del admin | Solo `/template-editor` |
+| **Comandos** | Navegación + jump a entidades | Bloques + selección + presets |
+| **Implementación** | `app/admin/layout/GlobalCommandPalette.tsx` | `app/admin/lists/template-editor/EditorCommandPalette.tsx` |
+
+### Notas
+
+- No incluye búsqueda de records cross-list — eso requeriría un
+  endpoint global de search. El user navega a la lista y usa el
+  search interno.
+- Gating por capabilities (`MANAGE_DASHBOARDS`, `MANAGE_AUTOMATIONS`,
+  `MANAGE_LISTS`, `manage_options`) — la sección Dashboards no
+  aparece si el user no la puede ver.
+
+## [0.44.4] — 2026-05-23
+
+**Cierre de Fase 14 — Polish del editor CRM**
+(Fase 14 · Iteración 14.E · **CIERRE DE FASE 14**).
+
+### Resumen Fase 14
+
+```
+0.44.0  · 14.A · Command palette Cmd+K
+0.44.1  · 14.B · Undo / Redo Cmd+Z / Cmd+Shift+Z
+0.44.2  · 14.C · Industry presets (eCommerce, agencia, salud, RE)
+0.44.3  · 14.D · Modo full-screen Cmd+J
+0.44.4  · 14.E · Cheat-sheet actualizado + cierre  ← acá
+```
+
+### Cheat-sheet de atajos completo
+
+El cheat-sheet del `TemplateSettingsPanel` (panel del inspector
+cuando no hay bloque seleccionado) ahora lista los **10 atajos**
+del editor:
+
+- ⌘K — Command palette
+- ⌘S — Guardar plantilla
+- ⌘P — Toggle Editor / Preview
+- ⌘J — Toggle full-screen
+- ⌘Z — Deshacer
+- ⌘⇧Z — Rehacer
+- ⇧ click — Sumar a la selección
+- ⌘D — Duplicar seleccionados
+- ⌫ — Eliminar seleccionados
+- Esc — Deseleccionar (o salir de full-screen)
+
+### Bundle final
+
+- TemplateEditorPage v0.44.4: **78.9 KB / 19.2 KB gzip**.
+- Crecimiento durante Fase 14: 62 KB → 78.9 KB (+27%). Por
+  feature: command palette ~7 KB, undo/redo ~2 KB, presets ~6 KB,
+  full-screen <1 KB.
+
+## [0.44.3] — 2026-05-23
+
+**Modo full-screen del editor**
+(Fase 14 · Iteración 14.D).
+
+### Añadido
+
+- Botón Maximize2 / Minimize2 en el toolbar para entrar/salir
+  full-screen.
+- Atajo **Cmd/Ctrl + J** toggle (no en inputs editables).
+- **Esc** sale del full-screen cuando no hay bloques
+  seleccionados (los seleccionados tienen prioridad — Esc primero
+  los deselecciona).
+
+### Implementación
+
+- State `fullScreen` boolean en `TemplateEditorPage`.
+- Cuando activo, agrega clase `imcrm-template-editor-fullscreen`
+  al `<body>` (cleanup en el unmount/toggle).
+- CSS en `globals.css`:
+  - Oculta `#wpadminbar`, `#adminmenumain`, `#wpfooter` (chromes
+    de WP).
+  - Resetea margenes/padding de `#wpcontent`, `#wpbody-content`.
+  - Oculta sidebar + topbar del plugin (`.imcrm-admin-sidebar`,
+    `.imcrm-admin-topbar`).
+  - El editor (`.imcrm-template-editor-root`) pasa a `fixed inset-0`
+    z-9999 con padding 1rem.
+
+## [0.44.2] — 2026-05-23
+
+**Industry presets aplicables**
+(Fase 14 · Iteración 14.C).
+
+4 presets pre-armados que appendean bloques al canvas según el
+caso de uso (eCommerce, Agencia, Salud, Inmobiliaria). Accesibles
+desde el command palette (Cmd+K → "Aplicar preset: ...").
+
+### Diseño
+
+En lugar de built-in templates completas (que reemplazan todo el
+config), los presets **suman** bloques al final del canvas — más
+útil porque:
+
+- No destruye trabajo existente del admin.
+- Se pueden combinar (aplicar dos presets para casos híbridos).
+- Más simples de mantener (no necesitan resolveV2 propio ni
+  header).
+
+### Añadido
+
+- `presets/industryPresets.ts`:
+  - **`ecommerce`**: heading + contacto (email/url/phone) +
+    dirección de envío + KPIs de monto/pedidos + bloque
+    `related` para pedidos + notas con recordatorios.
+  - **`agency`**: contacto + facturación (cuit/nif/rut) +
+    proyectos relacionados + KPI MRR + `comments_thread` para
+    notas internas.
+  - **`health`**: ficha del paciente (dni/edad/género) + contacto
+    + historia clínica (long_text) + citas relacionadas + notas
+    de alergias.
+  - **`realestate`**: características (tipo/m2/dormitorios) + KPI
+    precio + ubicación + galería de archivos + leads
+    relacionados.
+- `applyPreset(config, preset, fields)`: appendea bloques con
+  layout flow horizontal hasta llenar 12 cols, después wrap a
+  fila siguiente. Genera IDs únicos.
+- Comando palette: "Aplicar preset: X" por cada preset.
+
+### Defensive design
+
+Cada preset es **defensivo respecto al schema**: solo agrega un
+bloque si los fields requeridos existen. Si la lista no tiene
+email, el preset eCommerce no agrega un grupo email — pero el
+resto del preset se sigue aplicando. Pattern matching por
+slug/label común a la industry (regex).
+
+## [0.44.1] — 2026-05-23
+
+**Undo / Redo del editor (Cmd+Z / Cmd+Shift+Z)**
+(Fase 14 · Iteración 14.B).
+
+### Añadido
+
+- `hooks/useConfigHistory.ts`: hook que wrappea el state del
+  `CustomTemplateConfigV2` con stacks `past` y `future`. Cap a
+  `MAX_HISTORY=50` entradas para evitar crecimiento sin límite.
+  API: `{ config, setConfig, undo, redo, reset, canUndo, canRedo }`.
+- Botones Undo / Redo en el toolbar del editor (icono `Undo2` /
+  `Redo2`). Deshabilitados cuando no hay history o estamos en
+  preview.
+- Atajos de teclado:
+  - **Cmd/Ctrl + Z** → undo.
+  - **Cmd/Ctrl + Shift + Z** (o Cmd/Ctrl + Y) → redo.
+  - Solo se activan cuando el foco NO está en un input editable
+    (el navegador maneja undo nativo del texto del input
+    primero).
+
+### Detalles de implementación
+
+- El first paint (load del config desde backend) usa `resetConfig`
+  para NO meter el "estado inicial" al historial — undo desde
+  el primer cambio te devuelve al config cargado, no a uno vacío.
+- "Restaurar desde plantilla" también usa `resetConfig` — el
+  built-in es un nuevo punto cero. Si se quiere volver atrás,
+  hay que cambiar de plantilla, no usar undo.
+- `setConfig` skipea agregar al history si el config nuevo es
+  referencialmente igual al anterior (`prev === resolved`) —
+  evita basura en el stack por re-renders.
+
+### Bundle
+
+- TemplateEditorPage: 69.5 KB → 71.4 KB (gzip 16.4 → 16.9). +0.5 KB
+  gzip por el hook + botones.
+
+## [0.44.0] — 2026-05-23
+
+**Command palette del editor (Cmd+K)**
+(Fase 14 · Iteración 14.A).
+
+Arranque de **Fase 14 — Polish del editor CRM**. Suma un command
+palette estilo Linear/Raycast accesible con Cmd/Ctrl+K que
+centraliza todas las acciones del editor.
+
+### Añadido
+
+- `EditorCommandPalette.tsx`: Dialog modal con input de búsqueda
+  + lista filtrable + navegación por teclado (↑↓ + Enter, Esc
+  cierra). Filter fuzzy simple por label + description + keywords.
+- Comandos disponibles, agrupados:
+  - **Editor**: Guardar, Cambiar a preview / editor (con su
+    keybinding visible).
+  - **Selección** (solo si hay bloques seleccionados): Duplicar
+    todos, Eliminar todos.
+  - **Bloques del canvas**: lista todos los bloques actuales —
+    seleccionar uno equivale a click en el canvas.
+  - **Agregar bloque**: las 14 entradas de tipos de bloque (mismas
+    que la paleta lateral, pero sin scroll). Singletons en uso
+    se deshabilitan.
+  - **Restaurar plantilla**: lista todos los `CRM_TEMPLATES`
+    built-in.
+- Cmd/Ctrl+K toggle abre/cierra el palette desde cualquier punto
+  del editor.
+- Footer del palette con cheat-sheet `↑↓ navegar / ⏎ ejecutar /
+  Esc cerrar`.
+
+### Bundle
+
+- TemplateEditorPage: 62 KB → 69.5 KB (gzip 14.6 → 16.4). +1.8 KB
+  gzip por el component.
+
+## [0.43.5] — 2026-05-23
+
+**Cierre de Fase 13 — Quality Pass**
+(Fase 13 · Iteración 13.F · **CIERRE DE FASE 13**).
+
+### Resumen Fase 13 — Quality Pass
+
+```
+0.43.0  · 13.A · Vitest setup + tests del resolver V2
+0.43.1  · 13.B · Tests createBlock + dragPayload
+0.43.2  · 13.C · Fix 7 errores PHPUnit preexistentes
+0.43.3  · 13.D · Reducir errores PHPStan: 22 → 0
+0.43.4  · 13.E · PHPCS WordPress sniffs unblock
+0.43.5  · 13.F · Cierre  ← acá
+```
+
+### Estado de salud del repo
+
+| Tool | Antes | Después |
+|---|---|---|
+| **Vitest** | sin specs | 38 tests, 0 errors |
+| **PHPUnit** | 530 tests, 7 errors | 530 tests, 0 errors |
+| **PHPStan** | 22 errors | 0 errors |
+| **PHPCS** | no corría | 379 violations reales |
+
+Los 3 items "preexistentes" documentados en el handoff de Fases
+7-10 quedan **resueltos**:
+
+- ✅ "7 errores PHPUnit por CommentEntity::__construct" (13.C).
+- ✅ "22 errores PHPStan en Search/Records" (13.D).
+- ✅ "PHPCS bloqueado por sniffs WP no registrados" (13.E).
+
+### Items que quedan abiertos del handoff (no críticos)
+
+- **PHPStan 2.x upgrade**: actualmente en 1.x. Sería trabajo
+  de migración del config + posibles cambios de sintaxis.
+- **Tests integration con WP real**: `bin/install-wp-tests.sh`
+  existe pero la suite real requeriría DB + WP install. Fuera
+  de scope para una iteración rápida.
+- **Auditoría de las 379 PHPCS violations**: la mayoría son
+  `PreparedSQL` false positives. Útil revisar caso por caso pero
+  no urgente.
+
+## [0.43.4] — 2026-05-23
+
+**PHPCS WordPress sniffs unblock**
+(Fase 13 · Iteración 13.E).
+
+`composer phpcs` ahora corre exitosamente desde un install limpio.
+Antes fallaba con `ERROR: Referenced sniff "WordPress-Extra" does
+not exist` porque los standards de `wp-coding-standards/wpcs` no
+estaban registrados con PHPCS.
+
+### Causa raíz
+
+El plugin `dealerdirect/phpcodesniffer-composer-installer` que
+registra los standards automáticamente se deshabilita en entornos
+non-interactive con privilegios root (containers, CI sin
+`COMPOSER_ALLOW_SUPERUSER=1`).
+
+### Fix
+
+- `composer.json`: el script `phpcs` ahora invoca un sub-script
+  `phpcs:register-paths` antes que ejecuta
+  `phpcs --config-set installed_paths <vendor paths>`. Idempotente
+  (no falla si ya estaba registrado).
+- Mismo wireup para `phpcbf`.
+
+### Ruleset alineado con el estilo PSR-12-ish del proyecto
+
+El proyecto usa espacios (no tabs), arrays cortos, camelCase para
+variables internas, K&R braces — todo distinto del WordPress
+Core style. El ruleset original heredaba `WordPress-Extra` sin
+exclusions, lo que generaba 44k+ violaciones cosméticas que
+ahogaban los issues reales.
+
+Sniffs excluidos en `phpcs.xml.dist`:
+
+- Cosméticos: `DisallowSpaceIndent`, `DisallowShortArraySyntax`,
+  `ValidVariableName`, `OpeningFunctionBraceKernighanRitchie`,
+  `YodaConditions`, `FunctionDeclarationArgumentSpacing`,
+  `FunctionCallSignature`, `ControlStructureSpacing`,
+  `OperatorSpacing`, `ArrayBraceSpacing`, etc.
+- Conflictivos con PHP 8.2+ typed: `Squiz.Commenting`,
+  `Generic.Commenting`, `FunctionComment.MissingParamComment`.
+- `WordPress.WP.AlternativeFunctions` (el proyecto usa la API
+  moderna de PHP donde aplica).
+
+### Estado
+
+- Antes: PHPCS no corría (sniffs no registrados).
+- Después: PHPCS corre, reporta **379 violations** reales.
+  Mayoría son `WordPress.DB.PreparedSQL.NotPrepared` (171) — el
+  sniff no detecta sanitización indirecta en algunos call sites
+  (false positives), pero quedan como signal útil para hacer un
+  audit de seguridad SQL en una iteración futura.
+- Lo importante: PHPCS ahora es usable en CI / development
+  flow. Antes era equivalente a no tener PHPCS configurado.
+
+## [0.43.3] — 2026-05-23
+
+**Reducir errores PHPStan: 22 → 0**
+(Fase 13 · Iteración 13.D).
+
+PHPStan ahora reporta **cero errores**. Los 22 preexistentes
+documentados en el handoff Fases 7-10 quedan resueltos.
+
+### Causa raíz
+
+Los stubs WP (vía `phpstan-wordpress`) declaran que
+`$wpdb->prepare(): string|null`, pero el método siempre retorna
+string cuando el SQL es válido y los placeholders coinciden con
+los args. Antes esto se silenciaba con `@phpstan-ignore-next-line`
+esparcidos por toda la base de código. Una mejora de los stubs
+en una versión reciente hizo que algunos ignores quedaran
+obsoletos (`No error to ignore is reported on line X`).
+
+Adicionalmente: `FieldRepository::forList()` fue renombrado a
+`allForList()` en algún momento, pero 3 callers no se
+actualizaron.
+
+### Fix
+
+- **3 archivos** (`MysqlSearchEngine`, `InvertedIndexEngine`,
+  `CompositeIndexSuggester`): `->forList(` → `->allForList(`.
+- **`InvertedIndexEngine`**: helper `safePrepare(string, array): string`
+  que normaliza el return de `$wpdb->prepare()` a string siempre.
+  Reemplaza los 6 ignores + ifs sueltos por una llamada limpia.
+- **`InvertedIndexEngine`**: removida property `$lists` (private
+  readonly) que nunca se leía. Container binding actualizado.
+- **`QueryBuilder::buildSelect`**: `@param` annotations agregadas
+  para `$fields`, `$whereOverride`, `$idWhitelist`.
+- **`CompositeIndexSuggester::buildDdl`**: `@param list<string>`
+  annotation agregada.
+- **Ignores obsoletos eliminados** en `DashboardRepository`,
+  `PurgeService`, `RecordRepository`, `CompositeIndexSuggester`,
+  `MysqlSearchEngine`.
+- **`MysqlSearchEngine`**: cast defensivo `is_string($escaped) ? $escaped : ''`
+  para resolver "Binary operation . between '`' and array|string".
+
+### Estado
+
+- Antes: **22 errors** PHPStan (level configurado del proyecto).
+- Después: **0 errors**.
+- PHPUnit: **530 tests, 0 errors** (sin regresiones).
+- Vitest: **38 tests, 0 errors** (sin regresiones).
+
+## [0.43.2] — 2026-05-23
+
+**Fix 7 errores PHPUnit preexistentes (CommentEntity)**
+(Fase 13 · Iteración 13.C).
+
+Los 7 errores PHPUnit que arrastraba el repo desde la
+introducción del campo `metadata` en `CommentEntity` (commit
+0.33.0+, documentado en el handoff como issue preexistente) ya
+están resueltos.
+
+### Causa
+
+El constructor de `CommentEntity` se actualizó para sumar el
+parámetro nombrado `metadata: array<string, mixed>` como
+argumento #7, pero los tests que llamaban `new CommentEntity(...)`
+manualmente con argumentos nombrados nunca se actualizaron:
+
+- `CommentEntityTest::test_to_array_omits_deleted_at` (1 error).
+- `ActivityLoggerTest::test_comment_events_attribute_to_author_not_current_user` (1).
+- `ActivityLoggerTest::test_truncates_long_comment_content` (1).
+- `MentionNotifierTest::test_no_mentions_means_no_side_effects` (1).
+- `MentionNotifierTest::test_creates_activity_and_email_per_mention` (1).
+- `MentionNotifierTest::test_unknown_login_is_silently_ignored` (1).
+- `MentionNotifierTest::test_self_mention_does_not_notify` (1).
+
+### Fix
+
+Agregado `metadata: []` en cada construcción (default sensato:
+ningún test estaba evaluando metadata, así que `[]` no cambia
+la semántica).
+
+### Estado
+
+- Antes: **530 tests, 7 errors**.
+- Después: **530 tests, 0 errors** (92 integration skipped por
+  requerir WP env — no relacionados).
+
+## [0.43.1] — 2026-05-23
+
+**Tests de createBlock + dragPayload**
+(Fase 13 · Iteración 13.B).
+
+Sigue ampliando la cobertura del editor de plantilla CRM.
+
+### Añadido
+
+- `tests/unit/template-editor/createBlock.test.ts`: **13 tests**:
+  - `createBlock` returns null para related sin relation field,
+    crea bloque para related con relation field disponible.
+  - Posicionamiento por default (`maxY`), posición explícita
+    cuando se pasa.
+  - IDs únicos entre llamadas.
+  - Defaults correctos para `kpi` (currency / number),
+    `divider`, `heading`, `comments_thread`.
+  - `appendBlock` no muta el config input.
+  - `appendFieldAsGroup` usa label del field como label del
+    grupo + slug en field_slugs.
+- `tests/unit/template-editor/dragPayload.test.ts`: **11 tests**:
+  - Roundtrip encode/decode para `block-type` y `field`.
+  - Decode devuelve null para JSON malformado, shape inválido,
+    `kind` desconocido, falta de campos requeridos.
+  - `readDropPayload` lee del MIME custom, fallback a `text/plain`,
+    null cuando no hay nada o cuando hay garbage.
+
+### Estado
+
+- **Total: 38 tests passing** (14 resolver + 13 createBlock +
+  11 dragPayload), 653ms.
+
+## [0.43.0] — 2026-05-23
+
+**Vitest setup + tests del resolver V2**
+(Fase 13 · Iteración 13.A).
+
+Arranca la **Fase 13 — Quality Pass**. Bootstrap del runner de
+tests Vitest (que estaba en `package.json` desde Fase 1 pero sin
+specs) y primer test file cubriendo el contrato del resolver V2.
+
+### Añadido
+
+- `vite.config.ts`: sección `test` con jsdom environment, setup
+  file global, include pattern `tests/unit/**/*.test.{ts,tsx}`,
+  coverage config básica.
+- `tests/unit/setup.ts`: mock global de `@wordpress/i18n`
+  (`__`, `_x`, `_n`, `sprintf` devuelven el string fuente para
+  que los componentes/units no dependan de un runtime WP).
+- `tests/unit/lib/crmTemplates.test.ts`: **14 tests** del
+  `resolveV2`:
+  - Header: title field resolution, missing slug fallback,
+    quickActions kind mapping (email/url/phone).
+  - `properties_group`: inflado de field_slugs a FieldEntity,
+    drop silencioso de fields inexistentes.
+  - `related`: drop cuando el field no es type relation, keep
+    cuando sí.
+  - `files`: default a todos los file fields cuando array vacío,
+    filtro por slugs declarados cuando no.
+  - Fase 11.F: pass-through correcto de `divider` /
+    `heading` / `comments_thread` configs.
+  - Preservación del orden de bloques en el output.
+
+### Detalles
+
+- Los tests del resolver usan `// @vitest-environment node`
+  per-file porque no tocan DOM — corren más rápido.
+- Total: 633ms para 14 tests. Sin tests previos en el repo.
+
+## [0.42.6] — 2026-05-23
+
+**Docs + cierre de Fase 12**
+(Fase 12 · Iteración 12.G · **CIERRE DE FASE 12**).
+
+### Añadido
+
+- `docs/vistas-guardadas.md`: sección "Tipos de vista" con docs
+  para Cards (campos, cover, densidad, editar config). Las
+  secciones Kanban / Calendar también quedaron documentadas
+  formalmente en el mismo archivo.
+
+### Resumen Fase 12 — Cards + portal mejorado
+
+```
+0.42.0  · 12.A · SavedViewType='cards' + componente base
+0.42.1  · 12.B · Editor de config + resolución coverField
+0.42.2  · 12.C · Editar config de vistas Cards existentes
+0.42.3  · 12.D · Bloque comments_thread para portal
+0.42.4  · 12.E · UI de filtros en bundle público
+0.42.5  · 12.F · Magic link UI en panel CRM
+0.42.6  · 12.G · Docs + cierre  ← acá
+```
+
+### Cobertura
+
+Con este release cierran 4 items pendientes del handoff de Fases
+7-10:
+
+- ✅ `comments_thread` para portal (Fase 12.D).
+- ✅ "Magic link UI en panel CRM" (Fase 12.F).
+- ✅ "Filtros UI en bundle público" (Fase 12.E).
+- ✅ Cards view, última fase del roadmap original CLAUDE.md §15
+  que faltaba (Fase 6 → ahora cubierta).
+
+Quedan en el backlog del handoff (no críticos):
+
+- `chart_widget` para portal (requiere lib de charts ~30 KB).
+- UI para `fixed_filter_tree` en `PublicVisibilityPanel`.
+- Inputs por tipo en `editable_form` (user / file / relation).
+- Filtros UI en bundle público para tipos no-discretos (text /
+  number / date).
+- Mensaje específico cuando WP no tiene pretty permalinks.
+
+## [0.42.5] — 2026-05-23
+
+**Magic link UI en panel CRM**
+(Fase 12 · Iteración 12.F).
+
+Cierra el gap del handoff: el endpoint `POST .../magic-link`
+existía desde Fase 10 pero no tenía UI en el `PortalAccessButton`.
+Hoy queda accesible con dos botones: "Enviar magic link" (por
+email) y "Copiar link" (al clipboard).
+
+### Añadido
+
+- Backend (`PortalController`):
+  - `GET /portal/page-url`: auto-detect de la URL de la página del
+    portal buscando el primer post/page publicado con el
+    shortcode `[imcrm-client-portal]`. Devuelve `{ url: string | null }`.
+    Cap: `manage_lists`.
+- Frontend:
+  - `hooks/usePortalPageUrl.ts`: hook con TanStack Query, cachea
+    5min.
+  - `PortalAccessButton`: cuando `hasAccess === true` y la página
+    del portal está detectada, aparecen 2 botones nuevos:
+    - **"Enviar magic link"** (icono Mail): llama `POST .../magic-link`
+      con `send_email=true`. Toast de éxito.
+    - **"Copiar link"** (icono Copy): mismo endpoint con
+      `send_email=false`, copia la URL al clipboard via
+      `navigator.clipboard`. Fallback a toast con la URL si no se
+      puede acceder al clipboard (HTTP, browsers viejos).
+  - Si no hay página del portal detectada, muestra mensaje
+    "Agregá el shortcode [imcrm-client-portal] a una página".
+
+### UX
+
+- `magicLink.variables` (boolean) se usa para distinguir cuál de
+  los dos botones está pendiente — solo ese muestra el spinner.
+- Toast errors específicos (mensaje del backend si vino, sino
+  default).
+
+## [0.42.4] — 2026-05-23
+
+**UI de filtros en bundle público de listas**
+(Fase 12 · Iteración 12.E).
+
+El visitante anónimo de una lista pública ahora puede filtrar la
+tabla por campos discretos (select / multi_select / checkbox). Si
+`viewer_filters` está habilitado en la lista pública, dropdowns
+aparecen en el toolbar junto al search.
+
+### Añadido
+
+- Backend (`PublicLists/Shortcode.php`): el `config` de cada
+  field se incluye en las columnas serializadas
+  (`data-imcrm-config`). Permite al bundle JS armar dropdowns con
+  options correctas sin exponer datos sensibles.
+- Frontend:
+  - `PublicFieldMeta.config?` opcional con `options?: [...]`.
+  - `FetchParams.filters: Record<slug, string>` — payload de
+    filtros activos.
+  - `api.ts#buildUrl` serializa `filter[slug][eq]=value`. Para
+    valores con `,` usa `filter[slug][in]=v1,v2`.
+  - `FilterDropdown` component: select nativo con la lista de
+    options del field. Para `checkbox` el toggle es 3-estados
+    (todos/sí/no).
+  - Botón "Limpiar filtros" aparece cuando hay al menos uno activo.
+- CSS (`public-list.css`): estilos `.imcrm-public-list__filter`
+  y `.imcrm-public-list__clear-filters`. Toolbar pasó a
+  `flex-wrap` para acomodar varios dropdowns.
+
+### Detalles
+
+- Solo tipos discretos por ahora (select / multi_select /
+  checkbox). Text/number/date requieren input + operator,
+  scope futuro.
+- Cambio de filtro vuelve a página 1 (igual que search y sort).
+- Backend ya soportaba `?filter[slug][op]=value` con whitelist
+  por `visible_field_slugs` desde Fase 8 — esta iteración solo
+  expone la UI.
+
+## [0.42.3] — 2026-05-23
+
+**Bloque `comments_thread` para portal del cliente**
+(Fase 12 · Iteración 12.D).
+
+El cliente ahora puede ver y crear comentarios desde su portal.
+Cierra el gap del handoff Fases 7-10 que indicaba el bloque como
+"futuro".
+
+### Añadido
+
+- Backend (PHP):
+  - `'comments_thread'` agregado a
+    `PortalTemplate::VALID_BLOCK_TYPES`.
+  - `CommentService` inyectado en `PortalController` via Container.
+  - `GET  /imagina-crm/v1/portal/me/comments` — lista los comments
+    del record del cliente. `list_id` + `record_id` se resuelven
+    desde el `ClientResolver` (sin spoofing posible).
+  - `POST /imagina-crm/v1/portal/me/comments` — crea un comment
+    del cliente. `user_id` viene del WP session; `parent_id` /
+    `metadata` no expuestos (composer simple).
+- Frontend:
+  - `app/portal/blocks/CommentsThreadBlock.tsx`: lista
+    cronológica simple + composer textarea (5000 char cap, igual
+    al CRM).
+  - Wireup en `PortalRenderer` (case `'comments_thread'` del
+    switch).
+  - Modo `readonly` opcional desde la config (cliente ve pero no
+    puede crear).
+- Admin:
+  - `PORTAL_BLOCK_TYPES` extendido con
+    `{ value: 'comments_thread', label: 'Hilo de comentarios' }`.
+  - `PortalTemplateEditor`: form de config con title + checkbox
+    "Solo lectura".
+  - `defaultConfigFor('comments_thread')` → `{ title: 'Comentarios',
+    readonly: false }`.
+- CSS:
+  - `assets/portal.css`: estilos `.imcrm-portal-comments`,
+    `.imcrm-portal-comments__item`, `.imcrm-portal-comments__composer`,
+    `.imcrm-portal-comments__textarea`, `.imcrm-portal-comments__submit`.
+
+### Seguridad
+
+- El cliente NUNCA puede ver ni crear comments sobre records
+  ajenos. Los endpoints resuelven `recordId` desde el
+  `ClientResolver` — no aceptan IDs como params.
+- Mismas reglas de validación del `CommentService` aplican (5000
+  char cap, contenido obligatorio).
+- El admin sigue moderando todo desde el `CommentsPanel` del
+  CRM (edit/delete con `_isAdmin=true`).
+
+## [0.42.2] — 2026-05-23
+
+**Cards: editar config en vistas existentes**
+(Fase 12 · Iteración 12.C).
+
+Hasta acá, una vista Cards solo se podía configurar al crearla.
+Para cambiar qué campos muestra había que borrar y crear de
+nuevo. Ahora hay un editor accesible desde el dropdown menu de
+la vista.
+
+### Añadido
+
+- `CardsConfigPanel` (componente compartido): el editor de
+  config de cards extraído como pieza reusable.
+- `EditCardsViewDialog`: dialog para editar nombre + config de
+  una vista Cards existente. Pre-rellena valores desde
+  `activeView.config`. Submit dispara `useUpdateSavedView`.
+- ViewsTabs: opción "Editar configuración" en el dropdown menu
+  de cada vista cuando `view.type === 'cards'`. Solo aparece en
+  cards por ahora (Kanban / Calendar requieren tratamiento
+  separado por la complejidad de cambiar `group_by_field_id` o
+  `date_field_id` sobre una vista en uso).
+
+### Cambiado
+
+- `SaveViewDialog` ahora usa `CardsConfigPanel` en lugar de su
+  versión inline. Cero cambio funcional, mejor mantenibilidad.
+
+## [0.42.1] — 2026-05-23
+
+**Cards: editor de config + cover image resoluble**
+(Fase 12 · Iteración 12.B).
+
+Termina la experiencia de Cards: al crear una vista de tipo
+`cards` el dialog ahora muestra el editor visual de su config y
+las imágenes de portada se resuelven correctamente desde
+attachment IDs.
+
+### Añadido
+
+- `hooks/useAttachments.ts`: hook reutilizable que batchea IDs de
+  attachments en un único request a `/wp-json/wp/v2/media?include=...`
+  y devuelve un `Map<id, { url, thumbUrl, title, mimeType }>`.
+  Cacheado con TanStack Query (5 min stale time).
+- Editor de config de Cards en `SaveViewDialog`:
+  - Multi-select con checkboxes para `card_field_ids` (cualquier
+    field excepto `relation`).
+  - Single-select para `card_cover_field_id` (solo `file` fields;
+    se desactiva si no hay ninguno).
+  - Segmented control Compacta / Normal / Espaciada para `card_size`.
+
+### Cambiado
+
+- `CardsView` ahora usa `useAttachments` para resolver los IDs de
+  cover de todos los records visibles en un solo fetch. Antes
+  esperaba que el backend devolviera URL string o `{url}` directo
+  (que no era el caso — el backend devuelve attachment ID).
+- Card component recibe `coverUrl: string | null` directo en
+  lugar de `coverField` + record. Cleaner separation.
+
+### Detalles
+
+- `useAttachments` dedup + sort de IDs para `queryKey` estable.
+- Pide solo `_fields=id,source_url,mime_type,title,media_details`
+  para minimizar payload.
+- Prefiere `media_details.sizes.medium` para el thumb, fallback
+  a `thumbnail`, fallback a `source_url`.
+
+## [0.42.0] — 2026-05-23
+
+**Vista Cards — schema + componente base**
+(Fase 12 · Iteración 12.A).
+
+Suma `cards` como cuarto `SavedViewType` (después de `table`,
+`kanban`, `calendar`). Cierra la única fase del roadmap original
+(CLAUDE.md §15 — Fase 6 "Cards + Extras") que faltaba.
+
+### Añadido
+
+- Backend (`SavedViewService.php`):
+  - `'cards'` agregado a `ALLOWED_TYPES`.
+  - Validación de `config.card_field_ids[]` (deben pertenecer a
+    la lista), `config.card_cover_field_id` (debe ser tipo `file`)
+    y `config.card_size` (compact/comfortable/spacious).
+- Types (`app/types/view.ts`):
+  - `SavedViewType = ... | 'cards'`.
+  - `SavedViewConfig` agrega `card_field_ids?`, `card_cover_field_id?`,
+    `card_size?`.
+- Frontend (`app/admin/records/views/CardsView.tsx`):
+  - Grid CSS auto-fill con `minmax()` ajustado por densidad.
+  - Cada card: cover image (si hay coverField y URL resoluble)
+    o avatar colorizado generado desde el título; título grande
+    (primary field); hasta N campos extra con label inline.
+- `RecordsPage.tsx` detecta `isCards`, calcula `cardsExtraFields`
+  y `cardsCoverField` desde el config, y rendera `CardsView`.
+- `SaveViewDialog`: opción "Cards (grid de tarjetas)" en el
+  selector de tipo.
+- `ViewsTabs`: icono `LayoutGrid` para vistas tipo cards.
+
+### Pendiente para 12.B
+
+- Editor de config visual (card_field_ids + card_cover_field_id +
+  card_size) en `SaveViewDialog`.
+- Resolución de `coverField` desde attachment ID a URL (hoy solo
+  funciona si el field devuelve URL string o `{url}` directo).
+- Virtualización si records.length > 200 (por ahora full render).
+
+## [0.41.6] — 2026-05-23
+
+**Polish + cierre de Fase 11**
+(Fase 11 · Iteración 11.G · **CIERRE DE FASE 11**).
+
+Pequeños retoques de UX, atajos globales del editor y mejor empty
+state. Con este release la Fase 11 (Editor de plantilla CRM v3)
+queda cerrada.
+
+### Añadido
+
+- **Cmd/Ctrl + S** desde cualquier punto del editor (incluyendo
+  inputs) → Guardar plantilla. Previene el "guardar página" del
+  browser.
+- **Cmd/Ctrl + P** → toggle Editor / Preview. Cuando entra a
+  Preview limpia la selección. Solo activo fuera de inputs para
+  no interferir con tipeo.
+- **Cheat-sheet de atajos** en el panel "Ajustes de la plantilla"
+  (inspector cuando no hay bloque seleccionado): lista todos los
+  atajos del editor con `<kbd>` styled.
+- **Empty state** del canvas mejorado: icono `LayoutGrid` en
+  círculo + mensaje contextual diferente para Editor vs Preview.
+- `title` con `(⌘S)` en el botón Guardar.
+
+### Resumen Fase 11 — Editor de plantilla CRM v3
+
+```
+0.41.0  · 11.A · Layout 3 columnas (paleta + canvas + inspector)
+0.41.1  · 11.B · Drag-from-palette + tab Campos
+0.41.2  · 11.C · Drop-on-block + grid guides + toggle Preview
+0.41.3  · 11.D · Multi-select + duplicar + atajos por-bloque
+0.41.4  · 11.E · Preview con record real
+0.41.5  · 11.F · divider + heading + comments_thread
+0.41.6  · 11.G · Polish + atajos globales + cierre  ← acá
+```
+
+El contrato persistido (`CustomTemplateConfigV2`) NO cambió en
+toda la Fase 11. Las plantillas guardadas en 0.40.x abren en
+0.41.6 sin migración. Lo único que se agregaron son 3 tipos de
+bloque nuevos a la unión `V2BlockType` — backward-compatible.
+
+Bundle del editor: 38KB (gzip 9KB) en 11.A → 62KB (gzip 14.5KB)
+en 11.G. +24KB de funcionalidad: paleta visual, drag&drop,
+multi-select, preview con record real, 3 bloques nuevos, atajos.
+
+## [0.41.5] — 2026-05-23
+
+**3 bloques nuevos: divider, heading, comments_thread**
+(Fase 11 · Iteración 11.F).
+
+Suma 3 tipos de bloque al editor de plantilla CRM, extendiendo
+la unión `V2BlockType` en `crmTemplates.ts`. Backward-compatible:
+las plantillas anteriores siguen funcionando sin migración.
+
+### Añadido
+
+- **`divider`** (categoría Layout): línea horizontal con label
+  opcional centrado. Sin label es un `<hr>` simple. Default
+  width 12 × height 1.
+- **`heading`** (categoría Layout): título de sección con nivel
+  jerárquico configurable (h2, h3, h4). Sirve para agrupar
+  visualmente bloques relacionados sin chrome de tarjeta. Default
+  width 12 × height 2.
+- **`comments_thread`** (categoría Contenido): wrapper del
+  `CommentsPanel` existente, alimentado por
+  `/lists/{list}/records/{record}/comments`. En el editor visual
+  queda no-interactivo por el `pointer-events-none` del wrapper
+  del GridEditor — en `RecordCrmLayout` es interactivo. Cuando
+  `recordId === 0` (modo mock), muestra placeholder "Seleccioná
+  un record real arriba para previsualizar el hilo".
+
+### Cambiado
+
+- `V2BlockType` union extendida con los 3 nuevos tipos.
+- `ResolvedV2Block` extendido con sus counterparts resolved.
+- `resolveV2` agrega branches para los 3 nuevos.
+- `createBlock` agrega defaults razonables.
+- `BlockInspectorPanel` agrega forms inline (`DividerForm`,
+  `HeadingForm`, `CommentsThreadForm`).
+- `BlockPalettePanel` agrega cards en las categorías Layout y
+  Contenido.
+
+### Mientras estaba ahí
+
+- Fix lint warning en `BlockRenderer.tsx`: el tipo `RecordEntity`
+  ahora se importa con `import type` en lugar de `import()` type
+  annotation inline.
+
+## [0.41.4] — 2026-05-23
+
+**Preview con record real**
+(Fase 11 · Iteración 11.E).
+
+Permite ver la plantilla renderada con datos reales de la lista,
+no solo con el mock generado desde el schema.
+
+### Añadido
+
+- `RecordSelector` — combobox en el toolbar del editor con
+  búsqueda debounced. Lista los primeros 20 records de la lista
+  (filtrados por la búsqueda si hay texto). Labels usan el primary
+  field del record.
+- Opción especial "Datos de muestra" (valor inicial) que vuelve
+  al mock generado a partir del schema de fields.
+- `effectiveRecord` reemplaza a `mockSample` en el `<GridEditor>`:
+  cuando hay record real seleccionado, todos los bloques reciben
+  sus datos. Cuando no, sigue mostrando el mock.
+
+### Detalles
+
+- Search debounced 250ms para no spammear `/records?search=`.
+- Loading inline con `<Loader2>` mientras el endpoint responde.
+- Estados vacíos diferenciados: "Sin resultados para la búsqueda"
+  vs "Esta lista no tiene records todavía".
+- El selector vive en el toolbar del editor permanentemente —
+  visible en modo Editor y en modo Preview por igual. Permite
+  validar el render con datos reales en ambos modos.
+
+## [0.41.3] — 2026-05-23
+
+**Multi-select + duplicar + atajos de teclado**
+(Fase 11 · Iteración 11.D).
+
+Permite operar con múltiples bloques a la vez. Shift+click acumula
+selección. Cmd/Ctrl+D duplica. Backspace o Delete eliminan. Esc
+deselecciona.
+
+### Añadido
+
+- **Shift+click** sobre un bloque del canvas suma/quita de la
+  selección. Click sin modifier selecciona uno solo (reemplaza la
+  selección anterior).
+- **`BulkActionsPanel`** (nuevo panel del inspector cuando hay
+  2+ bloques seleccionados): resumen "N bloques seleccionados" +
+  acciones Duplicar todos / Eliminar todos + cheat-sheet de
+  atajos.
+- **`BlockInspectorPanel` + duplicar**: el botón Duplicar al pie
+  del inspector ahora está cableado (en 11.A se renderizaba pero
+  `onDuplicate` venía `undefined`). Funciona para selección
+  individual.
+- **Atajos de teclado** globales (solo en modo Editor, no en
+  Preview, y solo cuando el foco no está en input/textarea/select
+  editable):
+  - `Cmd/Ctrl + D` → duplicar seleccionados
+  - `Backspace` / `Delete` → eliminar (con confirm si son 2+)
+  - `Esc` → deseleccionar
+
+### Cambiado
+
+- Estado de selección pasó de `selectedBlockId: string | null` a
+  `selectedBlockIds: string[]`. El inspector switchea entre tres
+  modos: bulk (≥2) / single (1) / template settings (0).
+- Duplicar genera nuevos IDs con timestamp+random suffix y posiciona
+  cada copia debajo del último bloque con offset acumulado para
+  evitar que se monten visualmente.
+- Borrar con confirmación cuando son 2+ bloques (single block
+  borra directo sin confirmación).
+
+## [0.41.2] — 2026-05-23
+
+**Drop sobre grupo, grid guides, toggle Editor/Preview**
+(Fase 11 · Iteración 11.C).
+
+Cierra el flujo de drag-and-drop del editor: arrastrar un field
+sobre un `properties_group` existente lo agrega al grupo en lugar
+de crear uno nuevo. Suma feedback visual del drop target, grid
+guides sutiles, y un modo Preview WYSIWYG.
+
+### Añadido
+
+- **Drop sobre grupo existente**: al arrastrar un field desde la
+  tab Campos sobre un `properties_group` del canvas, el field se
+  agrega al `field_slugs` del grupo (si no estaba ya). El bloque
+  target muestra ring `primary` + overlay "Soltar para agregar
+  al grupo" durante el dragover.
+- **Grid guides**: 13 líneas verticales sutiles (`border/40`)
+  cada columna del grid (12 cols), posicionadas `z-0` debajo del
+  contenido del grid. Solo visibles en modo editor — ayudan a
+  anticipar dónde se alinearán los bloques.
+- **Toggle Editor / Preview** en el toolbar:
+  - **Editor**: estado normal (drag, drop, selección, ring del
+    bloque activo, paleta+inspector visibles).
+  - **Preview**: deshabilita drag/resize/drop/selección. La paleta
+    y el inspector se ocultan y el canvas pasa a full-width sobre
+    fondo `card` — vista WYSIWYG fiel al panel CRM final.
+
+### Cambiado
+
+- `GridEditor` acepta props `onDropOnBlock(blockId, payload)` y
+  `preview?: boolean`. `onDropOnBlock` retorna `true` cuando el
+  drop fue manejado (el grid evita propagación al handler global).
+- Validación del MIME `application/x-imcrm-palette` en
+  `onDragOver` antes de mostrar feedback visual — evita reaccionar
+  a drags ajenos al editor (archivos del SO, links, etc.).
+- `handleBlockDragLeave` discrimina entre "salir del bloque" vs
+  "cruzar a un hijo" con `relatedTarget.contains` — evita flicker
+  del feedback durante el dragover.
+
+### UX
+
+- Drop de field ya presente en el grupo → toast info "Este campo
+  ya está en el grupo", el drop se considera manejado.
+- En modo Preview no se muestra ring de selección ni hover —
+  experiencia idéntica al `RecordCrmLayout` real (sin chrome del
+  editor).
+
+## [0.41.1] — 2026-05-23
+
+**Drag-from-palette + tab Campos**
+(Fase 11 · Iteración 11.B).
+
+Hace el editor de plantilla CRM verdaderamente DnD: las cards de
+la paleta ahora se pueden arrastrar al canvas y soltarse en la
+posición exacta deseada. Click-to-add se mantiene como atajo
+rápido.
+
+### Añadido
+
+- `panels/BlockPalettePanel`: tabs **Bloques** / **Campos** con
+  filtro de búsqueda inline. Tab Campos muestra los fields
+  disponibles de la lista (excluyendo `relation`).
+- Drag-from-palette: cards arrastrables vía HTML5 DnD nativo.
+  Drop en el canvas crea el bloque en la posición soltada.
+- Drop de un field al canvas crea automáticamente un
+  `properties_group` con ese campo y el label del field como
+  nombre del grupo.
+- `utils/dragPayload.ts`: payload tipado discriminado
+  (`block-type` | `field`) con MIME custom `application/x-imcrm-palette`
+  para distinguir drops del editor de drops externos del SO.
+- `utils/createBlock.ts#appendFieldAsGroup`: factory para crear un
+  properties_group inicializado con un único field.
+- `GripVertical` icon en las cards de la paleta como affordance
+  visual del drag. `cursor: grab` cuando está sobre la card.
+
+### Cambiado
+
+- `GridEditor` ahora declara `isDroppable={true}` + `droppingItem`
+  + `onDrop`. El placeholder visual aparece mientras se arrastra
+  un item desde la paleta sobre el canvas.
+- El estado vacío del canvas ya no oculta el grid — se renderea
+  un overlay no-interactivo encima del grid para que el drop area
+  siga existiendo cuando no hay bloques.
+- `appendBlock` y `createBlock` aceptan posición `{ x, y }`
+  opcional para soportar drops en coordenadas específicas.
+
+### UX
+
+- Cuando se hace drop de un block-type singleton (`timeline` /
+  `stats`) que ya existe en el canvas, la card de la paleta
+  aparece con `cursor: not-allowed` y `opacity: 50%`. El drag se
+  cancela en `onDragStart` si la card está disabled.
+- Cuando se hace drop de un field que no existe (caso edge), el
+  toast lo reporta como error.
+
+### Contrato persistido
+
+Sin cambios — `CustomTemplateConfigV2`. Drop-from-palette es
+azúcar para la operación "agregar bloque", el resultado en disco
+es indistinguible de click-to-add.
+
+## [0.41.0] — 2026-05-23
+
+**Editor de plantilla CRM v3 — layout 3 columnas**
+(Fase 11 · Iteración 11.A).
+
+Rework del editor visual de plantilla. El layout pasa de "header
+colapsable + canvas + Dialog modal por bloque" a una experiencia
+estilo Figma/Webflow:
+
+```
+┌────────────────────────────────────────────────────┐
+│ Topbar: breadcrumb + Guardar                        │
+├──────────┬──────────────────────┬──────────────────┤
+│ Paleta   │       Canvas         │    Inspector     │
+│ (left)   │   (drag/resize)      │     (right)      │
+└──────────┴──────────────────────┴──────────────────┘
+```
+
+### Añadido
+
+- `panels/BlockPalettePanel.tsx` — columna izquierda con cards de
+  bloques agrupados por categoría (Datos, Visualización, Contenido,
+  Acciones). Click agrega al canvas. Singleton blocks (`timeline`,
+  `stats`) se deshabilitan cuando ya existe uno.
+- `panels/BlockInspectorPanel.tsx` — columna derecha persistente.
+  Muestra los settings del bloque seleccionado con acciones
+  Duplicar/Eliminar al pie. Reemplaza el `BlockConfigDialog` modal.
+- `panels/TemplateSettingsPanel.tsx` — fallback del inspector cuando
+  no hay bloque seleccionado. Incluye los slots del header (título,
+  subtítulos, badges, acciones rápidas) y "Restaurar desde
+  plantilla".
+- `forms/BlockForms.tsx` — forms inline por tipo de bloque,
+  extraídos del Dialog modal.
+- `utils/createBlock.ts` — factory de bloques compartida entre
+  GridEditor y BlockPalettePanel.
+- Selección de bloque por click. Click en background vacío
+  deselecciona. Ring `primary` visible en el bloque activo.
+
+### Cambiado
+
+- `TemplateEditorPage.tsx` reescrito con grid CSS 3 columnas
+  (`260px_1fr_320px`) y altura `calc(100vh-8rem)` para layout
+  estilo IDE.
+- `GridEditor.tsx` ya no abre Dialog ni muestra dropdown "Agregar
+  bloque": esos responsabilidades migran a paleta + inspector.
+  Sigue siendo responsable solo del drag/resize del grid.
+
+### Eliminado
+
+- `template-editor/HeaderEditor.tsx` (su lógica vive en
+  `TemplateSettingsPanel`).
+- `template-editor/blocks/BlockConfigDialog.tsx` (su lógica vive
+  en `BlockInspectorPanel` + `forms/BlockForms.tsx`).
+
+### Contrato persistido
+
+Sin cambios — sigue siendo `CustomTemplateConfigV2`. Backward-
+compatible: las plantillas guardadas con 0.40.x abren sin migración
+en 0.41.0.
+
 ## [0.40.4] — 2026-05-18
 
 **Fix:** pantalla en blanco al entrar a Ajustes del plugin

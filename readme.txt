@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.40.4
+Stable tag: 0.45.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,351 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.45.3 =
+**Cierre de Fase 15 — Features nuevas cherry-picked.**
+
+Resumen Fase 15:
+- 15.A · Global command palette Cmd+K en admin shell.
+- 15.B · Bulk export con selección de fields + BOM + delimiter.
+- 15.C · Webhooks manager en Ajustes (cross-list, reusa
+  motor de Automations).
+- 15.D · Cierre.
+
+Con esto se cierran las 4 fases del PR (12-15): Cards view +
+portal mejorado, Quality Pass, Polish editor CRM, Features
+nuevas. 22 commits totales, branch
+claude/session-handoff-docs-qK1LW.
+
+= 0.45.2 =
+**Webhooks manager en Ajustes (Fase 15 · iter 15.C).**
+
+Card en Ajustes con tabla cross-list de todas las
+automatizaciones del workspace que disparan call_webhook.
+Toggle play/pause, link al editor de Automations, delete con
+confirm. Reutiliza el motor de Automations existente — sin
+infra paralela.
+
+= 0.45.1 =
+**Bulk export con opciones (Fase 15 · iter 15.B).**
+
+El botón "Exportar" ahora abre un dialog con:
+- Selección granular de fields a incluir.
+- Delimiter: coma o punto y coma.
+- Checkbox UTF-8 BOM (default ON, recomendado para Excel).
+
+Backend: ExportController acepta ?delimiter= y ?with_bom=1.
+CsvExporter normaliza delimiter a coma/punto-y-coma (whitelist
+defensiva).
+
+XLSX nativo NO incluido (requiere lib pesada). CSV con BOM
+cubre el caso "abrir en Excel" sin sumar peso.
+
+= 0.45.0 =
+**Command palette global Cmd+K (Fase 15 · iter 15.A).**
+
+Arranque de Fase 15. Cmd/Ctrl+K abre un palette estilo Linear
+desde cualquier página del plugin. Permite jump rápido a
+listas, dashboards, automations, settings.
+
+Coexiste con el EditorCommandPalette del editor de plantilla —
+cuando la ruta es /template-editor, el global se deshabilita y
+el editor toma la prioridad de Cmd+K.
+
+= 0.44.4 =
+**Cierre de Fase 14 — Polish del editor CRM.**
+
+Resumen: command palette Cmd+K (14.A) + Undo/Redo Cmd+Z (14.B) +
+4 industry presets eCommerce/Agencia/Salud/Inmobiliaria (14.C) +
+modo full-screen Cmd+J (14.D) + cheat-sheet actualizado (14.E).
+
+10 atajos de teclado documentados en el panel "Ajustes de la
+plantilla" del editor.
+
+= 0.44.3 =
+**Modo full-screen del editor (Fase 14 · iter 14.D).**
+
+Botón en el toolbar + atajo Cmd/Ctrl + J toggle. Oculta los
+chromes de WP (admin bar, sidebar, footer) + sidebar/topbar
+del plugin. Esc sale (cuando no hay bloques seleccionados).
+
+= 0.44.2 =
+**Industry presets aplicables (Fase 14 · iter 14.C).**
+
+4 presets pre-armados (eCommerce, Agencia, Salud, Inmobiliaria)
+que appendean bloques al canvas. Accesibles desde el command
+palette (Cmd+K → "Aplicar preset: X"). Defensivos respecto al
+schema: solo agregan bloques cuando los fields requeridos
+existen en la lista.
+
+= 0.44.1 =
+**Undo/Redo del editor con Cmd+Z (Fase 14 · iter 14.B).**
+
+Botones Undo/Redo en el toolbar + atajos Cmd+Z (undo) y
+Cmd+Shift+Z (redo). Historial cap a 50 entries. El load
+inicial y "Restaurar desde plantilla" son puntos cero del
+history (no se puede undo más atrás).
+
+= 0.44.0 =
+**Command palette del editor con Cmd+K (Fase 14 · iter 14.A).**
+
+Arranque de Fase 14 — Polish del editor CRM. Cmd/Ctrl+K abre un
+command palette que centraliza Guardar, Toggle Preview, Saltar
+a bloque, Agregar bloque (14 tipos), Restaurar plantilla, y
+acciones de selección.
+
+= 0.43.5 =
+**Cierre de Fase 13 — Quality Pass.**
+
+Estado de salud del repo:
+- Vitest: 38 tests, 0 errors (era: sin specs).
+- PHPUnit: 530 tests, 0 errors (era: 7 errors).
+- PHPStan: 0 errors (era: 22 errors).
+- PHPCS: corre (era: no corría).
+
+3 items preexistentes del handoff resueltos.
+
+= 0.43.4 =
+**PHPCS WordPress sniffs unblock (Fase 13 · iter 13.E).**
+
+composer phpcs ahora corre exitosamente. composer.json incluye
+sub-script phpcs:register-paths que registra los standards
+WordPress / PHPCompatibility en cada invocación (idempotente).
+Ruleset alineado con el estilo PSR-12-ish del proyecto.
+
+= 0.43.3 =
+**Reducir errores PHPStan: 22 → 0 (Fase 13 · iter 13.D).**
+
+Los 22 errores PHPStan preexistentes del handoff Fases 7-10 ya
+están resueltos. Mix de fixes reales (forList→allForList,
+property never read), helper safePrepare para normalizar return
+de $wpdb->prepare(), y limpieza de phpstan-ignore-next-line
+obsoletos.
+
+= 0.43.2 =
+**Fix 7 errores PHPUnit preexistentes (Fase 13 · iter 13.C).**
+
+Los 7 errores PHPUnit que arrastraba el repo desde la
+introducción del campo `metadata` en CommentEntity ya están
+resueltos. Tests pasan de 530/7 errors a 530/0 errors.
+
+= 0.43.1 =
+**Tests de createBlock + dragPayload (Fase 13 · iter 13.B).**
+
+24 tests nuevos (13 createBlock + 11 dragPayload). Total
+acumulado: 38 tests passing.
+
+= 0.43.0 =
+**Vitest setup + tests del resolver V2 (Fase 13 · iter 13.A).**
+
+Arranque de Fase 13 — Quality Pass. Vitest config + 14 tests
+del resolver del editor de plantilla CRM (cubre header,
+properties_group, related, files, y los 3 tipos nuevos de
+Fase 11.F: divider, heading, comments_thread).
+
+= 0.42.6 =
+**Docs + cierre de Fase 12 (Fase 12 · iter 12.G · CIERRE DE FASE).**
+
+Doc de Cards en vistas-guardadas.md. Fase 12 cierra con:
+
+- Vista Cards (12.A-12.C): última fase del roadmap original
+  que faltaba.
+- Bloque comments_thread para portal (12.D).
+- UI de filtros en bundle público (12.E).
+- Magic link UI con auto-detect de página (12.F).
+
+Pasamos de 0.41.6 a 0.42.6 en 7 commits. 4 items pendientes del
+handoff Fases 7-10 cerrados.
+
+= 0.42.5 =
+**Magic link UI en panel CRM (Fase 12 · iter 12.F).**
+
+Botones "Enviar magic link" y "Copiar link" en el
+PortalAccessButton cuando el cliente ya tiene acceso al portal.
+La URL de la página del portal se auto-detecta del shortcode
+publicado — el admin no tiene que configurar nada.
+
+= 0.42.4 =
+**UI de filtros en bundle público (Fase 12 · iter 12.E).**
+
+Cuando `viewer_filters` está habilitado, los visitantes de una
+lista pública pueden filtrar por campos discretos (select,
+multi_select, checkbox) desde dropdowns en el toolbar. Botón
+"Limpiar filtros" cuando hay al menos uno activo.
+
+Solo tipos discretos por ahora. Text/number/date llegarán en una
+iteración futura.
+
+= 0.42.3 =
+**Bloque comments_thread para portal del cliente (Fase 12 · iter 12.D).**
+
+El cliente ahora puede ver y crear comentarios desde su portal.
+
+- Endpoints GET/POST /portal/me/comments resuelven list_id +
+  record_id desde el ClientResolver (sin spoofing).
+- Nuevo bloque comments_thread en el editor del portal template
+  con config: título + checkbox "solo lectura".
+- Estilos del portal extendidos en assets/portal.css.
+
+= 0.42.2 =
+**Cards: editar config en vistas existentes (Fase 12 · iter 12.C).**
+
+Editor de config accesible desde el dropdown de cada vista
+Cards. Antes había que borrar y crear de nuevo.
+
+= 0.42.1 =
+**Cards: editor de config + cover image resoluble (Fase 12 · iter 12.B).**
+
+- Editor visual de config al crear una vista Cards: multi-select
+  de campos a mostrar, selector de field tipo Archivo para
+  portada, y radio de densidad (Compacta/Normal/Espaciada).
+- Hook useAttachments que batchea IDs en un único request a
+  /wp-json/wp/v2/media — eficiente para grids con muchas
+  imágenes.
+- CardsView ahora resuelve correctamente los attachment IDs a
+  URLs (antes solo funcionaba si el backend devolvía URL string,
+  que no era el caso).
+
+= 0.42.0 =
+**Vista Cards — schema + componente base (Fase 12 · iter 12.A).**
+
+Suma "cards" como cuarto tipo de vista guardada (después de
+table, kanban, calendar). Cierra Fase 6 del roadmap original
+(CLAUDE.md §15) que faltaba.
+
+Cambios visibles:
+
+- Nueva opción "Cards (grid de tarjetas)" al crear una vista.
+- Cada tarjeta muestra el primary field como título grande, un
+  avatar colorizado generado desde el título (o imagen de
+  portada si hay un field tipo file configurado), y N campos
+  extra con label inline.
+- Densidad configurable (compact/comfortable/spacious) que ajusta
+  el grid CSS auto-fill.
+
+El editor de config visual (qué campos van en la card, cover
+image, tamaño) llega en 0.42.1 (iter 12.B).
+
+= 0.41.6 =
+**Polish + cierre de Fase 11 (Fase 11 · iter 11.G · CIERRE DE FASE).**
+
+Pequeños retoques al editor de plantilla CRM:
+
+- Cmd/Ctrl + S → Guardar plantilla (desde cualquier punto).
+- Cmd/Ctrl + P → Toggle Editor / Preview.
+- Cheat-sheet de atajos en el panel "Ajustes de la plantilla".
+- Empty state del canvas con icono y mensaje contextual.
+
+Con este release la Fase 11 (Editor de plantilla CRM v3 — layout
+3 columnas + DnD + multi-select + preview con record real + 3
+bloques nuevos) queda cerrada. Contrato persistido sin cambios
+desde 0.40.x.
+
+= 0.41.5 =
+**3 bloques nuevos en el editor de plantilla CRM (Fase 11 · iter 11.F).**
+
+Suma divider, heading y comments_thread a la unión V2BlockType.
+
+- divider (categoría Layout): línea horizontal con label opcional.
+- heading (categoría Layout): título de sección con nivel h2/h3/h4.
+- comments_thread (categoría Contenido): hilo de comentarios del
+  record. Interactivo en el panel CRM real, read-only en el editor.
+
+Backward-compatible: las plantillas guardadas en 0.41.x siguen
+funcionando sin migración.
+
+= 0.41.4 =
+**Preview con record real (Fase 11 · iter 11.E).**
+
+Permite ver la plantilla renderada con datos reales de la lista,
+no solo con el mock generado desde el schema.
+
+Cambios visibles:
+
+- Combobox de records en el toolbar del editor con búsqueda
+  debounced. Lista los primeros 20 records (filtrados por la
+  búsqueda).
+- Opción "Datos de muestra" para volver al mock por default.
+- Funciona tanto en modo Editor como en modo Preview.
+
+= 0.41.3 =
+**Multi-select + duplicar + atajos de teclado (Fase 11 · iter 11.D).**
+
+Permite operar con múltiples bloques a la vez en el editor de
+plantilla CRM.
+
+Cambios visibles:
+
+- Shift+click sobre un bloque del canvas acumula selección.
+- Panel "Selección múltiple" en el inspector con acciones bulk
+  Duplicar todos / Eliminar todos + cheat-sheet de atajos.
+- Atajos de teclado globales (solo modo Editor, no en inputs):
+  - Cmd/Ctrl + D → duplicar
+  - Backspace o Delete → eliminar
+  - Esc → deseleccionar
+- Botón "Duplicar" del inspector individual ahora funcional
+  (en 11.A se renderizaba pero estaba sin cablear).
+
+= 0.41.2 =
+**Drop sobre grupo, grid guides, toggle Editor/Preview (Fase 11 · iter 11.C).**
+
+Cierra el flujo DnD del editor: arrastrar un field sobre un
+grupo de propiedades existente lo agrega al grupo en lugar de
+crear uno nuevo. Suma grid guides sutiles y modo Preview WYSIWYG.
+
+Cambios visibles:
+
+- Arrastrar un campo sobre un grupo del canvas → ring primary +
+  overlay "Soltar para agregar al grupo". Drop suma el campo
+  al grupo en una sola operación.
+- Líneas verticales sutiles cada columna del grid (12 cols),
+  visibles solo en modo editor.
+- Toggle Editor / Preview en el toolbar. Preview deshabilita
+  drag/resize/selección y oculta paleta+inspector para mostrar
+  el panel CRM final tal cual lo verá el user.
+
+= 0.41.1 =
+**Drag-from-palette + tab Campos en el editor de plantilla CRM (Fase 11 · iter 11.B).**
+
+Las cards de la paleta ahora se pueden arrastrar al canvas y
+soltarse en la posición exacta deseada. Click-to-add se mantiene
+como atajo rápido.
+
+Cambios visibles:
+
+- Tabs Bloques / Campos en la paleta izquierda.
+- Tab Campos muestra los fields disponibles de la lista. Soltar
+  un campo al canvas crea automáticamente un grupo de propiedades
+  con ese campo.
+- Filtro de búsqueda inline en cada tab.
+- Affordance visual del drag con icono GripVertical y cursor
+  grab/grabbing.
+- Las cards singleton ya en uso (timeline / stats) cancelan el
+  drag y se muestran con apariencia disabled.
+
+Contrato persistido sin cambios. Compatible con templates de
+0.41.0.
+
+= 0.41.0 =
+**Editor de plantilla CRM v3 — layout 3 columnas (Fase 11 · iter 11.A).**
+
+Rework del editor visual de plantilla CRM. Antes era "header
+colapsable + canvas + Dialog modal por bloque". Ahora es estilo
+Figma/Webflow: paleta de bloques a la izquierda, canvas drag/resize
+en el centro, inspector persistente a la derecha. Selección de
+bloque por click; click en background vacío deselecciona.
+
+Cambios visibles:
+
+- Paleta izquierda con cards de bloques agrupados por categoría
+  (Datos, Visualización, Contenido, Acciones).
+- Inspector derecho persistente que reemplaza al Dialog modal.
+- Cuando no hay bloque seleccionado el inspector muestra los
+  settings globales (header del panel + "Restaurar desde plantilla").
+- Ring `primary` visible en el bloque activo del canvas.
+
+Contrato persistido sin cambios — sigue siendo `CustomTemplateConfigV2`.
+Las plantillas guardadas en 0.40.x abren sin migración.
 
 = 0.40.4 =
 **Fix: pantalla en blanco en Ajustes (CustomRolesCard).**

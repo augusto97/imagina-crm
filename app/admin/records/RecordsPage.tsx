@@ -12,6 +12,7 @@ import { useSavedViews } from '@/hooks/useSavedViews';
 import { clientSideSearch } from '@/lib/clientSearch';
 import { __, sprintf } from '@/lib/i18n';
 import { CAP, useCan } from '@/lib/permissions';
+import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 import type { SavedViewEntity } from '@/types/view';
 
@@ -29,6 +30,7 @@ import {
     type RecordsState,
 } from './recordsState';
 import { CalendarView } from './views/CalendarView';
+import { CardsView } from './views/CardsView';
 import { KanbanView } from './views/KanbanView';
 import { ColumnsMenu } from './views/ColumnsMenu';
 import { GroupSelector } from './views/GroupSelector';
@@ -84,7 +86,7 @@ export function RecordsPage(): JSX.Element {
         const base = buildRecordsQuery({ ...state, search: '' });
         if (activeViewId !== null) {
             const v = views.data?.find((x) => x.id === activeViewId);
-            if (v?.type === 'kanban' || v?.type === 'calendar') {
+            if (v?.type === 'kanban' || v?.type === 'calendar' || v?.type === 'cards') {
                 return { ...base, per_page: 500, page: 1 };
             }
         }
@@ -104,7 +106,7 @@ export function RecordsPage(): JSX.Element {
         const base = buildRecordsQuery({ ...state, search: debouncedSearch });
         if (activeViewId !== null) {
             const v = views.data?.find((x) => x.id === activeViewId);
-            if (v?.type === 'kanban' || v?.type === 'calendar') {
+            if (v?.type === 'kanban' || v?.type === 'calendar' || v?.type === 'cards') {
                 return { ...base, per_page: 500, page: 1 };
             }
         }
@@ -222,7 +224,8 @@ export function RecordsPage(): JSX.Element {
         : null;
     const isKanban = activeView?.type === 'kanban';
     const isCalendar = activeView?.type === 'calendar';
-    const isAlternativeView = isKanban || isCalendar;
+    const isCards = activeView?.type === 'cards';
+    const isAlternativeView = isKanban || isCalendar || isCards;
     const isTableGrouped = !isAlternativeView && state.groupByFieldId !== null;
     const tableGroupByField =
         isTableGrouped && fields.data
@@ -249,6 +252,24 @@ export function RecordsPage(): JSX.Element {
         if (!id) return undefined;
         return fields.data.find((f) => f.id === id);
     }, [isCalendar, fields.data, activeView?.config.date_field_id]);
+
+    // Cards view: extraFields + coverField resueltos desde activeView.config.
+    const cardsExtraFields = useMemo(() => {
+        if (! isCards || ! fields.data) return [];
+        const ids = activeView?.config.card_field_ids ?? [];
+        const byId = new Map(fields.data.map((f) => [f.id, f]));
+        return ids
+            .map((id) => byId.get(id))
+            .filter((f): f is FieldEntity => f !== undefined);
+    }, [isCards, fields.data, activeView?.config.card_field_ids]);
+
+    const cardsCoverField = useMemo(() => {
+        if (! isCards || ! fields.data) return null;
+        const id = activeView?.config.card_cover_field_id;
+        if (! id) return null;
+        const f = fields.data.find((x) => x.id === id);
+        return f && f.type === 'file' ? f : null;
+    }, [isCards, fields.data, activeView?.config.card_cover_field_id]);
 
     if (list.isLoading || fields.isLoading) {
         return (
@@ -320,6 +341,7 @@ export function RecordsPage(): JSX.Element {
                     )}
                     {canExportRecords && (
                         <ExportButton
+                            listId={list.data.id}
                             listSlug={list.data.slug}
                             filterTree={state.filterTree}
                             disabled={!fields.data || fields.data.length === 0}
@@ -444,6 +466,15 @@ export function RecordsPage(): JSX.Element {
                             fields={fields.data}
                             records={records.data?.data ?? []}
                             dateField={dateField}
+                            onCardClick={(record) => setDrawerRecordId(record.id)}
+                        />
+                    ) : isCards ? (
+                        <CardsView
+                            fields={fields.data}
+                            records={records.data?.data ?? []}
+                            extraFields={cardsExtraFields}
+                            coverField={cardsCoverField}
+                            size={activeView?.config.card_size ?? 'comfortable'}
                             onCardClick={(record) => setDrawerRecordId(record.id)}
                         />
                     ) : isTableGrouped && tableGroupByField ? (

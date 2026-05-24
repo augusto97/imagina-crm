@@ -1,34 +1,11 @@
 import { useMemo, useState } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
-import {
-    Activity,
-    BarChart3,
-    FileText,
-    Hash,
-    MousePointerClick,
-    Network,
-    Paperclip,
-    Pencil,
-    PieChart,
-    Play,
-    Plus,
-    StickyNote as StickyNoteIcon,
-    Tag,
-    Trash2,
-} from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useConfirm } from '@/components/ui/confirm-dialog';
 import { resolveV2, type CustomTemplateConfigV2, type V2Block } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -36,7 +13,8 @@ import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
 import { BlockRenderer } from '@/admin/records/crm/BlockRenderer';
-import { BlockConfigDialog } from './blocks/BlockConfigDialog';
+
+import { type PalettePayload, readDropPayload } from './utils/dragPayload';
 
 const SizedGrid = WidthProvider(GridLayout);
 
@@ -46,20 +24,33 @@ interface GridEditorProps {
     config: CustomTemplateConfigV2;
     onChange: (next: CustomTemplateConfigV2) => void;
     sampleRecord: RecordEntity;
+    selectedBlockIds: string[];
+    onSelectBlock: (id: string | null, additive?: boolean) => void;
+    onDropFromPalette: (payload: PalettePayload, position: { x: number; y: number }) => void;
+    onDropOnBlock: (blockId: string, payload: PalettePayload) => boolean;
+    preview?: boolean;
 }
 
+const DROPPING_ITEM_ID = '__imcrm_dropping__';
+const DROPPING_ITEM: LayoutItem = { i: DROPPING_ITEM_ID, x: 0, y: 0, w: 4, h: 4 };
+
 /**
- * Canvas drag-resize-able del editor visual de plantillas (0.35.0).
+ * Canvas drag-resize-able del editor visual de plantillas
+ * (Fase 11.A+, drop-from-palette agregado en 11.B, drop-on-block
+ * + grid guides + modo preview agregados en 11.C).
  *
- * Misma `react-grid-layout` que el RecordCrmLayout pero en
- * `isDraggable + isResizable`. Cada bloque rendera con
- * `BlockRenderer` (preview real del look final), con un overlay de
- * editar/eliminar al hover y un agarre de "drag handle" arriba.
+ * Responsabilidades:
+ *  1. Drag/resize del grid (vía react-grid-layout).
+ *  2. Selección por click — el bloque activo recibe ring `primary`.
+ *  3. Aceptar drops desde la paleta a coords libres (`onDropFromPalette`)
+ *     o sobre un bloque existente (`onDropOnBlock`). El parent
+ *     decide qué payload acepta cada bloque y retorna true/false.
+ *  4. Modo preview (read-only) que deshabilita drag/resize/drop
+ *     para una vista WYSIWYG del template final.
  *
- * Cambios de posición/tamaño se persisten al estado vía `onChange`
- * (el componente caller se encarga de commit a backend con un
- * Save explícito). NO commiteamos en cada drag — solo en
- * `onDragStop`/`onResizeStop`.
+ * Grid guides (Fase 11.C): líneas verticales sutiles cada columna
+ * del grid (12 cols) para que el user sepa donde se alinearán
+ * los bloques. Solo visibles en modo editor, no en preview.
  */
 export function GridEditor({
     listId,
@@ -67,11 +58,15 @@ export function GridEditor({
     config,
     onChange,
     sampleRecord,
+    selectedBlockIds,
+    onSelectBlock,
+    onDropFromPalette,
+    onDropOnBlock,
+    preview = false,
 }: GridEditorProps): JSX.Element {
-    const confirm = useConfirm();
-    const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-
     const resolved = useMemo(() => resolveV2(config, fields), [config, fields]);
+    const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+    const selectedSet = useMemo(() => new Set(selectedBlockIds), [selectedBlockIds]);
 
     const gridLayout: LayoutItem[] = useMemo(
         () =>
@@ -88,11 +83,9 @@ export function GridEditor({
     );
 
     const handleLayoutStop = (next: Layout): void => {
-        // Mapeamos `next` (array de LayoutItem) sobre los blocks
-        // existentes — actualizamos x/y/w/h pero conservamos type y
-        // config. Los blocks que el grid eliminó por algún motivo
-        // (no debería pasar) se pierden — defensivo.
-        const byId = new Map(next.map((l) => [l.i, l]));
+        const byId = new Map(
+            next.filter((l) => l.i !== DROPPING_ITEM_ID).map((l) => [l.i, l]),
+        );
         const updated = config.blocks
             .map((b) => {
                 const l = byId.get(b.id);
@@ -103,268 +96,156 @@ export function GridEditor({
         onChange({ ...config, blocks: updated });
     };
 
-    const handleAddBlock = (type: V2Block['type']): void => {
-        const id = `${type}-${Date.now()}`;
-        const newBlock = createBlock(id, type, fields, config.blocks);
-        if (! newBlock) return;
-        onChange({ ...config, blocks: [...config.blocks, newBlock] });
-        // Abre el dialog de config para que el user lo termine de
-        // configurar (label, fields, content, etc.).
-        if (type === 'properties_group' || type === 'notes' || type === 'related') {
-            setEditingBlockId(id);
+    const handleDrop = (_layout: Layout, item: LayoutItem | undefined, e: Event): void => {
+        if (! item) return;
+        const payload = readDropPayload(e as DragEvent);
+        if (! payload) return;
+        onDropFromPalette(payload, { x: item.x, y: item.y });
+    };
+
+    const handleBlockDragOver = (blockId: string, e: React.DragEvent): void => {
+        // Tipos del DataTransfer durante dragover solo expone los MIMEs
+        // (no el contenido). Validamos por MIME para evitar feedback
+        // visual sobre drags ajenos al editor.
+        if (! Array.from(e.dataTransfer.types).includes('application/x-imcrm-palette')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        setHoveredBlockId(blockId);
+    };
+
+    const handleBlockDragLeave = (e: React.DragEvent): void => {
+        // currentTarget changes per element; usamos relatedTarget para
+        // distinguir drag-leave-block vs drag-cross-children.
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setHoveredBlockId(null);
+    };
+
+    const handleBlockDrop = (blockId: string, e: React.DragEvent): void => {
+        const payload = readDropPayload(e);
+        setHoveredBlockId(null);
+        if (! payload) return;
+        const handled = onDropOnBlock(blockId, payload);
+        if (handled) {
+            e.preventDefault();
+            e.stopPropagation();
         }
     };
 
-    const handleDeleteBlock = async (id: string): Promise<void> => {
-        const ok = await confirm({
-            title: __('Eliminar bloque'),
-            description: __('Lo podés volver a agregar después desde el menú.'),
-            destructive: true,
-            confirmLabel: __('Eliminar'),
-        });
-        if (! ok) return;
-        onChange({ ...config, blocks: config.blocks.filter((b) => b.id !== id) });
-    };
-
-    const handleUpdateBlock = (id: string, patch: Partial<V2Block>): void => {
-        onChange({
-            ...config,
-            blocks: config.blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as V2Block) : b)),
-        });
-    };
-
-    const editingBlock = editingBlockId
-        ? config.blocks.find((b) => b.id === editingBlockId) ?? null
-        : null;
+    const isEmpty = config.blocks.length === 0;
 
     return (
-        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
-            <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2">
-                <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                    {__('Arrastrá bloques para reorganizar. Estirá las esquinas para cambiar tamaño. Click ✏ para editar contenido.')}
-                </p>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button size="sm" className="imcrm-gap-1.5">
-                            <Plus className="imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Agregar bloque')}
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="imcrm-min-w-[220px]">
-                        <DropdownMenuItem onSelect={() => handleAddBlock('properties_group')}>
-                            <Tag className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Grupo de propiedades')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('notes')}>
-                            <StickyNoteIcon className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Notas (texto custom)')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onSelect={() => handleAddBlock('timeline')}
-                            disabled={config.blocks.some((b) => b.type === 'timeline')}
-                        >
-                            <Activity className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Timeline (1 sola permitida)')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onSelect={() => handleAddBlock('stats')}
-                            disabled={config.blocks.some((b) => b.type === 'stats')}
-                        >
-                            <BarChart3 className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Resumen (1 solo permitido)')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('related')}>
-                            <Network className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Records relacionados')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('kpi')}>
-                            <Hash className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('KPI (número grande)')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('chart')}>
-                            <PieChart className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Gráfico inline (relacionados)')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('files')}>
-                            <Paperclip className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Archivos')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('embed')}>
-                            <Play className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Embed externo')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('action_button')}>
-                            <MousePointerClick className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Botón de acción')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleAddBlock('markdown')}>
-                            <FileText className="imcrm-mr-2 imcrm-h-3.5 imcrm-w-3.5" />
-                            {__('Markdown rich text')}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
+        <div
+            className={cn(
+                'imcrm-relative imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/10 imcrm-p-3',
+                isEmpty && 'imcrm-min-h-[420px]',
+            )}
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onSelectBlock(null);
+            }}
+        >
+            {! preview && <GridGuides cols={12} />}
 
-            {config.blocks.length === 0 ? (
-                <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-6 imcrm-py-12 imcrm-text-center">
-                    <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                        {__('Canvas vacío. Agregá bloques con el botón "Agregar bloque" o usá "Restaurar desde…" para empezar de una plantilla built-in.')}
+            <SizedGrid
+                key={config.blocks.map((b) => b.id).join(',')}
+                className="imcrm-template-editor-grid imcrm-relative imcrm-z-10"
+                cols={12}
+                rowHeight={40}
+                margin={[12, 12]}
+                containerPadding={[0, 0]}
+                layout={gridLayout}
+                isDraggable={! preview}
+                isResizable={! preview}
+                isDroppable={! preview}
+                droppingItem={DROPPING_ITEM}
+                compactType="vertical"
+                draggableCancel=".imcrm-no-drag"
+                onDragStop={handleLayoutStop}
+                onResizeStop={handleLayoutStop}
+                onDrop={handleDrop}
+            >
+                {resolved.blocks.map((b) => {
+                    const isSelected = ! preview && selectedSet.has(b.id);
+                    const isDropTarget = hoveredBlockId === b.id;
+                    return (
+                        <div
+                            key={b.id}
+                            onClickCapture={(e) => {
+                                if (preview) return;
+                                e.stopPropagation();
+                                onSelectBlock(b.id, e.shiftKey);
+                            }}
+                            onDragOver={preview ? undefined : (e) => handleBlockDragOver(b.id, e)}
+                            onDragLeave={preview ? undefined : handleBlockDragLeave}
+                            onDrop={preview ? undefined : (e) => handleBlockDrop(b.id, e)}
+                            className={cn(
+                                'imcrm-group imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-transition-all',
+                                isDropTarget
+                                    ? 'imcrm-ring-2 imcrm-ring-primary imcrm-ring-offset-2 imcrm-ring-offset-background'
+                                    : isSelected
+                                        ? 'imcrm-ring-2 imcrm-ring-primary'
+                                        : preview
+                                            ? 'imcrm-ring-border'
+                                            : 'imcrm-ring-border hover:imcrm-ring-primary/40',
+                            )}
+                        >
+                            <div className="imcrm-pointer-events-none imcrm-flex-1 imcrm-overflow-hidden">
+                                <BlockRenderer
+                                    block={b}
+                                    listId={listId}
+                                    recordId={sampleRecord.id}
+                                    currentUserId={0}
+                                    isAdmin={false}
+                                    values={sampleRecord.fields}
+                                    onChange={() => undefined}
+                                    record={sampleRecord}
+                                />
+                            </div>
+                            {isDropTarget && (
+                                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-bg-primary/10">
+                                    <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">
+                                        {__('Soltar para agregar al grupo')}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </SizedGrid>
+
+            {isEmpty && (
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-3 imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-md imcrm-px-6 imcrm-text-center">
+                    <div className="imcrm-flex imcrm-h-12 imcrm-w-12 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted/50 imcrm-text-muted-foreground">
+                        <LayoutGrid className="imcrm-h-5 imcrm-w-5" aria-hidden />
+                    </div>
+                    <p className="imcrm-max-w-sm imcrm-text-sm imcrm-text-muted-foreground">
+                        {preview
+                            ? __('Sin bloques — la plantilla está vacía.')
+                            : __('Canvas vacío. Arrastrá un bloque desde la paleta de la izquierda o restaurá una plantilla built-in desde el panel derecho.')}
                     </p>
                 </div>
-            ) : (
-                <div className="imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/10 imcrm-p-3">
-                    <SizedGrid
-                        // Re-mount cuando cambian los ids de bloques
-                        // (ej. después de "Restaurar desde…" que regenera
-                        // todo el set). Ver comentario equivalente en
-                        // RecordCrmLayout.
-                        key={config.blocks.map((b) => b.id).join(',')}
-                        className="imcrm-template-editor-grid"
-                        cols={12}
-                        rowHeight={40}
-                        margin={[12, 12]}
-                        containerPadding={[0, 0]}
-                        layout={gridLayout}
-                        isDraggable
-                        isResizable
-                        compactType="vertical"
-                        draggableCancel=".imcrm-no-drag"
-                        onDragStop={handleLayoutStop}
-                        onResizeStop={handleLayoutStop}
-                    >
-                        {resolved.blocks.map((b) => (
-                            <div
-                                key={b.id}
-                                className="imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-ring-border"
-                            >
-                                <div className="imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-gap-1 imcrm-no-drag">
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditingBlockId(b.id)}
-                                        className={cn(
-                                            'imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card/95 imcrm-text-muted-foreground imcrm-shadow-imcrm-sm',
-                                            'hover:imcrm-bg-accent hover:imcrm-text-foreground',
-                                        )}
-                                        aria-label={__('Editar bloque')}
-                                    >
-                                        <Pencil className="imcrm-h-3.5 imcrm-w-3.5" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleDeleteBlock(b.id)}
-                                        className={cn(
-                                            'imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-items-center imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card/95 imcrm-text-muted-foreground imcrm-shadow-imcrm-sm',
-                                            'hover:imcrm-border-destructive/50 hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive',
-                                        )}
-                                        aria-label={__('Eliminar bloque')}
-                                    >
-                                        <Trash2 className="imcrm-h-3.5 imcrm-w-3.5" />
-                                    </button>
-                                </div>
-                                <div className="imcrm-pointer-events-none imcrm-flex-1 imcrm-overflow-hidden">
-                                    <BlockRenderer
-                                        block={b}
-                                        listId={listId}
-                                        recordId={sampleRecord.id}
-                                        currentUserId={0}
-                                        isAdmin={false}
-                                        values={sampleRecord.fields}
-                                        onChange={() => undefined}
-                                        record={sampleRecord}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </SizedGrid>
-                </div>
-            )}
-
-            {editingBlock && (
-                <BlockConfigDialog
-                    block={editingBlock}
-                    fields={fields}
-                    onUpdate={(patch) => handleUpdateBlock(editingBlock.id, patch)}
-                    onClose={() => setEditingBlockId(null)}
-                />
             )}
         </div>
     );
 }
 
 /**
- * Crea un bloque nuevo con defaults razonables. Para los que no
- * dependen de fields (timeline, stats, notes), usa valores seguros.
- * Para los que sí (properties_group, related), pre-rellena el
- * primer field/relation disponible.
+ * Líneas verticales sutiles para guías de columnas del grid (12).
+ * Posicionadas absolutamente debajo del grid (`z-0`), para no
+ * interferir con clicks ni drags. Solo visibles en modo editor.
  */
-function createBlock(
-    id: string,
-    type: V2Block['type'],
-    fields: FieldEntity[],
-    existing: V2Block[],
-): V2Block | null {
-    // Position default: nuevo bloque al final de la primera columna
-    // libre, w=4 h=4 (ajusta automáticamente cuando el grid compacta).
-    const maxY = existing.reduce((m, b) => Math.max(m, b.y + b.h), 0);
-    const base = { id, x: 0, y: maxY, w: 4, h: 4 };
-
-    if (type === 'properties_group') {
-        return { ...base, type, config: { label: __('Grupo nuevo'), icon_key: 'database', field_slugs: [], collapsed_by_default: false } };
-    }
-    if (type === 'timeline') {
-        return { ...base, w: 8, h: 12, type, config: {} };
-    }
-    if (type === 'stats') {
-        return { ...base, w: 4, h: 4, type, config: {} };
-    }
-    if (type === 'notes') {
-        return { ...base, w: 4, h: 3, type, config: { title: __('Nota'), content: '' } };
-    }
-    if (type === 'related') {
-        const firstRelation = fields.find((f) => f.type === 'relation');
-        if (! firstRelation) return null;
-        return { ...base, w: 4, h: 4, type, config: { field_slug: firstRelation.slug } };
-    }
-    if (type === 'kpi') {
-        const firstNumeric = fields.find((f) => f.type === 'currency' || f.type === 'number');
-        return {
-            ...base,
-            w: 3, h: 3,
-            type,
-            config: {
-                field_slug: firstNumeric?.slug ?? '',
-                format: firstNumeric?.type === 'currency' ? 'currency' : 'number',
-            },
-        };
-    }
-    if (type === 'chart') {
-        const firstRelation = fields.find((f) => f.type === 'relation');
-        return {
-            ...base,
-            w: 5, h: 5,
-            type,
-            config: {
-                relation_field_slug: firstRelation?.slug ?? '',
-                group_by_field_slug: '',
-            },
-        };
-    }
-    if (type === 'files') {
-        return { ...base, w: 4, h: 5, type, config: { file_field_slugs: [] } };
-    }
-    if (type === 'embed') {
-        return { ...base, w: 6, h: 6, type, config: { source: 'literal', url: '' } };
-    }
-    if (type === 'action_button') {
-        return {
-            ...base,
-            w: 3, h: 2,
-            type,
-            config: { label: __('Acción'), action_type: 'url', target: '' },
-        };
-    }
-    if (type === 'markdown') {
-        return { ...base, w: 4, h: 4, type, config: { title: __('Notas'), content: '' } };
-    }
-    return null;
+function GridGuides({ cols }: { cols: number }): JSX.Element {
+    return (
+        <div
+            aria-hidden
+            className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-3 imcrm-z-0 imcrm-flex imcrm-justify-between"
+        >
+            {Array.from({ length: cols + 1 }, (_, i) => (
+                <div
+                    key={i}
+                    className="imcrm-h-full imcrm-w-px imcrm-bg-border/40"
+                />
+            ))}
+        </div>
+    );
 }

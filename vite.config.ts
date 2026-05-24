@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { v4wp } from '@kucrut/vite-for-wp';
@@ -78,5 +79,21 @@ export default defineConfig({
         port: 5173,
         strictPort: true,
         cors: true,
+    },
+    // Vitest config (Fase 13.A). El runner detecta los specs en
+    // `tests/unit/**` automáticamente. `environment: 'jsdom'` permite
+    // testear componentes React; los tests puros (resolver, helpers)
+    // ignoran DOM via `// @vitest-environment node` per-file si
+    // necesitan máxima velocidad.
+    test: {
+        environment: 'jsdom',
+        globals: false,
+        setupFiles: ['./tests/unit/setup.ts'],
+        include: ['tests/unit/**/*.test.{ts,tsx}'],
+        coverage: {
+            reporter: ['text', 'html'],
+            include: ['app/**/*.{ts,tsx}'],
+            exclude: ['app/**/*.test.{ts,tsx}', 'app/**/types.ts'],
+        },
     },
 });

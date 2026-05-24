@@ -271,9 +271,7 @@ final class RecordRepository
         $table = $this->qualifiedTable($tableSuffix);
         $wpdb  = $this->db->wpdb();
         $size  = max(1, min(2000, $batchSize));
-        /** @phpstan-ignore-next-line */
         $rows  = $wpdb->get_results(
-            /** @phpstan-ignore-next-line */
             $wpdb->prepare(
                 "SELECT * FROM {$table} WHERE id > %d AND deleted_at IS NULL ORDER BY id ASC LIMIT %d",
                 $afterId,

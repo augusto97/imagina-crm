@@ -165,6 +165,10 @@ final class QueryBuilder
      *   usuario. Shape: `{sql: "AND \`r\`.\`col\` = %d", args: [user_id]}`.
      *   `sql` debe empezar con "AND " — se concatena tal cual.
      *
+     * @param array<int, \ImaginaCRM\Fields\FieldEntity> $fields
+     * @param array{where:string, args:array<int, mixed>}|null $whereOverride
+     * @param array<int, int>|null $idWhitelist
+     *
      * @return array{
      *     sql:string,
      *     args:array<int, mixed>,

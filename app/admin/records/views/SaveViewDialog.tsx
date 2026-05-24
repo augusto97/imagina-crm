@@ -13,6 +13,8 @@ import { __, _n, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { SavedViewConfig, SavedViewEntity, SavedViewType } from '@/types/view';
 
+import { CardsConfigPanel } from './CardsConfigPanel';
+
 interface SaveViewDialogProps {
     listId: number;
     config: SavedViewConfig;
@@ -40,6 +42,9 @@ export function SaveViewDialog({
     const [type, setType] = useState<SavedViewType>('table');
     const [groupByFieldId, setGroupByFieldId] = useState<number>(0);
     const [dateFieldId, setDateFieldId] = useState<number>(0);
+    const [cardFieldIds, setCardFieldIds] = useState<number[]>([]);
+    const [cardCoverFieldId, setCardCoverFieldId] = useState<number>(0);
+    const [cardSize, setCardSize] = useState<'compact' | 'comfortable' | 'spacious'>('comfortable');
     const [error, setError] = useState<string | null>(null);
 
     const selectFields = useMemo(
@@ -58,6 +63,9 @@ export function SaveViewDialog({
             setType('table');
             setGroupByFieldId(0);
             setDateFieldId(0);
+            setCardFieldIds([]);
+            setCardCoverFieldId(0);
+            setCardSize('comfortable');
             setError(null);
             create.reset();
         }
@@ -84,7 +92,13 @@ export function SaveViewDialog({
                 ? { group_by_field_id: groupByFieldId }
                 : type === 'calendar'
                   ? { date_field_id: dateFieldId }
-                  : config;
+                  : type === 'cards'
+                    ? {
+                        card_field_ids: cardFieldIds,
+                        ...(cardCoverFieldId > 0 ? { card_cover_field_id: cardCoverFieldId } : {}),
+                        card_size: cardSize,
+                    }
+                    : config;
 
         try {
             const view = await create.mutateAsync({
@@ -163,6 +177,7 @@ export function SaveViewDialog({
                                         ? __('Calendar (necesitas al menos un campo Date o DateTime)')
                                         : __('Calendar')}
                                 </option>
+                                <option value="cards">{__('Cards (grid de tarjetas)')}</option>
                             </Select>
                         </div>
 
@@ -204,6 +219,18 @@ export function SaveViewDialog({
                                     {__('Cada registro aparecerá en el día de este campo.')}
                                 </p>
                             </div>
+                        )}
+
+                        {type === 'cards' && (
+                            <CardsConfigPanel
+                                fields={fields.data ?? []}
+                                cardFieldIds={cardFieldIds}
+                                onCardFieldIdsChange={setCardFieldIds}
+                                coverFieldId={cardCoverFieldId}
+                                onCoverFieldIdChange={setCardCoverFieldId}
+                                size={cardSize}
+                                onSizeChange={setCardSize}
+                            />
                         )}
 
                         <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">

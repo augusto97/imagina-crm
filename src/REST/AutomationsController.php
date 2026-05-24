@@ -68,6 +68,16 @@ final class AutomationsController extends AbstractController
             ],
         ]);
 
+        // Webhooks (Fase 15.C): vista cross-list de todas las
+        // automatizaciones que tienen una action `call_webhook`. La
+        // creación/edición sigue siendo via Automations — esta ruta
+        // es solo lectura para el "Webhooks manager" del settings.
+        register_rest_route($this->namespace, '/webhooks', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [$this, 'listWebhooks'],
+            'permission_callback' => $this->requireCapability(CapabilityRegistry::CAP_MANAGE_AUTOMATIONS),
+        ]);
+
         // Runs vive en `/automations/{id}/runs` (sin pasar por la lista),
         // porque el run ya tiene la automation_id y la list_id grabados, y
         // el cliente sólo necesita el id de la automatización para auditar.
@@ -219,5 +229,52 @@ final class AutomationsController extends AbstractController
             'finished_at'     => $row['finished_at'] ?? null,
             'created_at'      => $row['created_at'] ?? null,
         ];
+    }
+
+    /**
+     * GET /webhooks
+     *
+     * Lista todas las automatizaciones cross-list que contienen una
+     * action `call_webhook`. El response enriquece cada item con
+     * `list_name` + `list_slug` (porque la UI quiere mostrar a qué
+     * lista pertenece sin hacer N+1 lookups por automation_id).
+     *
+     * El cliente solo recibe las URLs declaradas y el primer trigger
+     * type — para detalles completos abre la automation en el editor.
+     * (Fase 15.C)
+     */
+    public function listWebhooks(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        unset($request);
+        $automations = $this->service->allWithActionType('call_webhook');
+
+        $out = [];
+        foreach ($automations as $a) {
+            // Extraer URLs de las actions call_webhook del config.
+            $urls = [];
+            foreach ($a->actions as $action) {
+                if (! is_array($action)) continue;
+                if (($action['type'] ?? '') !== 'call_webhook') continue;
+                $url = isset($action['config']['url']) ? (string) $action['config']['url'] : '';
+                if ($url !== '') {
+                    $urls[] = $url;
+                }
+            }
+
+            $list = $this->lists->findByIdOrSlug((string) $a->listId);
+            $out[] = [
+                'id'           => $a->id,
+                'name'         => $a->name,
+                'list_id'      => $a->listId,
+                'list_name'    => $list?->name ?? '',
+                'list_slug'    => $list?->slug ?? '',
+                'trigger_type' => $a->triggerType,
+                'urls'         => $urls,
+                'is_active'    => $a->isActive,
+                'created_at'   => $a->createdAt,
+            ];
+        }
+
+        return new WP_REST_Response(['data' => $out]);
     }
 }

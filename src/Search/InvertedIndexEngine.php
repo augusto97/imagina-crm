@@ -6,7 +6,6 @@ namespace ImaginaCRM\Search;
 use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListEntity;
-use ImaginaCRM\Lists\ListRepository;
 use ImaginaCRM\Support\Database;
 
 /**
@@ -45,7 +44,6 @@ final class InvertedIndexEngine implements SearchEngineInterface
 
     public function __construct(
         private readonly Database $db,
-        private readonly ListRepository $lists,
         private readonly FieldRepository $fields,
         private readonly Tokenizer $tokenizer,
     ) {
@@ -63,7 +61,7 @@ final class InvertedIndexEngine implements SearchEngineInterface
      */
     public function indexRecord(ListEntity $list, int $recordId, array $values): void
     {
-        $fields = $this->fields->forList($list->id);
+        $fields = $this->fields->allForList($list->id);
         $blob   = $this->buildBlob($values, $fields);
         $tokens = $this->tokenizer->tokenize($blob);
 
@@ -100,17 +98,26 @@ final class InvertedIndexEngine implements SearchEngineInterface
         $docLength = array_sum($tf);
         $now       = current_time('mysql', true);
         // REPLACE INTO: si ya había una fila, se sobrescribe.
-        /** @phpstan-ignore-next-line */
-        $wpdb->query(
-            /** @phpstan-ignore-next-line */
-            $wpdb->prepare(
-                "REPLACE INTO `{$docTable}` (list_id, record_id, doc_length, indexed_at) VALUES (%d, %d, %d, %s)",
-                $list->id,
-                $recordId,
-                $docLength,
-                $now,
-            ),
-        );
+        $wpdb->query($this->safePrepare(
+            "REPLACE INTO `{$docTable}` (list_id, record_id, doc_length, indexed_at) VALUES (%d, %d, %d, %s)",
+            [$list->id, $recordId, $docLength, $now],
+        ));
+    }
+
+    /**
+     * Wrapper que normaliza `$wpdb->prepare()` a string (nunca null).
+     * Los stubs declaran `prepare(): string|null`, pero en runtime con
+     * un SQL válido y placeholders coincidentes siempre retorna string.
+     * Este wrapper evita esparcir ignores de PHPStan por todo el
+     * archivo. (Fase 13.D)
+     *
+     * @param array<int|string, mixed> $args
+     */
+    private function safePrepare(string $sql, array $args): string
+    {
+        $wpdb = $this->db->wpdb();
+        $prepared = $wpdb->prepare($sql, $args);
+        return is_string($prepared) ? $prepared : '';
     }
 
     /**
@@ -135,8 +142,7 @@ final class InvertedIndexEngine implements SearchEngineInterface
         $sql = "INSERT INTO `{$table}` (list_id, record_id, token, tf) VALUES "
             . implode(', ', $placeholders);
 
-        /** @phpstan-ignore-next-line */
-        $wpdb->query($wpdb->prepare($sql, $args));
+        $wpdb->query($this->safePrepare($sql, $args));
     }
 
     public function removeRecord(int $listId, int $recordId): void
@@ -145,16 +151,14 @@ final class InvertedIndexEngine implements SearchEngineInterface
         $tokenTable = $this->db->systemTable('search_tokens');
         $docTable   = $this->db->systemTable('search_documents');
 
-        /** @phpstan-ignore-next-line */
-        $wpdb->query(
-            /** @phpstan-ignore-next-line */
-            $wpdb->prepare("DELETE FROM `{$tokenTable}` WHERE list_id = %d AND record_id = %d", $listId, $recordId),
-        );
-        /** @phpstan-ignore-next-line */
-        $wpdb->query(
-            /** @phpstan-ignore-next-line */
-            $wpdb->prepare("DELETE FROM `{$docTable}` WHERE list_id = %d AND record_id = %d", $listId, $recordId),
-        );
+        $wpdb->query($this->safePrepare(
+            "DELETE FROM `{$tokenTable}` WHERE list_id = %d AND record_id = %d",
+            [$listId, $recordId],
+        ));
+        $wpdb->query($this->safePrepare(
+            "DELETE FROM `{$docTable}` WHERE list_id = %d AND record_id = %d",
+            [$listId, $recordId],
+        ));
     }
 
     /**
@@ -165,16 +169,14 @@ final class InvertedIndexEngine implements SearchEngineInterface
     public function clearList(int $listId): void
     {
         $wpdb = $this->db->wpdb();
-        /** @phpstan-ignore-next-line */
-        $wpdb->query(
-            /** @phpstan-ignore-next-line */
-            $wpdb->prepare("DELETE FROM `{$this->db->systemTable('search_tokens')}` WHERE list_id = %d", $listId),
-        );
-        /** @phpstan-ignore-next-line */
-        $wpdb->query(
-            /** @phpstan-ignore-next-line */
-            $wpdb->prepare("DELETE FROM `{$this->db->systemTable('search_documents')}` WHERE list_id = %d", $listId),
-        );
+        $wpdb->query($this->safePrepare(
+            "DELETE FROM `{$this->db->systemTable('search_tokens')}` WHERE list_id = %d",
+            [$listId],
+        ));
+        $wpdb->query($this->safePrepare(
+            "DELETE FROM `{$this->db->systemTable('search_documents')}` WHERE list_id = %d",
+            [$listId],
+        ));
     }
 
     /**
@@ -184,9 +186,7 @@ final class InvertedIndexEngine implements SearchEngineInterface
     public function documentCount(int $listId): int
     {
         $wpdb = $this->db->wpdb();
-        /** @phpstan-ignore-next-line */
         return (int) $wpdb->get_var(
-            /** @phpstan-ignore-next-line */
             $wpdb->prepare("SELECT COUNT(*) FROM `{$this->db->systemTable('search_documents')}` WHERE list_id = %d", $listId),
         );
     }
@@ -211,9 +211,7 @@ final class InvertedIndexEngine implements SearchEngineInterface
         // Stats globales: total docs, avg doc length. Necesarios para
         // BM25. Vienen baratos — un solo COUNT/AVG sobre la tabla
         // documents (que tiene índice por list_id).
-        /** @phpstan-ignore-next-line */
         $row = $wpdb->get_row(
-            /** @phpstan-ignore-next-line */
             $wpdb->prepare(
                 "SELECT COUNT(*) AS n, IFNULL(AVG(doc_length), 0) AS avgdl FROM `{$docTable}` WHERE list_id = %d",
                 $listId,
@@ -245,13 +243,11 @@ final class InvertedIndexEngine implements SearchEngineInterface
             $args[] = $tok;
         }
 
-        /** @phpstan-ignore-next-line */
         $prepared = $wpdb->prepare($sql, $args);
         if (! is_string($prepared)) {
             return [];
         }
 
-        /** @phpstan-ignore-next-line */
         $rows = $wpdb->get_results($prepared, ARRAY_A);
         if (! is_array($rows)) {
             return [];

@@ -44,7 +44,7 @@ final class MysqlSearchEngine implements SearchEngineInterface
             return [];
         }
 
-        $fields = $this->fields->forList($listId);
+        $fields = $this->fields->allForList($listId);
         $cols   = [];
         foreach ($fields as $field) {
             if (in_array($field->type, self::SEARCHABLE_TYPES, true)) {
@@ -61,7 +61,12 @@ final class MysqlSearchEngine implements SearchEngineInterface
         $clauses = [];
         $args    = [];
         foreach ($cols as $col) {
-            $clauses[] = '`' . esc_sql($col) . '` LIKE %s';
+            // esc_sql() declara return type array|string en los stubs de
+            // WP — acá siempre recibe string ($col es un columnName).
+            // Cast defensivo para satisfacer PHPStan sin perder runtime
+            // safety.
+            $escaped = esc_sql($col);
+            $clauses[] = '`' . (is_string($escaped) ? $escaped : '') . '` LIKE %s';
             $args[]    = '%' . $wpdb->esc_like($query) . '%';
         }
         $args[]   = max(1, min(10000, $recordLimit));
@@ -73,7 +78,6 @@ final class MysqlSearchEngine implements SearchEngineInterface
         if (! is_string($prepared)) {
             return [];
         }
-        /** @phpstan-ignore-next-line */
         $rows = $wpdb->get_col($prepared);
         if (! is_array($rows)) {
             return [];

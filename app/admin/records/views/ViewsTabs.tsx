@@ -1,4 +1,5 @@
-import { Calendar, Columns3, MoreHorizontal, Plus, Save, Star, Table, Undo2 } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, Columns3, LayoutGrid, MoreHorizontal, Pencil, Plus, Save, Star, Table, Undo2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +13,8 @@ import { useDeleteSavedView, useUpdateSavedView } from '@/hooks/useSavedViews';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { SavedViewConfig, SavedViewEntity } from '@/types/view';
+
+import { EditCardsViewDialog } from './EditCardsViewDialog';
 
 interface ViewsTabsProps {
     listId: number;
@@ -44,6 +47,7 @@ export function ViewsTabs({
 }: ViewsTabsProps): JSX.Element {
     const update = useUpdateSavedView(listId);
     const remove = useDeleteSavedView(listId);
+    const [editingCardsView, setEditingCardsView] = useState<SavedViewEntity | null>(null);
 
     const sortedViews = [...views].sort((a, b) => {
         if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
@@ -105,6 +109,8 @@ export function ViewsTabs({
                                 <Columns3 className="imcrm-h-3 imcrm-w-3" />
                             ) : view.type === 'calendar' ? (
                                 <Calendar className="imcrm-h-3 imcrm-w-3" />
+                            ) : view.type === 'cards' ? (
+                                <LayoutGrid className="imcrm-h-3 imcrm-w-3" />
                             ) : (
                                 <Table className="imcrm-h-3 imcrm-w-3" />
                             )
@@ -123,6 +129,12 @@ export function ViewsTabs({
                                         </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent>
+                                        {view.type === 'cards' && (
+                                            <DropdownMenuItem onSelect={() => setEditingCardsView(view)}>
+                                                <Pencil className="imcrm-h-3.5 imcrm-w-3.5" />
+                                                {__('Editar configuración')}
+                                            </DropdownMenuItem>
+                                        )}
                                         {!view.is_default && (
                                             <DropdownMenuItem onSelect={() => void handleSetDefault(view)}>
                                                 <Star className="imcrm-h-3.5 imcrm-w-3.5" />
@@ -208,6 +220,17 @@ export function ViewsTabs({
                         {__('Guardar como vista…')}
                     </Button>
                 </div>
+            )}
+
+            {editingCardsView && (
+                <EditCardsViewDialog
+                    listId={listId}
+                    view={editingCardsView}
+                    open={editingCardsView !== null}
+                    onOpenChange={(open) => {
+                        if (! open) setEditingCardsView(null);
+                    }}
+                />
             )}
         </div>
     );

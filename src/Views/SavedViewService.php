@@ -18,13 +18,17 @@ use ImaginaCRM\Support\ValidationResult;
  * - `calendar` (Fase 4): calendario mensual donde cada record aparece
  *   en el día de su `config.date_field_id` (debe ser tipo `date` o
  *   `datetime`).
+ * - `cards` (Fase 12): grid de tarjetas. Cada tarjeta muestra el
+ *   primary field como título + N fields configurados +
+ *   opcionalmente una imagen de portada desde un field `file`.
+ *   No requiere config obligatoria; vacío = solo primary field.
  *
  * `is_default` se asegura único por lista a nivel service: setear una nueva
  * default desmarca la anterior.
  */
 final class SavedViewService
 {
-    public const ALLOWED_TYPES = ['table', 'kanban', 'calendar'];
+    public const ALLOWED_TYPES = ['table', 'kanban', 'calendar', 'cards'];
 
     public function __construct(
         private readonly SavedViewRepository $repo,
@@ -235,6 +239,58 @@ final class SavedViewService
                     'config.date_field_id',
                     __('La vista Calendar requiere un campo tipo Date o DateTime.', 'imagina-crm'),
                 );
+            }
+        }
+
+        if ($type === 'cards') {
+            // card_field_ids: opcional. Si viene, valida que sean ints y pertenezcan a la lista.
+            if (isset($config['card_field_ids'])) {
+                if (! is_array($config['card_field_ids'])) {
+                    return ValidationResult::failWith(
+                        'config.card_field_ids',
+                        __('card_field_ids debe ser un array.', 'imagina-crm'),
+                    );
+                }
+                foreach ($config['card_field_ids'] as $fid) {
+                    $fid = (int) $fid;
+                    if ($fid <= 0) continue;
+                    $field = $this->fields->find($fid);
+                    if ($field === null || $field->listId !== $listId) {
+                        return ValidationResult::failWith(
+                            'config.card_field_ids',
+                            __('Uno de los campos no pertenece a esta lista.', 'imagina-crm'),
+                        );
+                    }
+                }
+            }
+            // card_cover_field_id: opcional. Si viene, debe ser tipo file.
+            if (isset($config['card_cover_field_id'])) {
+                $coverId = (int) $config['card_cover_field_id'];
+                if ($coverId > 0) {
+                    $cover = $this->fields->find($coverId);
+                    if ($cover === null || $cover->listId !== $listId) {
+                        return ValidationResult::failWith(
+                            'config.card_cover_field_id',
+                            __('El campo de portada no pertenece a esta lista.', 'imagina-crm'),
+                        );
+                    }
+                    if ($cover->type !== 'file') {
+                        return ValidationResult::failWith(
+                            'config.card_cover_field_id',
+                            __('El campo de portada debe ser de tipo File.', 'imagina-crm'),
+                        );
+                    }
+                }
+            }
+            // card_size: opcional. Si viene, debe ser uno de los tres.
+            if (isset($config['card_size'])) {
+                $size = (string) $config['card_size'];
+                if (! in_array($size, ['compact', 'comfortable', 'spacious'], true)) {
+                    return ValidationResult::failWith(
+                        'config.card_size',
+                        __('card_size debe ser compact, comfortable o spacious.', 'imagina-crm'),
+                    );
+                }
             }
         }
 

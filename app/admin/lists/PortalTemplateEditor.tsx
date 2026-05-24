@@ -490,6 +490,31 @@ function BlockConfigForm({
                 </ConfigField>
             )}
 
+            {block.type === 'comments_thread' && (
+                <>
+                    <ConfigField label={__('Título (opcional)')}>
+                        <Input
+                            value={(block.config.title as string) ?? ''}
+                            onChange={(e) => setConfigKey('title', e.target.value)}
+                            placeholder={__('Comentarios')}
+                        />
+                    </ConfigField>
+                    <ConfigField
+                        label={__('Modo')}
+                        hint={__('En modo solo lectura el cliente ve los comentarios pero no puede crear nuevos.')}
+                    >
+                        <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(block.config.readonly)}
+                                onChange={(e) => setConfigKey('readonly', e.target.checked)}
+                            />
+                            {__('Solo lectura')}
+                        </label>
+                    </ConfigField>
+                </>
+            )}
+
             {block.type === 'download_files' && (
                 <ConfigField
                     label={__('Slug del campo de archivo')}
@@ -577,6 +602,8 @@ function defaultConfigFor(type: PortalBlockType): Record<string, unknown> {
             return { title: 'Actividad reciente', limit: 20 };
         case 'download_files':
             return { title: 'Archivos', field_slug: '' };
+        case 'comments_thread':
+            return { title: 'Comentarios', readonly: false };
         default:
             return {};
     }

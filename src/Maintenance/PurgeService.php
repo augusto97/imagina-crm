@@ -62,7 +62,6 @@ final class PurgeService
         $maxIter = 50; // safety cap: 50 * 5000 = 250k por tabla por run.
 
         for ($i = 0; $i < $maxIter; $i++) {
-            /** @phpstan-ignore-next-line */
             $result = $wpdb->query(
                 /** @phpstan-ignore-next-line */
                 $wpdb->prepare(
