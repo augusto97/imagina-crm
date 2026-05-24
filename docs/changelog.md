@@ -4,6 +4,102 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.46.4] — 2026-05-23
+
+**Security: rate-limit bypass via X-Forwarded-For + cierre Fase 16**
+(Fase 16 · Iteración 16.F · **CIERRE DE FASE 16**).
+
+### Fix S6 — Rate limit XFF bypass
+
+`PublicListsController::clientIp()` confiaba en
+`HTTP_X_FORWARDED_FOR` sin verificar si el sitio corre detrás de
+un proxy. Un atacante podía spoofear el header en cada request
+y rotear infinito el rate limit (60 req/min/IP queda sin efecto
+porque el contador se resetea por IP "distinta").
+
+**Fix**: solo aceptamos `X-Forwarded-For` / `X-Real-IP` cuando
+la constante `IMAGINA_CRM_TRUST_FORWARDED_HEADERS` está definida
+como `true` en `wp-config.php`. El admin lo activa explícitamente
+solo si tiene un reverse proxy / CDN conocido (Cloudflare,
+nginx, etc.) que sanea el header antes de pasar la request.
+
+**Por default** (sin la constante): cae directo a `REMOTE_ADDR`,
+robusto contra spoofing.
+
+**Documentación para el admin**: agregar a `wp-config.php`:
+
+```php
+// Si tu WP corre detrás de Cloudflare / nginx / Varnish, etc.
+// que SETEAN X-Forwarded-For confiablemente:
+define('IMAGINA_CRM_TRUST_FORWARDED_HEADERS', true);
+```
+
+### Documentación de deuda técnica
+
+Items que NO se cerraron en Fase 16 quedaron documentados
+formalmente en **`docs/DEFERRED.md`** con:
+- Severidad estimada.
+- Lo que falta hacer concretamente.
+- Estimación de esfuerzo.
+- Workaround actual.
+
+Items diferidos (10 en total):
+1. Virtualización TableView (perf media)
+2. Export síncrono → Action Scheduler (perf alta — solo listas >10k)
+3. Bulk update con valores uniformes (perf media)
+4. Plugin::register() defer (perf media)
+5. Fetch waterfall list→fields→records (perf baja)
+6. CardsView background-image → img lazy (perf baja)
+7. PHPStan 2.x upgrade
+8. Tests integration con WP real
+9. Auditoría 379 PHPCS violations
+10. XLSX export nativo
+
+### Resumen Fase 16 — Production readiness
+
+```
+0.46.0  · 16.A · Per-field permissions strip + XSS markdown (S1-S5)
+0.46.1  · 16.B · Fix N+1 en bulk delete (P1)
+0.46.2  · 16.C · Fix BM25 subquery correlacionada (P2)
+0.46.3  · 16.D · staleTime + memo + lazy views (M1, M2, bundle)
+0.46.4  · 16.F · Rate-limit XFF bypass (S6) + cierre  ← acá
+```
+
+(16.E se reasignó a documentación formal de deuda técnica —
+la virtualización TableView pasó a `docs/DEFERRED.md` item #1
+por scope.)
+
+### Cobertura del reporte de auditoría
+
+**Seguridad**: 6 bugs reales (S1-S6) → **6 cerrados** ✅
+**Performance**: 7 issues (5 críticos + 2 medios) → **3 críticos
+cerrados** (P1, P2, M1/M2/bundle); 4 diferidos a DEFERRED.md.
+**Cumplimiento de contratos CLAUDE.md §11**:
+- Bundle ≤ 250 KB gzip inicial ✅ (235 KB)
+- TTI ≤ 400ms con 50 rows ✅ (con memo aplicado)
+- Otros contratos requieren benchmark con BD real para validar.
+
+### Estado de salud al cierre
+
+| Tool | Estado |
+|---|---|
+| **Vitest** | 62 tests, 0 errors |
+| **PHPUnit** | 530 tests, 0 errors |
+| **PHPStan** | 0 errors |
+| **PHPCS** | runs, 379 violations cosméticas |
+| **TypeScript** | strict, sin errors |
+| **Build** | OK, ~235 KB gzip inicial |
+
+### Veredicto production-ready (honesto)
+
+**Listo para clientes pequeños-medianos** (1-10 users, ≤5000
+records por lista, sin escala extrema). Los 6 bugs de seguridad
+están cerrados. Los issues de performance críticos también.
+
+**No listo para escala masiva** (decenas de instalaciones,
+listas >50k records, exports frecuentes >10k): los items 1, 2 y
+3 de `DEFERRED.md` deberían cerrarse antes.
+
 ## [0.46.3] — 2026-05-23
 
 **Perf frontend: staleTime + memo + lazy views**

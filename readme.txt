@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.46.3
+Stable tag: 0.46.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.46.4 =
+**Security S6 + cierre Fase 16 Production Readiness.**
+
+Fix rate-limit bypass via X-Forwarded-For spoofing. Por default
+solo confía en REMOTE_ADDR; admins detrás de proxy/CDN pueden
+activar XFF con define('IMAGINA_CRM_TRUST_FORWARDED_HEADERS', true)
+en wp-config.php.
+
+Cierre Fase 16:
+- 6 bugs de seguridad cerrados (S1-S6).
+- 3 issues críticos de performance cerrados (P1, P2, bundle).
+- 10 items diferidos documentados en docs/DEFERRED.md.
+
+Estado: PHPUnit 530/0, PHPStan 0, Vitest 62/0, bundle ~235 KB
+gzip inicial (bajo el contrato CLAUDE.md §11).
+
+= 0.46.3 =
+Perf frontend (Fase 16.D).
+= 0.46.2 =
+BM25 subquery correlacionada fix (Fase 16.C).
+= 0.46.1 =
+N+1 bulk delete fix (Fase 16.B).
+= 0.46.0 =
+Per-field permissions bypass + XSS markdown fixes (Fase 16.A).
+
+
 
 = 0.45.3 =
 **Cierre de Fase 15 — Features nuevas cherry-picked.**
