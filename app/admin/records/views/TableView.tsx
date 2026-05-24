@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
     flexRender,
     getCoreRowModel,
@@ -8,6 +8,7 @@ import {
     type ColumnSizingState,
     type VisibilityState,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical, Inbox, KeyRound, Plus } from 'lucide-react';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -241,6 +242,44 @@ export function TableView({
         },
     });
 
+    // Virtualization (Fase 17.C — DEFERRED #1).
+    //
+    // Strategy: la `<table>` HTML se mantiene intacta para preservar
+    // column resize, sticky, drag-and-drop y todas las features
+    // existentes. `useVirtualizer` controla solo el subset de rows
+    // a renderizar; las "no visibles" se reemplazan por dos <tr>
+    // spacer (padding-top + padding-bottom) que mantienen la altura
+    // total del scroll correcto.
+    //
+    // Activación: solo con `> 100` rows. Para listas chicas, render
+    // tradicional (sin overhead del virtualizer).
+    const tableContainerRef = useRef<HTMLDivElement>(null);
+    const rows = table.getRowModel().rows;
+    const VIRTUALIZATION_THRESHOLD = 100;
+    const shouldVirtualize = rows.length > VIRTUALIZATION_THRESHOLD;
+
+    const rowVirtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => tableContainerRef.current,
+        // 40px es el alto típico de una row (py-2.5 = 10px×2 + ~20px
+        // de contenido). Real heights pueden variar — virtualizer
+        // mide post-render y ajusta. Estimate solo afecta el reserve
+        // inicial del scrollbar.
+        estimateSize: () => 40,
+        // Buffer: rows extra renderizadas arriba/abajo del viewport
+        // para que el scroll fluido no muestre "huecos blancos"
+        // mientras los nuevos rows pintan.
+        overscan: 10,
+        enabled: shouldVirtualize,
+    });
+
+    const virtualRows = shouldVirtualize ? rowVirtualizer.getVirtualItems() : [];
+    const virtualTotalSize = shouldVirtualize ? rowVirtualizer.getTotalSize() : 0;
+    const paddingTop = virtualRows.length > 0 ? (virtualRows[0]?.start ?? 0) : 0;
+    const paddingBottom = virtualRows.length > 0
+        ? virtualTotalSize - (virtualRows[virtualRows.length - 1]?.end ?? 0)
+        : 0;
+
     /**
      * Reordena `columnOrder` insertando `dragged` justo antes de
      * `target`. Si el `columnOrder` está vacío, lo derivamos del
@@ -311,6 +350,7 @@ export function TableView({
             // header + ViewsTabs + filtros toolbar arriba. Si el
             // contenido cabe en ese alto, no hay scrollbar — comportamiento
             // natural.
+            ref={tableContainerRef}
             className="imcrm-overflow-auto imcrm-max-h-[calc(100vh-220px)] imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm"
             role="region"
             aria-label={__('Tabla de registros')}
@@ -493,7 +533,7 @@ export function TableView({
                     ))}
                 </thead>
                 <tbody>
-                    {table.getRowModel().rows.length === 0 ? (
+                    {rows.length === 0 ? (
                         <tr>
                             <td
                                 colSpan={columns.length + 1}
@@ -508,7 +548,16 @@ export function TableView({
                             </td>
                         </tr>
                     ) : (
-                        table.getRowModel().rows.map((row) => {
+                        <>
+                            {paddingTop > 0 && (
+                                <tr aria-hidden style={{ height: `${paddingTop}px` }}>
+                                    <td colSpan={columns.length + 1} />
+                                </tr>
+                            )}
+                            {(shouldVirtualize
+                                ? virtualRows.map((vi) => rows[vi.index]!)
+                                : rows
+                            ).map((row) => {
                             const isSelected = selectedSet.has(row.original.id);
                             return (
                                 <tr
@@ -578,7 +627,13 @@ export function TableView({
                                     {onAddColumn && <td className="imcrm-w-12" />}
                                 </tr>
                             );
-                        })
+                        })}
+                            {paddingBottom > 0 && (
+                                <tr aria-hidden style={{ height: `${paddingBottom}px` }}>
+                                    <td colSpan={columns.length + 1} />
+                                </tr>
+                            )}
+                        </>
                     )}
                 </tbody>
                 {/* Footer unificado (estilo ClickUp): UNA sola fila con

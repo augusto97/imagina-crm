@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.47.1
+Stable tag: 0.47.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,23 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.47.2 =
+**Virtualización TableView + cierre Fase 17 (Fase 17.C — DEFERRED #1).**
+
+TableView ahora renderea listas de 5000+ records sin saturar el
+browser. useVirtualizer controla qué rows se montan; las "no
+visibles" se reemplazan por <tr> spacer con height calculada
+para mantener el scroll correcto. Activación condicional con
+rows > 100.
+
+Cierre Fase 17:
+- 17.A · Export async via Action Scheduler.
+- 17.B · Bulk update con valores uniformes.
+- 17.C · Virtualización TableView.
+
+Los 3 críticos de escala del DEFERRED.md cerrados. Quedan 7
+items menores (perf medio + cleanup técnico).
 
 = 0.47.1 =
 **Perf: bulk update con valores uniformes (Fase 17.B — DEFERRED #3).**

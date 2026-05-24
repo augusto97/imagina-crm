@@ -10,29 +10,16 @@ retomarlos con contexto suficiente.
 
 ## 🟡 Performance — diferidos
 
-### 1. Virtualización de TableView (bug perf P4)
+### 1. Virtualización de TableView — ✅ CERRADO en 0.47.2
 
-**Severidad**: media. Aplica solo cuando el user setea `per_page > 200`
-en una lista activa. El default es 200 y los EditableCell ya están
-memoizados (Fase 16.D), así que renders típicos andan bien.
+Fase 17.C. `useVirtualizer` con activación condicional
+(`shouldVirtualize = rows.length > 100`). Preserva el layout
+`<table>` HTML usando 2 `<tr>` spacer (top/bottom) con height
+calculada en lugar de absolute positioning. Column resize,
+sticky, drag-and-drop, EditableCell inline siguen funcionando.
 
-**Lo que falta**:
-- Integrar `@tanstack/react-virtual` (ya está en `package.json`).
-- Refactorizar `<table>` HTML a divs con `position: absolute` para
-  cada row, porque tables HTML no permiten skip-rendering rows
-  fuera del viewport.
-- Mantener compatibility con: column resize (`columnSizing`), drag
-  & drop de columnas (`columnOrder`), header sticky, selected row
-  highlighting, edit mode (EditableCell pop-up).
-- Tests de scroll smoothness con 5k records.
-
-**Estimación**: 2-3 días de trabajo enfocado. Bottleneck principal
-es mantener todas las features actuales sin regresiones.
-
-**Workaround actual**: el plugin pagina por defecto a 200 records.
-Para listas >>5000, recomendar al user mantener `per_page=200` o
-menos (la UI no expone selector de per_page, así que ya está
-acotado).
+Bundle creció +5 KB gzip (`@tanstack/react-virtual`). Initial
+paint sigue bajo el contrato CLAUDE.md §11 (≤250 KB gzip).
 
 ---
 

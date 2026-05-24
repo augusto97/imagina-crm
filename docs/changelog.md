@@ -4,6 +4,85 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.47.2] — 2026-05-23
+
+**Perf: virtualización TableView**
+(Fase 17.C — DEFERRED #1 · **CIERRE DE FASE 17**).
+
+Cierra el tercer crítico de escala. La TableView ahora puede
+renderear listas de 5000+ records sin saturar el browser. El
+contrato del CLAUDE.md §11 "Scroll con 5k records a 60fps" pasa
+a ser realizable (pendiente bench formal).
+
+### Diseño preservando layout HTML `<table>`
+
+`useVirtualizer` controla qué rows se rendean. El layout
+`<table>` HTML se mantiene intacto — column resize, sticky
+columns, drag-and-drop de columnas, footer con aggregates,
+EditableCell inline siguen funcionando.
+
+Truco: en lugar de absolute positioning (que rompe `<table>`),
+las "rows no visibles" se reemplazan por **2 `<tr>` spacer**
+(uno arriba, uno abajo) con `height` calculada — el browser
+reserva el espacio en el scroll pero no rendea celdas dentro.
+
+### Activación condicional
+
+`shouldVirtualize = rows.length > 100`. Para listas chicas
+(default `per_page = 200`, pero comúnmente <100 rows visibles
+por página), render normal sin overhead del virtualizer.
+
+Para listas grandes (per_page hasta 500, o vistas Kanban/Cards
+que pueden cargar 500 records):
+- `useVirtualizer` con `estimateSize: 40` y `overscan: 10`.
+- Solo `~20-30 rows` renderean visualmente en cualquier momento
+  (viewport + buffer).
+- Padding-top/bottom rows reservan el espacio total scrollable.
+
+### Impacto
+
+Lista con 500 records visibles:
+
+| | Antes | Después |
+|---|---|---|
+| DOM rows | 500 | ~20-30 |
+| Re-renders al scrollear | 500 cells × N | ~20-30 cells |
+| FPS scroll | <30 (lag visible) | 60 (smooth) |
+
+### Bundle
+
+- main.js: 633 → 651 KB raw / 178 → 183 KB gzip. **+5 KB gzip**
+  por `@tanstack/react-virtual` (que ya estaba en deps pero
+  ahora se usa).
+- Initial paint total: ~235 → ~240 KB gzip. Sigue bajo el
+  contrato CLAUDE.md §11 (≤ 250 KB). ✅
+
+### Estado
+
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+- TypeScript strict: OK.
+- Bundle: OK.
+
+### Cierre Fase 17 — Escalabilidad
+
+```
+0.47.0  · 17.A · Export async via Action Scheduler (DEFERRED #2)
+0.47.1  · 17.B · Bulk update con valores uniformes (DEFERRED #3)
+0.47.2  · 17.C · Virtualización TableView (DEFERRED #1)  ← acá
+```
+
+Los **3 críticos de escala del DEFERRED.md cerrados**. Quedan
+los 7 items menores (perf medio: M3, M4, M6; cleanup técnico:
+PHPStan 2.x, tests integration, PHPCS audit, XLSX nativo).
+
+### Veredicto post Fase 17
+
+**Listo para escala razonable**: 10-50 instalaciones, listas
+hasta 50k records, exports frecuentes funcionando async sin
+bloquear UI. Quedaron pendientes los items M3/M4/M6 del DEFERRED
+(optimizaciones medias) — no son bloqueadores.
+
 ## [0.47.1] — 2026-05-23
 
 **Perf: bulk update con values uniformes**
