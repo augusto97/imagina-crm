@@ -257,6 +257,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Activity\ActivityRepository::class),
                 $c->get(\ImaginaCRM\Portal\MagicLinkService::class),
                 $c->get(CommentService::class),
+                $c->get(PermissionService::class),
             );
         });
 
@@ -606,6 +607,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Exports\CsvExporter::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
                 $c->get(PermissionService::class),
+                $c->get(FieldRepository::class),
             );
         });
 
@@ -622,6 +624,7 @@ final class Plugin
                 $c->get(\ImaginaCRM\Records\RecordAggregator::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
                 $c->get(PermissionService::class),
+                $c->get(FieldRepository::class),
             );
         });
     }

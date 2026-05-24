@@ -259,6 +259,19 @@ final class PermissionService
         return $intersection;
     }
 
+    /**
+     * Factory del `RecordSanitizer` con los hidden slugs pre-
+     * computed para el par `(user, list)`. Centraliza el strip de
+     * campos ocultos en endpoints que devuelven records, activity,
+     * aggregates, exports — antes de Fase 16.A el strip vivía solo
+     * en `RecordsController` y los demás endpoints filtraban
+     * inconsistentemente.
+     */
+    public function sanitizerFor(WP_User $user, ListEntity $list): RecordSanitizer
+    {
+        return new RecordSanitizer($this->hiddenFieldSlugs($user, $list));
+    }
+
     // ───────────────────────────────────────────────────────────────────
     //  Internos
     // ───────────────────────────────────────────────────────────────────

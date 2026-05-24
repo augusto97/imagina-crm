@@ -4,6 +4,82 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.46.0] — 2026-05-23
+
+**Security fix: per-field permissions bypass en 5 endpoints**
+(Fase 16 · Iteración 16.A).
+
+**Severidad: alta.** Bugs **S1-S4** del reporte de auditoría
+(Fase 15 cierre): el sistema de per-field permissions de Fase 10
+solo se aplicaba en `RecordsController::list/get/update`. Los
+demás endpoints que devuelven valores de fields exponían los
+campos hidden sin filtro:
+
+| # | Endpoint | Vector |
+|---|---|---|
+| S1 | `GET /lists/{slug}/export?fields=<id>` | CSV con campos hidden via param fields |
+| S2 | `GET /portal/me` + `getRecord` + `getRecords` | Cliente del portal recibe record completo |
+| S3 | `GET /lists/{slug}/activity` + `/records/{id}/activity` | `changes.before/after` JSON con valores hidden |
+| S3 | `GET /portal/lists/{slug}/aggregates` + `/lists/{slug}/records/aggregates` | counts/sums sobre campos hidden revelan info |
+| S4 | `GET /lists/{slug}/records/groups?group_by=<id>` + aggregates con group_by | Group por hidden field |
+
+### Diseño del fix
+
+En lugar de parchear cada controller individualmente
+(re-introduciría el bug en el siguiente endpoint que se sume),
+centralizamos en un servicio:
+
+- **`Permissions/RecordSanitizer`**: value object stateful con
+  los hidden slugs pre-computed para `(user, list)`. Métodos:
+  - `stripRecord(array): array` — strip de campos en `{fields,
+    relations}` o plain row.
+  - `stripRecords(array): array` — batch.
+  - `stripActivityChanges(?array): ?array` — strip de `before/
+    after` o map plano.
+  - `filterAllowedFieldIds(list<int>, idToSlug): list<int>` —
+    para guardar IDs de `?fields=` antes de pasar al
+    QueryBuilder/exporter.
+  - `canSeeField(string): bool` — guard rápido para group_by /
+    sort / filter target.
+  - `isNoop(): bool` — fast path cuando admin del plugin o sin
+    ACL hidden.
+- **`PermissionService::sanitizerFor(user, list): RecordSanitizer`**:
+  factory que pre-computa los hidden slugs en una sola llamada.
+
+### Endpoints arreglados
+
+- `ExportController::export()`: filtra `?fields=` contra hidden;
+  si la intersección queda vacía, **403 Forbidden** con mensaje
+  claro. Si no se pasaron IDs, fuerza `fieldIds` a los visibles
+  (en lugar de "todos los exportable" del CsvExporter default).
+- `PortalController::getMe/getRecord/getRecords`: aplica
+  `stripRecord(s)` antes de serializar.
+- `PortalController::getAggregates`: filtra `fields[]` contra
+  hidden; respuesta vacía si todo era hidden.
+- `RecordsController::getGroups`: bloquea `group_by` sobre
+  hidden field con 403.
+- `AggregatesController::aggregate`: filtra `fields[]` + bloquea
+  `group_by` contra hidden.
+- `ActivityController::getRecordActivity/getListActivity`:
+  aplica `stripActivityChanges` al JSON `changes` de cada item.
+
+### Bug S5 — XSS en markdown renderer
+
+Fixeado en este mismo commit. El handler de `[text](url)` ahora
+**whitelist scheme**: solo `http`, `https`, `mailto`, `tel`, o
+relativo (sin `:` o empezando con `/`, `#`, `?`). Schemas como
+`javascript:` o `data:` se neutralizan a `#` en el output.
+
+Archivo: `app/admin/records/crm/blocks/SimpleBlockViews.tsx` —
+función `renderMarkdown`.
+
+### Tests
+
+- Sin tests automatizados nuevos en este commit (los específicos
+  de seguridad llegarán en 16.E con WP integration tests). Por
+  ahora: PHPUnit 530/0 errors + PHPStan 0 errors confirman que
+  el refactor no rompe contratos existentes.
+
 ## [0.45.3] — 2026-05-23
 
 **Cierre de Fase 15 — Features nuevas cherry-picked**

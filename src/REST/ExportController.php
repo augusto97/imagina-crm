@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Exports\CsvExporter;
+use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Permissions\PermissionService;
@@ -27,6 +28,7 @@ final class ExportController extends AbstractController
         private readonly CsvExporter $exporter,
         private readonly ListService $lists,
         private readonly PermissionService $permissions,
+        private readonly FieldRepository $fields,
     ) {
         parent::__construct();
     }
@@ -59,6 +61,36 @@ final class ExportController extends AbstractController
                 array_map('intval', explode(',', $rawFieldIds)),
                 static fn (int $id): bool => $id > 0,
             ));
+        }
+
+        // Per-field permissions (Fase 16.A — fix bug S1): si el rol
+        // del user tiene fields ocultos, los stripeamos del request.
+        // Antes de este fix, un user podía pedir `?fields=<hidden_id>`
+        // y obtener el campo en el CSV — bypass del feature de
+        // permisos.
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        if (! $sanitizer->isNoop()) {
+            $idToSlug = [];
+            foreach ($this->fields->allForList($list->id) as $f) {
+                $idToSlug[$f->id] = $f->slug;
+            }
+            if ($fieldIds !== null) {
+                // El user pidió IDs específicos: filtramos a los
+                // permitidos. Si la intersección queda vacía,
+                // devolvemos 403 — el caller pidió SOLO campos
+                // ocultos.
+                $allowed = $sanitizer->filterAllowedFieldIds($fieldIds, $idToSlug);
+                if ($allowed === []) {
+                    return $this->forbidden(__('Los campos solicitados están ocultos para tu rol.', 'imagina-crm'));
+                }
+                $fieldIds = $allowed;
+            } else {
+                // No pidió IDs (=todos): explícitamente le pasamos
+                // solo los visibles para que el exporter NO los
+                // incluya por default.
+                $allIds = array_keys($idToSlug);
+                $fieldIds = $sanitizer->filterAllowedFieldIds($allIds, $idToSlug);
+            }
         }
 
         $rawTree    = $request->get_param('filter_tree');
