@@ -86,10 +86,14 @@ final class ActivityController extends AbstractController
         }
         [$limit, $offset] = $this->parsePaging($request);
 
-        $items = array_map(
-            static fn (ActivityEntity $a): array => $a->toArray(),
-            $this->repo->recentForRecord($list->id, $recordId, $limit, $offset),
-        );
+        // Per-field permissions (Fase 16.A — fix bug S3): el JSON
+        // `changes` (`{before, after}`) puede contener valores de
+        // fields ocultos para el rol del user. Strip antes de devolver.
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        $items = [];
+        foreach ($this->repo->recentForRecord($list->id, $recordId, $limit, $offset) as $a) {
+            $items[] = $this->sanitizeActivityItem($a->toArray(), $sanitizer);
+        }
         return new WP_REST_Response(['data' => $items]);
     }
 
@@ -116,11 +120,34 @@ final class ActivityController extends AbstractController
         }
         [$limit, $offset] = $this->parsePaging($request);
 
-        $items = array_map(
-            static fn (ActivityEntity $a): array => $a->toArray(),
-            $this->repo->recentForList($list->id, $limit, $offset),
-        );
+        // Per-field permissions (Fase 16.A — fix bug S3).
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        $items = [];
+        foreach ($this->repo->recentForList($list->id, $limit, $offset) as $a) {
+            $items[] = $this->sanitizeActivityItem($a->toArray(), $sanitizer);
+        }
         return new WP_REST_Response(['data' => $items]);
+    }
+
+    /**
+     * Aplica el strip de campos hidden al `changes` JSON de un
+     * activity event. `before` y `after` son maps `slug → value`,
+     * potencialmente con valores de campos que el user no debería
+     * ver — los sacamos antes de serializar al cliente.
+     * (Fase 16.A — fix bug S3)
+     *
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function sanitizeActivityItem(array $item, \ImaginaCRM\Permissions\RecordSanitizer $sanitizer): array
+    {
+        if ($sanitizer->isNoop()) {
+            return $item;
+        }
+        if (isset($item['changes']) && is_array($item['changes'])) {
+            $item['changes'] = $sanitizer->stripActivityChanges($item['changes']);
+        }
+        return $item;
     }
 
     /**

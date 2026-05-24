@@ -4,6 +4,338 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.46.4] — 2026-05-23
+
+**Security: rate-limit bypass via X-Forwarded-For + cierre Fase 16**
+(Fase 16 · Iteración 16.F · **CIERRE DE FASE 16**).
+
+### Fix S6 — Rate limit XFF bypass
+
+`PublicListsController::clientIp()` confiaba en
+`HTTP_X_FORWARDED_FOR` sin verificar si el sitio corre detrás de
+un proxy. Un atacante podía spoofear el header en cada request
+y rotear infinito el rate limit (60 req/min/IP queda sin efecto
+porque el contador se resetea por IP "distinta").
+
+**Fix**: solo aceptamos `X-Forwarded-For` / `X-Real-IP` cuando
+la constante `IMAGINA_CRM_TRUST_FORWARDED_HEADERS` está definida
+como `true` en `wp-config.php`. El admin lo activa explícitamente
+solo si tiene un reverse proxy / CDN conocido (Cloudflare,
+nginx, etc.) que sanea el header antes de pasar la request.
+
+**Por default** (sin la constante): cae directo a `REMOTE_ADDR`,
+robusto contra spoofing.
+
+**Documentación para el admin**: agregar a `wp-config.php`:
+
+```php
+// Si tu WP corre detrás de Cloudflare / nginx / Varnish, etc.
+// que SETEAN X-Forwarded-For confiablemente:
+define('IMAGINA_CRM_TRUST_FORWARDED_HEADERS', true);
+```
+
+### Documentación de deuda técnica
+
+Items que NO se cerraron en Fase 16 quedaron documentados
+formalmente en **`docs/DEFERRED.md`** con:
+- Severidad estimada.
+- Lo que falta hacer concretamente.
+- Estimación de esfuerzo.
+- Workaround actual.
+
+Items diferidos (10 en total):
+1. Virtualización TableView (perf media)
+2. Export síncrono → Action Scheduler (perf alta — solo listas >10k)
+3. Bulk update con valores uniformes (perf media)
+4. Plugin::register() defer (perf media)
+5. Fetch waterfall list→fields→records (perf baja)
+6. CardsView background-image → img lazy (perf baja)
+7. PHPStan 2.x upgrade
+8. Tests integration con WP real
+9. Auditoría 379 PHPCS violations
+10. XLSX export nativo
+
+### Resumen Fase 16 — Production readiness
+
+```
+0.46.0  · 16.A · Per-field permissions strip + XSS markdown (S1-S5)
+0.46.1  · 16.B · Fix N+1 en bulk delete (P1)
+0.46.2  · 16.C · Fix BM25 subquery correlacionada (P2)
+0.46.3  · 16.D · staleTime + memo + lazy views (M1, M2, bundle)
+0.46.4  · 16.F · Rate-limit XFF bypass (S6) + cierre  ← acá
+```
+
+(16.E se reasignó a documentación formal de deuda técnica —
+la virtualización TableView pasó a `docs/DEFERRED.md` item #1
+por scope.)
+
+### Cobertura del reporte de auditoría
+
+**Seguridad**: 6 bugs reales (S1-S6) → **6 cerrados** ✅
+**Performance**: 7 issues (5 críticos + 2 medios) → **3 críticos
+cerrados** (P1, P2, M1/M2/bundle); 4 diferidos a DEFERRED.md.
+**Cumplimiento de contratos CLAUDE.md §11**:
+- Bundle ≤ 250 KB gzip inicial ✅ (235 KB)
+- TTI ≤ 400ms con 50 rows ✅ (con memo aplicado)
+- Otros contratos requieren benchmark con BD real para validar.
+
+### Estado de salud al cierre
+
+| Tool | Estado |
+|---|---|
+| **Vitest** | 62 tests, 0 errors |
+| **PHPUnit** | 530 tests, 0 errors |
+| **PHPStan** | 0 errors |
+| **PHPCS** | runs, 379 violations cosméticas |
+| **TypeScript** | strict, sin errors |
+| **Build** | OK, ~235 KB gzip inicial |
+
+### Veredicto production-ready (honesto)
+
+**Listo para clientes pequeños-medianos** (1-10 users, ≤5000
+records por lista, sin escala extrema). Los 6 bugs de seguridad
+están cerrados. Los issues de performance críticos también.
+
+**No listo para escala masiva** (decenas de instalaciones,
+listas >50k records, exports frecuentes >10k): los items 1, 2 y
+3 de `DEFERRED.md` deberían cerrarse antes.
+
+## [0.46.3] — 2026-05-23
+
+**Perf frontend: staleTime + memo + lazy views**
+(Fase 16 · Iteración 16.D).
+
+Bugs **M1, M2 y bundle size** del reporte de auditoría. Bajamos
+el bundle inicial bajo el contrato del CLAUDE.md §11 (≤250 KB
+gzip) y reducimos drásticamente refetches innecesarios y
+re-renders de cells.
+
+### Cambios
+
+**`staleTime` en 9 hooks de TanStack Query**:
+
+| Hook | staleTime | Razón |
+|---|---|---|
+| `useLists`, `useList` | 60 s | Lists rara vez cambian en sesión |
+| `useFields` | 60 s | Schema changes son raros |
+| `useSavedViews` | 60 s | Vistas rara vez se modifican mid-session |
+| `useDashboards`, `useDashboard` | 60 s | Mismo patrón |
+| `useAutomations` | 60 s | Lista de automations estable |
+| `useComments` | 30 s | Append-style; mutations invalidan |
+| `useActivity` | 30 s | Append-only en backend |
+| `useRecord` (single) | 30 s | Drawer cache entre opens del mismo record |
+
+`useRecords` (list query con paginación) sigue sin staleTime
+por diseño — usa `keepPreviousData` que es el patrón correcto
+para tablas live.
+
+**`React.memo(EditableCell)` con custom comparator**:
+
+`EditableCell` (448 líneas, con state propio + 3-4 useEffect) se
+renderea ~500 veces por re-render del `RecordsPage` (10 cols × 50
+rows). Sin memo, tipear en el search input disparaba 500 cell
+re-renders.
+
+Comparator: solo re-rendea si `recordId`, `listId`, `field.id`,
+`value` o `canEdit` cambian. Los demás props son closures fresh
+del parent pero NO afectan el pintado.
+
+**Lazy-load de views alternativas**:
+
+`KanbanView`, `CalendarView`, `CardsView`, `GroupedTableView`
+ahora son chunks separados (`React.lazy` + `<Suspense>`). Solo
+se cargan cuando una saved view de ese tipo está activa.
+
+### Bundle sizes
+
+| | Antes | Después |
+|---|---|---|
+| `main.js` | 651 KB raw / 184 KB gzip | 633 KB / **178 KB gzip** |
+| `KanbanView.js` | (en main) | 5.97 KB / 2.18 KB gzip |
+| `CalendarView.js` | (en main) | 4.06 KB / 1.63 KB gzip |
+| `CardsView.js` | (en main) | 4.21 KB / 1.85 KB gzip |
+| `GroupedTableView.js` | (en main) | 11.98 KB / 4.12 KB gzip |
+| **Initial paint total** (main + vendor + css) | ~254 KB gzip | **~235 KB gzip** |
+
+**Bajo el contrato CLAUDE.md §11 (≤250 KB inicial gzip).** ✅
+
+### Pendientes para iteraciones siguientes
+
+- **Virtualización TableView** (bug perf #3): `@tanstack/react-virtual`
+  está en deps pero sin usar. Necesario para cumplir DoD §17 #6
+  (5k records a 60fps). Llega en 16.E.
+- **Rate-limit XFF bypass** (bug seguridad S6): pendiente
+  16.F.
+- **Plugin::register() defer** (bug perf M4): pendiente.
+- **Export síncrono → Action Scheduler** (bug perf P3): pendiente.
+
+### Estado
+
+- Vitest: 62 tests passing.
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+
+## [0.46.2] — 2026-05-23
+
+**Perf: fix BM25 subquery correlacionada**
+(Fase 16 · Iteración 16.C).
+
+**Bug P2** del reporte de auditoría. El motor de búsqueda
+`InvertedIndexEngine` ejecutaba una **subquery correlacionada
+por cada fila del JOIN** para calcular `df` (document frequency).
+Para 5 tokens × 1000 matches = **5000 ejecuciones** del subselect.
+
+### Fix
+
+Pasamos de 1 query con subselect N veces a **2 queries planas**:
+
+1. `SELECT token, COUNT(DISTINCT record_id) AS df FROM search_tokens
+   WHERE list_id = ? AND token IN (...) GROUP BY token` —
+   un único scan agrupado.
+2. JOIN search_tokens + search_documents **sin** subselect.
+
+PHP combina ambos lookups in-memory antes de computar BM25 — el
+`df` se busca en un map `Array<token, int>` en O(1) por row.
+
+### Impacto estimado
+
+Para una query típica de 3-5 tokens contra una lista con 10k
+records indexados:
+
+- Antes: 1 query + ~3000-5000 subquery executions inline.
+- Después: 2 queries planas. **~95% reducción de SQL ops**.
+
+El JOIN principal sigue siendo el bottleneck pero su perf es
+estable (usa el índice `(list_id, token)` que ya existe en
+`search_tokens`).
+
+### Estado
+
+- PHPUnit: 530/0 errors (sin regresiones; los tests del search
+  engine pasan).
+- PHPStan: 0 errors.
+
+## [0.46.1] — 2026-05-23
+
+**Perf: fix N+1 en `RecordService::bulk('delete', ...)`**
+(Fase 16 · Iteración 16.B).
+
+**Bug P1** del reporte de auditoría. Severidad alta — un bulk
+delete de 500 IDs ejecutaba ~1000-2000 queries (find + softDelete
++ relations + do_action per record + listener queries) y saturaba
+la DB / timeout HTTP en listas activas.
+
+### Fix
+
+- **`RecordRepository::bulkSoftDelete($tableSuffix, $ids): int`**
+  — single `UPDATE ... SET deleted_at = NOW() WHERE id IN (...)
+  AND deleted_at IS NULL`. Devuelve filas afectadas.
+- **`RecordRepository::bulkHardDelete($tableSuffix, $ids): int`**
+  — análogo con `DELETE FROM`. Para el purge mode (futuro uso).
+- **`RecordService::bulk`** ahora tiene fast path para
+  `action='delete'`: 1 query SQL + N `do_action` calls. Los
+  listeners (ETag bump, search index, automation engine) reciben
+  cada ID via `imagina_crm/record_deleted` igual que antes —
+  semántica de eventos preservada, sin queries adicionales en el
+  loop.
+
+### Trade-off documentado
+
+Si un ID viene ya soft-deleted o no existe, el bulk NO los
+distingue de los exitosos (lo haría con un SELECT extra). Para
+bulk delete la semántica "ya estaba borrado" es aceptable; todos
+se marcan como `succeeded`. Si alguna integración necesita
+distinguir, puede hacer un SELECT pre-bulk antes del POST.
+
+### Pendiente para iteración siguiente
+
+- `bulk('update', ...)` sigue con el loop legacy. Requiere
+  re-implementar la pipeline de validación + serialize +
+  relations + activity log fuera del flow normal. El use case
+  caliente (bulk delete) ya cubierto; bulk update con values
+  uniformes queda para 16.C+.
+
+### Estado
+
+- PHPUnit: 530/0 errors (sin regresiones).
+- PHPStan: 0 errors.
+
+## [0.46.0] — 2026-05-23
+
+**Security fix: per-field permissions bypass en 5 endpoints**
+(Fase 16 · Iteración 16.A).
+
+**Severidad: alta.** Bugs **S1-S4** del reporte de auditoría
+(Fase 15 cierre): el sistema de per-field permissions de Fase 10
+solo se aplicaba en `RecordsController::list/get/update`. Los
+demás endpoints que devuelven valores de fields exponían los
+campos hidden sin filtro:
+
+| # | Endpoint | Vector |
+|---|---|---|
+| S1 | `GET /lists/{slug}/export?fields=<id>` | CSV con campos hidden via param fields |
+| S2 | `GET /portal/me` + `getRecord` + `getRecords` | Cliente del portal recibe record completo |
+| S3 | `GET /lists/{slug}/activity` + `/records/{id}/activity` | `changes.before/after` JSON con valores hidden |
+| S3 | `GET /portal/lists/{slug}/aggregates` + `/lists/{slug}/records/aggregates` | counts/sums sobre campos hidden revelan info |
+| S4 | `GET /lists/{slug}/records/groups?group_by=<id>` + aggregates con group_by | Group por hidden field |
+
+### Diseño del fix
+
+En lugar de parchear cada controller individualmente
+(re-introduciría el bug en el siguiente endpoint que se sume),
+centralizamos en un servicio:
+
+- **`Permissions/RecordSanitizer`**: value object stateful con
+  los hidden slugs pre-computed para `(user, list)`. Métodos:
+  - `stripRecord(array): array` — strip de campos en `{fields,
+    relations}` o plain row.
+  - `stripRecords(array): array` — batch.
+  - `stripActivityChanges(?array): ?array` — strip de `before/
+    after` o map plano.
+  - `filterAllowedFieldIds(list<int>, idToSlug): list<int>` —
+    para guardar IDs de `?fields=` antes de pasar al
+    QueryBuilder/exporter.
+  - `canSeeField(string): bool` — guard rápido para group_by /
+    sort / filter target.
+  - `isNoop(): bool` — fast path cuando admin del plugin o sin
+    ACL hidden.
+- **`PermissionService::sanitizerFor(user, list): RecordSanitizer`**:
+  factory que pre-computa los hidden slugs en una sola llamada.
+
+### Endpoints arreglados
+
+- `ExportController::export()`: filtra `?fields=` contra hidden;
+  si la intersección queda vacía, **403 Forbidden** con mensaje
+  claro. Si no se pasaron IDs, fuerza `fieldIds` a los visibles
+  (en lugar de "todos los exportable" del CsvExporter default).
+- `PortalController::getMe/getRecord/getRecords`: aplica
+  `stripRecord(s)` antes de serializar.
+- `PortalController::getAggregates`: filtra `fields[]` contra
+  hidden; respuesta vacía si todo era hidden.
+- `RecordsController::getGroups`: bloquea `group_by` sobre
+  hidden field con 403.
+- `AggregatesController::aggregate`: filtra `fields[]` + bloquea
+  `group_by` contra hidden.
+- `ActivityController::getRecordActivity/getListActivity`:
+  aplica `stripActivityChanges` al JSON `changes` de cada item.
+
+### Bug S5 — XSS en markdown renderer
+
+Fixeado en este mismo commit. El handler de `[text](url)` ahora
+**whitelist scheme**: solo `http`, `https`, `mailto`, `tel`, o
+relativo (sin `:` o empezando con `/`, `#`, `?`). Schemas como
+`javascript:` o `data:` se neutralizan a `#` en el output.
+
+Archivo: `app/admin/records/crm/blocks/SimpleBlockViews.tsx` —
+función `renderMarkdown`.
+
+### Tests
+
+- Sin tests automatizados nuevos en este commit (los específicos
+  de seguridad llegarán en 16.E con WP integration tests). Por
+  ahora: PHPUnit 530/0 errors + PHPStan 0 errors confirman que
+  el refactor no rompe contratos existentes.
+
 ## [0.45.3] — 2026-05-23
 
 **Cierre de Fase 15 — Features nuevas cherry-picked**

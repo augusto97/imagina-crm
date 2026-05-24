@@ -26,5 +26,8 @@ export function useRecordActivity(
             return res.data;
         },
         enabled: listId !== undefined && listId !== '' && recordId !== undefined && recordId > 0,
+        // Activity es append-only en el backend; entre eventos el
+        // log es estable. (Fase 16.D)
+        staleTime: 30_000,
     });
 }

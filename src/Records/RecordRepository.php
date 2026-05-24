@@ -203,6 +203,34 @@ final class RecordRepository
         return is_int($result) && $result > 0;
     }
 
+    /**
+     * Bulk soft-delete: marca `deleted_at` para todos los IDs en una
+     * sola query. Devuelve la cantidad de filas afectadas (los IDs
+     * ya soft-deleted no cuentan porque el WHERE filtra
+     * `deleted_at IS NULL`).
+     *
+     * Fase 16.B — fix del N+1 en `RecordService::bulk('delete', ...)`.
+     * Antes el bulk de 500 IDs ejecutaba ~1000 queries (find +
+     * softDelete por iteración). Ahora 1 query bulk.
+     *
+     * @param list<int> $ids
+     */
+    public function bulkSoftDelete(string $tableSuffix, array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+        $table = $this->qualifiedTable($tableSuffix);
+        $now   = current_time('mysql', true);
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $sql   = "UPDATE {$table} SET deleted_at = %s, updated_at = %s "
+            . "WHERE id IN ({$placeholders}) AND deleted_at IS NULL";
+        $wpdb  = $this->db->wpdb();
+        $args  = array_merge([$now, $now], array_map('intval', $ids));
+        $result = $wpdb->query((string) $wpdb->prepare($sql, $args));
+        return is_int($result) ? $result : 0;
+    }
+
     public function hardDelete(string $tableSuffix, int $id): bool
     {
         $table  = $this->qualifiedTable($tableSuffix);
@@ -211,6 +239,25 @@ final class RecordRepository
             (string) $wpdb->prepare("DELETE FROM {$table} WHERE id = %d", $id)
         );
         return is_int($result) && $result > 0;
+    }
+
+    /**
+     * Bulk hard-delete: DELETE FROM con WHERE id IN. Devuelve filas
+     * afectadas. Fase 16.B.
+     *
+     * @param list<int> $ids
+     */
+    public function bulkHardDelete(string $tableSuffix, array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+        $table = $this->qualifiedTable($tableSuffix);
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $sql   = "DELETE FROM {$table} WHERE id IN ({$placeholders})";
+        $wpdb  = $this->db->wpdb();
+        $result = $wpdb->query((string) $wpdb->prepare($sql, array_map('intval', $ids)));
+        return is_int($result) ? $result : 0;
     }
 
     /**

@@ -224,21 +224,51 @@ final class InvertedIndexEngine implements SearchEngineInterface
             return [];
         }
 
-        // SQL: para cada token traemos (record_id, tf, doc_length, df).
-        // El cálculo BM25 lo hacemos en PHP — más legible y sin perder
-        // performance (la cardinalidad de matches está acotada por
-        // recordLimit y el JOIN ya filtra en MySQL).
+        // Fase 16.C — fix bug P2: antes la query principal incluía
+        // una subquery correlacionada `(SELECT COUNT(*) FROM
+        // search_tokens t2 WHERE t.token = t2.token)` que MySQL
+        // ejecutaba POR CADA fila del JOIN. Para 5 tokens × 1000
+        // matches = 5000 ejecuciones del subselect.
+        //
+        // Ahora: 2 queries. La primera calcula `df` por token en un
+        // único scan agrupado. La segunda hace el JOIN sin subselect.
+        // PHP combina ambos lookups in-memory antes de computar BM25.
         $placeholders = implode(',', array_fill(0, count($tokens), '%s'));
+
+        $dfSql = "
+            SELECT token, COUNT(DISTINCT record_id) AS df
+            FROM `{$tokenTable}`
+            WHERE list_id = %d AND token IN ({$placeholders})
+            GROUP BY token
+        ";
+        $dfArgs = [$listId];
+        foreach ($tokens as $tok) {
+            $dfArgs[] = $tok;
+        }
+        $dfPrepared = $wpdb->prepare($dfSql, $dfArgs);
+        if (! is_string($dfPrepared)) {
+            return [];
+        }
+        $dfRows = $wpdb->get_results($dfPrepared, ARRAY_A);
+        $dfByToken = [];
+        if (is_array($dfRows)) {
+            foreach ($dfRows as $dr) {
+                $dfByToken[(string) $dr['token']] = (int) $dr['df'];
+            }
+        }
+        if ($dfByToken === []) {
+            // Ningún token está indexado para esta lista.
+            return [];
+        }
+
         $sql = "
-            SELECT t.token, t.record_id, t.tf, d.doc_length,
-                   (SELECT COUNT(*) FROM `{$tokenTable}` t2
-                    WHERE t2.list_id = %d AND t2.token = t.token) AS df
+            SELECT t.token, t.record_id, t.tf, d.doc_length
             FROM `{$tokenTable}` t
             INNER JOIN `{$docTable}` d
                 ON d.list_id = t.list_id AND d.record_id = t.record_id
             WHERE t.list_id = %d AND t.token IN ({$placeholders})
         ";
-        $args = [$listId, $listId];
+        $args = [$listId];
         foreach ($tokens as $tok) {
             $args[] = $tok;
         }
@@ -265,14 +295,17 @@ final class InvertedIndexEngine implements SearchEngineInterface
             $recordId  = (int) $r['record_id'];
             $tf        = (int) $r['tf'];
             $docLength = max(1, (int) $r['doc_length']);
-            $df        = max(1, (int) $r['df']);
+            // df ahora se lookupea in-memory en lugar de subquery
+            // correlacionada (Fase 16.C). Si por edge case un token
+            // no figura en $dfByToken, cae a 1 (mismo fallback que
+            // antes con `max(1, ...)`).
+            $df        = max(1, $dfByToken[$token] ?? 1);
 
             $idf      = log((($totalDocs - $df + 0.5) / ($df + 0.5)) + 1.0);
             $denom    = $tf + $k1 * (1 - $b + $b * ($docLength / $avgDl));
             $contrib  = $idf * (($tf * ($k1 + 1)) / $denom);
 
             $scores[$recordId] = ($scores[$recordId] ?? 0.0) + $contrib;
-            unset($token); // marcador para PHPStan
         }
 
         if ($scores === []) {

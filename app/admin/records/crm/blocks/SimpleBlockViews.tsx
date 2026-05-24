@@ -310,7 +310,14 @@ function renderMarkdown(input: string): string {
         .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
         .replace(
             /\[([^\]]+)\]\(([^)]+)\)/g,
-            '<a href="$2" target="_blank" rel="noopener noreferrer" class="imcrm-text-primary hover:imcrm-underline">$1</a>',
+            (_match: string, label: string, url: string) => {
+                // Fase 16.A — fix bug S5: stored XSS si el url contiene
+                // un scheme como `javascript:`. Whitelist: http, https,
+                // mailto, tel, o relativo (sin `:` o `:` después de un
+                // path char). Schemas no permitidos se neutralizan a #.
+                const safeUrl = sanitizeMarkdownHref(url);
+                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="imcrm-text-primary hover:imcrm-underline">${label}</a>`;
+            },
         );
 
     // 3. Block-level: headings y listas. Procesamos línea por línea.
@@ -393,6 +400,59 @@ function Card({
             <div className="imcrm-flex-1 imcrm-overflow-y-auto">{children}</div>
         </section>
     );
+}
+
+/**
+ * Whitelist de schemes para hrefs del markdown renderer (Fase 16.A).
+ *
+ * Acepta: http, https, mailto, tel, o relativo (sin `:` antes del
+ * primer `/`, `#`, `?`, o sin `:` en absoluto). Rechaza: javascript,
+ * data, vbscript, file, blob, y cualquier otro scheme — devuelve
+ * `#` (link no-op) para que el output siga siendo válido HTML pero
+ * el click no ejecute código.
+ *
+ * Test cases que neutraliza:
+ *   sanitizeMarkdownHref('javascript:alert(1)') → '#'
+ *   sanitizeMarkdownHref('data:text/html,<script>...') → '#'
+ *   sanitizeMarkdownHref('https://example.com') → 'https://example.com'
+ *   sanitizeMarkdownHref('/contacto') → '/contacto'
+ *   sanitizeMarkdownHref('mailto:foo@bar.com') → 'mailto:foo@bar.com'
+ *
+ * También escapamos `"` para que no rompa el atributo `href="..."`
+ * del template — un `[x](https://a.com"onmouseover=alert)` no
+ * inyecta atributos.
+ */
+function sanitizeMarkdownHref(url: string): string {
+    const trimmed = url.trim();
+    if (! trimmed) return '#';
+    // Relativo: si NO contiene `:` antes de un `/`, `?`, `#`, es safe.
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx === -1) {
+        return escapeHtmlAttr(trimmed);
+    }
+    // Si hay `:` pero un `/`, `?`, `#` aparece antes, también es relativo
+    // (ej. `path/with:colon` o `?query=x:y`).
+    const slashIdx = trimmed.indexOf('/');
+    const queryIdx = trimmed.indexOf('?');
+    const hashIdx = trimmed.indexOf('#');
+    const firstPathChar = Math.min(
+        slashIdx === -1 ? Infinity : slashIdx,
+        queryIdx === -1 ? Infinity : queryIdx,
+        hashIdx === -1 ? Infinity : hashIdx,
+    );
+    if (firstPathChar < colonIdx) {
+        return escapeHtmlAttr(trimmed);
+    }
+    // Absoluto con scheme. Whitelist.
+    const scheme = trimmed.slice(0, colonIdx).toLowerCase();
+    if (scheme === 'http' || scheme === 'https' || scheme === 'mailto' || scheme === 'tel') {
+        return escapeHtmlAttr(trimmed);
+    }
+    return '#';
+}
+
+function escapeHtmlAttr(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function Empty({ children }: { children: React.ReactNode }): JSX.Element {

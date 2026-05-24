@@ -31,6 +31,7 @@ final class RecordsController extends AbstractController
         private readonly RecordsETag $etag,
         private readonly RecordAggregator $aggregator,
         private readonly PermissionService $permissions,
+        private readonly \ImaginaCRM\Fields\FieldRepository $fields,
     ) {
         parent::__construct();
     }
@@ -407,6 +408,19 @@ final class RecordsController extends AbstractController
                 __('Falta el parámetro group_by con el id del campo.', 'imagina-crm'),
                 ['status' => 400]
             );
+        }
+
+        // Per-field permissions (Fase 16.A — fix bug S4): el user
+        // no puede agrupar por un field oculto para su rol. Sino
+        // los valores agregados (counts, sums) revelan información
+        // sobre los valores del campo aunque el campo en sí no se
+        // exponga.
+        $groupByField = $this->fields->find($groupBy);
+        if ($groupByField !== null) {
+            $sanitizer = $this->permissions->sanitizerFor(wp_get_current_user(), $list);
+            if (! $sanitizer->canSeeField($groupByField->slug)) {
+                return $this->forbidden(__('No tenés permiso para agrupar por este campo.', 'imagina-crm'));
+            }
         }
 
         $filters    = $request->get_param('filter');

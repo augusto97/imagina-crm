@@ -168,9 +168,28 @@ final class PublicListsController extends AbstractController
 
     private function clientIp(): ?string
     {
-        // Orden de preferencia: X-Forwarded-For (left-most = cliente
-        // original) → X-Real-IP → REMOTE_ADDR.
-        foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'] as $key) {
+        // Fase 16.F — fix bug S6 (rate-limit bypass via X-Forwarded-For
+        // spoofing).
+        //
+        // PROBLEMA ANTES DEL FIX: confiábamos en HTTP_X_FORWARDED_FOR
+        // sin verificar si el sitio corre detrás de un proxy. Un atacante
+        // podía enviar `X-Forwarded-For: <random>` por request y rotear
+        // infinito el rate limit de 60 req/min/IP — el contador se
+        // resetea por IP "distinta" en cada request.
+        //
+        // FIX: solo aceptamos XFF / X-Real-IP cuando la constante
+        // `IMAGINA_CRM_TRUST_FORWARDED_HEADERS` está definida como
+        // `true` (el admin lo activa explícitamente si tiene proxy/CDN).
+        // Por default, fallback a REMOTE_ADDR únicamente — robusto
+        // contra spoofing en instalaciones directas.
+        $trustForwarded = defined('IMAGINA_CRM_TRUST_FORWARDED_HEADERS')
+            && IMAGINA_CRM_TRUST_FORWARDED_HEADERS === true;
+
+        $keys = $trustForwarded
+            ? ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR']
+            : ['REMOTE_ADDR'];
+
+        foreach ($keys as $key) {
             if (! isset($_SERVER[$key])) {
                 continue;
             }
@@ -178,7 +197,8 @@ final class PublicListsController extends AbstractController
             if ($raw === '') {
                 continue;
             }
-            // X-Forwarded-For puede ser CSV — quedarnos con el primero.
+            // X-Forwarded-For puede ser CSV — quedarnos con el primero
+            // (left-most = cliente original).
             $ip = trim(explode(',', $raw)[0]);
             $ip = filter_var($ip, FILTER_VALIDATE_IP);
             if (is_string($ip)) {

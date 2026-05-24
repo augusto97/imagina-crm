@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, memo, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
@@ -49,7 +49,7 @@ interface EditableCellProps {
 // desde otros campos del record, el usuario no lo edita directo.
 const NON_INLINE_TYPES = ['user', 'file', 'relation', 'computed'];
 
-export function EditableCell({
+function EditableCellInner({
     field,
     recordId,
     listId,
@@ -172,6 +172,34 @@ export function EditableCell({
         </div>
     );
 }
+
+/**
+ * Memo wrapper (Fase 16.D — fix perf P4 del reporte de auditoría).
+ *
+ * Antes: el TableView renderea `<EditableCell>` por cada cell visible
+ * (típicamente 10 cols × 50 rows = 500 cells). Sin memo, cualquier
+ * re-render del parent (RecordsPage, p.ej. al tipear en el search)
+ * re-rendea las 500 celdas. Con la cell siendo 448 líneas con state
+ * propio + 3-4 useEffect, eso es work caro.
+ *
+ * Comparator custom: solo re-rendea si (recordId, field.id, value,
+ * canEdit, listId) cambian. Los demás props son closures que el
+ * parent crea fresh en cada render pero NO cambian la pintada del
+ * cell.
+ *
+ * Importante: si el field config cambia (ej. options de un select)
+ * el TableView dispara un re-mount via key — no necesitamos
+ * comparar `field` por deep equality.
+ */
+export const EditableCell = memo(EditableCellInner, (prev, next) => {
+    return (
+        prev.recordId === next.recordId
+        && prev.listId === next.listId
+        && prev.field.id === next.field.id
+        && prev.value === next.value
+        && prev.canEdit === next.canEdit
+    );
+});
 
 interface CellEditorProps {
     field: FieldEntity;

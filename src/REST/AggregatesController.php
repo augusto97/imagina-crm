@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ImaginaCRM\REST;
 
+use ImaginaCRM\Fields\FieldRepository;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Permissions\PermissionService;
@@ -30,6 +31,7 @@ final class AggregatesController extends AbstractController
         private readonly RecordAggregator $aggregator,
         private readonly ListService $lists,
         private readonly PermissionService $permissions,
+        private readonly FieldRepository $fields,
     ) {
         parent::__construct();
     }
@@ -82,6 +84,21 @@ final class AggregatesController extends AbstractController
             return new WP_REST_Response(['data' => ['totals' => [], 'groups' => []]]);
         }
 
+        // Per-field permissions (Fase 16.A — fix bug S3): un user
+        // no puede pedir agregados sobre fields ocultos para su rol
+        // (sino los counts/sums revelan información del campo).
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        if (! $sanitizer->isNoop()) {
+            $idToSlug = [];
+            foreach ($this->fields->allForList($list->id) as $f) {
+                $idToSlug[$f->id] = $f->slug;
+            }
+            $fieldIds = $sanitizer->filterAllowedFieldIds($fieldIds, $idToSlug);
+            if ($fieldIds === []) {
+                return new WP_REST_Response(['data' => ['totals' => [], 'groups' => []]]);
+            }
+        }
+
         $rawTree    = $request->get_param('filter_tree');
         $filterTree = null;
         if (is_string($rawTree) && $rawTree !== '') {
@@ -97,6 +114,13 @@ final class AggregatesController extends AbstractController
         $groupBy = is_numeric($groupBy) ? (int) $groupBy : null;
         if ($groupBy !== null && $groupBy <= 0) {
             $groupBy = null;
+        }
+        // Block group_by sobre hidden field (Fase 16.A — fix bug S4).
+        if ($groupBy !== null && ! $sanitizer->isNoop()) {
+            $field = $this->fields->find($groupBy);
+            if ($field !== null && ! $sanitizer->canSeeField($field->slug)) {
+                return $this->forbidden(__('No tenés permiso para agrupar por este campo.', 'imagina-crm'));
+            }
         }
 
         $result = $this->aggregator->aggregate($list, $fieldIds, $filterTree, $groupBy, $additionalWhere);

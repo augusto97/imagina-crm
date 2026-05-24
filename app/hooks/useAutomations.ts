@@ -28,6 +28,7 @@ export function useAutomations(listId: string | number | undefined) {
             return res.data;
         },
         enabled: listId !== undefined && listId !== '',
+        staleTime: 60_000, // Fase 16.D
     });
 }
 

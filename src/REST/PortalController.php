@@ -59,6 +59,7 @@ final class PortalController extends AbstractController
         private readonly ActivityRepository $activity,
         private readonly MagicLinkService $magicLinks,
         private readonly CommentService $comments,
+        private readonly \ImaginaCRM\Permissions\PermissionService $permissions,
     ) {
         parent::__construct();
     }
@@ -441,6 +442,21 @@ final class PortalController extends AbstractController
             return new WP_REST_Response(['data' => ['totals' => [], 'groups' => []]]);
         }
 
+        // Per-field permissions (Fase 16.A — fix bug S2): el cliente
+        // no puede pedir agregados sobre campos ocultos para su rol.
+        // Filtramos field IDs antes de pasar al aggregator.
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        if (! $sanitizer->isNoop()) {
+            $idToSlug = [];
+            foreach ($this->fields->allForList($list->id) as $f) {
+                $idToSlug[$f->id] = $f->slug;
+            }
+            $fieldIds = $sanitizer->filterAllowedFieldIds($fieldIds, $idToSlug);
+            if ($fieldIds === []) {
+                return new WP_REST_Response(['data' => ['totals' => [], 'groups' => []]]);
+            }
+        }
+
         $result = $this->aggregator->aggregate(
             $list,
             $fieldIds,
@@ -649,6 +665,12 @@ final class PortalController extends AbstractController
             return $this->notFound();
         }
 
+        // Per-field permissions (Fase 16.A — fix bug S2): aún en el
+        // portal "su propio record", si el rol de la cuenta cliente
+        // tiene fields ocultos, los strippeamos.
+        $sanitizer = $this->permissions->sanitizerFor($user, $portalList);
+        $hydrated = $sanitizer->stripRecord($hydrated);
+
         // Template del portal: si la lista de portal tiene
         // `settings.portal_template` configurado, lo usamos. Sino,
         // generamos uno default con los fields del record cliente
@@ -720,6 +742,12 @@ final class PortalController extends AbstractController
             return $this->validationError($result);
         }
 
+        // Per-field permissions (Fase 16.A — fix bug S2).
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        if (! $sanitizer->isNoop() && isset($result['data']) && is_array($result['data'])) {
+            $result['data'] = $sanitizer->stripRecords($result['data']);
+        }
+
         return new WP_REST_Response($result);
     }
 
@@ -767,7 +795,14 @@ final class PortalController extends AbstractController
             return $this->notFound();
         }
 
-        return new WP_REST_Response(['data' => $result['data'][0]]);
+        // Per-field permissions (Fase 16.A — fix bug S2): el portal
+        // también respeta `fields_hidden`. El cliente puede tener un
+        // role custom con campos ocultos — ej. "Portal cliente" que
+        // ve `nombre`/`email` pero no `notas_internas`.
+        $sanitizer = $this->permissions->sanitizerFor($user, $list);
+        $record = $sanitizer->stripRecord($result['data'][0]);
+
+        return new WP_REST_Response(['data' => $record]);
     }
 
     /**
