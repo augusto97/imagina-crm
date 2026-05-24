@@ -218,6 +218,10 @@ export function useRecord(listId: string | number | undefined, recordId: number 
         },
         enabled:
             listId !== undefined && listId !== '' && recordId !== undefined && recordId > 0,
+        // El record individual abre en un drawer; entre opens del
+        // mismo record (sin mutation) no hace falta refetchear.
+        // Los mutations invalidan esta queryKey. (Fase 16.D)
+        staleTime: 30_000,
     });
 }
 

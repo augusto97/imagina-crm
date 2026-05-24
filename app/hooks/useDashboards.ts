@@ -22,6 +22,7 @@ export function useDashboards() {
             const res = await api.get<DashboardEntity[]>('/dashboards');
             return res.data;
         },
+        staleTime: 60_000, // Fase 16.D
     });
 }
 
@@ -33,6 +34,7 @@ export function useDashboard(id: number | undefined) {
             return res.data;
         },
         enabled: id !== undefined && id > 0,
+        staleTime: 60_000, // Fase 16.D
     });
 }
 

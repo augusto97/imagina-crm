@@ -16,6 +16,9 @@ export function useFields(listId: string | number | undefined) {
             return res.data;
         },
         enabled: listId !== undefined && listId !== '',
+        // Schema changes son raros dentro de una sesión; evitamos
+        // refetch en cada mount de RecordsPage/ListBuilder. (Fase 16.D)
+        staleTime: 60_000,
     });
 }
 

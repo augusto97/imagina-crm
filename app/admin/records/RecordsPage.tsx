@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FileUp, Loader2, Plus, Search, Settings, Zap } from 'lucide-react';
 
@@ -29,12 +29,17 @@ import {
     toggleSort,
     type RecordsState,
 } from './recordsState';
-import { CalendarView } from './views/CalendarView';
-import { CardsView } from './views/CardsView';
-import { KanbanView } from './views/KanbanView';
+// Vistas alternativas lazy-loaded (Fase 16.D — fix bug perf #5):
+// el bundle del Records page bajó ~80 KB raw porque Kanban/Calendar/
+// Cards/GroupedTable solo se cargan cuando una saved view de ese
+// tipo está activa. TableView sigue eager porque es la vista default.
+const CalendarView = lazy(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
+const CardsView = lazy(() => import('./views/CardsView').then((m) => ({ default: m.CardsView })));
+const KanbanView = lazy(() => import('./views/KanbanView').then((m) => ({ default: m.KanbanView })));
+const GroupedTableView = lazy(() => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView })));
+
 import { ColumnsMenu } from './views/ColumnsMenu';
 import { GroupSelector } from './views/GroupSelector';
-import { GroupedTableView } from './views/GroupedTableView';
 import { TableView } from './views/TableView';
 import { SaveViewDialog } from './views/SaveViewDialog';
 import { ViewsTabs } from './views/ViewsTabs';
@@ -454,30 +459,37 @@ export function RecordsPage(): JSX.Element {
                             )}
                         </p>
                     ) : isKanban && groupByField ? (
-                        <KanbanView
-                            listId={list.data.id}
-                            fields={fields.data}
-                            records={records.data?.data ?? []}
-                            groupByField={groupByField}
-                            onCardClick={(record) => setDrawerRecordId(record.id)}
-                        />
+                        <Suspense fallback={<ViewLoadingFallback />}>
+                            <KanbanView
+                                listId={list.data.id}
+                                fields={fields.data}
+                                records={records.data?.data ?? []}
+                                groupByField={groupByField}
+                                onCardClick={(record) => setDrawerRecordId(record.id)}
+                            />
+                        </Suspense>
                     ) : isCalendar && dateField ? (
-                        <CalendarView
-                            fields={fields.data}
-                            records={records.data?.data ?? []}
-                            dateField={dateField}
-                            onCardClick={(record) => setDrawerRecordId(record.id)}
-                        />
+                        <Suspense fallback={<ViewLoadingFallback />}>
+                            <CalendarView
+                                fields={fields.data}
+                                records={records.data?.data ?? []}
+                                dateField={dateField}
+                                onCardClick={(record) => setDrawerRecordId(record.id)}
+                            />
+                        </Suspense>
                     ) : isCards ? (
-                        <CardsView
-                            fields={fields.data}
-                            records={records.data?.data ?? []}
-                            extraFields={cardsExtraFields}
-                            coverField={cardsCoverField}
-                            size={activeView?.config.card_size ?? 'comfortable'}
-                            onCardClick={(record) => setDrawerRecordId(record.id)}
-                        />
+                        <Suspense fallback={<ViewLoadingFallback />}>
+                            <CardsView
+                                fields={fields.data}
+                                records={records.data?.data ?? []}
+                                extraFields={cardsExtraFields}
+                                coverField={cardsCoverField}
+                                size={activeView?.config.card_size ?? 'comfortable'}
+                                onCardClick={(record) => setDrawerRecordId(record.id)}
+                            />
+                        </Suspense>
                     ) : isTableGrouped && tableGroupByField ? (
+                        <Suspense fallback={<ViewLoadingFallback />}>
                         <GroupedTableView
                             listId={list.data.id}
                             listSlug={list.data.slug}
@@ -506,6 +518,7 @@ export function RecordsPage(): JSX.Element {
                                 setState((s) => ({ ...s, footerAggregates: next }))
                             }
                         />
+                        </Suspense>
                     ) : (
                         <TableView
                             listId={list.data.id}
@@ -584,6 +597,22 @@ export function RecordsPage(): JSX.Element {
                     />
                 </>
             )}
+        </div>
+    );
+}
+
+
+/**
+ * Spinner shown while a lazy-loaded view (Kanban / Calendar / Cards
+ * / GroupedTable) is being fetched. Brief flash — chunks are
+ * 10-30 KB cada uno y typical SPA users tienen el cache caliente
+ * después de la primera visita. Fase 16.D.
+ */
+function ViewLoadingFallback(): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-12 imcrm-text-sm imcrm-text-muted-foreground">
+            <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+            {__('Cargando vista…')}
         </div>
     );
 }

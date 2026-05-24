@@ -16,6 +16,8 @@ export function useSavedViews(listId: string | number | undefined) {
             return res.data;
         },
         enabled: listId !== undefined && listId !== '',
+        // Vistas guardadas rara vez cambian en una sesión. (Fase 16.D)
+        staleTime: 60_000,
     });
 }
 

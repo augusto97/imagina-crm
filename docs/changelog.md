@@ -4,6 +4,81 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.46.3] — 2026-05-23
+
+**Perf frontend: staleTime + memo + lazy views**
+(Fase 16 · Iteración 16.D).
+
+Bugs **M1, M2 y bundle size** del reporte de auditoría. Bajamos
+el bundle inicial bajo el contrato del CLAUDE.md §11 (≤250 KB
+gzip) y reducimos drásticamente refetches innecesarios y
+re-renders de cells.
+
+### Cambios
+
+**`staleTime` en 9 hooks de TanStack Query**:
+
+| Hook | staleTime | Razón |
+|---|---|---|
+| `useLists`, `useList` | 60 s | Lists rara vez cambian en sesión |
+| `useFields` | 60 s | Schema changes son raros |
+| `useSavedViews` | 60 s | Vistas rara vez se modifican mid-session |
+| `useDashboards`, `useDashboard` | 60 s | Mismo patrón |
+| `useAutomations` | 60 s | Lista de automations estable |
+| `useComments` | 30 s | Append-style; mutations invalidan |
+| `useActivity` | 30 s | Append-only en backend |
+| `useRecord` (single) | 30 s | Drawer cache entre opens del mismo record |
+
+`useRecords` (list query con paginación) sigue sin staleTime
+por diseño — usa `keepPreviousData` que es el patrón correcto
+para tablas live.
+
+**`React.memo(EditableCell)` con custom comparator**:
+
+`EditableCell` (448 líneas, con state propio + 3-4 useEffect) se
+renderea ~500 veces por re-render del `RecordsPage` (10 cols × 50
+rows). Sin memo, tipear en el search input disparaba 500 cell
+re-renders.
+
+Comparator: solo re-rendea si `recordId`, `listId`, `field.id`,
+`value` o `canEdit` cambian. Los demás props son closures fresh
+del parent pero NO afectan el pintado.
+
+**Lazy-load de views alternativas**:
+
+`KanbanView`, `CalendarView`, `CardsView`, `GroupedTableView`
+ahora son chunks separados (`React.lazy` + `<Suspense>`). Solo
+se cargan cuando una saved view de ese tipo está activa.
+
+### Bundle sizes
+
+| | Antes | Después |
+|---|---|---|
+| `main.js` | 651 KB raw / 184 KB gzip | 633 KB / **178 KB gzip** |
+| `KanbanView.js` | (en main) | 5.97 KB / 2.18 KB gzip |
+| `CalendarView.js` | (en main) | 4.06 KB / 1.63 KB gzip |
+| `CardsView.js` | (en main) | 4.21 KB / 1.85 KB gzip |
+| `GroupedTableView.js` | (en main) | 11.98 KB / 4.12 KB gzip |
+| **Initial paint total** (main + vendor + css) | ~254 KB gzip | **~235 KB gzip** |
+
+**Bajo el contrato CLAUDE.md §11 (≤250 KB inicial gzip).** ✅
+
+### Pendientes para iteraciones siguientes
+
+- **Virtualización TableView** (bug perf #3): `@tanstack/react-virtual`
+  está en deps pero sin usar. Necesario para cumplir DoD §17 #6
+  (5k records a 60fps). Llega en 16.E.
+- **Rate-limit XFF bypass** (bug seguridad S6): pendiente
+  16.F.
+- **Plugin::register() defer** (bug perf M4): pendiente.
+- **Export síncrono → Action Scheduler** (bug perf P3): pendiente.
+
+### Estado
+
+- Vitest: 62 tests passing.
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+
 ## [0.46.2] — 2026-05-23
 
 **Perf: fix BM25 subquery correlacionada**

@@ -22,6 +22,9 @@ export function useComments(
             return res.data;
         },
         enabled: listId !== undefined && listId !== '' && recordId !== undefined && recordId > 0,
+        // Comments cambian al postear pero los mutations invalidan la
+        // query — entre mutations el data es estable. (Fase 16.D)
+        staleTime: 30_000,
     });
 }
 

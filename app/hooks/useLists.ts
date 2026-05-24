@@ -9,6 +9,15 @@ export const listsKeys = {
     detail: (idOrSlug: string | number) => [...listsKeys.all, 'detail', String(idOrSlug)] as const,
 };
 
+// staleTime default para queries que rara vez cambian dentro de
+// una sesión (listas, fields, dashboards, automations). Cuando un
+// mutation invalida la queryKey, igual se refetchea — el staleTime
+// solo evita el refetch automático en cada mount del componente.
+// 60s es el sweet spot: la mayoría de las navegaciones encuentran
+// data fresca, los cambios reales del backend se reflejan al
+// siguiente refetch natural. (Fase 16.D)
+const META_STALE_TIME = 60_000;
+
 export function useLists() {
     return useQuery({
         queryKey: listsKeys.list(),
@@ -16,6 +25,7 @@ export function useLists() {
             const res = await api.get<ListSummary[]>('/lists');
             return res.data;
         },
+        staleTime: META_STALE_TIME,
     });
 }
 
@@ -27,6 +37,7 @@ export function useList(idOrSlug: string | number | undefined) {
             return res.data;
         },
         enabled: idOrSlug !== undefined && idOrSlug !== '',
+        staleTime: META_STALE_TIME,
     });
 }
 
