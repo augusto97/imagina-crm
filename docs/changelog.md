@@ -4,6 +4,46 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.46.2] — 2026-05-23
+
+**Perf: fix BM25 subquery correlacionada**
+(Fase 16 · Iteración 16.C).
+
+**Bug P2** del reporte de auditoría. El motor de búsqueda
+`InvertedIndexEngine` ejecutaba una **subquery correlacionada
+por cada fila del JOIN** para calcular `df` (document frequency).
+Para 5 tokens × 1000 matches = **5000 ejecuciones** del subselect.
+
+### Fix
+
+Pasamos de 1 query con subselect N veces a **2 queries planas**:
+
+1. `SELECT token, COUNT(DISTINCT record_id) AS df FROM search_tokens
+   WHERE list_id = ? AND token IN (...) GROUP BY token` —
+   un único scan agrupado.
+2. JOIN search_tokens + search_documents **sin** subselect.
+
+PHP combina ambos lookups in-memory antes de computar BM25 — el
+`df` se busca en un map `Array<token, int>` en O(1) por row.
+
+### Impacto estimado
+
+Para una query típica de 3-5 tokens contra una lista con 10k
+records indexados:
+
+- Antes: 1 query + ~3000-5000 subquery executions inline.
+- Después: 2 queries planas. **~95% reducción de SQL ops**.
+
+El JOIN principal sigue siendo el bottleneck pero su perf es
+estable (usa el índice `(list_id, token)` que ya existe en
+`search_tokens`).
+
+### Estado
+
+- PHPUnit: 530/0 errors (sin regresiones; los tests del search
+  engine pasan).
+- PHPStan: 0 errors.
+
 ## [0.46.1] — 2026-05-23
 
 **Perf: fix N+1 en `RecordService::bulk('delete', ...)`**
