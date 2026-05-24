@@ -4,6 +4,61 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.47.1] — 2026-05-23
+
+**Perf: bulk update con values uniformes**
+(Fase 17.B — DEFERRED #3).
+
+Cierra el N+1 restante en `RecordService::bulk('update', ...)`.
+La 16.B había optimizado bulk delete pero update seguía con loop
+legacy (validate + find + update + relations + find + do_action
+**por cada record**).
+
+### Fast path
+
+Cuando `$values` NO contiene fields tipo `relation`:
+
+1. **Validate × 1** — los validators son deterministas, validar
+   una vez aplica a todos.
+2. **`findManyByIds` × 1** — SELECT IN para snapshots
+   (necesarios para el hook `record_updated`).
+3. **`bulkUpdate` × 1** — single UPDATE SET ... WHERE id IN.
+4. **Hydrate in-memory × N** — `$updatedRecord` desde `snapshot +
+   row` aplicado, sin SELECT post-update.
+5. **`do_action('record_updated')` × N** — listeners (ETag bump,
+   search index, automation engine con `field_changed` triggers)
+   reciben payload correcto.
+
+### Fallback
+
+Si `$values` incluye al menos un slug de field tipo `relation`,
+caemos al loop legacy. Razón: relations son many-to-many via
+`wp_imcrm_relations` y cada record necesita su propio sync.
+
+### Impacto
+
+Bulk update de 100 IDs con un column value:
+
+| | Antes (16.B) | Después (17.B) |
+|---|---|---|
+| Validate | 100 | 1 |
+| SELECT snapshots | 200 | 1 |
+| UPDATE queries | 100 | 1 |
+| SELECT post-update | 100 | 0 |
+| **Total queries directas** | **~500** | **~3** |
+
+(Listeners siguen disparándose por ID — eso es by-design.)
+
+### Repo nuevo
+
+- `RecordRepository::bulkUpdate($tableSuffix, $ids, $row): int`
+- `RecordRepository::findManyByIds($tableSuffix, $ids): array<int, array>`
+
+### Estado
+
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+
 ## [0.47.0] — 2026-05-23
 
 **Export async via Action Scheduler**

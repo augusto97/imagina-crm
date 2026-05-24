@@ -535,18 +535,133 @@ final class RecordService
             return ['succeeded' => $succeeded, 'failed' => $failed];
         }
 
-        // `update` y otros: loop tradicional. El bulk update con
-        // values uniformes podría optimizarse igual (single SQL +
-        // dispatching de hooks) pero requiere re-implementar la
-        // pipeline de validación + serialize + relations + activity
-        // log fuera del flow normal. Postergado a 16.C+; el use case
-        // más caliente (bulk delete de 500+ records) ya está cubierto.
-        foreach ($cleanIds as $rid) {
-            $result = match ($action) {
-                'update' => $this->update($list, $rid, $values),
-                default  => ValidationResult::failWith('action', __('Acción desconocida.', 'imagina-crm')),
-            };
+        if ($action === 'update') {
+            return $this->bulkUpdate($list, $cleanIds, $values);
+        }
 
+        return [
+            'succeeded' => $succeeded,
+            'failed' => array_map(
+                static fn (int $rid): array => ['id' => $rid, 'message' => __('Acción desconocida.', 'imagina-crm')],
+                $cleanIds,
+            ),
+        ];
+    }
+
+    /**
+     * Fast path para bulk update con values uniformes (Fase 17.B —
+     * DEFERRED #3).
+     *
+     * Estrategia:
+     *  1. Valida `$values` UNA sola vez (asumimos values uniformes
+     *     para todos los IDs; no hay validación condicional por
+     *     record state — los validators del proyecto son
+     *     deterministas sobre el value).
+     *  2. Si `$values` contiene fields tipo `relation`, NO podemos
+     *     bulkear (relations son many-to-many via wp_imcrm_relations
+     *     — cada record necesita su propio sync). Fallback a loop.
+     *  3. Pre-fetch snapshots en una sola query `WHERE id IN`.
+     *  4. Single UPDATE bulk con `RecordRepository::bulkUpdate`.
+     *  5. Construye `$updated` per ID in-memory (snapshot + applied
+     *     changes) — evita N SELECT post-update.
+     *  6. Dispatch `record_updated` por cada ID con el snapshot
+     *     correcto.
+     *
+     * Si `$row` está vacío después del buildRow (todos los values
+     * eran relations / computed / inválidos), termina sin tocar DB.
+     *
+     * @param list<int>                    $ids
+     * @param array<string, mixed>         $values
+     * @return array{succeeded: list<int>, failed: list<array{id:int, message:string}>}
+     */
+    private function bulkUpdate(ListEntity $list, array $ids, array $values): array
+    {
+        $listFields = $this->fields->allForList($list->id);
+
+        // Detectar si el caller pidió tocar relations. Si sí, fallback
+        // al loop legacy — el syncRelations requiere lookups per record.
+        $hasRelationValues = false;
+        foreach ($listFields as $field) {
+            if ($field->type === 'relation' && array_key_exists($field->slug, $values)) {
+                $hasRelationValues = true;
+                break;
+            }
+        }
+        if ($hasRelationValues) {
+            return $this->bulkUpdateFallback($list, $ids, $values);
+        }
+
+        // Validar una sola vez. Si los values fallan, todos los IDs
+        // fallan con el mismo error (no llamamos al DB).
+        $validation = $this->validator->validate($listFields, $values, partial: true);
+        if (! $validation->isValid()) {
+            $message = $validation->firstError() ?? __('Valores inválidos.', 'imagina-crm');
+            return [
+                'succeeded' => [],
+                'failed' => array_map(
+                    static fn (int $rid): array => ['id' => $rid, 'message' => $message],
+                    $ids,
+                ),
+            ];
+        }
+
+        $row = $this->validator->buildRow($listFields, $values);
+        if ($row === []) {
+            // Nada que actualizar (todos los values caían en relations
+            // o computed). Igual disparamos el hook para preservar
+            // contrato — pero sin DB op.
+            foreach ($ids as $rid) {
+                do_action('imagina_crm/record_updated', $list, $rid, [], []);
+            }
+            return ['succeeded' => $ids, 'failed' => []];
+        }
+
+        // Pre-fetch snapshots en una sola query.
+        $snapshots = $this->records->findManyByIds($list->tableSuffix, $ids);
+
+        // Single UPDATE bulk.
+        $affected = $this->records->bulkUpdate($list->tableSuffix, $ids, $row);
+        unset($affected); // valor no se devuelve al caller; trade-off
+                           // documentado: IDs ya soft-deleted o
+                           // inexistentes se reportan como succeeded.
+
+        // Dispatch hooks per ID con snapshot correcto. El "updated"
+        // se construye in-memory: snapshot + row aplicado.
+        $succeeded = [];
+        $failed = [];
+        foreach ($ids as $rid) {
+            $oldRaw = $snapshots[$rid] ?? null;
+            if ($oldRaw === null) {
+                $failed[] = ['id' => $rid, 'message' => __('Record no encontrado o soft-deleted.', 'imagina-crm')];
+                continue;
+            }
+            $previousRecord = $this->hydrate($listFields, $oldRaw);
+
+            $newRaw = array_merge($oldRaw, $row);
+            $updatedRecord = $this->hydrate($listFields, $newRaw);
+
+            do_action('imagina_crm/record_updated', $list, $rid, $updatedRecord, $previousRecord);
+            $succeeded[] = $rid;
+        }
+
+        return ['succeeded' => $succeeded, 'failed' => $failed];
+    }
+
+    /**
+     * Fallback al loop legacy cuando el bulk update no se puede
+     * optimizar (typically: $values contiene relations). Same
+     * semantics que pre-17.B.
+     *
+     * @param list<int>                    $ids
+     * @param array<string, mixed>         $values
+     * @return array{succeeded: list<int>, failed: list<array{id:int, message:string}>}
+     */
+    private function bulkUpdateFallback(ListEntity $list, array $ids, array $values): array
+    {
+        $succeeded = [];
+        $failed = [];
+        foreach ($ids as $rid) {
+            $result = $this->update($list, $rid, $values);
             if ($result instanceof ValidationResult) {
                 if ($result->isValid()) {
                     $succeeded[] = $rid;
@@ -554,11 +669,9 @@ final class RecordService
                     $failed[] = ['id' => $rid, 'message' => $result->firstError() ?? ''];
                 }
             } else {
-                // update devuelve array
                 $succeeded[] = $rid;
             }
         }
-
         return ['succeeded' => $succeeded, 'failed' => $failed];
     }
 

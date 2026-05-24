@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.47.0
+Stable tag: 0.47.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,17 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.47.1 =
+**Perf: bulk update con valores uniformes (Fase 17.B — DEFERRED #3).**
+
+Cierra el N+1 que quedaba en bulk update. La 16.B había
+optimizado bulk delete pero update seguía con loop legacy.
+Bulk de 100 IDs con un column value: ~500 queries → ~3 queries
+directas (listeners siguen disparándose por ID, by-design).
+
+Fast path requiere que $values NO contenga fields tipo
+`relation`. Si los hay, fallback al loop legacy.
 
 = 0.47.0 =
 **Export async via Action Scheduler (Fase 17.A — DEFERRED #2).**

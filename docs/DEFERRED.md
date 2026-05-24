@@ -48,23 +48,14 @@ Cleanup diario `imagina_crm/export_jobs_cleanup` borra jobs > 7d.
 
 ---
 
-### 3. Bulk update con valores uniformes (perf — postergado de 16.B)
+### 3. Bulk update con valores uniformes — ✅ CERRADO en 0.47.1
 
-**Severidad**: media. Bulk delete ya está optimizado (16.B).
-Bulk update con MISMOS values (caso común: "selecciono 100 records
-y les cambio status=cerrado") sigue ejecutando N updates secuenciales.
-
-**Lo que falta**:
-- `RecordRepository::bulkUpdate($tableSuffix, $ids, $values): int`.
-- `RecordService::bulk('update', ...)` fast path que valide $values
-  una sola vez y haga single UPDATE WHERE id IN.
-- Dispatch del hook `imagina_crm/record_updated` por cada ID (igual
-  patrón que bulk delete).
-- **Cuidado**: el snapshot pre-update lo usan los triggers
-  `field_changed` de Automations. Hay que hacer un SELECT bulk
-  pre-update para obtener todos los snapshots antes del UPDATE.
-
-**Estimación**: 1-2 días.
+Fase 17.B. `RecordRepository::bulkUpdate` + `findManyByIds` +
+fast path en `RecordService::bulk('update', ...)` que valida
+$values una vez, pre-fetchea snapshots con SELECT IN, hace
+single UPDATE bulk, y dispatcha hooks per ID con payload
+hidratado in-memory. Fallback a loop legacy si `$values`
+incluye fields tipo `relation`.
 
 ---
 
