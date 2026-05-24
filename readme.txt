@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.46.4
+Stable tag: 0.47.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.47.0 =
+**Export async via Action Scheduler (Fase 17.A — DEFERRED #2).**
+
+Cierra el riesgo OOM/timeout del export síncrono en listas
+grandes. Cuando el cliente exporta una lista con > 5000 records,
+el request crea un job en Action Scheduler y devuelve 202. El
+worker escribe el CSV a uploads/imagina-crm/exports/ y el
+frontend polea hasta `ready`, luego descarga via URL firmada
+(HMAC + TTL 24h).
+
+Cleanup diario borra jobs (+ archivos) > 7 días.
+
+Nueva tabla wp_imcrm_export_jobs. DB_VERSION 8 → 9.
 
 = 0.46.4 =
 **Security S6 + cierre Fase 16 Production Readiness.**

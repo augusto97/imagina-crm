@@ -4,6 +4,89 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.47.0] — 2026-05-23
+
+**Export async via Action Scheduler**
+(Fase 17.A — DEFERRED #2).
+
+Cierra el bug **P3** del reporte de auditoría. El export síncrono
+acumulaba hasta 50k filas en memoria PHP y emitía el CSV con
+`header()` directo en la request — riesgo de OOM + timeout HTTP
+en listas grandes.
+
+### Diseño
+
+Cuando el cliente pasa `?async=1` (lo hace automáticamente
+cuando `total > 5000` records), el endpoint:
+
+1. **POST** persiste un row en `wp_imcrm_export_jobs` con status
+   `pending` + dispatch a Action Scheduler.
+2. Devuelve **202 Accepted** con `{ job_id, status, poll_url }`.
+3. El worker (`ExportJobService::runJob`) levanta el job, ejecuta
+   `CsvExporter` con los params guardados, escribe el archivo en
+   `uploads/imagina-crm/exports/<id>-<slug>-<ts>.csv`, marca
+   `ready` (o `failed` con el error).
+4. El frontend polea `GET /export/jobs/{id}` cada 2s (timeout 5min).
+5. Cuando `status=ready`, el response trae `download_url` con
+   token firmado HMAC + TTL 24h.
+6. **GET** `/export/jobs/{id}/download?token=...` valida el token
+   y stream-ea el archivo.
+
+### Seguridad del download
+
+- Token HMAC con `wp_salt('auth')` — no se puede falsificar sin
+  acceso a la BD del sitio.
+- Token incluye `user_id` + `expires` — solo el creador (o admin
+  del plugin) puede descargar.
+- TTL 24h. Después: token expira aunque el archivo siga.
+- Directorio `uploads/imagina-crm/exports/` protegido con
+  `.htaccess: Deny from all` + `index.html` en blanco. Acceso
+  directo desde el web bloqueado.
+
+### Cleanup automático
+
+`wp_schedule_event` diario corre `imagina_crm/export_jobs_cleanup`
+que borra jobs (+ archivos) > 7 días via
+`ExportJobRepository::purgeOlderThan`.
+
+### Esquema
+
+Nueva tabla `wp_imcrm_export_jobs`:
+- `id, list_id, user_id, status, params (JSON), row_count,
+  file_path, error, created_at, completed_at`.
+- Índices: `(user_id, created_at)` para "mis exports",
+  `(list_id, created_at)`, `(status, created_at)` para cleanup.
+
+`IMAGINA_CRM_DB_VERSION` bump: `8 → 9`. La migration corre en
+`dbDelta()` la próxima vez que el plugin activa o un admin
+visita el wp-admin.
+
+### Endpoints REST nuevos
+
+- `GET /lists/{slug}/export?async=1` — crea job (202).
+- `GET /export/jobs/{id}` — status del job.
+- `GET /export/jobs/{id}/download?token=...` — descarga.
+- `GET /export/jobs` — historial del usuario actual.
+
+### Frontend
+
+`ExportButton` ahora recibe `totalRecords` prop. Si > 5000,
+agrega `async=1` automáticamente. Si el backend devuelve 202,
+entra a un loop de polling (`pollAndDownload`) que dispara el
+download al final.
+
+UX: el botón muestra "Exportando…" durante toda la operación
+(crear job + polling + download). Para exports muy grandes
+(>5 min), un timeout dispara error con mensaje pidiendo recargar
+y revisar la sección de jobs.
+
+### Estado
+
+- PHPUnit: 530/0 errors.
+- PHPStan: 0 errors.
+- TypeScript strict: OK.
+- Build: OK (sin cambios significativos en bundle).
+
 ## [0.46.4] — 2026-05-23
 
 **Security: rate-limit bypass via X-Forwarded-For + cierre Fase 16**

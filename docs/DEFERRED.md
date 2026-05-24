@@ -36,29 +36,15 @@ acotado).
 
 ---
 
-### 2. Export síncrono → Action Scheduler (bug perf P3)
+### 2. Export síncrono → Action Scheduler — ✅ CERRADO en 0.47.0
 
-**Severidad**: alta para listas grandes. `CsvExporter::MAX_ROWS=50000`
-acumula hasta 50k filas en memoria PHP y emite el CSV con `header()`
-directo en la request del user. Riesgo de OOM + timeout HTTP en
-exports grandes.
+Fase 17.A. Cuando `total > 5000` records el cliente automáticamente
+pasa `?async=1` y el backend devuelve 202 con `job_id`. Worker
+en Action Scheduler procesa, escribe el archivo en
+`uploads/imagina-crm/exports/`, frontend polea cada 2s hasta
+`ready` y dispara download via URL firmada (HMAC + TTL 24h).
 
-**Lo que falta**:
-- Endpoint `POST /lists/{slug}/export/jobs` que crea un job en
-  Action Scheduler.
-- Worker que escribe el CSV a un archivo en `uploads/imagina-crm/exports/`
-  y notifica via email + activity log al completar.
-- Endpoint `GET /lists/{slug}/export/jobs/{jobId}/download` con
-  URL firmada (signed nonce + TTL 24h).
-- UI: progress indicator + email notification al user.
-
-**Estimación**: 3-4 días. Action Scheduler ya está integrado para
-otros jobs (reindex, automation actions, recurrence tick) — patrón
-conocido en el codebase.
-
-**Workaround actual**: el cap a 50k es defensivo pero en prácticas
-reales, listas con 10k+ records ya pueden timeout. Hard cap en
-`CsvExporter::MAX_ROWS` previene OOM completo pero no es ideal.
+Cleanup diario `imagina_crm/export_jobs_cleanup` borra jobs > 7d.
 
 ---
 

@@ -602,12 +602,25 @@ final class Plugin
                 $c->get(\ImaginaCRM\Lists\ListService::class),
             );
         });
+        $this->container->bind(\ImaginaCRM\Exports\ExportJobRepository::class, static function (Container $c): \ImaginaCRM\Exports\ExportJobRepository {
+            return new \ImaginaCRM\Exports\ExportJobRepository($c->get(Database::class));
+        });
+        $this->container->bind(\ImaginaCRM\Exports\ExportJobService::class, static function (Container $c): \ImaginaCRM\Exports\ExportJobService {
+            return new \ImaginaCRM\Exports\ExportJobService(
+                $c->get(\ImaginaCRM\Exports\ExportJobRepository::class),
+                $c->get(\ImaginaCRM\Exports\CsvExporter::class),
+                $c->get(ListRepository::class),
+                $c->get(PermissionService::class),
+            );
+        });
         $this->container->bind(\ImaginaCRM\REST\ExportController::class, static function (Container $c): \ImaginaCRM\REST\ExportController {
             return new \ImaginaCRM\REST\ExportController(
                 $c->get(\ImaginaCRM\Exports\CsvExporter::class),
                 $c->get(\ImaginaCRM\Lists\ListService::class),
                 $c->get(PermissionService::class),
                 $c->get(FieldRepository::class),
+                $c->get(\ImaginaCRM\Exports\ExportJobService::class),
+                $c->get(\ImaginaCRM\Exports\ExportJobRepository::class),
             );
         });
 
@@ -760,6 +773,33 @@ final class Plugin
                 10,
                 1,
             );
+        }
+
+        // Export jobs async (Fase 17.A — DEFERRED #2). Action Scheduler
+        // invoca este hook por cada job pendiente. El worker corre
+        // CsvExporter, escribe a uploads/imagina-crm/exports/, y marca
+        // ready/failed.
+        $exportJobService = $this->container->get(\ImaginaCRM\Exports\ExportJobService::class);
+        if ($exportJobService instanceof \ImaginaCRM\Exports\ExportJobService) {
+            add_action(
+                \ImaginaCRM\Exports\ExportJobService::AS_HOOK,
+                static function (mixed $jobId) use ($exportJobService): void {
+                    if (! is_numeric($jobId)) {
+                        return;
+                    }
+                    $exportJobService->runJob((int) $jobId);
+                },
+                10,
+                1,
+            );
+
+            // Cleanup diario: borra jobs (y sus archivos) > 7 días.
+            add_action('imagina_crm/export_jobs_cleanup', static function () use ($exportJobService): void {
+                $exportJobService->purgeOldJobs(7);
+            });
+            if (! wp_next_scheduled('imagina_crm/export_jobs_cleanup')) {
+                wp_schedule_event(time() + 3600, 'daily', 'imagina_crm/export_jobs_cleanup');
+            }
         }
 
         // Tick recurrente del runner de triggers programados.
