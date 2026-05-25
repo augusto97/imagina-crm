@@ -51,13 +51,26 @@ jobs:
 
       - name: Publish to release branch
         # Push del subdirectorio build/imagina-crm como root de la rama
-        # `release`. Cada release es un commit orphan — la rama no
-        # acumula histórico (siempre es un único commit con la build
-        # más reciente). Eso mantiene el "Download ZIP" liviano.
+        # `release`, MÁS el ZIP empaquetado al lado. Cada release es un
+        # commit orphan — la rama no acumula histórico (siempre es un
+        # único commit con la build más reciente). Eso mantiene el
+        # "Download ZIP" liviano.
+        #
+        # El ZIP queda visible en la raíz de la rama: el user puede
+        # descargarlo directo con click derecho → "Save link as" o vía
+        # `https://github.com/<repo>/raw/release/imagina-crm.zip` sin
+        # tener que clonar / "Code → Download ZIP" (que envuelve todo
+        # en una carpeta extra `imagina-crm-release/` que rompe el
+        # uploader de plugins de WP).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # Copiamos el ZIP DENTRO del árbol de release. Queda en
+          # `build/imagina-crm/imagina-crm.zip` — al hacer `git init` ahí
+          # y commitear todo, el ZIP entra al commit como cualquier
+          # archivo.
+          cp build/imagina-crm.zip build/imagina-crm/imagina-crm.zip
           cd build/imagina-crm
 
           git init -q -b release
