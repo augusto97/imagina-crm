@@ -128,19 +128,28 @@ export function BlockRenderer({
         return <ActionButtonView block={block} record={record} />;
     }
     if (block.type === 'markdown') {
-        return <MarkdownBlockView block={block} record={record} />;
+        return <MarkdownBlockView block={block} record={record} values={values} onChange={onChange} />;
     }
     if (block.type === 'notes') {
         // Resuelve el contenido según `source`: literal (igual para todos)
-        // o field (lee `record.fields[slug]` como string).
-        let content = '';
+        // o field (lee `record.fields[slug]` como string). En modo field,
+        // habilitamos edición inline — el admin debería poder modificar
+        // las notas del registro directo desde la ficha sin ir al drawer.
         if (block.config.source === 'field' && block.config.field) {
-            const v = record.fields[block.config.field.slug];
-            content = typeof v === 'string' ? v : '';
-        } else {
-            content = block.config.content;
+            const slug = block.config.field.slug;
+            const current = values[slug];
+            return (
+                <NotesView
+                    title={block.config.title}
+                    content={typeof current === 'string' ? current : ''}
+                    editable={{
+                        onChange: (next) => onChange({ ...values, [slug]: next }),
+                        placeholder: __('Sin notas. Click para escribir…'),
+                    }}
+                />
+            );
         }
-        return <NotesView title={block.config.title} content={content} />;
+        return <NotesView title={block.config.title} content={block.config.content} />;
     }
     if (block.type === 'divider') {
         return <DividerView label={block.config.label} />;
@@ -378,20 +387,43 @@ function CommentsThreadView({
     );
 }
 
-function NotesView({ title, content }: { title: string; content: string }): JSX.Element {
+function NotesView({
+    title,
+    content,
+    editable,
+}: {
+    title: string;
+    content: string;
+    /** Cuando se pasa, el bloque se vuelve editable inline (modo
+     *  source=field del admin). Sin esto, es solo lectura (modo
+     *  literal o contexto sin permiso de edición). */
+    editable?: {
+        onChange: (next: string) => void;
+        placeholder?: string;
+    };
+}): JSX.Element {
     return (
         <section className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-warning/30 imcrm-bg-warning/5 imcrm-p-4">
             <header className="imcrm-mb-2 imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-sm imcrm-font-semibold imcrm-text-warning">
                 <StickyNote className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
                 {title || __('Nota')}
             </header>
-            <div className="imcrm-flex-1 imcrm-overflow-y-auto imcrm-whitespace-pre-wrap imcrm-text-sm imcrm-leading-relaxed imcrm-text-foreground">
-                {content || (
-                    <span className="imcrm-italic imcrm-text-muted-foreground">
-                        {__('Bloque de notas vacío.')}
-                    </span>
-                )}
-            </div>
+            {editable ? (
+                <textarea
+                    value={content}
+                    onChange={(e) => editable.onChange(e.target.value)}
+                    placeholder={editable.placeholder ?? __('Escribir…')}
+                    className="imcrm-flex-1 imcrm-w-full imcrm-resize-none imcrm-rounded imcrm-border-0 imcrm-bg-transparent imcrm-p-0 imcrm-text-sm imcrm-leading-relaxed imcrm-text-foreground imcrm-outline-none focus:imcrm-ring-0 placeholder:imcrm-italic placeholder:imcrm-text-muted-foreground/70"
+                />
+            ) : (
+                <div className="imcrm-flex-1 imcrm-overflow-y-auto imcrm-whitespace-pre-wrap imcrm-text-sm imcrm-leading-relaxed imcrm-text-foreground">
+                    {content || (
+                        <span className="imcrm-italic imcrm-text-muted-foreground">
+                            {__('Bloque de notas vacío.')}
+                        </span>
+                    )}
+                </div>
+            )}
         </section>
     );
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.50.0
+Stable tag: 0.50.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,25 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.50.1 =
+**Edición inline de los bloques Notas y Markdown en modo `field` desde el admin.**
+
+Cuando un bloque de Notas o Markdown está configurado con
+`source: 'field'`, ahora se puede editar el contenido directamente
+desde la vista de detalle del registro en el admin — antes solo se
+mostraba como lectura aunque el usuario fuera admin.
+
+- **Notas**: textarea always-on, sin chrome extra. Cambios entran al
+  dirty state y se guardan con el botón "Guardar" del header (mismo
+  flujo que cualquier otro campo).
+- **Markdown**: toggle preview/edit. Default es preview (renderea el
+  markdown); click sobre el área o sobre "Editar markdown" → textarea
+  con fuente monoespaciada para editar el source.
+
+En modo `literal` (texto fijo de la plantilla) sigue siendo solo
+lectura — el texto literal se edita desde el editor de plantilla, no
+desde el detalle del registro.
 
 = 0.50.0 =
 **Bloques dinámicos: Notas, Markdown, Botón de acción y Resumen alimentables desde campos del registro.**

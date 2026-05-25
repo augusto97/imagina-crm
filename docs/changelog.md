@@ -4,6 +4,57 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.50.1] — 2026-05-25
+
+**Fix UX: bloques Notas/Markdown en modo `field` son editables inline
+desde el admin.**
+
+### Motivación
+
+Feedback del usuario: "no me dejaste como campo editable estos de
+notas, se supone que en esta vista y dado que estoy desde el admin
+debería poder editar todo en esta vista individual". Cierto — en 0.50.0
+solo agregué el modo `field` para LECTURA. Falta el contraparte de
+edición.
+
+### Cambios
+
+**`NotesView`** acepta nuevo prop opcional `editable: { onChange,
+placeholder? }`. Cuando se pasa, renderea un `<textarea>` always-on
+sin chrome (border-0, bg transparente) — visualmente parece el bloque
+estático pero es editable. Cambios entran al `values` del padre =
+dirty state = se guarda con el botón "Guardar" del header.
+
+**`MarkdownBlockView`** acepta `values` + `onChange` opcionales. En
+modo `field` con esos disponibles, usa el componente nuevo
+`MarkdownEditView` que tiene toggle preview/edit:
+- Default: preview del markdown rendereado en un `<button>` con
+  estilo de área editable (hover muestra border + bg).
+- Click → textarea con fuente monoespaciada para editar el source.
+- Toggle "Vista previa" / "Editar markdown" abajo a la derecha.
+- Si el contenido es vacío, arranca directamente en modo edit.
+
+**`BlockRenderer`** en el case `notes` ahora detecta `source === 'field'`
+y construye el descriptor `editable` con `onChange` apuntando al
+slug correcto del field. Para markdown, pasa `values` + `onChange`
+crudo al view.
+
+### Comportamiento por modo
+
+| Modo del bloque | Vista en el admin | Editable |
+|----------------|------------------|----------|
+| `notes` literal | Texto plano | No (editar desde template editor) |
+| `notes` field | Textarea always-on | Sí ✓ |
+| `markdown` literal | Markdown rendereado | No (editar desde template editor) |
+| `markdown` field | Preview + click-to-edit | Sí ✓ |
+
+### Archivos
+
+- `app/admin/records/crm/BlockRenderer.tsx` (case `notes` con editable + pass values/onChange a markdown)
+- `app/admin/records/crm/blocks/SimpleBlockViews.tsx` (MarkdownBlockView + nuevo MarkdownEditView component)
+
+Build: 0 errores TS, 532 tests PHPUnit OK.
+
 ## [0.50.0] — 2026-05-25
 
 **Bloques dinámicos alimentables desde campos del registro.**

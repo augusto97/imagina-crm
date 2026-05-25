@@ -284,24 +284,103 @@ export function ActionButtonView({ block, record }: ActionButtonViewProps): JSX.
 interface MarkdownBlockViewProps {
     block: Extract<ResolvedV2Block, { type: 'markdown' }>;
     record: RecordEntity;
+    /** Si el bloque está en modo `source=field` y tenemos onChange,
+     *  habilitamos edición inline (admin viendo el record). */
+    values?: Record<string, unknown>;
+    onChange?: (values: Record<string, unknown>) => void;
 }
 
-export function MarkdownBlockView({ block, record }: MarkdownBlockViewProps): JSX.Element {
-    // Igual que NotesView: resuelve content desde literal o desde un field.
+export function MarkdownBlockView({
+    block,
+    record,
+    values,
+    onChange,
+}: MarkdownBlockViewProps): JSX.Element {
+    // Resuelve content desde literal o desde un field. En modo field
+    // + onChange disponible, leemos del `values` mutable (no del record
+    // server-side) para que el edit inline se vea reflejado al instante.
     let raw = '';
+    let editable: { fieldSlug: string; commit: (next: string) => void } | null = null;
     if (block.config.source === 'field' && block.config.field) {
-        const v = record.fields[block.config.field.slug];
+        const slug = block.config.field.slug;
+        const v = values?.[slug] ?? record.fields[slug];
         raw = typeof v === 'string' ? v : '';
+        if (values && onChange) {
+            editable = {
+                fieldSlug: slug,
+                commit: (next) => onChange({ ...values, [slug]: next }),
+            };
+        }
     } else {
         raw = block.config.content;
     }
+
     return (
         <Card title={block.config.title || __('Notas')} icon={StickyNote}>
-            <div
-                className="imcrm-prose-sm imcrm-text-sm imcrm-leading-relaxed imcrm-text-foreground"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(raw) }}
-            />
+            {editable ? (
+                <MarkdownEditView raw={raw} onChange={editable.commit} />
+            ) : (
+                <div
+                    className="imcrm-prose-sm imcrm-text-sm imcrm-leading-relaxed imcrm-text-foreground"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(raw) }}
+                />
+            )}
         </Card>
+    );
+}
+
+/**
+ * Markdown con toggle preview/edit. Default: preview rendereado.
+ * Click "Editar" o sobre el área de preview vacío → textarea con
+ * markdown plano editable. Mientras edita, se ve un toggle "Vista
+ * previa" abajo a la derecha para alternar sin perder foco.
+ */
+function MarkdownEditView({
+    raw,
+    onChange,
+}: {
+    raw: string;
+    onChange: (next: string) => void;
+}): JSX.Element {
+    const [mode, setMode] = useState<'preview' | 'edit'>(raw === '' ? 'edit' : 'preview');
+
+    return (
+        <div className="imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col">
+            {mode === 'edit' ? (
+                <textarea
+                    value={raw}
+                    onChange={(e) => onChange(e.target.value)}
+                    autoFocus
+                    placeholder={'# Título\n\n**bold** *italic* `code`\n\n- item\n- item'}
+                    className="imcrm-flex-1 imcrm-w-full imcrm-resize-none imcrm-rounded imcrm-border imcrm-border-input imcrm-bg-background imcrm-p-2 imcrm-font-mono imcrm-text-xs imcrm-leading-relaxed imcrm-text-foreground imcrm-outline-none focus:imcrm-border-primary focus:imcrm-ring-0 placeholder:imcrm-italic placeholder:imcrm-text-muted-foreground/70"
+                />
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setMode('edit')}
+                    title={__('Click para editar')}
+                    className="imcrm-flex-1 imcrm-w-full imcrm-cursor-text imcrm-rounded imcrm-border imcrm-border-transparent imcrm-p-2 imcrm-text-left imcrm-text-sm imcrm-leading-relaxed imcrm-transition-colors hover:imcrm-border-border hover:imcrm-bg-accent/20"
+                >
+                    {raw === '' ? (
+                        <span className="imcrm-italic imcrm-text-muted-foreground">
+                            {__('Vacío. Click para escribir.')}
+                        </span>
+                    ) : (
+                        <div
+                            className="imcrm-prose-sm imcrm-text-foreground"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(raw) }}
+                        />
+                    )}
+                </button>
+            )}
+            <button
+                type="button"
+                onClick={() => setMode((m) => (m === 'edit' ? 'preview' : 'edit'))}
+                className="imcrm-mt-1 imcrm-self-end imcrm-text-[11px] imcrm-text-muted-foreground hover:imcrm-text-foreground"
+            >
+                {mode === 'edit' ? __('Vista previa') : __('Editar markdown')}
+            </button>
+        </div>
     );
 }
 
