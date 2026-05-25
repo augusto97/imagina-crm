@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { api, ApiError } from '@/lib/api';
+import { fieldsKeys } from '@/hooks/useFields';
+import { recordsKeys } from '@/hooks/useRecords';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -229,8 +231,11 @@ export function ImportDialog({
             setResult(res.data);
             setStep('done');
             // Invalida queries de records y fields (creamos campos nuevos).
-            await qc.invalidateQueries({ queryKey: ['records', listId] });
-            await qc.invalidateQueries({ queryKey: ['fields', listId] });
+            // Usamos las factories — los hooks indexan por `String(listId)`
+            // y un keyArray manual con `listId` numérico no matchearía
+            // (TanStack Query compara cada posición por igualdad estricta).
+            await qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
+            await qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
         } catch (err) {
             setError(err instanceof ApiError ? err.message : __('Error al importar.'));
         } finally {

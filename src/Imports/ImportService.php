@@ -471,9 +471,13 @@ final class ImportService
      */
     public static function normalizeDate(string $v, string $type): string
     {
-        // 1. Ya en formato ISO.
-        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $v) === 1) {
-            return $v;
+        // 1. Ya en formato ISO. Cuando el destino es `date` y el input
+        // viene con cola de hora/zona (ej. ClickUp emite
+        // "2024-07-23T00:00:00.000+00:00" para campos de fecha sin hora),
+        // truncamos al `YYYY-MM-DD` — si no, `DateField::parse()` rechaza
+        // el string entero por su validación estricta `Y-m-d`.
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $v, $m) === 1) {
+            return $type === 'date' ? $m[1] : $v;
         }
         // 2. Slashed numéricos.
         if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(.*)$/', $v, $m) === 1) {

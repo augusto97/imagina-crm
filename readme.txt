@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.47.2
+Stable tag: 0.47.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.47.3 =
+**Fix de importación CSV (fechas ISO de ClickUp) + refresh post-import.**
+
+Dos bugs detectados al importar exports de ClickUp con columnas tipo
+"Due date" / "Date" mapeadas a campos de tipo Fecha (no Fecha/Hora):
+
+1. **Fechas ISO con cola horaria rechazadas.** ClickUp emite
+   `2024-07-23T00:00:00.000+00:00` incluso para campos de solo día.
+   `normalizeDate()` devolvía el string completo al detectar el prefijo
+   ISO, y `DateField` lo rechazaba por su validación estricta `Y-m-d`.
+   Ahora truncamos al `YYYY-MM-DD` cuando el destino es `date`.
+
+2. **Records importados no aparecían hasta recargar.** La invalidación
+   de cache pasaba `['records', listId]` con `listId` numérico, pero los
+   hooks indexan por `String(listId)` — TanStack Query no matchea
+   `42 !== '42'`. Ahora usamos las factories `recordsKeys.forList()` /
+   `fieldsKeys.forList()` que coinciden con las queries activas.
 
 = 0.47.2 =
 **Virtualización TableView + cierre Fase 17 (Fase 17.C — DEFERRED #1).**

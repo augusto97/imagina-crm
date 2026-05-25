@@ -18,6 +18,33 @@ final class ImportDateNormalizationTest extends TestCase
         $this->assertSame('2026-04-15', ImportService::normalizeDate('2026-04-15', 'date'));
     }
 
+    public function test_iso_datetime_with_time_strips_to_date_for_date_field(): void
+    {
+        // ClickUp emite "2024-07-23T00:00:00.000+00:00" para columnas
+        // tipo "Due date" aunque el usuario solo haya elegido día. Si el
+        // destino es un campo `date`, el cliente debe llegar a
+        // `DateField::validate` con solo `YYYY-MM-DD` — caso contrario
+        // rechaza por su validación estricta `Y-m-d`.
+        $this->assertSame(
+            '2024-07-23',
+            ImportService::normalizeDate('2024-07-23T00:00:00.000+00:00', 'date'),
+        );
+        $this->assertSame(
+            '2024-07-30',
+            ImportService::normalizeDate('2024-07-30T00:00:00.000+00:00', 'date'),
+        );
+    }
+
+    public function test_iso_datetime_with_time_passes_through_for_datetime_field(): void
+    {
+        // Para `datetime`, `DateTimeField::parse` acepta ISO 8601 nativo;
+        // no hace falta tocar el string. El serializer normaliza después.
+        $this->assertSame(
+            '2024-07-23T00:00:00.000+00:00',
+            ImportService::normalizeDate('2024-07-23T00:00:00.000+00:00', 'datetime'),
+        );
+    }
+
     public function test_clickup_human_date_only(): void
     {
         // El formato "Friday, November 21st 2025" es lo que ClickUp

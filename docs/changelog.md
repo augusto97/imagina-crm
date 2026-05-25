@@ -4,6 +4,53 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.47.3] — 2026-05-25
+
+**Fix: importación CSV con fechas ISO de ClickUp + invalidación de cache
+post-import.**
+
+Dos bugs reportados al importar exports CSV de ClickUp:
+
+### 1. Fechas ISO con cola horaria rechazadas en campos `date`
+
+ClickUp emite fechas en formato `2024-07-23T00:00:00.000+00:00` incluso
+para columnas tipo "Due date" que el usuario configuró como solo día.
+`ImportService::normalizeDate()` detectaba el prefijo ISO `YYYY-MM-DD`
+y devolvía el string entero, incluyendo la cola `T00:00:00.000+00:00`.
+`DateField::validate()` usa parsing estricto con formato `Y-m-d` y
+rechazaba el valor → el record entero quedaba marcado como error y no
+se importaba esa celda.
+
+Fix: cuando el destino es `date`, `normalizeDate()` truncá al
+`YYYY-MM-DD` capturado por la regex (la cola se descarta). Para
+`datetime` sigue pasando el string completo — `DateTimeField` acepta
+ISO 8601 nativo.
+
+Tests nuevos en `ImportDateNormalizationTest`:
+- `test_iso_datetime_with_time_strips_to_date_for_date_field`
+- `test_iso_datetime_with_time_passes_through_for_datetime_field`
+
+### 2. Records importados invisibles hasta recargar el navegador
+
+Al cerrar el wizard de import, la lista de records aparecía vacía y
+había que hacer reload manual. Causa: `ImportDialog` invalidaba con
+`['records', listId]` y `['fields', listId]` con `listId` numérico,
+pero los hooks `useRecords` / `useFields` indexan por
+`String(listId)`. TanStack Query compara cada posición del array por
+igualdad estricta → `42 !== '42'` → ninguna query matcheaba → cache no
+se invalidaba.
+
+Fix: usar las factories `recordsKeys.forList()` y `fieldsKeys.forList()`
+que producen el shape canónico (`['records', String(listId)]`).
+
+### Archivos
+
+- `src/Imports/ImportService.php` (regex captura + branch por tipo)
+- `app/admin/records/ImportDialog.tsx` (imports + invalidateQueries)
+- `tests/Unit/Imports/ImportDateNormalizationTest.php` (+2 tests)
+- `readme.txt`, `imagina-crm.php`, `package.json`, `docs/changelog.md`
+  (version bump 0.47.2 → 0.47.3).
+
 ## [0.47.2] — 2026-05-23
 
 **Perf: virtualización TableView**
