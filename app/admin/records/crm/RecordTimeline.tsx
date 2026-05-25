@@ -260,13 +260,27 @@ export function RecordTimeline({
                         {__('Cargando…')}
                     </div>
                 ) : items.length === 0 ? (
-                    <p className="imcrm-py-6 imcrm-text-center imcrm-text-sm imcrm-text-muted-foreground">
-                        {filter === 'comments'
-                            ? __('Aún no hay comentarios. Sé el primero arriba.')
-                            : filter === 'changes'
-                              ? __('Aún no hay cambios registrados.')
-                              : __('Aún no hay actividad. Empieza con una nota.')}
-                    </p>
+                    <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-px-4 imcrm-py-8">
+                        <div className="imcrm-flex imcrm-h-12 imcrm-w-12 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted imcrm-text-muted-foreground">
+                            <ActivityIcon className="imcrm-h-5 imcrm-w-5" aria-hidden />
+                        </div>
+                        <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-gap-0.5 imcrm-text-center">
+                            <p className="imcrm-text-sm imcrm-font-medium imcrm-text-foreground">
+                                {filter === 'comments'
+                                    ? __('Sin comentarios todavía')
+                                    : filter === 'changes'
+                                      ? __('Sin cambios registrados')
+                                      : __('Empezá la conversación')}
+                            </p>
+                            <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                {filter === 'comments'
+                                    ? __('Dejá un comentario para que quede en el historial.')
+                                    : filter === 'changes'
+                                      ? __('Los cambios al record aparecerán acá automáticamente.')
+                                      : __('Notas, llamadas, emails y reuniones van apareciendo acá.')}
+                            </p>
+                        </div>
+                    </div>
                 ) : (
                     <ul className="imcrm-flex imcrm-flex-col imcrm-gap-4">
                         {items.map((item) => {

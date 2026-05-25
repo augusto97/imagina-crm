@@ -77,6 +77,33 @@ export function PropertiesGroupForm({
                 </Field>
             </div>
 
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
+                <Field label={__('Densidad')}>
+                    <select
+                        value={block.config.density ?? 'compact'}
+                        onChange={(e) =>
+                            updateConfig({ density: e.target.value as 'compact' | 'comfortable' })
+                        }
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="compact">{__('Compacta (label izquierda)')}</option>
+                        <option value="comfortable">{__('Cómoda (label arriba)')}</option>
+                    </select>
+                </Field>
+                <Field label={__('Estilo')}>
+                    <select
+                        value={block.config.variant ?? 'card'}
+                        onChange={(e) =>
+                            updateConfig({ variant: e.target.value as 'card' | 'inline' })
+                        }
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="card">{__('Card con header')}</option>
+                        <option value="inline">{__('Inline (sin marco)')}</option>
+                    </select>
+                </Field>
+            </div>
+
             <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
                 <input
                     type="checkbox"

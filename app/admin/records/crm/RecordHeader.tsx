@@ -52,75 +52,91 @@ export function RecordHeader({
         .filter((s): s is string => s !== null && s !== '');
 
     return (
-        <header className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-5">
-            <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-4">
-                <div className="imcrm-flex imcrm-min-w-0 imcrm-items-start imcrm-gap-4">
-                    <div
-                        aria-hidden
-                        className="imcrm-flex imcrm-h-14 imcrm-w-14 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-text-base imcrm-font-semibold imcrm-text-white imcrm-shadow-imcrm-sm"
-                        style={{ backgroundColor: avatarColor }}
-                    >
-                        {initials}
-                    </div>
-                    <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-1">
-                        <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
-                            <span className="imcrm-truncate">{title}</span>
-                            <Badge variant="outline" className="imcrm-font-mono imcrm-text-xs">
-                                #{record.id}
-                            </Badge>
-                        </h1>
-                        {subtitleParts.length > 0 && (
-                            <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                                {subtitleParts.join(' · ')}
-                            </p>
-                        )}
-                        <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                            {sprintf(
-                                /* translators: %s: localized creation date */
-                                __('Creado %s'),
-                                record.created_at
-                                    ? new Date(record.created_at + 'Z').toLocaleString()
-                                    : '—',
-                            )}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="imcrm-flex imcrm-shrink-0 imcrm-gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
-                        onClick={onDelete}
-                        disabled={deleting}
-                    >
-                        <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                        {__('Eliminar')}
-                    </Button>
-                    <Button onClick={onSave} disabled={!canSave || saving} size="sm" className="imcrm-gap-2">
-                        <Save className="imcrm-h-4 imcrm-w-4" />
-                        {saving ? __('Guardando…') : __('Guardar')}
-                    </Button>
-                </div>
-            </div>
-
-            {(layout.statusFields.length > 0 || layout.quickActions.length > 0) && (
-                <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-pt-1">
-                    {layout.statusFields.map((f) => (
-                        <StatusPill key={f.id} field={f} value={record.fields[f.slug]} />
-                    ))}
-                    {layout.statusFields.length > 0 && layout.quickActions.length > 0 && (
-                        <span aria-hidden className="imcrm-mx-1 imcrm-h-4 imcrm-w-px imcrm-bg-border" />
-                    )}
-                    {layout.quickActions.map(({ field, kind }) => {
-                        const v = record.fields[field.slug];
-                        if (typeof v !== 'string' || v === '') return null;
-                        return (
-                            <QuickAction key={field.id} kind={kind} value={v} label={field.label} />
-                        );
-                    })}
-                </div>
+        <header
+            className={cn(
+                'imcrm-relative imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
             )}
+        >
+            {/* Banda decorativa superior coloreada por el avatar.
+                Da identidad visual sin saturar — estilo Linear/HubSpot. */}
+            <div
+                aria-hidden
+                className="imcrm-h-1.5 imcrm-w-full"
+                style={{ background: `linear-gradient(90deg, ${avatarColor} 0%, ${avatarColor}80 100%)` }}
+            />
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-p-5">
+                <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-4">
+                    <div className="imcrm-flex imcrm-min-w-0 imcrm-items-start imcrm-gap-4">
+                        <div
+                            aria-hidden
+                            className={cn(
+                                'imcrm-flex imcrm-h-16 imcrm-w-16 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-2xl imcrm-text-lg imcrm-font-semibold imcrm-text-white imcrm-shadow-imcrm-md',
+                                'imcrm-ring-4 imcrm-ring-card',
+                            )}
+                            style={{ backgroundColor: avatarColor }}
+                        >
+                            {initials}
+                        </div>
+                        <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-1.5">
+                            <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
+                                <span className="imcrm-truncate">{title}</span>
+                                <Badge variant="outline" className="imcrm-font-mono imcrm-text-[10px] imcrm-font-medium">
+                                    #{record.id}
+                                </Badge>
+                            </h1>
+                            {subtitleParts.length > 0 && (
+                                <p className="imcrm-text-sm imcrm-text-muted-foreground">
+                                    {subtitleParts.join(' · ')}
+                                </p>
+                            )}
+                            <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                {sprintf(
+                                    /* translators: %s: localized creation date */
+                                    __('Creado %s'),
+                                    record.created_at
+                                        ? new Date(record.created_at + 'Z').toLocaleString()
+                                        : '—',
+                                )}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="imcrm-flex imcrm-shrink-0 imcrm-gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
+                            onClick={onDelete}
+                            disabled={deleting}
+                        >
+                            <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                            {__('Eliminar')}
+                        </Button>
+                        <Button onClick={onSave} disabled={!canSave || saving} size="sm" className="imcrm-gap-2 imcrm-shadow-imcrm-sm">
+                            <Save className="imcrm-h-4 imcrm-w-4" />
+                            {saving ? __('Guardando…') : __('Guardar')}
+                        </Button>
+                    </div>
+                </div>
+
+                {(layout.statusFields.length > 0 || layout.quickActions.length > 0) && (
+                    <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-1.5 imcrm-rounded-lg imcrm-border imcrm-border-border/60 imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2">
+                        {layout.statusFields.map((f) => (
+                            <StatusPill key={f.id} field={f} value={record.fields[f.slug]} />
+                        ))}
+                        {layout.statusFields.length > 0 && layout.quickActions.length > 0 && (
+                            <span aria-hidden className="imcrm-mx-1 imcrm-h-4 imcrm-w-px imcrm-bg-border" />
+                        )}
+                        {layout.quickActions.map(({ field, kind }) => {
+                            const v = record.fields[field.slug];
+                            if (typeof v !== 'string' || v === '') return null;
+                            return (
+                                <QuickAction key={field.id} kind={kind} value={v} label={field.label} />
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </header>
     );
 }

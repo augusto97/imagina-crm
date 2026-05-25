@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
-import { RecordFieldsForm } from '@/admin/records/RecordFieldsForm';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { ResolvedLayout, SidebarGroup } from '@/lib/crmTemplates';
 import { OTHER_GROUP_ICON } from '@/lib/crmTemplates';
 import type { FieldEntity } from '@/types/field';
+
+import { CompactFieldRow } from './CompactFieldRow';
 
 interface PropertiesSidebarProps {
     layout: ResolvedLayout;
@@ -66,6 +67,8 @@ function PropertyGroup({ group, values, onChange, fieldErrors }: PropertyGroupPr
     const [open, setOpen] = useState(! group.collapsedByDefault);
     const Icon = group.icon;
 
+    const setValue = (slug: string, v: unknown): void => onChange({ ...values, [slug]: v });
+
     return (
         <section className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
             <button
@@ -73,7 +76,7 @@ function PropertyGroup({ group, values, onChange, fieldErrors }: PropertyGroupPr
                 onClick={() => setOpen((v) => ! v)}
                 aria-expanded={open}
                 className={cn(
-                    'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-px-4 imcrm-py-3 imcrm-text-left imcrm-text-sm imcrm-font-medium imcrm-transition-colors',
+                    'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-px-4 imcrm-py-2.5 imcrm-text-left imcrm-text-sm imcrm-font-medium imcrm-transition-colors',
                     'hover:imcrm-bg-accent/40',
                 )}
             >
@@ -84,17 +87,22 @@ function PropertyGroup({ group, values, onChange, fieldErrors }: PropertyGroupPr
                 )}
                 <Icon className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" aria-hidden />
                 <span className="imcrm-flex-1">{__(group.label)}</span>
-                <span className="imcrm-text-xs imcrm-text-muted-foreground">{group.fields.length}</span>
+                <span className="imcrm-rounded imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-text-muted-foreground">
+                    {group.fields.length}
+                </span>
             </button>
 
             {open && (
-                <div className="imcrm-border-t imcrm-border-border imcrm-px-4 imcrm-py-3">
-                    <RecordFieldsForm
-                        fields={group.fields}
-                        values={values}
-                        onChange={onChange}
-                        fieldErrors={fieldErrors}
-                    />
+                <div className="imcrm-border-t imcrm-border-border">
+                    {group.fields.map((f) => (
+                        <CompactFieldRow
+                            key={f.id}
+                            field={f}
+                            value={values[f.slug]}
+                            onChange={(v) => setValue(f.slug, v)}
+                            error={fieldErrors?.[f.slug]}
+                        />
+                    ))}
                 </div>
             )}
         </section>

@@ -1557,6 +1557,21 @@ export interface V2PropertiesGroupBlock extends V2BlockBase {
         icon_key: string;
         field_slugs: string[];
         collapsed_by_default: boolean;
+        /**
+         * Densidad visual. `compact` (default) muestra cada campo como
+         * fila label-izquierda / valor-derecha de ~32-40px con edit
+         * on-click. `comfortable` apila label sobre input al estilo
+         * formulario clásico (más espacio, mejor para grupos con
+         * inputs complejos o pocos campos).
+         */
+        density?: 'compact' | 'comfortable';
+        /**
+         * Variante visual. `card` (default) envuelve el grupo en una
+         * card con header colapsable. `inline` omite el header y el
+         * border — ideal cuando el grupo tiene 1-2 campos clave que
+         * queremos mostrar prominentemente sin marco visual.
+         */
+        variant?: 'card' | 'inline';
     };
 }
 
@@ -1917,7 +1932,14 @@ interface ResolvedBase {
 
 export type ResolvedV2Block =
     | (ResolvedBase & { type: 'properties_group';
-        config: { label: string; icon: IconName; fields: FieldEntity[]; collapsedByDefault: boolean } })
+        config: {
+            label: string;
+            icon: IconName;
+            fields: FieldEntity[];
+            collapsedByDefault: boolean;
+            density: 'compact' | 'comfortable';
+            variant: 'card' | 'inline';
+        } })
     | (ResolvedBase & { type: 'timeline' })
     | (ResolvedBase & { type: 'stats' })
     | (ResolvedBase & { type: 'related'; config: { field: FieldEntity } })
@@ -1980,6 +2002,11 @@ export function resolveV2(
                     icon: iconForKey(b.config.icon_key),
                     fields: lookupMany(b.config.field_slugs),
                     collapsedByDefault: b.config.collapsed_by_default,
+                    // Defaults: compact + card. Plantillas viejas que no
+                    // tengan estos keys siguen renderizándose como antes
+                    // pero con la mejora de densidad activa.
+                    density: b.config.density ?? 'compact',
+                    variant: b.config.variant ?? 'card',
                 },
             });
         } else if (b.type === 'timeline') {

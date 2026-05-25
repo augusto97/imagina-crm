@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.47.3
+Stable tag: 0.48.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.48.0 =
+**Pulido visual del layout CRM: densidad, tipos visuales y polish del header.**
+
+Mejoras al renderizado del detalle de registro cuando la lista usa el
+layout CRM (paneles de detalle, no la tabla):
+
+- **Filas compactas con label izquierda + valor derecha** (estilo
+  Linear/Notion). Cada campo gasta ~32-40px verticales en lugar de
+  ~70-80px del modo formulario clásico.
+- **Edit on-click**: el valor se muestra renderizado (formato bonito);
+  un click lo convierte en input. Enter o blur guardan al editor.
+- **Renderers por tipo de campo**: currency con `$1.000.000 COP` vía
+  Intl.NumberFormat, fechas con tiempo relativo ("hace 3 días"),
+  select/multi_select con badges coloreados, email/url con icono y
+  link, checkbox con ✓/—.
+- **Nuevas opciones en el editor de plantilla CRM**: por cada bloque
+  de grupo de propiedades, ahora podés elegir **Densidad** (compacta /
+  cómoda) y **Estilo** (card con header / inline sin marco). El estilo
+  inline es ideal para grupos de 1-2 campos donde la card desperdicia
+  espacio.
+- **Header del registro**: avatar más prominente (16×16 con ring),
+  banda decorativa coloreada arriba, badges agrupados en chip-row con
+  bg sutil.
+- **Empty states**: la timeline ahora muestra icono + título + descripción
+  cuando no hay actividad/comentarios.
 
 = 0.47.3 =
 **Fix de importación CSV (fechas ISO de ClickUp) + refresh post-import.**

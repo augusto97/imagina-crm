@@ -5,10 +5,12 @@ import { CommentsPanel } from '@/admin/comments/CommentsPanel';
 import { RecordFieldsForm } from '@/admin/records/RecordFieldsForm';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import type { FieldEntity } from '@/types/field';
 import type { ResolvedV2Block } from '@/lib/crmTemplates';
 import type { RecordEntity } from '@/types/record';
 
 import { ChartBlockView } from './blocks/ChartBlockView';
+import { CompactFieldRow } from './CompactFieldRow';
 import { KpiBlockView } from './blocks/KpiBlockView';
 import {
     ActionButtonView,
@@ -122,6 +124,33 @@ function PropertiesGroupView({
 }): JSX.Element {
     const [open, setOpen] = useState(! block.config.collapsedByDefault);
     const Icon = block.config.icon;
+    const compact = block.config.density === 'compact';
+    const inline = block.config.variant === 'inline';
+
+    const setValue = (slug: string, v: unknown): void => onChange({ ...values, [slug]: v });
+
+    // Variante `inline`: sin card, sin header colapsable. Renderea el
+    // título como label pequeño arriba (si hay) y los campos directamente.
+    if (inline) {
+        return (
+            <section className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-1.5">
+                {block.config.label && (
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-px-1 imcrm-text-[11px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                        <Icon className="imcrm-h-3 imcrm-w-3" aria-hidden />
+                        {__(block.config.label)}
+                    </div>
+                )}
+                <FieldsContent
+                    fields={block.config.fields}
+                    values={values}
+                    setValue={setValue}
+                    onChange={onChange}
+                    fieldErrors={fieldErrors}
+                    compact={compact}
+                />
+            </section>
+        );
+    }
 
     return (
         <section className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
@@ -130,7 +159,7 @@ function PropertiesGroupView({
                 onClick={() => setOpen((v) => ! v)}
                 aria-expanded={open}
                 className={cn(
-                    'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-px-4 imcrm-py-3 imcrm-text-left imcrm-text-sm imcrm-font-medium imcrm-transition-colors',
+                    'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-px-4 imcrm-py-2.5 imcrm-text-left imcrm-text-sm imcrm-font-medium imcrm-transition-colors',
                     'hover:imcrm-bg-accent/40',
                 )}
             >
@@ -141,25 +170,75 @@ function PropertiesGroupView({
                 )}
                 <Icon className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" aria-hidden />
                 <span className="imcrm-flex-1">{__(block.config.label)}</span>
-                <span className="imcrm-text-xs imcrm-text-muted-foreground">{block.config.fields.length}</span>
+                <span className="imcrm-rounded imcrm-bg-muted imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-semibold imcrm-text-muted-foreground">
+                    {block.config.fields.length}
+                </span>
             </button>
             {open && (
-                <div className="imcrm-flex-1 imcrm-overflow-y-auto imcrm-border-t imcrm-border-border imcrm-px-4 imcrm-py-3">
-                    {block.config.fields.length === 0 ? (
-                        <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                            {__('Grupo vacío. Editalo desde el template editor.')}
-                        </p>
-                    ) : (
-                        <RecordFieldsForm
-                            fields={block.config.fields}
-                            values={values}
-                            onChange={onChange}
-                            fieldErrors={fieldErrors}
-                        />
+                <div
+                    className={cn(
+                        'imcrm-flex-1 imcrm-overflow-y-auto imcrm-border-t imcrm-border-border',
+                        compact ? '' : 'imcrm-px-4 imcrm-py-3',
                     )}
+                >
+                    <FieldsContent
+                        fields={block.config.fields}
+                        values={values}
+                        setValue={setValue}
+                        onChange={onChange}
+                        fieldErrors={fieldErrors}
+                        compact={compact}
+                    />
                 </div>
             )}
         </section>
+    );
+}
+
+function FieldsContent({
+    fields,
+    values,
+    setValue,
+    onChange,
+    fieldErrors,
+    compact,
+}: {
+    fields: FieldEntity[];
+    values: Record<string, unknown>;
+    setValue: (slug: string, v: unknown) => void;
+    onChange: (values: Record<string, unknown>) => void;
+    fieldErrors?: Record<string, string>;
+    compact: boolean;
+}): JSX.Element {
+    if (fields.length === 0) {
+        return (
+            <p className="imcrm-px-4 imcrm-py-3 imcrm-text-xs imcrm-text-muted-foreground">
+                {__('Grupo vacío. Editalo desde el template editor.')}
+            </p>
+        );
+    }
+    if (compact) {
+        return (
+            <div className="imcrm-flex imcrm-flex-col">
+                {fields.map((f) => (
+                    <CompactFieldRow
+                        key={f.id}
+                        field={f}
+                        value={values[f.slug]}
+                        onChange={(v) => setValue(f.slug, v)}
+                        error={fieldErrors?.[f.slug]}
+                    />
+                ))}
+            </div>
+        );
+    }
+    return (
+        <RecordFieldsForm
+            fields={fields}
+            values={values}
+            onChange={onChange}
+            fieldErrors={fieldErrors}
+        />
     );
 }
 

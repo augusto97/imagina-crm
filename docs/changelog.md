@@ -4,6 +4,108 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.48.0] — 2026-05-25
+
+**Pulido visual del layout CRM.**
+
+Tras un screenshot del usuario mostrando el layout CRM con densidad
+pobre, inputs sin diferenciación visual y cards huérfanas de 1 solo
+campo, se atacan los 6 puntos identificados.
+
+### 1. Densidad compact en propiedades
+
+Nuevo componente `app/admin/records/crm/CompactFieldRow.tsx`. Cada campo
+se rendea como fila label-izquierda (120px, muted) + valor-derecha
+(flex-1) de ~32-40px de alto. Antes: label arriba + input abajo + gap-4
+= 70-80px por campo.
+
+Edit on-click: en modo lectura se ve el valor renderizado con
+`FieldValueDisplay`; click activa el input apropiado al tipo. Enter o
+blur cierra. Sin escape: el cambio queda en el `values` del padre (que
+acumula el dirty state y guarda con el botón "Guardar" del header).
+
+Tipos con UI compleja (checkbox, select, multi_select) tienen control
+inline permanente — sin "modo edit", el control vive comprimido en la
+columna de valor.
+
+### 2. Renderers visuales por tipo de campo
+
+Nuevo `app/admin/records/crm/FieldValueDisplay.tsx`:
+
+- `currency` → `Intl.NumberFormat({style:'currency', currency})` lee
+  `field.config.currency` (default COP). Output: `$1.000.000 COP`.
+- `number` → `toLocaleString` con `field.config.decimals`.
+- `date` / `datetime` → fecha localizada + tiempo relativo entre paréntesis
+  (`hoy`, `mañana`, `hace 3 días`, `en 2 semanas`, etc.).
+- `checkbox` → ícono ✓ verde / − muted.
+- `select` → chip con color de la opción (reusa `chipSoftStyle`).
+- `multi_select` → row de chips.
+- `email` → `mailto:` link con icono.
+- `url` → link target=_blank con icono (display strippea `https://`).
+- `user` / `file` → icono + ID.
+- `long_text` → line-clamp-3 con leading relaxed.
+- `computed` → respeta `decimals` del config y operación.
+
+### 3. Auto-promoción de cards de 1 campo
+
+Cubierto vía la nueva opción `variant: 'inline' | 'card'` (ver punto 4).
+El usuario puede elegir explícitamente `inline` para grupos de 1-2
+campos clave; el bloque se rendea sin card wrapper, solo con label
+pequeño arriba y los campos.
+
+### 4. Opciones de layout en el editor de plantilla
+
+`V2PropertiesGroupBlock.config` ahora acepta:
+- `density?: 'compact' | 'comfortable'` (default `compact`).
+- `variant?: 'card' | 'inline'` (default `card`).
+
+Ambos opcionales — plantillas viejas siguen funcionando (el resolver
+aplica defaults seguros).
+
+`PropertiesGroupForm.tsx` (panel del editor) expone los dos como
+`<select>` arriba de los campos del grupo. Hot reload via `commit`
+existente.
+
+### 5. Polish del header del registro
+
+`RecordHeader.tsx`:
+- Avatar 16×16 (antes 14×14), rounded-2xl, ring-4 ring-card, shadow-md.
+- Banda decorativa de 1.5px arriba con gradient del color del avatar.
+- Badges + quick actions agrupados en chip-row con `bg-muted/30` y
+  border, en lugar de flotar en el padding.
+- Botón "Guardar" con shadow-sm para destacar.
+
+### 6. Empty states de timeline
+
+`RecordTimeline.tsx`: el estado vacío ahora muestra:
+- Círculo muted con icono de Activity centrado.
+- Título principal + descripción debajo en text-center.
+- Border dashed + bg sutil que delimita visualmente el bloque.
+
+### Archivos
+
+Nuevos:
+- `app/admin/records/crm/FieldValueDisplay.tsx`
+- `app/admin/records/crm/CompactFieldRow.tsx`
+
+Modificados:
+- `app/lib/crmTemplates.ts` (tipos + resolver defaults)
+- `app/admin/records/crm/BlockRenderer.tsx` (PropertiesGroupView con density/variant)
+- `app/admin/records/crm/PropertiesSidebar.tsx` (CompactFieldRow en grupos del rail)
+- `app/admin/records/crm/RecordHeader.tsx` (polish visual)
+- `app/admin/records/crm/RecordTimeline.tsx` (empty state)
+- `app/admin/lists/template-editor/forms/BlockForms.tsx` (controles density/variant)
+- `imagina-crm.php`, `readme.txt`, `package.json`, `docs/changelog.md`
+
+### Backward-compat
+
+- `density` y `variant` opcionales con defaults seguros. Plantillas
+  serializadas previas no se rompen.
+- `RecordFieldsForm` sigue intacto — lo usa el RecordDetailDrawer y la
+  variante `comfortable` del editor. No se eliminó.
+- `renderCellValue.tsx` (TableView) sigue intacto — los renderers nuevos
+  son más ricos pero también más grandes, no aptos para celdas de tabla.
+
 ## [0.47.3] — 2026-05-25
 
 **Fix: importación CSV con fechas ISO de ClickUp + invalidación de cache
