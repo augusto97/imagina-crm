@@ -100,7 +100,14 @@ export function BlockRenderer({
         );
     }
     if (block.type === 'stats') {
-        return <StatsBlockView listId={listId} record={record} />;
+        return (
+            <StatsBlockView
+                listId={listId}
+                record={record}
+                mode={block.config.mode}
+                items={block.config.items}
+            />
+        );
     }
     if (block.type === 'related') {
         return <RelatedBlockView field={block.config.field} record={record} />;
@@ -118,13 +125,22 @@ export function BlockRenderer({
         return <EmbedBlockView block={block} record={record} />;
     }
     if (block.type === 'action_button') {
-        return <ActionButtonView block={block} />;
+        return <ActionButtonView block={block} record={record} />;
     }
     if (block.type === 'markdown') {
-        return <MarkdownBlockView block={block} />;
+        return <MarkdownBlockView block={block} record={record} />;
     }
     if (block.type === 'notes') {
-        return <NotesView title={block.config.title} content={block.config.content} />;
+        // Resuelve el contenido según `source`: literal (igual para todos)
+        // o field (lee `record.fields[slug]` como string).
+        let content = '';
+        if (block.config.source === 'field' && block.config.field) {
+            const v = record.fields[block.config.field.slug];
+            content = typeof v === 'string' ? v : '';
+        } else {
+            content = block.config.content;
+        }
+        return <NotesView title={block.config.title} content={content} />;
     }
     if (block.type === 'divider') {
         return <DividerView label={block.config.label} />;

@@ -20,6 +20,7 @@ import {
     NotesForm,
     PropertiesGroupForm,
     RelatedForm,
+    StatsForm,
 } from '../forms/BlockForms';
 
 interface BlockInspectorPanelProps {
@@ -90,6 +91,7 @@ export function BlockInspectorPanel({
                 {block.type === 'notes' && (
                     <NotesForm
                         block={block}
+                        fields={fields}
                         onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
                     />
                 )}
@@ -100,10 +102,17 @@ export function BlockInspectorPanel({
                         onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
                     />
                 )}
-                {(block.type === 'timeline' || block.type === 'stats') && (
+                {block.type === 'timeline' && (
                     <p className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-3 imcrm-py-4 imcrm-text-xs imcrm-text-muted-foreground">
                         {__('Este bloque no tiene opciones configurables. Movelo o cambiá su tamaño con el grid.')}
                     </p>
+                )}
+                {block.type === 'stats' && (
+                    <StatsForm
+                        block={block}
+                        fields={fields}
+                        onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                    />
                 )}
                 {block.type === 'kpi' && (
                     <KpiForm
@@ -136,12 +145,14 @@ export function BlockInspectorPanel({
                 {block.type === 'action_button' && (
                     <ActionButtonForm
                         block={block}
+                        fields={fields}
                         onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
                     />
                 )}
                 {block.type === 'markdown' && (
                     <MarkdownForm
                         block={block}
+                        fields={fields}
                         onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
                     />
                 )}

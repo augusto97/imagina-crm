@@ -293,9 +293,11 @@ export function PropertiesGroupForm({
 
 export function NotesForm({
     block,
+    fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'notes' }>;
+    fields: FieldEntity[];
     onUpdate: UpdateFn<Extract<V2Block, { type: 'notes' }>>;
 }): JSX.Element {
     const [draft, setDraft] = useState(block.config);
@@ -308,6 +310,9 @@ export function NotesForm({
         onUpdate({ config: draft });
     };
 
+    const textFields = fields.filter((f) => f.type === 'long_text' || f.type === 'text');
+    const source = draft.source ?? 'literal';
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <Field label={__('Título')}>
@@ -318,18 +323,55 @@ export function NotesForm({
                     placeholder={__('Ej. Recordatorios')}
                 />
             </Field>
-            <Field label={__('Contenido')}>
-                <Textarea
-                    rows={6}
-                    value={draft.content}
-                    onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-                    onBlur={commit}
-                    placeholder={__('Texto que verán todos en esta lista. Saltos de línea respetados.')}
-                />
-                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                    {__('Este texto es STATIC para todos los records de la lista — no varía por record.')}
-                </p>
+            <Field label={__('Origen del contenido')}>
+                <select
+                    value={source}
+                    onChange={(e) => {
+                        const next = { ...draft, source: e.target.value as 'literal' | 'field' };
+                        setDraft(next);
+                        onUpdate({ config: next });
+                    }}
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="literal">{__('Texto fijo (igual para todos los registros)')}</option>
+                    <option value="field">{__('Campo del registro (varía por registro)')}</option>
+                </select>
             </Field>
+            {source === 'literal' ? (
+                <Field label={__('Contenido')}>
+                    <Textarea
+                        rows={6}
+                        value={draft.content}
+                        onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                        onBlur={commit}
+                        placeholder={__('Texto que verán todos en esta lista. Saltos de línea respetados.')}
+                    />
+                </Field>
+            ) : (
+                <Field label={__('Campo de texto a mostrar')}>
+                    <select
+                        value={draft.field_slug ?? ''}
+                        onChange={(e) => {
+                            const next = { ...draft, field_slug: e.target.value || undefined };
+                            setDraft(next);
+                            onUpdate({ config: next });
+                        }}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="">{__('— Elegir campo —')}</option>
+                        {textFields.map((f) => (
+                            <option key={f.id} value={f.slug}>
+                                {f.label} ({f.type})
+                            </option>
+                        ))}
+                    </select>
+                    {textFields.length === 0 && (
+                        <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                            {__('No hay campos de texto en esta lista. Agregá uno tipo "Texto" o "Texto largo".')}
+                        </p>
+                    )}
+                </Field>
+            )}
         </div>
     );
 }
@@ -637,14 +679,31 @@ export function EmbedForm({
 
 export function ActionButtonForm({
     block,
+    fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'action_button' }>;
+    fields: FieldEntity[];
     onUpdate: UpdateFn<Extract<V2Block, { type: 'action_button' }>>;
 }): JSX.Element {
     const updateConfig = (patch: Partial<typeof block.config>): void => {
         onUpdate({ config: { ...block.config, ...patch } });
     };
+
+    const targetSource = block.config.target_source ?? 'literal';
+    // Filtramos los campos candidatos según el `action_type` — emails
+    // van con email fields, urls con url fields, etc. `copy` y `tel`
+    // aceptan cualquier campo de texto/número.
+    const candidateFields = (() => {
+        const at = block.config.action_type;
+        if (at === 'mailto') return fields.filter((f) => f.type === 'email');
+        if (at === 'url') return fields.filter((f) => f.type === 'url');
+        if (at === 'tel') return fields.filter((f) => f.type === 'text' || f.type === 'number');
+        return fields.filter((f) =>
+            ['text', 'long_text', 'email', 'url', 'number', 'currency'].includes(f.type),
+        );
+    })();
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <Field label={__('Label del botón')}>
@@ -679,18 +738,54 @@ export function ActionButtonForm({
                     </select>
                 </Field>
             </div>
-            <Field label={__('Target')}>
-                <Input
-                    value={block.config.target}
-                    onChange={(e) => updateConfig({ target: e.target.value })}
-                    placeholder={
-                        block.config.action_type === 'url' ? 'https://…' :
-                        block.config.action_type === 'mailto' ? 'foo@bar.com' :
-                        block.config.action_type === 'tel' ? '+57 300 1234567' :
-                        __('Texto a copiar')
+            <Field label={__('Origen del target')}>
+                <select
+                    value={targetSource}
+                    onChange={(e) =>
+                        updateConfig({ target_source: e.target.value as 'literal' | 'field' })
                     }
-                />
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="literal">{__('Valor fijo (igual para todos)')}</option>
+                    <option value="field">{__('Campo del registro (varía por registro)')}</option>
+                </select>
             </Field>
+            {targetSource === 'literal' ? (
+                <Field label={__('Target')}>
+                    <Input
+                        value={block.config.target}
+                        onChange={(e) => updateConfig({ target: e.target.value })}
+                        placeholder={
+                            block.config.action_type === 'url' ? 'https://…' :
+                            block.config.action_type === 'mailto' ? 'foo@bar.com' :
+                            block.config.action_type === 'tel' ? '+57 300 1234567' :
+                            __('Texto a copiar')
+                        }
+                    />
+                </Field>
+            ) : (
+                <Field label={__('Campo del registro')}>
+                    <select
+                        value={block.config.target_field_slug ?? ''}
+                        onChange={(e) =>
+                            updateConfig({ target_field_slug: e.target.value || undefined })
+                        }
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="">{__('— Elegir campo —')}</option>
+                        {candidateFields.map((f) => (
+                            <option key={f.id} value={f.slug}>
+                                {f.label} ({f.type})
+                            </option>
+                        ))}
+                    </select>
+                    {candidateFields.length === 0 && (
+                        <p className="imcrm-text-[11px] imcrm-text-warning">
+                            {__('No hay campos compatibles con este tipo de acción en la lista.')}
+                        </p>
+                    )}
+                </Field>
+            )}
         </div>
     );
 }
@@ -750,6 +845,208 @@ export function HeadingForm({
     );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+//  Stats block form
+// ─────────────────────────────────────────────────────────────────────
+
+const AUTO_METRICS: Array<{
+    value: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes';
+    label: string;
+}> = [
+    { value: 'days_in_system', label: 'Días en sistema' },
+    { value: 'days_since_changes', label: 'Días sin cambios' },
+    { value: 'comments', label: 'Comentarios' },
+    { value: 'changes', label: 'Cambios' },
+];
+
+type StatsItem =
+    | { kind: 'auto'; metric: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes' }
+    | { kind: 'field'; field_slug: string; label?: string };
+
+export function StatsForm({
+    block,
+    fields,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'stats' }>;
+    fields: FieldEntity[];
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'stats' }>>;
+}): JSX.Element {
+    const mode = block.config.mode ?? 'auto';
+    const items: StatsItem[] = block.config.items ?? [];
+
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+
+    type AutoMetric = 'days_in_system' | 'days_since_changes' | 'comments' | 'changes';
+    const addAuto = (metric: AutoMetric): void => {
+        updateConfig({ items: [...items, { kind: 'auto', metric }] });
+    };
+    const addField = (field_slug: string): void => {
+        if (! field_slug) return;
+        updateConfig({ items: [...items, { kind: 'field', field_slug }] });
+    };
+    const remove = (idx: number): void => {
+        updateConfig({ items: items.filter((_, i) => i !== idx) });
+    };
+    const move = (idx: number, dir: -1 | 1): void => {
+        const next = [...items];
+        const target = idx + dir;
+        if (target < 0 || target >= next.length) return;
+        [next[idx], next[target]] = [next[target]!, next[idx]!];
+        updateConfig({ items: next });
+    };
+    const updateLabel = (idx: number, label: string): void => {
+        const next = [...items];
+        const it = next[idx];
+        if (it && it.kind === 'field') {
+            next[idx] = { ...it, label: label || undefined };
+            updateConfig({ items: next });
+        }
+    };
+
+    const fieldsBySlug = new Map(fields.map((f) => [f.slug, f]));
+    const availableFields = fields.filter((f) =>
+        ['number', 'currency', 'date', 'datetime', 'checkbox', 'select', 'text'].includes(f.type),
+    );
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Modo')}>
+                <select
+                    value={mode}
+                    onChange={(e) =>
+                        updateConfig({ mode: e.target.value as 'auto' | 'custom' })
+                    }
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="auto">{__('Automático (métricas estándar)')}</option>
+                    <option value="custom">{__('Personalizado (elegí qué mostrar)')}</option>
+                </select>
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {mode === 'auto'
+                        ? __('Muestra: días en sistema, días sin cambios, comentarios y cambios.')
+                        : __('Combiná métricas automáticas con valores de campos del registro.')}
+                </p>
+            </Field>
+
+            {mode === 'custom' && (
+                <>
+                    <Field label={__('Métricas visibles')}>
+                        {items.length === 0 ? (
+                            <p className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-2 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground">
+                                {__('Sin métricas. Agregá una abajo.')}
+                            </p>
+                        ) : (
+                            <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                                {items.map((it, i) => {
+                                    const label =
+                                        it.kind === 'auto'
+                                            ? AUTO_METRICS.find((m) => m.value === it.metric)?.label
+                                            : (it.label || fieldsBySlug.get(it.field_slug)?.label || it.field_slug);
+                                    const meta =
+                                        it.kind === 'auto'
+                                            ? __('auto')
+                                            : (fieldsBySlug.get(it.field_slug)?.type ?? __('campo no encontrado'));
+                                    return (
+                                        <li
+                                            key={i}
+                                            className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-2 imcrm-py-1.5"
+                                        >
+                                            <div className="imcrm-min-w-0 imcrm-flex-1">
+                                                {it.kind === 'field' ? (
+                                                    <Input
+                                                        value={it.label ?? ''}
+                                                        onChange={(e) => updateLabel(i, e.target.value)}
+                                                        placeholder={label}
+                                                        className="imcrm-h-7 imcrm-text-xs"
+                                                    />
+                                                ) : (
+                                                    <span className="imcrm-text-xs imcrm-font-medium">{label}</span>
+                                                )}
+                                                <span className="imcrm-ml-2 imcrm-text-[10px] imcrm-text-muted-foreground">
+                                                    {meta}
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => move(i, -1)}
+                                                disabled={i === 0}
+                                                className="imcrm-text-muted-foreground hover:imcrm-text-foreground disabled:imcrm-opacity-30"
+                                                title={__('Subir')}
+                                            >
+                                                <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => move(i, 1)}
+                                                disabled={i === items.length - 1}
+                                                className="imcrm-text-muted-foreground hover:imcrm-text-foreground disabled:imcrm-opacity-30"
+                                                title={__('Bajar')}
+                                            >
+                                                <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => remove(i)}
+                                                className="imcrm-text-muted-foreground hover:imcrm-text-destructive"
+                                                title={__('Eliminar')}
+                                            >
+                                                <X className="imcrm-h-3 imcrm-w-3" />
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </Field>
+
+                    <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
+                        <select
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    addAuto(e.target.value as 'days_in_system' | 'days_since_changes' | 'comments' | 'changes');
+                                    e.target.value = '';
+                                }
+                            }}
+                            defaultValue=""
+                            className="imcrm-h-8 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-xs"
+                        >
+                            <option value="">{__('+ Métrica automática…')}</option>
+                            {AUTO_METRICS.map((m) => (
+                                <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                        </select>
+                        <select
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    addField(e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
+                            disabled={availableFields.length === 0}
+                            defaultValue=""
+                            className="imcrm-h-8 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-xs"
+                        >
+                            <option value="">
+                                {availableFields.length === 0
+                                    ? __('— Sin campos —')
+                                    : __('+ Valor de campo…')}
+                            </option>
+                            {availableFields.map((f) => (
+                                <option key={f.id} value={f.slug}>
+                                    {f.label} ({f.type})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 export function CommentsThreadForm({
     block,
     onUpdate,
@@ -773,9 +1070,11 @@ export function CommentsThreadForm({
 
 export function MarkdownForm({
     block,
+    fields,
     onUpdate,
 }: {
     block: Extract<V2Block, { type: 'markdown' }>;
+    fields: FieldEntity[];
     onUpdate: UpdateFn<Extract<V2Block, { type: 'markdown' }>>;
 }): JSX.Element {
     const [draft, setDraft] = useState(block.config);
@@ -786,6 +1085,9 @@ export function MarkdownForm({
 
     const commit = (): void => onUpdate({ config: draft });
 
+    const textFields = fields.filter((f) => f.type === 'long_text' || f.type === 'text');
+    const source = draft.source ?? 'literal';
+
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <Field label={__('Título')}>
@@ -795,18 +1097,58 @@ export function MarkdownForm({
                     onBlur={commit}
                 />
             </Field>
-            <Field label={__('Contenido (markdown)')}>
-                <Textarea
-                    rows={8}
-                    value={draft.content}
-                    onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-                    onBlur={commit}
-                    placeholder={'# Título\n## Sub\n- item\n**bold** *itálica* `code` [link](https://...)'}
-                />
-                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
-                    {__('Markdown ligero: # ## ### · - · 1. · **bold** · *italic* · `code` · [link](url)')}
-                </p>
+            <Field label={__('Origen del contenido')}>
+                <select
+                    value={source}
+                    onChange={(e) => {
+                        const next = { ...draft, source: e.target.value as 'literal' | 'field' };
+                        setDraft(next);
+                        onUpdate({ config: next });
+                    }}
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="literal">{__('Markdown fijo (igual para todos)')}</option>
+                    <option value="field">{__('Campo del registro (varía por registro)')}</option>
+                </select>
             </Field>
+            {source === 'literal' ? (
+                <Field label={__('Contenido (markdown)')}>
+                    <Textarea
+                        rows={8}
+                        value={draft.content}
+                        onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                        onBlur={commit}
+                        placeholder={'# Título\n## Sub\n- item\n**bold** *itálica* `code` [link](https://...)'}
+                    />
+                    <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Markdown ligero: # ## ### · - · 1. · **bold** · *italic* · `code` · [link](url)')}
+                    </p>
+                </Field>
+            ) : (
+                <Field label={__('Campo de texto a renderear como markdown')}>
+                    <select
+                        value={draft.field_slug ?? ''}
+                        onChange={(e) => {
+                            const next = { ...draft, field_slug: e.target.value || undefined };
+                            setDraft(next);
+                            onUpdate({ config: next });
+                        }}
+                        className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                    >
+                        <option value="">{__('— Elegir campo —')}</option>
+                        {textFields.map((f) => (
+                            <option key={f.id} value={f.slug}>
+                                {f.label} ({f.type})
+                            </option>
+                        ))}
+                    </select>
+                    {textFields.length === 0 && (
+                        <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                            {__('No hay campos de texto en esta lista.')}
+                        </p>
+                    )}
+                </Field>
+            )}
         </div>
     );
 }

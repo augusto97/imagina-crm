@@ -67,7 +67,21 @@ function Block({
 
 // --- Stats -------------------------------------------------------------------
 
-export function StatsBlock({ listId, record }: { listId: number; record: RecordEntity }): JSX.Element {
+type StatsItem =
+    | { kind: 'auto'; metric: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes' }
+    | { kind: 'field'; field: FieldEntity; label?: string };
+
+export function StatsBlock({
+    listId,
+    record,
+    mode = 'auto',
+    items = [],
+}: {
+    listId: number;
+    record: RecordEntity;
+    mode?: 'auto' | 'custom';
+    items?: StatsItem[];
+}): JSX.Element {
     const comments = useComments(listId, record.id);
     const activity = useRecordActivity(listId, record.id);
 
@@ -82,32 +96,114 @@ export function StatsBlock({ listId, record }: { listId: number; record: RecordE
         ? activity.data.filter((a) => ! a.action.startsWith('comment.')).length
         : null;
 
+    // Mode auto: las 4 métricas hardcoded de toda la vida.
+    // Mode custom: lo que el user definió en `items`.
+    const effective: StatsItem[] = mode === 'custom' && items.length > 0
+        ? items
+        : [
+            { kind: 'auto', metric: 'days_in_system' },
+            { kind: 'auto', metric: 'days_since_changes' },
+            { kind: 'auto', metric: 'comments' },
+            { kind: 'auto', metric: 'changes' },
+        ];
+
     return (
         <Card title={__('Resumen')} icon={BarChart3}>
             <dl className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-3">
-                <Stat
-                    label={__('Días en sistema')}
-                    value={daysSinceCreated !== null ? String(daysSinceCreated) : '—'}
-                    icon={Calendar}
-                />
-                <Stat
-                    label={__('Días sin cambios')}
-                    value={daysSinceUpdated !== null ? String(daysSinceUpdated) : '—'}
-                    icon={Calendar}
-                />
-                <Stat
-                    label={__('Comentarios')}
-                    value={commentCount !== null ? String(commentCount) : '…'}
-                    icon={MessageSquare}
-                />
-                <Stat
-                    label={__('Cambios')}
-                    value={changeCount !== null ? String(changeCount) : '…'}
-                    icon={ActivityIcon}
-                />
+                {effective.map((it, i) => {
+                    if (it.kind === 'auto') {
+                        return renderAutoMetric(
+                            it.metric,
+                            { daysSinceCreated, daysSinceUpdated, commentCount, changeCount },
+                            i,
+                        );
+                    }
+                    return (
+                        <Stat
+                            key={`field-${it.field.slug}-${i}`}
+                            label={it.label || it.field.label}
+                            value={formatFieldStatValue(it.field, record.fields[it.field.slug])}
+                            icon={Calendar}
+                        />
+                    );
+                })}
             </dl>
         </Card>
     );
+}
+
+function renderAutoMetric(
+    metric: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes',
+    data: {
+        daysSinceCreated: number | null;
+        daysSinceUpdated: number | null;
+        commentCount: number | null;
+        changeCount: number | null;
+    },
+    key: number,
+): JSX.Element {
+    switch (metric) {
+        case 'days_in_system':
+            return (
+                <Stat
+                    key={key}
+                    label={__('Días en sistema')}
+                    value={data.daysSinceCreated !== null ? String(data.daysSinceCreated) : '—'}
+                    icon={Calendar}
+                />
+            );
+        case 'days_since_changes':
+            return (
+                <Stat
+                    key={key}
+                    label={__('Días sin cambios')}
+                    value={data.daysSinceUpdated !== null ? String(data.daysSinceUpdated) : '—'}
+                    icon={Calendar}
+                />
+            );
+        case 'comments':
+            return (
+                <Stat
+                    key={key}
+                    label={__('Comentarios')}
+                    value={data.commentCount !== null ? String(data.commentCount) : '…'}
+                    icon={MessageSquare}
+                />
+            );
+        case 'changes':
+            return (
+                <Stat
+                    key={key}
+                    label={__('Cambios')}
+                    value={data.changeCount !== null ? String(data.changeCount) : '…'}
+                    icon={ActivityIcon}
+                />
+            );
+    }
+}
+
+/**
+ * Formato simple para mostrar un field value como métrica de resumen
+ * — números con thousands separator, fechas con formato local,
+ * checkbox como Sí/No, resto como string.
+ */
+function formatFieldStatValue(field: FieldEntity, value: unknown): string {
+    if (value === null || value === undefined || value === '') return '—';
+    if (field.type === 'checkbox') return value ? __('Sí') : __('No');
+    if (field.type === 'number' || field.type === 'currency') {
+        const num = typeof value === 'number' ? value : Number(value);
+        if (Number.isNaN(num)) return String(value);
+        const decimals = (field.config as { decimals?: number }).decimals ?? 0;
+        return num.toLocaleString(undefined, {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: Math.max(decimals, 2),
+        });
+    }
+    if (field.type === 'date' && typeof value === 'string') {
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+    }
+    return String(value);
 }
 
 function Stat({

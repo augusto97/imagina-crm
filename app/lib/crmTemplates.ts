@@ -1629,7 +1629,24 @@ export interface V2TimelineBlock extends V2BlockBase {
 
 export interface V2StatsBlock extends V2BlockBase {
     type: 'stats';
-    config: Record<string, never>;
+    config: {
+        /**
+         * `auto` (default, backward-compat) muestra las 4 métricas
+         * automáticas (días en sistema / sin cambios / comentarios /
+         * cambios).
+         *
+         * `custom` muestra exactamente los items definidos en `items`
+         * — pueden ser auto-metrics curados o valores de campos del
+         * record. Útil para fichas tipo "cliente" donde lo importante
+         * es el balance, próxima factura, etc., no las métricas de
+         * actividad del CRM.
+         */
+        mode?: 'auto' | 'custom';
+        items?: Array<
+            | { kind: 'auto'; metric: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes' }
+            | { kind: 'field'; field_slug: string; label?: string }
+        >;
+    };
 }
 
 export interface V2RelatedBlock extends V2BlockBase {
@@ -1638,16 +1655,21 @@ export interface V2RelatedBlock extends V2BlockBase {
 }
 
 /**
- * Bloque de **notas custom** — texto que el user escribe dentro del
- * editor. Es STATIC para todos los records de la lista (no es un
- * field por record): sirve para "recordatorios al operador" tipo
- * "siempre confirmar referencia comercial antes de cerrar venta".
+ * Bloque de notas. Dos modos:
+ *  - `literal` (default, backward-compat) — texto static, igual para
+ *    todos los records de la lista. Útil para "recordatorios al
+ *    operador" tipo "siempre confirmar referencia antes de cerrar".
+ *  - `field` — lee el contenido de un campo del record. Útil para
+ *    notas internas por-registro (ej. "observaciones del cliente"
+ *    que viven en un long_text field).
  */
 export interface V2NotesBlock extends V2BlockBase {
     type: 'notes';
     config: {
         title: string;
-        content: string; // texto plano, multiline. Markdown ligero (saltos de línea respetados).
+        source?: 'literal' | 'field';
+        content: string;         // cuando source === 'literal' (default)
+        field_slug?: string;     // cuando source === 'field'
     };
 }
 
@@ -1714,15 +1736,19 @@ export interface V2EmbedBlock extends V2BlockBase {
 }
 
 /**
- * Botón de acción: dispara una automatización, abre URL externa,
- * mailto, tel, o copia un valor. Configurable por tipo.
+ * Botón de acción: dispara una URL externa, mailto, tel, o copia un
+ * valor. El **target** puede ser literal (mismo para todos los records)
+ * o dinámico desde un campo del record — útil para "Email al contacto"
+ * donde cada cliente tiene su propio email.
  */
 export interface V2ActionButtonBlock extends V2BlockBase {
     type: 'action_button';
     config: {
         label: string;
         action_type: 'url' | 'mailto' | 'tel' | 'copy';
-        target: string;          // URL, email, phone, o text para copy
+        target_source?: 'literal' | 'field';   // default 'literal'
+        target: string;                         // cuando target_source === 'literal'
+        target_field_slug?: string;             // cuando target_source === 'field'
         variant?: 'default' | 'outline' | 'destructive';
     };
 }
@@ -1730,13 +1756,16 @@ export interface V2ActionButtonBlock extends V2BlockBase {
 /**
  * Markdown rich text: como `notes` pero renderea markdown ligero
  * (headings #, bullet -, números, negrita **x**, itálica *x*,
- * inline `code`, links [text](url)).
+ * inline `code`, links [text](url)). Soporta los mismos modos
+ * `literal` / `field` que notes.
  */
 export interface V2MarkdownBlock extends V2BlockBase {
     type: 'markdown';
     config: {
         title: string;
+        source?: 'literal' | 'field';
         content: string;
+        field_slug?: string;
     };
 }
 
@@ -2029,9 +2058,22 @@ export type ResolvedV2Block =
             variant: 'card' | 'inline';
         } })
     | (ResolvedBase & { type: 'timeline' })
-    | (ResolvedBase & { type: 'stats' })
+    | (ResolvedBase & { type: 'stats';
+        config: {
+            mode: 'auto' | 'custom';
+            items: Array<
+                | { kind: 'auto'; metric: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes' }
+                | { kind: 'field'; field: FieldEntity; label?: string }
+            >;
+        } })
     | (ResolvedBase & { type: 'related'; config: { field: FieldEntity } })
-    | (ResolvedBase & { type: 'notes'; config: { title: string; content: string } })
+    | (ResolvedBase & { type: 'notes';
+        config: {
+            title: string;
+            source: 'literal' | 'field';
+            content: string;
+            field: FieldEntity | null;
+        } })
     | (ResolvedBase & { type: 'kpi';
         config: {
             field: FieldEntity | null;
@@ -2060,10 +2102,18 @@ export type ResolvedV2Block =
         config: {
             label: string;
             actionType: 'url' | 'mailto' | 'tel' | 'copy';
-            target: string;
+            targetSource: 'literal' | 'field';
+            target: string;                       // literal
+            targetField: FieldEntity | null;      // field-based
             variant?: 'default' | 'outline' | 'destructive';
         } })
-    | (ResolvedBase & { type: 'markdown'; config: { title: string; content: string } })
+    | (ResolvedBase & { type: 'markdown';
+        config: {
+            title: string;
+            source: 'literal' | 'field';
+            content: string;
+            field: FieldEntity | null;
+        } })
     | (ResolvedBase & { type: 'divider'; config: { label?: string } })
     | (ResolvedBase & { type: 'heading'; config: { text: string; level: 2 | 3 | 4 } })
     | (ResolvedBase & { type: 'comments_thread'; config: { title?: string } });
@@ -2117,7 +2167,20 @@ export function resolveV2(
         } else if (b.type === 'timeline') {
             blocks.push({ ...base, type: 'timeline' });
         } else if (b.type === 'stats') {
-            blocks.push({ ...base, type: 'stats' });
+            const mode = b.config.mode ?? 'auto';
+            const items = (b.config.items ?? []).map((it) => {
+                if (it.kind === 'field') {
+                    const f = bySlug.get(it.field_slug);
+                    if (! f) return null;
+                    return { kind: 'field' as const, field: f, label: it.label };
+                }
+                return it;
+            }).filter((x): x is NonNullable<typeof x> => x !== null);
+            blocks.push({
+                ...base,
+                type: 'stats',
+                config: { mode, items },
+            });
         } else if (b.type === 'related') {
             const f = bySlug.get(b.config.field_slug);
             if (f && f.type === 'relation') {
@@ -2127,7 +2190,12 @@ export function resolveV2(
             blocks.push({
                 ...base,
                 type: 'notes',
-                config: { title: b.config.title, content: b.config.content },
+                config: {
+                    title: b.config.title,
+                    source: b.config.source ?? 'literal',
+                    content: b.config.content,
+                    field: b.config.field_slug ? bySlug.get(b.config.field_slug) ?? null : null,
+                },
             });
         } else if (b.type === 'kpi') {
             blocks.push({
@@ -2181,7 +2249,11 @@ export function resolveV2(
                 config: {
                     label: b.config.label,
                     actionType: b.config.action_type,
+                    targetSource: b.config.target_source ?? 'literal',
                     target: b.config.target,
+                    targetField: b.config.target_field_slug
+                        ? bySlug.get(b.config.target_field_slug) ?? null
+                        : null,
                     variant: b.config.variant,
                 },
             });
@@ -2189,7 +2261,12 @@ export function resolveV2(
             blocks.push({
                 ...base,
                 type: 'markdown',
-                config: { title: b.config.title, content: b.config.content },
+                config: {
+                    title: b.config.title,
+                    source: b.config.source ?? 'literal',
+                    content: b.config.content,
+                    field: b.config.field_slug ? bySlug.get(b.config.field_slug) ?? null : null,
+                },
             });
         } else if (b.type === 'divider') {
             blocks.push({

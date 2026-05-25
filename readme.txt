@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.49.0
+Stable tag: 0.50.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.50.0 =
+**Bloques dinámicos: Notas, Markdown, Botón de acción y Resumen alimentables desde campos del registro.**
+
+Antes estos bloques eran "static por plantilla" — el contenido era
+igual para todos los registros de la lista. Ahora cada uno tiene un
+selector "Origen" que permite:
+
+- **Notas / Markdown**: leer el contenido de un campo `long_text` o
+  `text` del registro en lugar de un texto fijo en la plantilla. Útil
+  para observaciones del cliente, descripciones por-record, etc.
+- **Botón de acción**: resolver el target dinámicamente desde un campo
+  (email/url/teléfono/etc.) del registro. Ej: botón "Llamar" que toma
+  el teléfono de cada cliente, "Email" que toma su email, etc. El
+  selector de campo se filtra según el tipo de acción.
+- **Resumen (Stats)**: nuevo modo "Personalizado" que permite elegir
+  exactamente qué métricas mostrar — métricas automáticas (días en
+  sistema / sin cambios / comentarios / cambios) combinadas con
+  valores arbitrarios de campos del registro (saldo, próxima cuota,
+  estado, etc.). Reordenable, con label override por item.
+
+El bloque **Embed externo** ya soportaba el modo `field` desde antes;
+solo se mejoró el form UI para que sea más claro.
+
+Backward-compat total: todos los configs serializados previos siguen
+funcionando — los defaults son `source: 'literal'` / `mode: 'auto'`
+para preservar el comportamiento original.
 
 = 0.49.0 =
 **Encabezado del registro CRM como bloque configurable.**

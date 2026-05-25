@@ -211,26 +211,39 @@ export function EmbedBlockView({ block, record }: EmbedBlockViewProps): JSX.Elem
 
 interface ActionButtonViewProps {
     block: Extract<ResolvedV2Block, { type: 'action_button' }>;
+    record: RecordEntity;
 }
 
-export function ActionButtonView({ block }: ActionButtonViewProps): JSX.Element {
-    const { label, actionType, target, variant = 'default' } = block.config;
+export function ActionButtonView({ block, record }: ActionButtonViewProps): JSX.Element {
+    const { label, actionType, targetSource, target, targetField, variant = 'default' } = block.config;
     const toast = useToast();
+
+    // Resolución del target: literal o desde un field. Si el field
+    // tiene valor vacío, el botón queda disabled (mismo flujo que un
+    // literal vacío).
+    let resolvedTarget = '';
+    if (targetSource === 'field' && targetField) {
+        const v = record.fields[targetField.slug];
+        if (typeof v === 'string') resolvedTarget = v;
+        else if (typeof v === 'number') resolvedTarget = String(v);
+    } else {
+        resolvedTarget = target;
+    }
 
     const handleClick = async (): Promise<void> => {
         if (actionType === 'copy') {
             try {
-                await navigator.clipboard.writeText(target);
+                await navigator.clipboard.writeText(resolvedTarget);
                 toast.success(__('Copiado al portapapeles'));
             } catch {
                 toast.error(__('No se pudo copiar'));
             }
         } else if (actionType === 'mailto') {
-            window.location.href = `mailto:${target}`;
+            window.location.href = `mailto:${resolvedTarget}`;
         } else if (actionType === 'tel') {
-            window.location.href = `tel:${target.replace(/[^\d+]/g, '')}`;
+            window.location.href = `tel:${resolvedTarget.replace(/[^\d+]/g, '')}`;
         } else if (actionType === 'url') {
-            const url = target.startsWith('http') ? target : `https://${target}`;
+            const url = resolvedTarget.startsWith('http') ? resolvedTarget : `https://${resolvedTarget}`;
             window.open(url, '_blank', 'noopener');
         }
     };
@@ -248,14 +261,16 @@ export function ActionButtonView({ block }: ActionButtonViewProps): JSX.Element 
                 size="lg"
                 className="imcrm-gap-2"
                 onClick={() => void handleClick()}
-                disabled={!target}
+                disabled={!resolvedTarget}
             >
                 <Icon className="imcrm-h-4 imcrm-w-4" />
                 {label || __('Acción')}
             </Button>
-            {!target && (
+            {!resolvedTarget && (
                 <p className="imcrm-mt-2 imcrm-text-[11px] imcrm-text-muted-foreground">
-                    {__('Configurá el target en el bloque.')}
+                    {targetSource === 'field'
+                        ? __('El campo no tiene valor en este registro.')
+                        : __('Configurá el target en el bloque.')}
                 </p>
             )}
         </section>
@@ -268,14 +283,23 @@ export function ActionButtonView({ block }: ActionButtonViewProps): JSX.Element 
 
 interface MarkdownBlockViewProps {
     block: Extract<ResolvedV2Block, { type: 'markdown' }>;
+    record: RecordEntity;
 }
 
-export function MarkdownBlockView({ block }: MarkdownBlockViewProps): JSX.Element {
+export function MarkdownBlockView({ block, record }: MarkdownBlockViewProps): JSX.Element {
+    // Igual que NotesView: resuelve content desde literal o desde un field.
+    let raw = '';
+    if (block.config.source === 'field' && block.config.field) {
+        const v = record.fields[block.config.field.slug];
+        raw = typeof v === 'string' ? v : '';
+    } else {
+        raw = block.config.content;
+    }
     return (
         <Card title={block.config.title || __('Notas')} icon={StickyNote}>
             <div
                 className="imcrm-prose-sm imcrm-text-sm imcrm-leading-relaxed imcrm-text-foreground"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(block.config.content) }}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(raw) }}
             />
         </Card>
     );

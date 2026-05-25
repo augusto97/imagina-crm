@@ -4,6 +4,91 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.50.0] — 2026-05-25
+
+**Bloques dinámicos alimentables desde campos del registro.**
+
+### Motivación
+
+Feedback del usuario: "hay varios bloques que hay que reconstruir
+ahora porque los veo que son estaticos y globales para todos pero que
+deberían tener la opción de ser dinámicos como los de notas ya que
+deberían tener la opción de poderse alimentar de un campo en lugar de
+solo ser algo fijo para todos los registros".
+
+Antes los bloques `notes`, `markdown`, `action_button` y `stats` eran
+template-level static — su contenido era idéntico para todos los
+registros de la lista. Solo `embed` ya tenía modo `field` desde antes.
+
+### Cambios por bloque
+
+**`V2NotesBlock`** + **`V2MarkdownBlock`** — nuevo campo
+`source: 'literal' | 'field'` (default `literal` para backward-compat)
+y `field_slug?`. Cuando es `field`, el renderer lee
+`record.fields[field_slug]` como string. Form filtra a campos
+`long_text` y `text`.
+
+**`V2ActionButtonBlock`** — nuevos campos `target_source` y
+`target_field_slug`. Cuando `target_source === 'field'`, resuelve el
+target dinámicamente del record. El selector de campo en el form se
+filtra según `action_type`:
+- `mailto` → solo fields tipo `email`
+- `url` → solo fields tipo `url`
+- `tel` → fields tipo `text` y `number`
+- `copy` → cualquier campo de texto/número/etc.
+
+Si el campo está vacío en un record específico, el botón queda
+disabled con mensaje "El campo no tiene valor en este registro."
+
+**`V2StatsBlock`** — antes tenía `config: Record<string, never>` (sin
+opciones). Ahora:
+```ts
+config: {
+    mode?: 'auto' | 'custom';
+    items?: Array<
+      | { kind: 'auto'; metric: 'days_in_system' | 'days_since_changes' | 'comments' | 'changes' }
+      | { kind: 'field'; field_slug: string; label?: string }
+    >;
+}
+```
+
+Modo `auto` (default, backward-compat) muestra las 4 métricas
+automáticas de toda la vida. Modo `custom` muestra exactamente los
+items definidos — pueden ser mezcla de auto-metrics y valores de
+campos (con label opcional por item). Reordenable con flechas
+arriba/abajo, eliminable individualmente.
+
+Formato de valor por tipo en custom: number/currency con
+`toLocaleString` + decimals del config, date con `toLocaleDateString`,
+checkbox con Sí/No, resto como string.
+
+### Forms (UI del editor)
+
+- `NotesForm`: agrega selector `<select source>` + `<select field>` cuando es field.
+- `MarkdownForm`: idem.
+- `ActionButtonForm`: agrega `<select target_source>` + selector de campo filtrado por action_type.
+- `StatsForm`: form completamente nuevo (antes el inspector decía "sin opciones"). Toggle mode + lista de items reordenable + dropdowns para agregar.
+- `BlockInspectorPanel`: ruta `stats` al nuevo `StatsForm`, pasa `fields` a NotesForm/MarkdownForm/ActionButtonForm.
+
+### Renderers
+
+- `NotesView` (en BlockRenderer.tsx) y `MarkdownBlockView`: lógica
+  común de resolución `source === 'field' ? record.fields[slug] : config.content`.
+- `ActionButtonView`: resuelve `resolvedTarget` antes de `handleClick`; mensaje específico cuando el campo está vacío.
+- `StatsBlock`: nuevo prop `mode`/`items`. Helper `renderAutoMetric` que respeta el orden custom; helper `formatFieldStatValue` para formato por tipo.
+
+### Archivos
+
+Modificados:
+- `app/lib/crmTemplates.ts` (5 tipos extendidos + resolver inflate de fields)
+- `app/admin/records/crm/BlockRenderer.tsx` (NotesView resuelve source + pass `record` a markdown/action/stats)
+- `app/admin/records/crm/blocks/SimpleBlockViews.tsx` (MarkdownBlockView + ActionButtonView reciben `record`)
+- `app/admin/records/crm/RightRail.tsx` (StatsBlock con custom items + helpers)
+- `app/admin/lists/template-editor/forms/BlockForms.tsx` (NotesForm/MarkdownForm/ActionButtonForm con source toggle + nuevo StatsForm)
+- `app/admin/lists/template-editor/panels/BlockInspectorPanel.tsx` (hookup StatsForm + pass fields)
+
+Build: 0 errores TS, 532 tests PHPUnit OK.
+
 ## [0.49.0] — 2026-05-25
 
 **Encabezado del registro CRM como bloque configurable del grid.**
