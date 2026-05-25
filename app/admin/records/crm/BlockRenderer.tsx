@@ -18,6 +18,7 @@ import {
     FilesBlockView,
     MarkdownBlockView,
 } from './blocks/SimpleBlockViews';
+import { RecordHeader, type RecordHeaderData } from './RecordHeader';
 import { RecordTimeline } from './RecordTimeline';
 import { RelatedBlock as RelatedBlockView, StatsBlock as StatsBlockView } from './RightRail';
 
@@ -31,6 +32,19 @@ export interface BlockRendererProps {
     onChange: (values: Record<string, unknown>) => void;
     fieldErrors?: Record<string, string>;
     record: RecordEntity;
+    /**
+     * Datos del header (qué campo es título, status fields, etc.) que
+     * vienen del template-level `headerSpec`. El bloque `header` los
+     * usa; los demás bloques los ignoran.
+     */
+    headerData?: RecordHeaderData;
+    /** Callback para guardar — solo el bloque `header` lo invoca. */
+    onSave?: () => void;
+    /** Callback para eliminar — solo el bloque `header` lo invoca. */
+    onDelete?: () => void;
+    canSave?: boolean;
+    saving?: boolean;
+    deleting?: boolean;
 }
 
 /**
@@ -48,7 +62,30 @@ export function BlockRenderer({
     onChange,
     fieldErrors,
     record,
+    headerData,
+    onSave,
+    onDelete,
+    canSave,
+    saving,
+    deleting,
 }: BlockRendererProps): JSX.Element | null {
+    if (block.type === 'header') {
+        // El header solo tiene sentido si tenemos los datos del template
+        // y los callbacks. Si los falta (ej. preview del editor),
+        // renderea con un fallback no-op.
+        return (
+            <RecordHeader
+                record={record}
+                data={headerData ?? { titleField: null, subtitleFields: [], statusFields: [], quickActions: [] }}
+                style={block.config}
+                onSave={onSave ?? (() => {})}
+                onDelete={onDelete ?? (() => {})}
+                canSave={canSave ?? false}
+                saving={saving ?? false}
+                deleting={deleting ?? false}
+            />
+        );
+    }
     if (block.type === 'properties_group') {
         return <PropertiesGroupView block={block} values={values} onChange={onChange} fieldErrors={fieldErrors} />;
     }

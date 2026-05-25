@@ -19,7 +19,6 @@ import type { RecordEntity } from '@/types/record';
 
 import { BlockRenderer } from './BlockRenderer';
 import { PortalAccessButton } from './PortalAccessButton';
-import { RecordHeader } from './RecordHeader';
 
 const SizedGrid = WidthProvider(GridLayout);
 
@@ -77,22 +76,6 @@ export function RecordCrmLayout({
         [list.settings, fields],
     );
 
-    // Header layout simple para alimentar al `<RecordHeader>` (sigue
-    // consumiendo el `ResolvedLayout` V1; le pasamos un objeto
-    // compat con sólo los slots de header poblados).
-    const headerLayoutCompat = useMemo(
-        () => ({
-            titleField: resolved.header.titleField,
-            subtitleFields: resolved.header.subtitleFields,
-            statusFields: resolved.header.statusFields,
-            quickActions: resolved.header.quickActions,
-            sidebarGroups: [],
-            rightRail: [],
-            leftover: [],
-        }),
-        [resolved.header],
-    );
-
     const gridLayout: LayoutItem[] = useMemo(
         () =>
             resolved.blocks.map((b) => ({
@@ -139,16 +122,6 @@ export function RecordCrmLayout({
                 </Link>
             </Button>
 
-            <RecordHeader
-                record={record}
-                layout={headerLayoutCompat}
-                onSave={() => void handleSave()}
-                onDelete={onDelete}
-                canSave={dirty}
-                saving={update.isPending}
-                deleting={deleting}
-            />
-
             <PortalAccessButton list={list} record={record} />
 
             {resolved.blocks.length === 0 ? (
@@ -188,6 +161,12 @@ export function RecordCrmLayout({
                                 onChange={setValues}
                                 fieldErrors={fieldErrors}
                                 record={record}
+                                headerData={resolved.header}
+                                onSave={() => void handleSave()}
+                                onDelete={onDelete}
+                                canSave={dirty}
+                                saving={update.isPending}
+                                deleting={deleting}
                             />
                         </div>
                     ))}

@@ -20,6 +20,134 @@ import type { FieldEntity } from '@/types/field';
 
 type UpdateFn<B extends V2Block> = (patch: { config: B['config'] }) => void;
 
+// ─────────────────────────────────────────────────────────────────────
+//  Header block form
+// ─────────────────────────────────────────────────────────────────────
+
+export function HeaderForm({
+    block,
+    onUpdate,
+}: {
+    block: Extract<V2Block, { type: 'header' }>;
+    onUpdate: UpdateFn<Extract<V2Block, { type: 'header' }>>;
+}): JSX.Element {
+    const updateConfig = (patch: Partial<typeof block.config>): void => {
+        onUpdate({ config: { ...block.config, ...patch } });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-4">
+            <Field label={__('Variante')}>
+                <select
+                    value={block.config.variant}
+                    onChange={(e) =>
+                        updateConfig({
+                            variant: e.target.value as 'hero' | 'compact' | 'minimal' | 'banner',
+                        })
+                    }
+                    className="imcrm-h-9 imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
+                >
+                    <option value="hero">{__('Hero (avatar grande + banda)')}</option>
+                    <option value="compact">{__('Compacta (una sola fila)')}</option>
+                    <option value="minimal">{__('Minimal (sin avatar)')}</option>
+                    <option value="banner">{__('Banner (centrado, estilo perfil)')}</option>
+                </select>
+            </Field>
+
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                <Label className="imcrm-text-xs">{__('Elementos visibles')}</Label>
+                <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-x-3 imcrm-gap-y-2">
+                    <Toggle
+                        label={__('Avatar')}
+                        checked={block.config.show_avatar}
+                        onChange={(v) => updateConfig({ show_avatar: v })}
+                    />
+                    <Toggle
+                        label={__('Badge #ID')}
+                        checked={block.config.show_id_badge}
+                        onChange={(v) => updateConfig({ show_id_badge: v })}
+                    />
+                    <Toggle
+                        label={__('Subtítulo')}
+                        checked={block.config.show_subtitle}
+                        onChange={(v) => updateConfig({ show_subtitle: v })}
+                    />
+                    <Toggle
+                        label={__('Fecha de creación')}
+                        checked={block.config.show_created_at}
+                        onChange={(v) => updateConfig({ show_created_at: v })}
+                    />
+                    <Toggle
+                        label={__('Status pills')}
+                        checked={block.config.show_status_strip}
+                        onChange={(v) => updateConfig({ show_status_strip: v })}
+                    />
+                    <Toggle
+                        label={__('Botones acción')}
+                        checked={block.config.show_actions}
+                        onChange={(v) => updateConfig({ show_actions: v })}
+                    />
+                </div>
+            </div>
+
+            <Field label={__('Color de acento (opcional)')}>
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <input
+                        type="color"
+                        value={block.config.accent_color ?? '#5a3fcc'}
+                        onChange={(e) => updateConfig({ accent_color: e.target.value })}
+                        className="imcrm-h-9 imcrm-w-12 imcrm-cursor-pointer imcrm-rounded-md imcrm-border imcrm-border-input"
+                    />
+                    <Input
+                        value={block.config.accent_color ?? ''}
+                        onChange={(e) => updateConfig({ accent_color: e.target.value || null })}
+                        placeholder={__('Auto (desde título)')}
+                        className="imcrm-flex-1 imcrm-h-9 imcrm-text-sm imcrm-font-mono"
+                    />
+                    {block.config.accent_color !== null && (
+                        <button
+                            type="button"
+                            onClick={() => updateConfig({ accent_color: null })}
+                            className="imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-text-foreground"
+                        >
+                            {__('Reset')}
+                        </button>
+                    )}
+                </div>
+                <p className="imcrm-mt-1 imcrm-text-[10px] imcrm-text-muted-foreground">
+                    {__('Si está vacío, se calcula automáticamente a partir del título del registro.')}
+                </p>
+            </Field>
+
+            <p className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-px-3 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground">
+                {__('Los campos que se muestran como título, subtítulo, status y quick actions se configuran en "Encabezado" arriba del editor, no acá.')}
+            </p>
+        </div>
+    );
+}
+
+function Toggle({
+    label,
+    checked,
+    onChange,
+}: {
+    label: string;
+    checked: boolean;
+    onChange: (v: boolean) => void;
+}): JSX.Element {
+    return (
+        <label className="imcrm-flex imcrm-cursor-pointer imcrm-items-center imcrm-gap-2 imcrm-text-xs">
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
+                className="imcrm-h-4 imcrm-w-4 imcrm-rounded imcrm-border-input"
+            />
+            <span>{label}</span>
+        </label>
+    );
+}
+
 export function PropertiesGroupForm({
     block,
     fields,

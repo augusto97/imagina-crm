@@ -1,4 +1,9 @@
-import type { CustomTemplateConfigV2, V2Block, V2BlockType } from '@/lib/crmTemplates';
+import {
+    defaultHeaderBlockConfig,
+    type CustomTemplateConfigV2,
+    type V2Block,
+    type V2BlockType,
+} from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 
@@ -31,6 +36,11 @@ export function createBlock(
         h: 4,
     };
 
+    if (type === 'header') {
+        // Header siempre 12-wide, h=4 — es el patrón visual estándar
+        // (full bleed arriba). El user puede después reducirlo.
+        return { ...base, x: 0, w: 12, h: 4, type, config: defaultHeaderBlockConfig() };
+    }
     if (type === 'properties_group') {
         return { ...base, type, config: { label: __('Grupo nuevo'), icon_key: 'database', field_slugs: [], collapsed_by_default: false } };
     }

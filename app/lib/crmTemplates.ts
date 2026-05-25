@@ -1527,6 +1527,7 @@ export function getResolvedLayout(
  */
 
 export type V2BlockType =
+    | 'header'
     | 'properties_group'
     | 'timeline'
     | 'stats'
@@ -1548,6 +1549,52 @@ interface V2BlockBase {
     y: number;
     w: number;
     h: number;
+}
+
+/**
+ * Bloque de cabecera del registro. Antes era un componente fijo
+ * renderizado fuera del grid (`<RecordHeader>` en `RecordCrmLayout`).
+ * Desde 0.49.0 vive en el grid como cualquier otro bloque: el usuario
+ * puede redimensionarlo, moverlo, cambiarle estilo, e incluso eliminarlo
+ * (aunque sin él pierde el acceso a los botones Guardar/Eliminar).
+ *
+ * Los datos (qué campo es título, subtítulos, status pills, quick actions)
+ * siguen siendo template-level — vienen del `headerSpec` del template
+ * resuelto. El bloque solo controla la APARIENCIA.
+ *
+ * Backward-compat: si una plantilla V2 serializada no tiene `header`
+ * block, el resolver inyecta uno sintético al tope (x=0,y=0,w=12,h=4)
+ * con defaults seguros — el render es idéntico al hardcoded previo.
+ */
+export interface V2HeaderBlock extends V2BlockBase {
+    type: 'header';
+    config: {
+        /**
+         * Variante visual:
+         *  - `hero` (default) — avatar grande 16×16, banda decorativa de
+         *    gradient arriba, layout horizontal estándar. Es lo que se
+         *    renderea hoy.
+         *  - `compact` — una sola fila, avatar pequeño (10×10), título
+         *    inline con badges al lado, sin banda decorativa. Ideal
+         *    para fichas con mucho contenido abajo.
+         *  - `minimal` — sin avatar, solo título grande + #id + acciones.
+         *    Layout más limpio, casi sin chrome.
+         *  - `banner` — avatar y título centrados, layout vertical
+         *    estilo página de perfil. Acciones abajo del status strip.
+         */
+        variant: 'hero' | 'compact' | 'minimal' | 'banner';
+        show_avatar: boolean;
+        show_id_badge: boolean;
+        show_subtitle: boolean;
+        show_created_at: boolean;
+        show_status_strip: boolean;
+        show_actions: boolean;
+        /**
+         * Override del color del avatar/banda. Si es null, se calcula
+         * a partir del título (hash → HSL). Acepta hex tipo `#5a3fcc`.
+         */
+        accent_color: string | null;
+    };
 }
 
 export interface V2PropertiesGroupBlock extends V2BlockBase {
@@ -1734,6 +1781,7 @@ export interface V2CommentsThreadBlock extends V2BlockBase {
 }
 
 export type V2Block =
+    | V2HeaderBlock
     | V2PropertiesGroupBlock
     | V2TimelineBlock
     | V2StatsBlock
@@ -1871,11 +1919,13 @@ export function customConfigV2FromBuiltin(
     fields: FieldEntity[],
 ): CustomTemplateConfigV2 {
     const tpl = getTemplate(builtinId);
-    if (tpl.resolveV2) {
-        return tpl.resolveV2(fields);
-    }
-    const v1 = customConfigFromBuiltin(builtinId, fields);
-    return migrateV1toV2(v1);
+    const raw = tpl.resolveV2
+        ? tpl.resolveV2(fields)
+        : migrateV1toV2(customConfigFromBuiltin(builtinId, fields));
+    // Las built-ins no emiten header block (su `V2Builder` no lo conoce);
+    // lo agregamos acá una sola vez para que el editor lo vea como un
+    // bloque real y el render sea consistente con custom configs.
+    return ensureHeaderBlock(raw);
 }
 
 function isCustomConfig(v: unknown): v is CustomTemplateConfig {
@@ -1902,9 +1952,36 @@ function isV2Config(v: unknown): v is CustomTemplateConfigV2 {
  * un V2 vacío (defensivo — no crashea).
  */
 export function ensureV2(config: unknown): CustomTemplateConfigV2 {
-    if (isV2Config(config)) return config;
-    if (isCustomConfig(config)) return migrateV1toV2(config);
-    return emptyCustomConfigV2();
+    if (isV2Config(config)) return ensureHeaderBlock(config);
+    if (isCustomConfig(config)) return ensureHeaderBlock(migrateV1toV2(config));
+    return ensureHeaderBlock(emptyCustomConfigV2());
+}
+
+/**
+ * Garantiza que el config tenga un header block al tope. Si no lo
+ * tiene, prepende uno con defaults y desplaza los demás 4 filas hacia
+ * abajo — espejando la lógica de `getResolvedV2` para mantener el
+ * shape persistido en sincro con el render.
+ *
+ * Usado al cargar el editor — así el usuario ve el header como un
+ * bloque real desde el primer momento (puede clickearlo y configurarlo
+ * en lugar de tener que agregarlo manualmente desde la palette).
+ */
+function ensureHeaderBlock(config: CustomTemplateConfigV2): CustomTemplateConfigV2 {
+    if (config.blocks.some((b) => b.type === 'header')) return config;
+    const shifted = config.blocks.map((b) => ({ ...b, y: b.y + 4 }));
+    return {
+        ...config,
+        blocks: [
+            {
+                id: 'header',
+                x: 0, y: 0, w: 12, h: 4,
+                type: 'header',
+                config: defaultHeaderBlockConfig(),
+            },
+            ...shifted,
+        ],
+    };
 }
 
 /**
@@ -1931,6 +2008,17 @@ interface ResolvedBase {
 }
 
 export type ResolvedV2Block =
+    | (ResolvedBase & { type: 'header';
+        config: {
+            variant: 'hero' | 'compact' | 'minimal' | 'banner';
+            showAvatar: boolean;
+            showIdBadge: boolean;
+            showSubtitle: boolean;
+            showCreatedAt: boolean;
+            showStatusStrip: boolean;
+            showActions: boolean;
+            accentColor: string | null;
+        } })
     | (ResolvedBase & { type: 'properties_group';
         config: {
             label: string;
@@ -1991,9 +2079,26 @@ export function resolveV2(
         slugs.map((s) => bySlug.get(s)).filter((f): f is FieldEntity => f !== undefined);
 
     const blocks: ResolvedV2Block[] = [];
+    let hasHeader = false;
     for (const b of config.blocks) {
         const base = { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h };
-        if (b.type === 'properties_group') {
+        if (b.type === 'header') {
+            hasHeader = true;
+            blocks.push({
+                ...base,
+                type: 'header',
+                config: {
+                    variant: b.config.variant,
+                    showAvatar: b.config.show_avatar,
+                    showIdBadge: b.config.show_id_badge,
+                    showSubtitle: b.config.show_subtitle,
+                    showCreatedAt: b.config.show_created_at,
+                    showStatusStrip: b.config.show_status_strip,
+                    showActions: b.config.show_actions,
+                    accentColor: b.config.accent_color,
+                },
+            });
+        } else if (b.type === 'properties_group') {
             blocks.push({
                 ...base,
                 type: 'properties_group',
@@ -2115,6 +2220,25 @@ export function resolveV2(
         quickActions.push({ field: f, kind });
     }
 
+    // Backward-compat: plantillas V2 serializadas antes de 0.49.0 (y
+    // todas las built-in resueltas por V2Builder, que no emite header
+    // block) no tienen header. Inyectamos uno sintético al tope y
+    // desplazamos los demás 4 filas hacia abajo — el hardcoded
+    // `<RecordHeader>` previo vivía fuera del grid ocupando ~4 filas
+    // de espacio vertical visual, así que el shift preserva el look
+    // sin colisiones.
+    if (! hasHeader) {
+        for (const b of blocks) {
+            b.y += 4;
+        }
+        blocks.unshift({
+            id: '__synthetic_header__',
+            x: 0, y: 0, w: 12, h: 4,
+            type: 'header',
+            config: defaultHeaderResolvedConfig(),
+        });
+    }
+
     return {
         header: {
             titleField: lookupOne(config.header.title_field_slug),
@@ -2123,6 +2247,50 @@ export function resolveV2(
             quickActions,
         },
         blocks,
+    };
+}
+
+/**
+ * Defaults para un header block — usado tanto por la inyección
+ * sintética en `getResolvedV2` (backward-compat) como por la palette
+ * del editor cuando el user agrega un header block desde cero.
+ */
+export function defaultHeaderResolvedConfig(): {
+    variant: 'hero' | 'compact' | 'minimal' | 'banner';
+    showAvatar: boolean;
+    showIdBadge: boolean;
+    showSubtitle: boolean;
+    showCreatedAt: boolean;
+    showStatusStrip: boolean;
+    showActions: boolean;
+    accentColor: string | null;
+} {
+    return {
+        variant: 'hero',
+        showAvatar: true,
+        showIdBadge: true,
+        showSubtitle: true,
+        showCreatedAt: true,
+        showStatusStrip: true,
+        showActions: true,
+        accentColor: null,
+    };
+}
+
+/**
+ * Versión serializable (snake_case) del header config — para construir
+ * el bloque desde la palette del editor.
+ */
+export function defaultHeaderBlockConfig(): V2HeaderBlock['config'] {
+    return {
+        variant: 'hero',
+        show_avatar: true,
+        show_id_badge: true,
+        show_subtitle: true,
+        show_created_at: true,
+        show_status_strip: true,
+        show_actions: true,
+        accent_color: null,
     };
 }
 

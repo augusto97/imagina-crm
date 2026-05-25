@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.48.0
+Stable tag: 0.49.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,37 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.49.0 =
+**Encabezado del registro CRM como bloque configurable.**
+
+Antes el header (avatar, título, badges, status pills, botones
+Guardar/Eliminar) era un componente fijo arriba del grid — no se
+podía mover, redimensionar ni cambiar de estilo. Desde 0.49.0 vive
+en el grid como cualquier otro bloque.
+
+**4 variantes visuales** seleccionables por bloque:
+- **Hero** (default) — avatar 16×16 con ring + banda decorativa
+  superior coloreada, layout horizontal estándar.
+- **Compact** — una sola fila densa con avatar pequeño y título
+  inline. Ideal cuando la ficha tiene mucho contenido abajo.
+- **Minimal** — sin avatar, solo título grande + acciones. Layout
+  limpio casi sin chrome.
+- **Banner** — avatar y título centrados estilo página de perfil,
+  gradient sutil de fondo.
+
+**Toggles individuales** para mostrar/ocultar cada elemento:
+avatar, badge #ID, subtítulo, fecha de creación, status pills y
+botones de acción.
+
+**Color de acento personalizable** (color picker hex) o automático
+desde el hash del título.
+
+Backward-compat: plantillas serializadas antes de 0.49.0 (y todas las
+built-in que no emiten header block) reciben uno sintético al cargar,
+con defaults equivalentes al hardcoded previo. El render visual es
+idéntico — la diferencia es que ahora el header es clickeable en el
+editor de plantilla.
 
 = 0.48.0 =
 **Pulido visual del layout CRM: densidad, tipos visuales y polish del header.**

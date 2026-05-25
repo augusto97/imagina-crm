@@ -4,6 +4,102 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.49.0] — 2026-05-25
+
+**Encabezado del registro CRM como bloque configurable del grid.**
+
+### Motivación
+
+Feedback del usuario: "me gustaría poder ajustar el bloque de
+'Encabezado del panel' que veo que ahora no existe sino que es
+automatico y no le puedo ajustar el ancho". El header era un
+componente fijo (`<RecordHeader>`) renderizado en `RecordCrmLayout`
+fuera del grid — no se podía mover, redimensionar ni configurar.
+
+### Cambios
+
+#### Nuevo tipo de bloque V2: `header`
+
+`V2HeaderBlock` con config:
+- `variant`: `'hero' | 'compact' | 'minimal' | 'banner'`
+- `show_avatar`, `show_id_badge`, `show_subtitle`, `show_created_at`,
+  `show_status_strip`, `show_actions` (booleans)
+- `accent_color`: string hex | null (auto desde hash del título)
+
+#### 4 variantes visuales
+
+- **`hero`** — avatar 16×16 rounded-2xl con ring-4, banda decorativa
+  gradient arriba, layout horizontal con título + subtítulo + fecha.
+  Equivalente al estilo previo.
+- **`compact`** — fila única, avatar 10×10 rounded-lg, título inline
+  con badges, sin banda decorativa. Padding 3 vs 5 del hero.
+- **`minimal`** — sin avatar, solo título grande + acciones a la
+  derecha. Sin border ni bg (transparente). Layout limpio.
+- **`banner`** — avatar 20×20 + título centrados, gradient sutil del
+  accent color como bg, acciones debajo del status strip.
+
+#### Datos vs estilo
+
+Los **datos** (qué campo es título, subtítulos, status, quick actions)
+siguen siendo template-level — vienen del `headerSpec` del template
+resuelto. Solo el **estilo** vive en `block.config`. Esto preserva la
+coherencia entre header config y search/sort/etc.
+
+#### Backward-compat
+
+3 puntos de inyección automática del header block:
+
+1. **`getResolvedV2` (render)**: si los blocks resueltos no incluyen
+   `header`, inyecta uno sintético en (0,0,12,4) y shifta los demás
+   `y += 4`. Templates legacy renderean idénticos al visual previo.
+2. **`ensureV2` (load editor con config custom)**: si la config
+   serializada no tiene header block, prepende uno con defaults antes
+   de devolverla.
+3. **`customConfigV2FromBuiltin` (load editor con template built-in)**:
+   las built-in templates (`V2Builder.build()`) no emiten header, así
+   que se inyecta acá. El user ve el header inmediatamente como bloque
+   real en el editor.
+
+El render del header en el grid usa `RecordHeader` (refactorizado para
+aceptar `style: RecordHeaderStyle` + `data: RecordHeaderData` en lugar
+del `layout: ResolvedLayout` compat shim que se eliminó del flujo).
+
+#### Hookup del editor
+
+- `HeaderForm` en `app/admin/lists/template-editor/forms/BlockForms.tsx`:
+  - `<select>` de variante
+  - 6 toggles para show_*
+  - color picker hex + input para accent_color con botón Reset
+- `BlockInspectorPanel` ruta `block.type === 'header'` al `HeaderForm`.
+- `BlockPalettePanel` lista el header en nueva categoría "Estructura"
+  con `singleton: true` (1 solo por panel).
+- `createBlock('header')` retorna bloque con `defaultHeaderBlockConfig()`
+  y posición 12-wide al tope.
+- `EditorCommandPalette.describeBlock` maneja el nuevo tipo.
+
+### Archivos
+
+Modificados:
+- `app/lib/crmTemplates.ts` (V2HeaderBlock + ResolvedV2Block + resolver
+  + ensureV2 + customConfigV2FromBuiltin + factories de defaults)
+- `app/admin/records/crm/RecordCrmLayout.tsx` (elimina render fijo del
+  header, pasa headerData + callbacks al BlockRenderer)
+- `app/admin/records/crm/RecordHeader.tsx` (reescrito — 4 variantes,
+  acepta `data` + `style` props)
+- `app/admin/records/crm/BlockRenderer.tsx` (case `header` →
+  `<RecordHeader>`, props opcionales)
+- `app/admin/lists/template-editor/forms/BlockForms.tsx` (HeaderForm
+  + Toggle helper)
+- `app/admin/lists/template-editor/panels/BlockInspectorPanel.tsx`
+  (ruta a HeaderForm + title/desc)
+- `app/admin/lists/template-editor/panels/BlockPalettePanel.tsx`
+  (categoría "Estructura" + Layout icon)
+- `app/admin/lists/template-editor/utils/createBlock.ts`
+- `app/admin/lists/template-editor/EditorCommandPalette.tsx`
+  (describeBlock para 'header')
+
+Build: 0 errores TS, 532 tests PHPUnit OK.
+
 ## [0.48.0] — 2026-05-25
 
 **Pulido visual del layout CRM.**

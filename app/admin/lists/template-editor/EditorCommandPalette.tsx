@@ -460,6 +460,8 @@ function describeBlock(block: V2Block): string {
             return __('Timeline');
         case 'stats':
             return __('Resumen');
+        case 'header':
+            return __('Encabezado');
     }
 }
 

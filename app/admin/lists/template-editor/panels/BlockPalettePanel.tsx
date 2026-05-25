@@ -6,6 +6,7 @@ import {
     GripVertical,
     Hash,
     Heading,
+    Layout,
     MessageSquare,
     Minus,
     MousePointerClick,
@@ -361,6 +362,19 @@ function FieldPaletteCard({
 
 function buildCategories(): PaletteCategory[] {
     return [
+        {
+            id: 'structure',
+            label: __('Estructura'),
+            items: [
+                {
+                    type: 'header',
+                    label: __('Encabezado'),
+                    description: __('Avatar, título, status pills y acciones. 1 por panel.'),
+                    icon: Layout,
+                    singleton: true,
+                },
+            ],
+        },
         {
             id: 'data',
             label: __('Datos'),

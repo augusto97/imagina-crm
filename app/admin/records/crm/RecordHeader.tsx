@@ -5,13 +5,31 @@ import { Button } from '@/components/ui/button';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { colorFromString, initialsFromValue } from '@/lib/recordCategorize';
-import type { ResolvedLayout } from '@/lib/crmTemplates';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
+export interface RecordHeaderData {
+    titleField: FieldEntity | null;
+    subtitleFields: FieldEntity[];
+    statusFields: FieldEntity[];
+    quickActions: Array<{ field: FieldEntity; kind: 'email' | 'phone' | 'url' }>;
+}
+
+export interface RecordHeaderStyle {
+    variant: 'hero' | 'compact' | 'minimal' | 'banner';
+    showAvatar: boolean;
+    showIdBadge: boolean;
+    showSubtitle: boolean;
+    showCreatedAt: boolean;
+    showStatusStrip: boolean;
+    showActions: boolean;
+    accentColor: string | null;
+}
+
 interface RecordHeaderProps {
     record: RecordEntity;
-    layout: ResolvedLayout;
+    data: RecordHeaderData;
+    style: RecordHeaderStyle;
     onSave: () => void;
     onDelete: () => void;
     canSave: boolean;
@@ -20,21 +38,28 @@ interface RecordHeaderProps {
 }
 
 /**
- * Header del layout CRM. Lee del `ResolvedLayout` (producido por la
- * plantilla seleccionada) en lugar de aplicar heurística propia. Así
- * cada plantilla controla qué campos van como status pills, quick
- * actions y subtítulo.
+ * Header del registro CRM. Antes era un componente fijo arriba del
+ * grid; desde 0.49.0 se rendea como bloque `header` dentro del grid
+ * para que el usuario pueda redimensionarlo, moverlo y configurarlo.
+ *
+ * Cuatro variantes visuales — switchean layout interno pero todas
+ * comparten los mismos elementos (cuando están activados):
+ *  - `hero`    (default) avatar 16×16 + banda decorativa + layout horizontal
+ *  - `compact` una sola fila densa con avatar 10×10 + título inline
+ *  - `minimal` sin avatar, solo título grande + acciones
+ *  - `banner`  avatar y título centrados (estilo página de perfil)
  */
 export function RecordHeader({
     record,
-    layout,
+    data,
+    style,
     onSave,
     onDelete,
     canSave,
     saving,
     deleting,
 }: RecordHeaderProps): JSX.Element {
-    const titleField = layout.titleField;
+    const titleField = data.titleField;
     const titleValue =
         titleField && typeof record.fields[titleField.slug] === 'string'
             ? (record.fields[titleField.slug] as string)
@@ -45,97 +70,213 @@ export function RecordHeader({
             : sprintf(/* translators: %d id */ __('Registro #%d'), record.id);
 
     const initials = initialsFromValue(titleValue || String(record.id));
-    const avatarColor = colorFromString(titleValue || String(record.id));
+    const avatarColor = style.accentColor ?? colorFromString(titleValue || String(record.id));
 
-    const subtitleParts = layout.subtitleFields
+    const subtitleParts = data.subtitleFields
         .map((f) => formatFieldValue(f, record.fields[f.slug]))
         .filter((s): s is string => s !== null && s !== '');
 
-    return (
-        <header
-            className={cn(
-                'imcrm-relative imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
+    const idBadge = style.showIdBadge ? (
+        <Badge variant="outline" className="imcrm-font-mono imcrm-text-[10px] imcrm-font-medium">
+            #{record.id}
+        </Badge>
+    ) : null;
+
+    const actions = style.showActions ? (
+        <div className="imcrm-flex imcrm-shrink-0 imcrm-gap-2">
+            <Button
+                variant="ghost"
+                size="sm"
+                className="imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
+                onClick={onDelete}
+                disabled={deleting}
+            >
+                <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                {__('Eliminar')}
+            </Button>
+            <Button
+                onClick={onSave}
+                disabled={!canSave || saving}
+                size="sm"
+                className="imcrm-gap-2 imcrm-shadow-imcrm-sm"
+            >
+                <Save className="imcrm-h-4 imcrm-w-4" />
+                {saving ? __('Guardando…') : __('Guardar')}
+            </Button>
+        </div>
+    ) : null;
+
+    const statusStrip = style.showStatusStrip
+        && (data.statusFields.length > 0 || data.quickActions.length > 0) ? (
+        <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-1.5 imcrm-rounded-lg imcrm-border imcrm-border-border/60 imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2">
+            {data.statusFields.map((f) => (
+                <StatusPill key={f.id} field={f} value={record.fields[f.slug]} />
+            ))}
+            {data.statusFields.length > 0 && data.quickActions.length > 0 && (
+                <span aria-hidden className="imcrm-mx-1 imcrm-h-4 imcrm-w-px imcrm-bg-border" />
             )}
-        >
-            {/* Banda decorativa superior coloreada por el avatar.
-                Da identidad visual sin saturar — estilo Linear/HubSpot. */}
-            <div
-                aria-hidden
-                className="imcrm-h-1.5 imcrm-w-full"
-                style={{ background: `linear-gradient(90deg, ${avatarColor} 0%, ${avatarColor}80 100%)` }}
-            />
-            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-p-5">
-                <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-4">
-                    <div className="imcrm-flex imcrm-min-w-0 imcrm-items-start imcrm-gap-4">
+            {data.quickActions.map(({ field, kind }) => {
+                const v = record.fields[field.slug];
+                if (typeof v !== 'string' || v === '') return null;
+                return <QuickAction key={field.id} kind={kind} value={v} label={field.label} />;
+            })}
+        </div>
+    ) : null;
+
+    if (style.variant === 'compact') {
+        return (
+            <header className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-3">
+                    {style.showAvatar && (
                         <div
                             aria-hidden
-                            className={cn(
-                                'imcrm-flex imcrm-h-16 imcrm-w-16 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-2xl imcrm-text-lg imcrm-font-semibold imcrm-text-white imcrm-shadow-imcrm-md',
-                                'imcrm-ring-4 imcrm-ring-card',
-                            )}
+                            className="imcrm-flex imcrm-h-10 imcrm-w-10 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-text-sm imcrm-font-semibold imcrm-text-white"
                             style={{ backgroundColor: avatarColor }}
                         >
                             {initials}
                         </div>
+                    )}
+                    <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col">
+                        <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-base imcrm-font-semibold imcrm-tracking-tight">
+                            <span className="imcrm-truncate">{title}</span>
+                            {idBadge}
+                        </h1>
+                        {style.showSubtitle && subtitleParts.length > 0 && (
+                            <p className="imcrm-truncate imcrm-text-xs imcrm-text-muted-foreground">
+                                {subtitleParts.join(' · ')}
+                            </p>
+                        )}
+                    </div>
+                    {actions}
+                </div>
+                {statusStrip}
+            </header>
+        );
+    }
+
+    if (style.variant === 'minimal') {
+        return (
+            <header className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-justify-center imcrm-gap-2 imcrm-rounded-lg imcrm-p-4">
+                <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-3">
+                    <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-1">
+                        <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
+                            <span className="imcrm-truncate">{title}</span>
+                            {idBadge}
+                        </h1>
+                        {style.showSubtitle && subtitleParts.length > 0 && (
+                            <p className="imcrm-text-sm imcrm-text-muted-foreground">
+                                {subtitleParts.join(' · ')}
+                            </p>
+                        )}
+                    </div>
+                    {actions}
+                </div>
+                {statusStrip}
+            </header>
+        );
+    }
+
+    if (style.variant === 'banner') {
+        return (
+            <header
+                className={cn(
+                    'imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
+                )}
+                style={{
+                    background: `linear-gradient(135deg, ${avatarColor}14 0%, ${avatarColor}05 100%)`,
+                }}
+            >
+                {style.showAvatar && (
+                    <div
+                        aria-hidden
+                        className="imcrm-flex imcrm-h-20 imcrm-w-20 imcrm-items-center imcrm-justify-center imcrm-rounded-2xl imcrm-text-xl imcrm-font-semibold imcrm-text-white imcrm-shadow-imcrm-md imcrm-ring-4 imcrm-ring-card"
+                        style={{ backgroundColor: avatarColor }}
+                    >
+                        {initials}
+                    </div>
+                )}
+                <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-gap-1.5 imcrm-text-center">
+                    <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-justify-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
+                        <span>{title}</span>
+                        {idBadge}
+                    </h1>
+                    {style.showSubtitle && subtitleParts.length > 0 && (
+                        <p className="imcrm-text-sm imcrm-text-muted-foreground">
+                            {subtitleParts.join(' · ')}
+                        </p>
+                    )}
+                    {style.showCreatedAt && (
+                        <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                            {sprintf(
+                                __('Creado %s'),
+                                record.created_at
+                                    ? new Date(record.created_at + 'Z').toLocaleString()
+                                    : '—',
+                            )}
+                        </p>
+                    )}
+                </div>
+                {statusStrip}
+                {actions && <div className="imcrm-pt-1">{actions}</div>}
+            </header>
+        );
+    }
+
+    // variant === 'hero' (default)
+    return (
+        <header
+            className={cn(
+                'imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
+            )}
+        >
+            <div
+                aria-hidden
+                className="imcrm-h-1.5 imcrm-w-full"
+                style={{
+                    background: `linear-gradient(90deg, ${avatarColor} 0%, ${avatarColor}80 100%)`,
+                }}
+            />
+            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-3 imcrm-p-5">
+                <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-4">
+                    <div className="imcrm-flex imcrm-min-w-0 imcrm-items-start imcrm-gap-4">
+                        {style.showAvatar && (
+                            <div
+                                aria-hidden
+                                className={cn(
+                                    'imcrm-flex imcrm-h-16 imcrm-w-16 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-2xl imcrm-text-lg imcrm-font-semibold imcrm-text-white imcrm-shadow-imcrm-md',
+                                    'imcrm-ring-4 imcrm-ring-card',
+                                )}
+                                style={{ backgroundColor: avatarColor }}
+                            >
+                                {initials}
+                            </div>
+                        )}
                         <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-1.5">
                             <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
                                 <span className="imcrm-truncate">{title}</span>
-                                <Badge variant="outline" className="imcrm-font-mono imcrm-text-[10px] imcrm-font-medium">
-                                    #{record.id}
-                                </Badge>
+                                {idBadge}
                             </h1>
-                            {subtitleParts.length > 0 && (
+                            {style.showSubtitle && subtitleParts.length > 0 && (
                                 <p className="imcrm-text-sm imcrm-text-muted-foreground">
                                     {subtitleParts.join(' · ')}
                                 </p>
                             )}
-                            <p className="imcrm-text-xs imcrm-text-muted-foreground">
-                                {sprintf(
-                                    /* translators: %s: localized creation date */
-                                    __('Creado %s'),
-                                    record.created_at
-                                        ? new Date(record.created_at + 'Z').toLocaleString()
-                                        : '—',
-                                )}
-                            </p>
+                            {style.showCreatedAt && (
+                                <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                    {sprintf(
+                                        /* translators: %s: localized creation date */
+                                        __('Creado %s'),
+                                        record.created_at
+                                            ? new Date(record.created_at + 'Z').toLocaleString()
+                                            : '—',
+                                    )}
+                                </p>
+                            )}
                         </div>
                     </div>
-
-                    <div className="imcrm-flex imcrm-shrink-0 imcrm-gap-2">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
-                            onClick={onDelete}
-                            disabled={deleting}
-                        >
-                            <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                            {__('Eliminar')}
-                        </Button>
-                        <Button onClick={onSave} disabled={!canSave || saving} size="sm" className="imcrm-gap-2 imcrm-shadow-imcrm-sm">
-                            <Save className="imcrm-h-4 imcrm-w-4" />
-                            {saving ? __('Guardando…') : __('Guardar')}
-                        </Button>
-                    </div>
+                    {actions}
                 </div>
-
-                {(layout.statusFields.length > 0 || layout.quickActions.length > 0) && (
-                    <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-1.5 imcrm-rounded-lg imcrm-border imcrm-border-border/60 imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2">
-                        {layout.statusFields.map((f) => (
-                            <StatusPill key={f.id} field={f} value={record.fields[f.slug]} />
-                        ))}
-                        {layout.statusFields.length > 0 && layout.quickActions.length > 0 && (
-                            <span aria-hidden className="imcrm-mx-1 imcrm-h-4 imcrm-w-px imcrm-bg-border" />
-                        )}
-                        {layout.quickActions.map(({ field, kind }) => {
-                            const v = record.fields[field.slug];
-                            if (typeof v !== 'string' || v === '') return null;
-                            return (
-                                <QuickAction key={field.id} kind={kind} value={v} label={field.label} />
-                            );
-                        })}
-                    </div>
-                )}
+                {statusStrip}
             </div>
         </header>
     );
@@ -147,7 +288,7 @@ function formatFieldValue(field: FieldEntity, value: unknown): string | null {
     if (typeof value === 'number') return String(value);
     if (field.type === 'date' || field.type === 'datetime') {
         const d = new Date(field.type === 'date' ? String(value) : String(value) + 'Z');
-        if (! Number.isNaN(d.getTime())) return d.toLocaleDateString();
+        if (!Number.isNaN(d.getTime())) return d.toLocaleDateString();
     }
     return null;
 }
@@ -175,7 +316,11 @@ function StatusPill({ field, value }: { field: FieldEntity; value: unknown }): J
                 {value.map((v) => {
                     const opt = options.find((o) => o.value === v);
                     return (
-                        <Badge key={String(v)} variant="default" style={opt?.color ? styleFromColor(opt.color) : undefined}>
+                        <Badge
+                            key={String(v)}
+                            variant="default"
+                            style={opt?.color ? styleFromColor(opt.color) : undefined}
+                        >
                             {opt?.label ?? String(v)}
                         </Badge>
                     );

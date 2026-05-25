@@ -13,6 +13,7 @@ import {
     DividerForm,
     EmbedForm,
     FilesForm,
+    HeaderForm,
     HeadingForm,
     KpiForm,
     MarkdownForm,
@@ -73,6 +74,12 @@ export function BlockInspectorPanel({
             </header>
 
             <div className="imcrm-flex-1 imcrm-overflow-y-auto imcrm-px-4 imcrm-py-4">
+                {block.type === 'header' && (
+                    <HeaderForm
+                        block={block}
+                        onUpdate={(patch) => onUpdate(patch as Partial<V2Block>)}
+                    />
+                )}
                 {block.type === 'properties_group' && (
                     <PropertiesGroupForm
                         block={block}
@@ -193,6 +200,7 @@ export function BlockInspectorPanel({
 
 function titleForType(type: V2Block['type']): string {
     switch (type) {
+        case 'header':           return __('Encabezado');
         case 'properties_group': return __('Grupo de propiedades');
         case 'notes':            return __('Notas');
         case 'related':          return __('Records relacionados');
@@ -212,6 +220,7 @@ function titleForType(type: V2Block['type']): string {
 
 function descriptionForType(type: V2Block['type']): string {
     switch (type) {
+        case 'header':           return __('Avatar, título, status pills y acciones del registro.');
         case 'properties_group': return __('Nombre, icono y campos de este grupo.');
         case 'notes':            return __('Texto custom static por lista.');
         case 'related':          return __('Relation field a renderear.');
