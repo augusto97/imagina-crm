@@ -4,6 +4,47 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.53.1] — 2026-05-25
+
+**Dialog "Configurar columnas" para reorder masivo + visibilidad combinada.**
+
+### Motivación
+
+Feedback del usuario: drag-and-drop columna por columna en la cabecera
+es engorroso con muchas columnas. Quiere un setting/dialog donde
+configurar todo de una.
+
+### Solución
+
+**Nuevo `ColumnsConfigDialog.tsx`** — modal con todas las columnas
+verticales:
+- Drag-and-drop HTML5 nativo (mismo stack que TableView, sin dnd-kit).
+- Flechas up/down alternativas en hover para accesibilidad sin drag.
+- Toggle visibility por fila (ojo / ojo-tachado).
+- Header con counter "X de Y" + "Mostrar todas / Ocultar todas".
+- Footer con "Reset orden" + "Reset visibilidad".
+- Detección de columnas borradas (slug en orden persistido pero campo
+  ya no existe) → marca "borrado" + opacity reducida.
+- Tipo chip por fila (text, currency, date, ...).
+- Patrón draft: cambios solo se commitean al "Aplicar"; Cancel descarta.
+
+**`ColumnsMenu`** extiende su contrato con `columnOrder` +
+`onColumnOrderChange`. Agrega "Configurar columnas…" al pie del dropdown
+existente con icono Settings2.
+
+**`RecordsPage`** pasa `state.columnOrder` + setter al menú.
+
+### Archivos
+
+Nuevo:
+- `app/admin/records/views/ColumnsConfigDialog.tsx`
+
+Modificados:
+- `app/admin/records/views/ColumnsMenu.tsx`
+- `app/admin/records/RecordsPage.tsx`
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.53.0] — 2026-05-25
 
 **UserPicker con autocomplete para el field type `user`.**

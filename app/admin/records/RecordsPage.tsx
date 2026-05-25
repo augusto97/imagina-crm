@@ -426,6 +426,10 @@ export function RecordsPage(): JSX.Element {
                                 onChange={(next) =>
                                     setState((s) => ({ ...s, columnVisibility: next }))
                                 }
+                                columnOrder={state.columnOrder}
+                                onColumnOrderChange={(next) =>
+                                    setState((s) => ({ ...s, columnOrder: next }))
+                                }
                             />
                             {!isAlternativeView && (
                                 <GroupSelector

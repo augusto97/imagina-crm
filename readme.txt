@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.53.0
+Stable tag: 0.53.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.53.1 =
+**Dialog dedicado para reordenar y mostrar/ocultar columnas.**
+
+Antes para reordenar columnas había que arrastrar una por una en la
+cabecera de la tabla, lo cual es engorroso cuando hay muchas. Ahora
+el menú "Columnas" tiene un nuevo item "Configurar columnas…" al pie
+que abre un dialog con:
+
+- Todas las columnas listadas verticalmente con drag handle.
+- Drag-and-drop para reordenar (también flechas arriba/abajo al hover).
+- Toggle de visibilidad por columna (ícono ojo).
+- Botones "Mostrar todas" / "Ocultar todas" en el header.
+- "Reset orden" y "Reset visibilidad" en el footer.
+- Marca "borrado" cuando una columna del orden ya no existe (campo
+  eliminado) — se mantiene en la lista para que puedas verlo y limpiarlo.
+- Counter "X de Y visibles" siempre a la vista.
+
+Los cambios son draft local — solo se aplican al click "Aplicar".
+Cancel descarta.
 
 = 0.53.0 =
 **Picker de usuarios WP con autocomplete para fields tipo `user`.**
