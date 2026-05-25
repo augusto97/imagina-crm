@@ -199,6 +199,7 @@ export function RecordDetailDrawer({
                                 values={values}
                                 onChange={setValues}
                                 fieldErrors={fieldErrors}
+                                density="compact"
                             />
 
                             {error !== null && (

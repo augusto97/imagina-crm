@@ -4,6 +4,38 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.52.1] — 2026-05-25
+
+**Drawer lateral del registro: layout compacto label-izquierda.**
+
+Feedback del usuario: "en el editor de plantilla crm me hiciste una
+vista de el bloque 'Grupo de propiedades' con densidad compacta y con
+label a la izquierda, ese estilo me gustó mucho y quiero implementar
+ese mismo estilo de visualización en el sidebar lateral que se abre
+en las listas cuando se le da click a un registro".
+
+### Cambios
+
+**`RecordFieldsForm`** ahora acepta prop `density?: 'comfortable' | 'compact'`
+(default `comfortable` para no romper otros callers).
+
+Cuando `compact`, delega a `CompactFieldRow` (el componente ya existente
+del CRM layout). Wrap en un solo container con `border` + `rounded-lg`
+y `overflow-hidden` para que el conjunto se vea como una "card de
+propiedades" unificada. Sin gap entre filas — `CompactFieldRow` ya
+pone `border-b` interno.
+
+**`RecordDetailDrawer`** pasa `density="compact"`. `RecordCreateDialog`
+y `RecordPage` quedan en `comfortable` deliberadamente (create flow y
+detail page tienen suficiente espacio horizontal).
+
+### Archivos
+
+- `app/admin/records/RecordFieldsForm.tsx` (prop density + branch compact)
+- `app/admin/records/RecordDetailDrawer.tsx` (density="compact")
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.52.0] — 2026-05-25
 
 **Color picker con hex + 6 presets nuevos + edit dialog Kanban + fix Cards.**

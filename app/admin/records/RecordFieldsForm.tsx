@@ -5,6 +5,7 @@ import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
+import { CompactFieldRow } from './crm/CompactFieldRow';
 import { extractFieldOptions } from './fieldOptions';
 
 interface RecordFieldsFormProps {
@@ -15,6 +16,18 @@ interface RecordFieldsFormProps {
     /** Si true, omitimos los campos que ya pueden editarse inline en la tabla
      *  para evitar duplicación visual. Default: false (drawer muestra todo). */
     onlyNonInline?: boolean;
+    /**
+     * Layout visual:
+     *  - `comfortable` (default) — label arriba + input abajo, gap-4.
+     *    Bueno para create dialog y page detail (más aire visual).
+     *  - `compact` — label izquierda fixed-width + valor derecha
+     *    edit-on-click (estilo Linear/Notion, ~32-40px por fila).
+     *    Bueno para drawers laterales donde el espacio es premium.
+     *
+     * Internamente compact delega a `CompactFieldRow` (mismo componente
+     * que usa el layout CRM en sus properties_group y PropertiesSidebar).
+     */
+    density?: 'comfortable' | 'compact';
 }
 
 const NON_INLINE_TYPES: ReadonlyArray<string> = ['user', 'file', 'relation'];
@@ -31,6 +44,7 @@ export function RecordFieldsForm({
     onChange,
     fieldErrors,
     onlyNonInline,
+    density = 'comfortable',
 }: RecordFieldsFormProps): JSX.Element {
     const visible = fields
         .filter((f) => (onlyNonInline ? NON_INLINE_TYPES.includes(f.type) : true))
@@ -39,6 +53,25 @@ export function RecordFieldsForm({
     const setValue = (slug: string, value: unknown): void => {
         onChange({ ...values, [slug]: value });
     };
+
+    if (density === 'compact') {
+        // Delega a `CompactFieldRow` por field — mismo componente que usa
+        // el layout CRM en properties_group + PropertiesSidebar.
+        // Sin gap entre filas: CompactFieldRow ya pone border-b interno.
+        return (
+            <div className="imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border">
+                {visible.map((field) => (
+                    <CompactFieldRow
+                        key={field.id}
+                        field={field}
+                        value={values[field.slug]}
+                        onChange={(v) => setValue(field.slug, v)}
+                        error={fieldErrors?.[field.slug]}
+                    />
+                ))}
+            </div>
+        );
+    }
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-4">

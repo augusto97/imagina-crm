@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.52.0
+Stable tag: 0.52.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.52.1 =
+**Drawer lateral del registro con layout compacto.**
+
+El drawer que se abre al clickear un record en la tabla ahora usa el
+mismo layout compacto label-izquierda / valor-derecha que el bloque
+"Grupo de propiedades" del editor de plantilla CRM. Cada campo ocupa
+~32-40px verticales en lugar de ~70-80px del modo formulario clásico.
+Edit on-click: hover muestra el ícono de lápiz, click activa el input
+del tipo correspondiente, blur/Enter cierra.
+
+`RecordCreateDialog` y `RecordPage` mantienen el layout `comfortable`
+clásico — son contextos donde el usuario llena un form por primera vez
+y la densidad alta es contraproducente.
 
 = 0.52.0 =
 **Color picker con hex custom + 6 presets nuevos + fix de edición de vistas.**
