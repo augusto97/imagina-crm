@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.50.1
+Stable tag: 0.51.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,36 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.51.0 =
+**Cambio de tipo de campo + contraste mejorado en chips de color.**
+
+**Cambio de tipo:** ahora se puede modificar el tipo de un campo
+existente sin perder datos. El backend valida la transición (matriz
+en `FieldTypeMigration`), migra los valores fila por fila y hace
+`ALTER COLUMN` del schema MySQL si es necesario.
+
+Transiciones soportadas:
+- text ↔ long_text, email/url
+- number ↔ currency
+- date ↔ datetime
+- select ↔ multi_select (multi → select pierde N-1 valores)
+- email/url ↔ text
+
+Riesgo visible en la UI del editor:
+- ✓ **safe** — sin pérdida (ej. text → long_text)
+- ⚠ **lossy** — algunos valores pueden truncarse (ej. long_text → text
+  trunca a 255, datetime → date descarta la hora)
+- ✗ **destructive** — pérdida significativa esperada (multi_select →
+  select solo conserva el primer valor). Confirma con prompt antes
+  de submit.
+
+**Contraste de chips:** los colores yellow / amber / lime / cyan eran
+ilegibles cuando se usaban como text-color del chip porque eran
+demasiado claros (lightness 50%+). Ahora se usa una variante
+`-text` por color forzada a lightness 28-32% (light mode) / 70-78%
+(dark mode), garantizando contraste WCAG AA contra el bg tintado del
+chip.
 
 = 0.50.1 =
 **Edición inline de los bloques Notas y Markdown en modo `field` desde el admin.**

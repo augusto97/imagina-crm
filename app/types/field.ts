@@ -61,6 +61,14 @@ export interface CreateFieldInput {
 export interface UpdateFieldInput {
     label?: string;
     slug?: string;
+    /**
+     * Cambio de tipo. Solo se envía cuando difiere del tipo actual del
+     * campo. El backend (FieldService::changeType) valida que la
+     * transición esté permitida en `FieldTypeMigration::MATRIX` y
+     * migra los valores existentes — `app/lib/fieldTypeMigration.ts`
+     * mantiene un mirror del matrix para filtrar el dropdown del editor.
+     */
+    type?: FieldTypeSlug;
     config?: Record<string, unknown>;
     is_required?: boolean;
     is_unique?: boolean;

@@ -5,6 +5,7 @@ namespace ImaginaCRM\REST;
 
 use ImaginaCRM\Fields\FieldEntity;
 use ImaginaCRM\Fields\FieldService;
+use ImaginaCRM\Fields\FieldTypeMigration;
 use ImaginaCRM\Lists\ListService;
 use ImaginaCRM\Permissions\CapabilityRegistry;
 use ImaginaCRM\Support\ValidationResult;
@@ -80,6 +81,16 @@ final class FieldsController extends AbstractController
                 ],
             ],
         ]);
+
+        register_rest_route(
+            $this->namespace,
+            '/' . $base . '/(?P<id_or_slug>[a-zA-Z0-9_-]+)/type-transitions',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'typeTransitions'],
+                'permission_callback' => $canManage,
+            ],
+        );
 
         register_rest_route(
             $this->namespace,
@@ -207,18 +218,43 @@ final class FieldsController extends AbstractController
             }
         }
 
+        // Cambio de tipo: si viene `type` y difiere del actual, lo
+        // rutamos a `changeType()` ANTES del update normal. La conversión
+        // de valores y el ALTER COLUMN viven ahí. Si el caller no envió
+        // `config` explícito, pasamos null para que el service construya
+        // un config bridge (preserva options en select↔multi_select,
+        // decimals en number↔currency, etc.).
+        $entity = null;
+        $newType = isset($params['type']) ? (string) $params['type'] : '';
+        if ($newType !== '' && $newType !== $existing->type) {
+            $newConfigForType = isset($params['config']) && is_array($params['config'])
+                ? $params['config']
+                : null;
+            $changeResult = $this->service->changeType($list->id, $existing->id, $newType, $newConfigForType);
+            if ($changeResult instanceof ValidationResult) {
+                return $this->validationError($changeResult);
+            }
+            $entity = $changeResult;
+        }
+
         $patch = array_intersect_key(
             $params,
             array_flip(['label', 'config', 'is_required', 'is_unique', 'is_primary', 'is_indexed', 'position'])
         );
+        // Si cambiamos el tipo arriba, el config ya quedó aplicado por
+        // `changeType()` — evitamos un segundo update redundante.
+        if ($entity !== null) {
+            unset($patch['config']);
+        }
 
         if ($patch !== []) {
-            $result = $this->service->update($list->id, $existing->id, $patch);
+            $targetId = $entity?->id ?? $existing->id;
+            $result = $this->service->update($list->id, $targetId, $patch);
             if ($result instanceof ValidationResult) {
                 return $this->validationError($result);
             }
             $entity = $result;
-        } else {
+        } elseif ($entity === null) {
             $entity = $this->service->findByIdOrSlug($list->id, (string) $existing->id);
             if ($entity === null) {
                 return $this->notFound();
@@ -233,6 +269,31 @@ final class FieldsController extends AbstractController
             );
         }
         return $response;
+    }
+
+    /**
+     * Devuelve las transiciones de tipo permitidas para este campo,
+     * con su nivel de riesgo (`safe`/`lossy`/`destructive`). El
+     * frontend usa esto para poblar el dropdown del editor cuando se
+     * está modificando un campo existente.
+     */
+    public function typeTransitions(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
+        if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        $idOrSlug = (string) $request->get_param('id_or_slug');
+        $field    = $this->service->findByIdOrSlug($list->id, $idOrSlug);
+        if ($field === null) {
+            return $this->notFound();
+        }
+        return new WP_REST_Response([
+            'data' => [
+                'current' => $field->type,
+                'transitions' => FieldTypeMigration::allowedTransitions($field->type),
+            ],
+        ]);
     }
 
     public function deleteItem(WP_REST_Request $request): WP_REST_Response|WP_Error

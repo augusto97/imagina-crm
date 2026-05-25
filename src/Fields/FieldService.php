@@ -294,6 +294,226 @@ final class FieldService
         return $updated;
     }
 
+    /**
+     * Cambia el tipo de un campo, migrando los valores existentes
+     * según `FieldTypeMigration`. Tres pasos:
+     *
+     *  1. Lee todos los valores actuales del campo (id, raw_value).
+     *  2. Para cada uno: `oldType.unserialize → migrate → newType.serialize`.
+     *  3. Si el SQL definition cambia entre tipos, `ALTER COLUMN`
+     *     antes de escribir los valores transformados de vuelta. Si
+     *     no cambia (caso number↔currency), salteamos el ALTER.
+     *
+     * El cambio es **atómico a nivel metadata**: o se actualiza todo
+     * (tipo + config + columna + valores) o nada. Pero MySQL hace
+     * auto-commit del ALTER TABLE, así que si fallan los UPDATE
+     * posteriores quedamos con el schema nuevo y valores potencialmente
+     * desactualizados — devolvemos `ValidationResult` con detalle del
+     * primer error.
+     *
+     * Para tipos sin columna física (relation) o sin transición
+     * registrada, retorna ValidationResult.
+     *
+     * @param array<string, mixed>|null $newConfig Si null, se preserva
+     *     el subset compatible (ej. `options` para select↔multi_select,
+     *     `decimals` para number↔currency); el resto va a default.
+     */
+    public function changeType(
+        int $listId,
+        int $fieldId,
+        string $newTypeSlug,
+        ?array $newConfig = null,
+    ): FieldEntity|ValidationResult {
+        $list = $this->lists->find($listId);
+        if ($list === null) {
+            return ValidationResult::failWith('list_id', __('La lista no existe.', 'imagina-crm'));
+        }
+        $current = $this->fields->find($fieldId);
+        if ($current === null || $current->listId !== $listId) {
+            return ValidationResult::failWith('id', __('El campo no existe.', 'imagina-crm'));
+        }
+        if ($current->type === $newTypeSlug) {
+            return $current; // no-op
+        }
+        if (! FieldTypeMigration::isAllowed($current->type, $newTypeSlug)) {
+            return ValidationResult::failWith(
+                'type',
+                sprintf(
+                    /* translators: 1: source type, 2: target type */
+                    __('No se puede convertir un campo de "%1$s" a "%2$s". Combinación no permitida.', 'imagina-crm'),
+                    $current->type,
+                    $newTypeSlug,
+                ),
+            );
+        }
+
+        $oldType = $this->registry->get($current->type);
+        $newType = $this->registry->get($newTypeSlug);
+        if ($oldType === null || $newType === null) {
+            return ValidationResult::failWith('type', __('Tipo desconocido en el registry.', 'imagina-crm'));
+        }
+        if (! $oldType->hasColumn() || ! $newType->hasColumn()) {
+            return ValidationResult::failWith(
+                'type',
+                __('Cambio de tipo no soportado para campos sin columna física (relation).', 'imagina-crm'),
+            );
+        }
+
+        // Config destino: el caller puede pasar uno explícito o lo
+        // construimos desde el current preservando subset compatible.
+        $resolvedConfig = $newConfig ?? $this->bridgeConfigForTypeChange(
+            $current->type,
+            $newTypeSlug,
+            $current->config,
+        );
+
+        $oldSqlDef = $oldType->getSqlDefinition($current->config);
+        $newSqlDef = $newType->getSqlDefinition($resolvedConfig);
+        $needsAlter = $this->normalizeSqlDef($oldSqlDef) !== $this->normalizeSqlDef($newSqlDef);
+
+        // 1. Leer valores actuales (raw column).
+        $allRecords = $this->records->fetchColumnValuesById($list->tableSuffix, $current->columnName);
+
+        // 2. Transformar cada valor en memoria. Cualquier excepción
+        // del unserializer/serializer aborta sin tocar el schema.
+        $transformed = [];
+        foreach ($allRecords as $id => $rawValue) {
+            $appValue   = $oldType->unserialize($rawValue, $current->config);
+            $migrated   = FieldTypeMigration::migrateValue($appValue, $current->type, $newTypeSlug);
+            $serialized = $newType->serialize($migrated, $resolvedConfig);
+            $transformed[$id] = $serialized;
+        }
+
+        // 3. Si cambia el SQL, hay que dropear índice único (si lo
+        // tiene) antes del ALTER, después re-evaluamos si reaplica.
+        $hadUnique = $current->isUnique;
+        if ($needsAlter && $hadUnique) {
+            try {
+                $this->schema->dropUniqueIndex($list->tableSuffix, $current->columnName);
+            } catch (\Throwable $e) {
+                return ValidationResult::failWith('schema', $e->getMessage());
+            }
+        }
+
+        // 4. ALTER COLUMN si cambia el SQL.
+        if ($needsAlter) {
+            try {
+                $this->schema->alterColumn($list->tableSuffix, $current->columnName, $newSqlDef);
+            } catch (\Throwable $e) {
+                // Si falla acá, no escribimos los valores transformados
+                // — el schema sigue viejo, así que los valores actuales
+                // siguen siendo válidos. Sin cambios netos.
+                if ($hadUnique) {
+                    // Restauramos el índice único.
+                    $this->schema->addUniqueIndex($list->tableSuffix, $current->columnName);
+                }
+                return ValidationResult::failWith(
+                    'schema',
+                    sprintf(__('No se pudo modificar la columna: %s', 'imagina-crm'), $e->getMessage()),
+                );
+            }
+        }
+
+        // 5. Escribir los valores transformados de vuelta. Si algún
+        // UPDATE falla, lo logueamos pero seguimos — el schema ya está
+        // nuevo y la mayoría de los rows son recuperables.
+        $writeErrors = 0;
+        foreach ($transformed as $id => $newValue) {
+            $ok = $this->records->update($list->tableSuffix, (int) $id, [
+                $current->columnName => $newValue,
+            ]);
+            if (! $ok) {
+                $writeErrors++;
+            }
+        }
+
+        // 6. Re-aplicar índice único si el destino lo soporta y la
+        // config se mantiene unique. Si el nuevo tipo no soporta
+        // unique, hacemos `is_unique = false` en el row de metadata.
+        $keepUnique = $hadUnique && $newType->supportsUnique();
+        if ($needsAlter && $keepUnique) {
+            try {
+                $this->schema->addUniqueIndex($list->tableSuffix, $current->columnName);
+            } catch (\Throwable $e) {
+                // Si la data tiene duplicados después de la migración
+                // (ej. trim a 255 colisionó), el índice no entra. No
+                // bloqueamos el cambio de tipo — desactivamos el flag.
+                $keepUnique = false;
+            }
+        }
+
+        // 7. Actualizar metadata del campo (`type`, `config`, `is_unique`).
+        $patch = ['type' => $newTypeSlug, 'config' => $resolvedConfig];
+        if ($hadUnique && ! $keepUnique) {
+            $patch['is_unique'] = false;
+        }
+        $this->fields->update($fieldId, $patch);
+
+        $updated = $this->fields->find($fieldId);
+        if ($updated === null) {
+            return ValidationResult::failWith('database', __('No se pudo recargar el campo tras el cambio de tipo.', 'imagina-crm'));
+        }
+
+        do_action('imagina_crm/field_type_changed', $updated, $current, $list, [
+            'write_errors' => $writeErrors,
+            'altered_sql'  => $needsAlter,
+        ]);
+
+        if ($writeErrors > 0) {
+            return ValidationResult::failWith(
+                'data',
+                sprintf(
+                    /* translators: 1: error count, 2: total rows */
+                    __('Cambio de tipo aplicado, pero %1$d de %2$d registros tuvieron error al migrar el valor.', 'imagina-crm'),
+                    $writeErrors,
+                    count($transformed),
+                ),
+            );
+        }
+        return $updated;
+    }
+
+    /**
+     * Construye un config "puente" cuando el caller no provee uno
+     * explícito. Preserva lo que tenga sentido en el destino y
+     * descarta el resto.
+     *
+     * @param array<string, mixed> $oldConfig
+     * @return array<string, mixed>
+     */
+    private function bridgeConfigForTypeChange(string $from, string $to, array $oldConfig): array
+    {
+        // select ↔ multi_select: comparten `options`.
+        if (in_array($from, ['select', 'multi_select'], true)
+            && in_array($to, ['select', 'multi_select'], true)
+        ) {
+            return ['options' => $oldConfig['options'] ?? []];
+        }
+        // number ↔ currency: ambos tienen `decimals`; currency suma `currency`.
+        if (in_array($from, ['number', 'currency'], true)
+            && in_array($to, ['number', 'currency'], true)
+        ) {
+            $bridge = ['decimals' => $oldConfig['decimals'] ?? 2];
+            if ($to === 'currency') {
+                $bridge['currency'] = $oldConfig['currency'] ?? 'COP';
+            }
+            return $bridge;
+        }
+        // Resto: empezamos con config vacío.
+        return [];
+    }
+
+    /**
+     * Normaliza una SQL definition para comparar si dos tipos
+     * producen exactamente el mismo schema físico (en cuyo caso no
+     * hace falta ALTER). Solo lowercase + whitespace strip — no es
+     * un parser SQL completo.
+     */
+    private function normalizeSqlDef(string $def): string
+    {
+        return preg_replace('/\s+/', ' ', strtolower(trim($def))) ?? $def;
+    }
+
     public function renameSlug(int $listId, int $fieldId, string $newSlug): RenameResult
     {
         $field = $this->fields->find($fieldId);

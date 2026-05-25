@@ -387,6 +387,35 @@ final class RecordRepository
     }
 
     /**
+     * Devuelve `[id => raw_value]` de una sola columna física, para
+     * todos los records no borrados de la tabla dinámica. Usado por
+     * `FieldService::changeType()` para migrar valores entre tipos.
+     *
+     * No paginar — el caller mantiene el array en memoria. Para
+     * listas grandes (>10k records) considerar batching, pero el
+     * cambio de tipo es operación rara y manual.
+     *
+     * @return array<int, mixed>
+     */
+    public function fetchColumnValuesById(string $tableSuffix, string $columnName): array
+    {
+        $table = $this->qualifiedTable($tableSuffix);
+        $col   = '`' . esc_sql($columnName) . '`';
+        $wpdb  = $this->db->wpdb();
+        $rows  = $wpdb->get_results(
+            "SELECT id, {$col} AS v FROM {$table} WHERE deleted_at IS NULL",
+            ARRAY_A,
+        );
+        $out = [];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $out[(int) $row['id']] = $row['v'];
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Trae filas crudas con keyset paginación (id > $afterId), ordenadas
      * ASC. Pensado para jobs batch (reindex de search, exports, sync
      * con sistemas externos) donde se quiere recorrer la tabla entera

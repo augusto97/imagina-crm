@@ -65,6 +65,23 @@
         --imcrm-opt-violet:  262 83% 58%;
         --imcrm-opt-pink:    330 81% 60%;
 
+        /* Variantes "-text" forzadas a lightness 28-32% (light mode)
+         * para que el contraste contra un fondo near-white sea WCAG AA
+         * sí o sí. Sin esto, colores como `yellow 53%` o `amber 50%`
+         * son ilegibles cuando se usan como text-color del chip. */
+        --imcrm-opt-gray-text:    220 9% 30%;
+        --imcrm-opt-rose-text:    346 65% 38%;
+        --imcrm-opt-orange-text:  25 85% 32%;
+        --imcrm-opt-amber-text:   38 85% 28%;
+        --imcrm-opt-yellow-text:  42 85% 26%;
+        --imcrm-opt-lime-text:    84 70% 24%;
+        --imcrm-opt-green-text:   142 65% 26%;
+        --imcrm-opt-teal-text:    173 75% 24%;
+        --imcrm-opt-cyan-text:    188 85% 26%;
+        --imcrm-opt-blue-text:    217 80% 38%;
+        --imcrm-opt-violet-text:  262 70% 42%;
+        --imcrm-opt-pink-text:    330 70% 38%;
+
         /* Secondary y muted prácticamente iguales — slate frío muy
          * leve, no el gris cálido genérico de los SaaS templates. */
         --imcrm-secondary: 220 14% 97%;
@@ -145,6 +162,22 @@
         --imcrm-sidebar-border: 224 14% 16%;
         --imcrm-sidebar-accent: 224 14% 14%;
         --imcrm-sidebar-accent-foreground: 234 89% 70%;
+
+        /* Override de las variantes "-text" para dark mode: en lugar
+         * de oscurecer (chip sobre fondo claro), aclaramos para que
+         * el texto destaque sobre el bg dark tintado. */
+        --imcrm-opt-gray-text:    220 14% 72%;
+        --imcrm-opt-rose-text:    346 85% 78%;
+        --imcrm-opt-orange-text:  25 95% 72%;
+        --imcrm-opt-amber-text:   38 92% 70%;
+        --imcrm-opt-yellow-text:  48 95% 70%;
+        --imcrm-opt-lime-text:    84 80% 68%;
+        --imcrm-opt-green-text:   142 70% 68%;
+        --imcrm-opt-teal-text:    173 75% 65%;
+        --imcrm-opt-cyan-text:    188 85% 70%;
+        --imcrm-opt-blue-text:    217 90% 75%;
+        --imcrm-opt-violet-text:  262 80% 78%;
+        --imcrm-opt-pink-text:    330 80% 78%;
     }
 
     #imcrm-root {

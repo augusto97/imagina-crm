@@ -72,17 +72,25 @@ export function colorVar(color: OptionColor | undefined | null): string | undefi
 }
 
 /**
- * Estilos inline para un chip "soft" (bg al 14% + border al 30% +
- * text fuerte) usando el color elegido por el usuario. Sin color =
- * undefined (el caller cae a la variante neutral).
+ * Estilos inline para un chip "soft" (bg al 14% + border al 32% +
+ * text con la variante `-text` del color para garantizar contraste
+ * WCAG AA contra el bg tintado). Sin color = undefined (el caller
+ * cae a la variante neutral).
+ *
+ * IMPORTANTE: el text usa `--imcrm-opt-{color}-text` (lightness
+ * fija ~28% en light, ~72% en dark) en lugar del color base — los
+ * colores base son saturados pero con lightness ~50-60% para que
+ * el círculo del swatch se vea bonito. Usar esos mismos valores
+ * como text-color produce ilegibilidad en yellow/lime/amber/cyan.
  */
 export function chipSoftStyle(color: OptionColor | undefined | null): React.CSSProperties | undefined {
     if (!color) return undefined;
-    const c = `var(--imcrm-opt-${color})`;
+    const base = `var(--imcrm-opt-${color})`;
+    const text = `var(--imcrm-opt-${color}-text)`;
     return {
-        backgroundColor: `hsl(${c} / 0.14)`,
-        borderColor:     `hsl(${c} / 0.32)`,
-        color:           `hsl(${c})`,
+        backgroundColor: `hsl(${base} / 0.14)`,
+        borderColor:     `hsl(${base} / 0.32)`,
+        color:           `hsl(${text})`,
     };
 }
 

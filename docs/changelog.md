@@ -4,6 +4,111 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.51.0] — 2026-05-25
+
+**Cambio de tipo de campo + contraste mejorado en chips de color.**
+
+### Parte A — Cambio de tipo de campo
+
+**Nuevo: `src/Fields/FieldTypeMigration.php`** — matriz estática de
+transiciones permitidas con su nivel de riesgo (safe/lossy/destructive)
+y un helper `migrateValue(value, from, to)` que transforma valores en
+memoria.
+
+Transiciones soportadas:
+- `text` ↔ `long_text` (long → text trunca a 255)
+- `text` ↔ `email` / `url` (text → email/url filtra inválidos)
+- `number` ↔ `currency` (mismo SQL, solo metadata)
+- `date` ↔ `datetime` (datetime → date descarta hora)
+- `select` ↔ `multi_select` (multi → select pierde N-1)
+- `email` / `url` ↔ `text`
+
+**Nuevo: `FieldService::changeType(listId, fieldId, newType, ?config)`** —
+método separado de `update()` por la complejidad. Flujo:
+
+1. Valida transición vía `FieldTypeMigration::isAllowed`.
+2. Lee todos los valores raw vía `RecordRepository::fetchColumnValuesById`
+   (nuevo helper).
+3. Para cada uno: `oldType.unserialize → migrate → newType.serialize`.
+4. Dropea índice único si lo tenía.
+5. `ALTER COLUMN` con el nuevo SQL si difiere (compara normalizado).
+6. Reescribe valores transformados.
+7. Reaplica índice único si el nuevo tipo lo soporta (si falla por
+   duplicados post-migration, lo desactiva sin bloquear).
+8. Actualiza `wp_imcrm_fields.type` y `.config`.
+
+Si el ALTER falla, no se tocan los valores → no hay corrupción.
+
+**Helper `bridgeConfigForTypeChange`** preserva subset compatible:
+- select↔multi_select → `options`
+- number↔currency → `decimals` (+ `currency` para currency)
+- Resto → config vacío
+
+**REST: `PATCH /lists/{}/fields/{}`** ahora acepta `type` en el payload.
+Si difiere del actual, rutea a `changeType()` antes del update normal.
+Si tipo y `config` vienen juntos, `changeType` aplica el config y se
+omite del segundo update para no duplicar.
+
+**REST: `GET /lists/{}/fields/{}/type-transitions`** — devuelve
+`{current, transitions: [{type, risk}]}` para el frontend (no usado
+todavía; el frontend usa el mirror TS).
+
+**Frontend: `app/lib/fieldTypeMigration.ts`** — mirror del matrix PHP.
+Mantenelo sincronizado.
+
+**Frontend: `FieldTypeSelect`** acepta nuevo prop `editingFromType`. Si
+está presente, filtra el dropdown a current + allowed transitions, y
+agrega badge de riesgo a las opciones no-safe.
+
+**Frontend: `FieldDialog`**:
+- Removido `disabled={isEdit}` del `<FieldTypeSelect>`.
+- Pasa `editingFromType={field.type}` en modo edición.
+- Componente nuevo `<TypeChangeWarning>` con bg destructive/warning
+  según riesgo.
+- Pre-submit: `confirm()` si la transición es `destructive`.
+- Patch incluye `type` solo cuando difiere del actual.
+
+**`UpdateFieldInput`** type extendido con `type?: FieldTypeSlug`.
+
+### Parte B — Contraste de chips de color
+
+Los colores `yellow`/`amber`/`lime`/`cyan` (lightness 43-53%) eran
+ilegibles cuando se usaban como `color` del chip de select/multi_select
+— el bg al 14% opacity es casi blanco, y el text con esos valores
+saturados pero claros no daba contraste.
+
+Solución: nueva variante CSS `--imcrm-opt-{color}-text` por color con
+lightness forzada:
+- Light mode: 24-32% (oscuro sobre bg near-white)
+- Dark mode: 65-78% (claro sobre bg dark tintado)
+
+`chipSoftStyle()` ahora usa la variante `-text` para el `color`
+(manteniendo `base` para bg/border). Cualquier código que ya use
+`chipSoftStyle` (TableView, MultiSelectField config, FieldValueDisplay,
+renderCellValue) hereda la mejora automáticamente.
+
+### Tests
+
+- `tests/Unit/Fields/FieldTypeMigrationTest.php` — 16 tests cubren matrix
+  + migrateValue para todas las combinaciones. 548 tests passing total.
+
+### Archivos
+
+Nuevos:
+- `src/Fields/FieldTypeMigration.php`
+- `tests/Unit/Fields/FieldTypeMigrationTest.php`
+- `app/lib/fieldTypeMigration.ts`
+
+Modificados:
+- `src/Fields/FieldService.php` (changeType + 2 helpers)
+- `src/Records/RecordRepository.php` (fetchColumnValuesById helper)
+- `src/REST/FieldsController.php` (updateItem rutea type change + nuevo endpoint type-transitions)
+- `app/admin/lists/FieldDialog.tsx` (UI cambio tipo + warning + confirm)
+- `app/admin/lists/FieldTypeSelect.tsx` (filtra opciones + risk badge)
+- `app/types/field.ts` (UpdateFieldInput.type)
+- `app/components/ui/color-picker.tsx` (chipSoftStyle usa -text variant)
+- `app/styles/globals.css` (12 vars -text light + 12 vars -text dark)
+
 ## [0.50.1] — 2026-05-25
 
 **Fix UX: bloques Notas/Markdown en modo `field` son editables inline

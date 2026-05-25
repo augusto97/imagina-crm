@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useCreateField, useUpdateField } from '@/hooks/useFields';
 import { useFieldTypes } from '@/hooks/useFieldTypes';
 import { ApiError } from '@/lib/api';
+import { riskOf } from '@/lib/fieldTypeMigration';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity, FieldTypeSlug } from '@/types/field';
@@ -23,9 +24,10 @@ import { SlugEditor } from './SlugEditor';
  * - config específica del tipo (delegada a `<FieldConfigEditor />`)
  *
  * En modo edición (cuando `field` está presente):
- * - El selector de tipo queda deshabilitado (cambiar el tipo de un
- *   campo con datos existentes corrompería la columna; la solución
- *   correcta es eliminar y recrear).
+ * - El selector de tipo permite cambiar a tipos compatibles
+ *   (definidos en `app/lib/fieldTypeMigration.ts` y validados en
+ *   backend por `FieldTypeMigration`). Las transiciones con pérdida
+ *   muestran badge de riesgo en la opción y un warning antes de submit.
  * - Los demás atributos siguen siendo editables.
  */
 interface FieldDialogProps {
@@ -116,6 +118,22 @@ export function FieldDialog({
         e.preventDefault();
         if (!type) return;
         setSubmitError(null);
+
+        // Si el usuario está cambiando el tipo en modo edición,
+        // confirmamos antes de submitear cuando el riesgo es
+        // `destructive` (ej. multi_select → select pierde N-1 valores).
+        if (isEdit && field && type !== field.type) {
+            const risk = riskOf(field.type, type);
+            if (risk === 'destructive') {
+                const ok = window.confirm(
+                    __(
+                        'Esta conversión puede perder datos en los registros existentes. ¿Continuar?',
+                    ),
+                );
+                if (! ok) return;
+            }
+        }
+
         try {
             if (isEdit && field) {
                 await update.mutateAsync({
@@ -123,6 +141,9 @@ export function FieldDialog({
                     input: {
                         label: label.trim(),
                         slug: slug || undefined,
+                        // Si el tipo cambió, lo enviamos para que el
+                        // backend dispare `FieldService::changeType()`.
+                        ...(type !== field.type ? { type } : {}),
                         is_required: isRequired,
                         is_unique: isUnique,
                         is_indexed: isIndexed,
@@ -200,8 +221,11 @@ export function FieldDialog({
                             <FieldTypeSelect
                                 value={type}
                                 onChange={handleTypeChange}
-                                disabled={isEdit}
+                                editingFromType={isEdit && field ? field.type : undefined}
                             />
+                            {isEdit && field && type !== '' && type !== field.type && (
+                                <TypeChangeWarning fromType={field.type} toType={type} />
+                            )}
                         </div>
 
                         <SlugEditor
@@ -297,5 +321,33 @@ export function FieldDialog({
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>
+    );
+}
+
+function TypeChangeWarning({
+    fromType,
+    toType,
+}: {
+    fromType: string;
+    toType: string;
+}): JSX.Element | null {
+    const risk = riskOf(fromType, toType);
+    if (risk === null || risk === 'safe') {
+        // safe = sin warning. null no debería pasar porque el dropdown
+        // filtra por allowedTargetsFor.
+        return null;
+    }
+    const palette = risk === 'destructive'
+        ? 'imcrm-border-destructive/40 imcrm-bg-destructive/10 imcrm-text-destructive'
+        : 'imcrm-border-warning/40 imcrm-bg-warning/10 imcrm-text-warning-foreground';
+    const message = risk === 'destructive'
+        ? __('Esta conversión perderá información en los registros existentes (ej. multi_select → select solo conserva el primer valor).')
+        : __('Esta conversión puede modificar algunos valores existentes (ej. truncar a 255 caracteres o descartar la hora).');
+
+    return (
+        <div className={cn('imcrm-mt-1 imcrm-rounded-md imcrm-border imcrm-px-3 imcrm-py-2 imcrm-text-xs', palette)}>
+            <strong>{__('Atención:')}</strong> {message}{' '}
+            {__('Antes de continuar, considerá hacer un export por seguridad.')}
+        </div>
     );
 }
