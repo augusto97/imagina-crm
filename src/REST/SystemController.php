@@ -79,6 +79,16 @@ final class SystemController extends AbstractController
             ],
         ]);
 
+        // Lookup de un user específico por ID — usado por UserPicker
+        // para mostrar el chip del valor actual (display_name + avatar)
+        // sin tener que hacer un search por nombre. Devuelve el mismo
+        // shape que `/me/users-search` + `avatar_url`.
+        register_rest_route($this->namespace, '/me/users/(?P<id>\d+)', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [$this, 'userLookup'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+        ]);
+
         // Firma de email per-usuario. Se inserta en el body del email
         // automatizado vía el merge tag `{{signature}}` y vía el botón
         // "+ Agregar firma" del editor.
@@ -214,20 +224,50 @@ final class SystemController extends AbstractController
         foreach ($rows as $row) {
             // Soporta tanto objects (default) como arrays según la
             // versión/configuración de WP. Defensivo.
-            if (is_object($row)) {
-                $data[] = [
-                    'id'           => (int) ($row->ID ?? 0),
-                    'login'        => (string) ($row->user_login ?? ''),
-                    'display_name' => (string) ($row->display_name ?? ''),
-                ];
-            } elseif (is_array($row)) {
-                $data[] = [
-                    'id'           => (int) ($row['ID'] ?? 0),
-                    'login'        => (string) ($row['user_login'] ?? ''),
-                    'display_name' => (string) ($row['display_name'] ?? ''),
-                ];
-            }
+            $id = is_object($row)
+                ? (int) ($row->ID ?? 0)
+                : (int) ($row['ID'] ?? 0);
+            $login = is_object($row)
+                ? (string) ($row->user_login ?? '')
+                : (string) ($row['user_login'] ?? '');
+            $displayName = is_object($row)
+                ? (string) ($row->display_name ?? '')
+                : (string) ($row['display_name'] ?? '');
+
+            if ($id <= 0) continue;
+
+            $data[] = [
+                'id'           => $id,
+                'login'        => $login,
+                'display_name' => $displayName,
+                'avatar_url'   => get_avatar_url($id, ['size' => 48]) ?: '',
+            ];
         }
         return new WP_REST_Response(['data' => $data]);
+    }
+
+    /**
+     * Lookup de un user por ID. Devuelve el shape mínimo que el
+     * `UserPicker` necesita para mostrar el chip del valor actual.
+     * Si el user no existe (borrado), devuelve 404.
+     */
+    public function userLookup(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request->get_param('id');
+        if ($id <= 0) {
+            return new WP_REST_Response(['code' => 'not_found'], 404);
+        }
+        $user = get_userdata($id);
+        if (! $user) {
+            return new WP_REST_Response(['code' => 'not_found'], 404);
+        }
+        return new WP_REST_Response([
+            'data' => [
+                'id'           => (int) $user->ID,
+                'login'        => (string) $user->user_login,
+                'display_name' => (string) $user->display_name,
+                'avatar_url'   => get_avatar_url($user->ID, ['size' => 48]) ?: '',
+            ],
+        ]);
     }
 }

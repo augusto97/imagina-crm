@@ -2,6 +2,7 @@ import { Check, ExternalLink, Mail, Minus, Paperclip, User as UserIcon } from 'l
 
 import { chipSoftStyle, type OptionColor } from '@/components/ui/color-picker';
 import { extractFieldOptions } from '@/admin/records/fieldOptions';
+import { useWpUser } from '@/hooks/useWpUsers';
 import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 
@@ -191,12 +192,44 @@ function UrlDisplay({ value }: { value: unknown }): JSX.Element {
 }
 
 function UserDisplay({ value }: { value: unknown }): JSX.Element {
-    // No tenemos resolver de WP users acá (sería una API call); mostramos
-    // el ID con icono. El RecordDetailDrawer existente tampoco resuelve.
+    // Resuelve el user via API (cacheado 5min en useWpUser). Mientras
+    // carga muestra un placeholder; si el user no existe muestra el
+    // #ID con marca de borrado.
+    const id = typeof value === 'number' ? value : Number(value);
+    const { data: user, isLoading } = useWpUser(Number.isFinite(id) && id > 0 ? id : null);
+
+    if (isLoading) {
+        return (
+            <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-muted-foreground">
+                <UserIcon className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
+                <span className="imcrm-text-xs">{__('Cargando…')}</span>
+            </span>
+        );
+    }
+    if (! user) {
+        return (
+            <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-muted-foreground">
+                <UserIcon className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
+                <span className="imcrm-tabular-nums">#{String(value)}</span>
+                <span className="imcrm-text-[10px]">({__('borrado')})</span>
+            </span>
+        );
+    }
     return (
-        <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-muted-foreground">
-            <UserIcon className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
-            <span className="imcrm-tabular-nums">#{String(value)}</span>
+        <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1.5">
+            {user.avatar_url ? (
+                <img
+                    src={user.avatar_url}
+                    alt=""
+                    aria-hidden
+                    className="imcrm-h-4 imcrm-w-4 imcrm-shrink-0 imcrm-rounded-full"
+                />
+            ) : (
+                <UserIcon className="imcrm-h-3.5 imcrm-w-3.5 imcrm-text-muted-foreground" aria-hidden />
+            )}
+            <span className="imcrm-truncate">
+                {user.display_name || user.login}
+            </span>
         </span>
     );
 }

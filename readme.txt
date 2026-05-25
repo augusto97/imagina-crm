@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.52.1
+Stable tag: 0.53.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,25 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.53.0 =
+**Picker de usuarios WP con autocomplete para fields tipo `user`.**
+
+El field type `user` ya no se edita como input numérico crudo (ID).
+Ahora muestra un selector con:
+
+- Buscador por nombre/login (debounced 200ms, hasta 8 resultados).
+- Avatar + display name + @login por opción.
+- Atajo "Asignar a mí" cuando hay un usuario logueado.
+- Botón "Quitar asignación" cuando hay un valor.
+- Teclado (↑/↓/Enter/Escape).
+
+Display:
+- En el drawer compacto, layout CRM y filas inline: avatar + nombre.
+- En la tabla principal: avatar + nombre por celda (cacheado, una
+  sola request por user único independiente de cuántas celdas usen
+  el mismo ID).
+- Si el usuario fue borrado: muestra "#ID (borrado)".
 
 = 0.52.1 =
 **Drawer lateral del registro con layout compacto.**

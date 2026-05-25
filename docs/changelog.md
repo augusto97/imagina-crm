@@ -4,6 +4,90 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.53.0] — 2026-05-25
+
+**UserPicker con autocomplete para el field type `user`.**
+
+### Motivación
+
+Feedback del usuario: "hay un tipo de field en las listas que se llama
+'usuario' pero por lo que veo solo permite poner el ID y no autocompleta…
+debería poderse colocar el nombre username y poder autocompletar para
+buscar ahí mismo el usuario en lugar de tener que ir al menu de
+usuarios de wordpress a buscar el ID".
+
+Antes el field `user` se editaba como `<Input type="number">` y se
+mostraba como `#ID` en celdas/displays — completamente inutilizable
+para usuarios que no recuerdan IDs de memoria.
+
+### Backend
+
+**`/me/users-search`** se extiende para incluir `avatar_url` en cada
+hit (vía `get_avatar_url()`). Sin breaking change — el campo es
+adicional.
+
+**Nuevo endpoint `GET /me/users/{id}`** — lookup individual de un
+user por ID. Devuelve `{id, login, display_name, avatar_url}`. 404
+si no existe. Misma capability que users-search (admin only).
+
+### Frontend
+
+**Nuevo hook `app/hooks/useWpUsers.ts`** con:
+- `useWpUsersSearch(query, limit)` — wrapping de `/me/users-search`,
+  staleTime 30s, no refetch on focus.
+- `useWpUser(id)` — wrapping de `/me/users/{id}`, staleTime 5min,
+  retorna null si 404.
+- `usePrefetchWpUser()` — prefetch imperativo para optimizaciones.
+
+**Nuevo componente `app/components/ui/user-picker.tsx`**:
+- Botón trigger que muestra el chip del user actual (avatar + nombre)
+  o un placeholder con icono.
+- Popover con input de búsqueda debounced (200ms) + lista de hits
+  navegable por teclado.
+- Footer con "Asignar a mí" (lee `getBootData().user.id`) y "Quitar
+  asignación" cuando aplica.
+- Variante `compact` (trigger h-8 sin @login secundario) para
+  CompactFieldRow.
+
+### Integración
+
+3 lugares actualizados para usar `<UserPicker>`:
+
+1. **`RecordFieldsForm`** (modo comfortable, RecordCreateDialog y
+   RecordPage) — case `'user'` reemplaza el `<Input type="number">`.
+
+2. **`CompactFieldRow`** (modo compact, drawer y CRM layout) — `user`
+   pasa a la lista de `isInlineControl` (siempre visible, no
+   edit-on-click) y delega a `<UserPicker compact showAssignMe />`.
+   El case `'user'` se elimina del `EditingControl`.
+
+3. **`FieldValueDisplay`** (CRM layout displays) y **`renderCellValue`**
+   (TableView celdas) ahora resuelven el user via `useWpUser` y muestran
+   avatar + display_name. Mientras carga: "…". Si user borrado:
+   "#ID (borrado)".
+
+### Cache strategy
+
+TanStack Query cachea por queryKey `['wp-user', id]` con staleTime
+5min. 30 celdas de tabla con el mismo user ID → 1 sola HTTP request.
+Cambios de display_name fuera del CRM (perfil de WP) toman hasta
+5min en reflejarse — aceptable, no es data crítica.
+
+### Archivos
+
+Nuevos:
+- `app/hooks/useWpUsers.ts`
+- `app/components/ui/user-picker.tsx`
+
+Modificados:
+- `src/REST/SystemController.php` (avatar_url en search + nuevo endpoint /me/users/{id})
+- `app/admin/records/RecordFieldsForm.tsx` (case user → UserPicker)
+- `app/admin/records/crm/CompactFieldRow.tsx` (user en InlineControl)
+- `app/admin/records/crm/FieldValueDisplay.tsx` (UserDisplay con useWpUser)
+- `app/admin/records/renderCellValue.tsx` (UserCell con useWpUser)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.52.1] — 2026-05-25
 
 **Drawer lateral del registro: layout compacto label-izquierda.**

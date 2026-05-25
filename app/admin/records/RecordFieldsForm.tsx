@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { UserPicker } from '@/components/ui/user-picker';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
@@ -182,6 +183,13 @@ function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Ele
             );
             break;
         case 'user':
+            control = (
+                <UserPicker
+                    value={typeof value === 'number' ? value : value ? Number(value) : null}
+                    onChange={(id) => onChange(id)}
+                />
+            );
+            break;
         case 'file':
             control = (
                 <Input
@@ -190,7 +198,7 @@ function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Ele
                     min={1}
                     value={value === undefined || value === null ? '' : String(value)}
                     onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-                    placeholder={field.type === 'user' ? __('ID de usuario WP') : __('ID de attachment')}
+                    placeholder={__('ID de attachment')}
                 />
             );
             break;

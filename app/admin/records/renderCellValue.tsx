@@ -1,4 +1,5 @@
 import { chipSoftStyle, type OptionColor } from '@/components/ui/color-picker';
+import { useWpUser } from '@/hooks/useWpUsers';
 import type { FieldEntity } from '@/types/field';
 
 import { extractFieldOptions, type FieldOption } from './fieldOptions';
@@ -107,5 +108,41 @@ export function renderCellValue(field: FieldEntity, value: unknown): React.React
         );
     }
 
+    if (field.type === 'user') {
+        const id = typeof value === 'number' ? value : Number(value);
+        if (Number.isFinite(id) && id > 0) {
+            return <UserCell id={id} />;
+        }
+    }
+
     return String(value);
+}
+
+/**
+ * Render compacto de user para celdas de tabla. Cachea via TanStack
+ * Query (`useWpUser`) — múltiples celdas con el mismo ID resuelven
+ * a 1 sola request. Fallback al ID si el endpoint falla o el user
+ * no existe.
+ */
+function UserCell({ id }: { id: number }): JSX.Element {
+    const { data: user, isLoading } = useWpUser(id);
+    if (isLoading) {
+        return <span className="imcrm-text-muted-foreground">…</span>;
+    }
+    if (! user) {
+        return <span className="imcrm-text-muted-foreground">#{id}</span>;
+    }
+    return (
+        <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1.5">
+            {user.avatar_url && (
+                <img
+                    src={user.avatar_url}
+                    alt=""
+                    aria-hidden
+                    className="imcrm-h-4 imcrm-w-4 imcrm-shrink-0 imcrm-rounded-full"
+                />
+            )}
+            <span className="imcrm-truncate">{user.display_name || user.login}</span>
+        </span>
+    );
 }

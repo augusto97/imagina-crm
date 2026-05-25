@@ -3,6 +3,7 @@ import { Pencil } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { UserPicker } from '@/components/ui/user-picker';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { extractFieldOptions } from '@/admin/records/fieldOptions';
@@ -39,11 +40,14 @@ export function CompactFieldRow({
     const [editing, setEditing] = useState(false);
 
     // Tipos que tienen control inline siempre visible (no necesitan
-    // "click para editar").
+    // "click para editar"). Para user incluimos el UserPicker que
+    // tiene su propio popover de búsqueda — sería raro abrirlo solo
+    // tras click extra cuando ya es interactivo.
     const isInlineControl =
         field.type === 'checkbox' ||
         field.type === 'select' ||
-        field.type === 'multi_select';
+        field.type === 'multi_select' ||
+        field.type === 'user';
 
     // Tipos read-only (computed): nunca editables.
     const isReadOnly = field.type === 'computed';
@@ -223,8 +227,8 @@ function EditingControl({
                     className="imcrm-h-8 imcrm-text-sm"
                 />
             );
-        case 'user':
         case 'file':
+            // `user` no llega acá — está en InlineControl con UserPicker.
             return (
                 <Input
                     id={id}
@@ -237,7 +241,7 @@ function EditingControl({
                     }
                     onBlur={onBlur}
                     onKeyDown={handleKey}
-                    placeholder={field.type === 'user' ? __('ID usuario') : __('ID adjunto')}
+                    placeholder={__('ID adjunto')}
                     className="imcrm-h-8 imcrm-text-sm imcrm-tabular-nums"
                 />
             );
@@ -295,6 +299,18 @@ function InlineControl({
     onChange: (v: unknown) => void;
 }): JSX.Element {
     const id = `field-${field.id}`;
+
+    if (field.type === 'user') {
+        const userId = typeof value === 'number' ? value : value ? Number(value) : null;
+        return (
+            <UserPicker
+                value={userId}
+                onChange={(next) => onChange(next)}
+                compact
+                showAssignMe
+            />
+        );
+    }
 
     if (field.type === 'checkbox') {
         return (
