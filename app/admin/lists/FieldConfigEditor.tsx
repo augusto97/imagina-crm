@@ -4,7 +4,8 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     ColorPicker,
-    OPTION_COLORS,
+    isHexColor,
+    isPresetColor,
     type OptionColor,
 } from '@/components/ui/color-picker';
 import { Input } from '@/components/ui/input';
@@ -86,6 +87,11 @@ interface OptionRow {
     color: OptionColor | null;
 }
 
+/** Acepta tanto preset names (`'rose'`) como hex (`#rrggbb`). */
+function isAcceptableColor(c: string): boolean {
+    return isPresetColor(c) || isHexColor(c);
+}
+
 function OptionsEditor({ config, onChange }: SubProps): JSX.Element {
     const options = useMemo<OptionRow[]>(() => {
         const raw = config.options;
@@ -97,8 +103,11 @@ function OptionsEditor({ config, onChange }: SubProps): JSX.Element {
             .map((o) => ({
                 value: typeof o.value === 'string' ? o.value : String(o.value ?? ''),
                 label: typeof o.label === 'string' ? o.label : String(o.label ?? ''),
-                color: typeof o.color === 'string' && OPTION_COLORS.includes(o.color as OptionColor)
-                    ? (o.color as OptionColor)
+                // Acepta tanto presets nombrados como hex (#rrggbb).
+                // Si el string no matchea ninguno, descartamos (null) —
+                // probablemente venía de un import o config corrupto.
+                color: typeof o.color === 'string' && isAcceptableColor(o.color)
+                    ? o.color
                     : null,
             }));
     }, [config.options]);

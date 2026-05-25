@@ -467,6 +467,8 @@ export function RecordsPage(): JSX.Element {
                                 records={records.data?.data ?? []}
                                 groupByField={groupByField}
                                 onCardClick={(record) => setDrawerRecordId(record.id)}
+                                titleFieldId={activeView?.config.kanban_title_field_id ?? null}
+                                metaFieldIds={activeView?.config.kanban_meta_field_ids ?? null}
                             />
                         </Suspense>
                     ) : isCalendar && dateField ? (

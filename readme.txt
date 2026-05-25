@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.51.0
+Stable tag: 0.52.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.52.0 =
+**Color picker con hex custom + 6 presets nuevos + fix de edición de vistas.**
+
+**Color picker:** además de los 12 presets, ahora podés elegir
+cualquier color hex personalizado para los chips de select / multi_select.
+Color picker nativo del browser + input manual de hex (#rrggbb).
+Útil para matchear paletas de marca específicas. Total de presets
+sube a 18 (nuevos: slate, red, emerald, sky, indigo, fuchsia). El
+contraste WCAG se mantiene tanto para presets como para hex
+(lightness forzada para el text según hue del hex elegido).
+
+**Fix vista Cards:** los checkboxes y selects se deseleccionaban
+solos después de cualquier cambio. Causa: el `useEffect` que
+re-inicializaba el state desde la prop `view` tenía `[open, view, update]`
+en las deps — `view` y `update` (objetos de TanStack Query) cambian
+de referencia en cada render, así que el efecto re-corría tras cada
+keystroke y RESETEABA todo el form. Fix: dependencias solo `[open, view.id]`
++ separamos el `update.reset()` a su propio efecto.
+
+**Nuevo: vista Kanban configurable.** Antes la vista Kanban se
+creaba y no permitía ajustar nada (los campos visibles en cada card
+se elegían por heurística). Ahora desde el dropdown de acciones de
+la vista hay "Editar configuración" que abre un dialog donde se puede
+ajustar: campo de agrupación, campo de título, y lista de campos meta
+visibles en cada card (reordenable).
 
 = 0.51.0 =
 **Cambio de tipo de campo + contraste mejorado en chips de color.**

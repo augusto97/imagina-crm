@@ -4,6 +4,43 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.52.0] — 2026-05-25
+
+**Color picker con hex + 6 presets nuevos + edit dialog Kanban + fix Cards.**
+
+### A — Color picker extendido
+
+`OptionColor` ahora es `PresetColor | string` (preset OR hex). 18
+presets (6 nuevos: slate, red, emerald, sky, indigo, fuchsia). UI del
+picker: 18 swatches + `<input type="color">` nativo + input manual hex
+con validación.
+
+`chipSoftStyle()` detecta el tipo: preset usa CSS vars (theme-aware);
+hex usa `${hex}24/52` para bg/border y deriva text con HSL forzando
+lightness 28% (light) / 72% (dark). Theme detectado al render via
+`[data-imcrm-theme]`.
+
+Helpers nuevos: `isPresetColor`, `isHexColor`, `normalizeHex`.
+`FieldConfigEditor` valida `isAcceptableColor` (preset OR hex).
+
+### B — Fix vista Cards (state que se reseteaba)
+
+Bug: checkboxes se deseleccionaban solos, selectors no preservaban
+valor. Causa: `useEffect(..., [open, view, update])` en
+`EditCardsViewDialog` — `view` y `update` cambian de referencia cada
+render → efecto re-corría → state se reseteaba al original. Fix: deps
+`[open, view.id]` + `update.reset()` en efecto separado.
+
+### C — Edit dialog para Kanban
+
+Nuevo `EditKanbanViewDialog.tsx`. Form: nombre + agrupación (select) +
+título de card (fallback automático) + lista reordenable de meta
+fields. `SavedViewConfig` extendido con `kanban_title_field_id` y
+`kanban_meta_field_ids` (ambos opcionales). `KanbanView` los usa si
+están presentes; cae a heurística previa si no.
+
+Build: 0 errores TS, 548 tests OK.
+
 ## [0.51.0] — 2026-05-25
 
 **Cambio de tipo de campo + contraste mejorado en chips de color.**

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import type { SavedViewConfig, SavedViewEntity } from '@/types/view';
 
 import { EditCardsViewDialog } from './EditCardsViewDialog';
+import { EditKanbanViewDialog } from './EditKanbanViewDialog';
 
 interface ViewsTabsProps {
     listId: number;
@@ -48,6 +49,7 @@ export function ViewsTabs({
     const update = useUpdateSavedView(listId);
     const remove = useDeleteSavedView(listId);
     const [editingCardsView, setEditingCardsView] = useState<SavedViewEntity | null>(null);
+    const [editingKanbanView, setEditingKanbanView] = useState<SavedViewEntity | null>(null);
 
     const sortedViews = [...views].sort((a, b) => {
         if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
@@ -131,6 +133,12 @@ export function ViewsTabs({
                                     <DropdownMenuContent>
                                         {view.type === 'cards' && (
                                             <DropdownMenuItem onSelect={() => setEditingCardsView(view)}>
+                                                <Pencil className="imcrm-h-3.5 imcrm-w-3.5" />
+                                                {__('Editar configuración')}
+                                            </DropdownMenuItem>
+                                        )}
+                                        {view.type === 'kanban' && (
+                                            <DropdownMenuItem onSelect={() => setEditingKanbanView(view)}>
                                                 <Pencil className="imcrm-h-3.5 imcrm-w-3.5" />
                                                 {__('Editar configuración')}
                                             </DropdownMenuItem>
@@ -229,6 +237,17 @@ export function ViewsTabs({
                     open={editingCardsView !== null}
                     onOpenChange={(open) => {
                         if (! open) setEditingCardsView(null);
+                    }}
+                />
+            )}
+
+            {editingKanbanView && (
+                <EditKanbanViewDialog
+                    listId={listId}
+                    view={editingKanbanView}
+                    open={editingKanbanView !== null}
+                    onOpenChange={(open) => {
+                        if (! open) setEditingKanbanView(null);
                     }}
                 />
             )}

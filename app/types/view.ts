@@ -77,6 +77,18 @@ export interface SavedViewConfig {
      * (Fase 12.A+)
      */
     card_size?: 'compact' | 'comfortable' | 'spacious';
+    /**
+     * Sólo para vistas tipo `kanban`: id del campo que se usa como
+     * título prominente de cada card. Si no se setea, KanbanView
+     * elige el primary field (o el primer text/email como fallback).
+     */
+    kanban_title_field_id?: number;
+    /**
+     * Sólo para vistas tipo `kanban`: ids de los campos que se
+     * muestran como meta debajo del título (max 3-4). Si no se setea,
+     * KanbanView elige por heurística los 3 primeros no excluidos.
+     */
+    kanban_meta_field_ids?: number[];
 }
 
 export interface SavedViewEntity {

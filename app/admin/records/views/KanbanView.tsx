@@ -28,6 +28,15 @@ interface KanbanViewProps {
     records: RecordEntity[];
     groupByField: FieldEntity;
     onCardClick: (record: RecordEntity) => void;
+    /**
+     * IDs explícitos del título y de los meta fields a mostrar en
+     * cada card. Si null/undefined, KanbanView cae al modo
+     * heurístico previo (`pickTitleField` / `pickMetaFields`).
+     * Permite que el user customice cuáles campos se muestran via
+     * `EditKanbanViewDialog`.
+     */
+    titleFieldId?: number | null;
+    metaFieldIds?: number[] | null;
 }
 
 interface SelectOption {
@@ -44,6 +53,8 @@ export function KanbanView({
     records,
     groupByField,
     onCardClick,
+    titleFieldId,
+    metaFieldIds,
 }: KanbanViewProps): JSX.Element {
     const update = useUpdateRecord(listId);
     const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -81,11 +92,24 @@ export function KanbanView({
         return map;
     }, [records, options, groupByField.slug]);
 
-    const titleField = useMemo(() => pickTitleField(fields, groupByField.id), [fields, groupByField.id]);
-    const metaFields = useMemo(
-        () => pickMetaFields(fields, groupByField.id, titleField?.id),
-        [fields, groupByField.id, titleField?.id],
-    );
+    // Honra el override explícito si el user lo configuró desde
+     // `EditKanbanViewDialog`; si no, cae al modo heurístico.
+    const titleField = useMemo(() => {
+        if (titleFieldId) {
+            const explicit = fields.find((f) => f.id === titleFieldId);
+            if (explicit) return explicit;
+        }
+        return pickTitleField(fields, groupByField.id);
+    }, [fields, groupByField.id, titleFieldId]);
+    const metaFields = useMemo(() => {
+        if (metaFieldIds && metaFieldIds.length > 0) {
+            const fieldById = new Map(fields.map((f) => [f.id, f]));
+            return metaFieldIds
+                .map((id) => fieldById.get(id))
+                .filter((f): f is FieldEntity => f !== undefined);
+        }
+        return pickMetaFields(fields, groupByField.id, titleField?.id);
+    }, [fields, groupByField.id, titleField?.id, metaFieldIds]);
 
     const handleDrop = async (targetValue: string): Promise<void> => {
         setDropTarget(null);

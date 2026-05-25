@@ -47,19 +47,29 @@ export function EditCardsViewDialog({
     );
     const [error, setError] = useState<string | null>(null);
 
+    // Re-init desde la vista al abrir, o cuando se cambia el view target.
+    // IMPORTANTE: las deps son `[open, view.id]` — NO `view` ni `update`.
+    // `view` y `update` cambian de referencia en cada render del padre
+    // (TanStack Query rebuilda objects) → el efecto se dispararía tras
+    // cada click del usuario, RESETEANDO el state (los checkboxes
+    // marcados se vuelven a deseleccionar, los selects se resetean al
+    // valor inicial). Por eso solo dependemos del id del view + open.
     useEffect(() => {
-        if (open) {
-            // Re-init desde la vista cada vez que se abre (por si el padre
-            // cambió la activeView entre opens).
-            setName(view.name);
-            setCardFieldIds(view.config.card_field_ids ?? []);
-            setCoverFieldId(view.config.card_cover_field_id ?? 0);
-            setSize(view.config.card_size ?? 'comfortable');
-            setError(null);
-        } else {
-            update.reset();
-        }
-    }, [open, view, update]);
+        if (! open) return;
+        setName(view.name);
+        setCardFieldIds(view.config.card_field_ids ?? []);
+        setCoverFieldId(view.config.card_cover_field_id ?? 0);
+        setSize(view.config.card_size ?? 'comfortable');
+        setError(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, view.id]);
+
+    // Reset del mutation al cerrar — separado del init para no
+    // contaminar las deps de arriba.
+    useEffect(() => {
+        if (! open) update.reset();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
