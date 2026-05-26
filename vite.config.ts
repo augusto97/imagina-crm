@@ -43,7 +43,14 @@ export default defineConfig({
     },
     build: {
         target: 'es2020',
-        sourcemap: true,
+        // Sourcemaps SOLO en dev (`vite dev`). En `vite build` van
+        // deshabilitados porque (1) duplican el tamaño del bundle
+        // (de ~1.6 MB a ~7.5 MB en dist/), y (2) exponen el código
+        // fuente original sin ofuscar a cualquiera que inspeccione
+        // el browser — innecesario en un release de producción.
+        // El dev server de Vite tiene sourcemaps inline por default
+        // así que DX no se ve afectada.
+        sourcemap: false,
         emptyOutDir: true,
         rollupOptions: {
             output: {
