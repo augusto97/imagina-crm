@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
 import { ArrowDown, LayoutGrid } from 'lucide-react';
@@ -163,7 +163,9 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                     return (
                         <BlockSlot
                             key={b.id}
-                            block={b}
+                            blockId={b.id}
+                            blockW={b.w}
+                            blockH={b.h}
                             preview={preview}
                             isSelected={isSelected}
                             isDropTarget={isDropTarget}
@@ -193,27 +195,10 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
     );
 }
 
-/**
- * Slot del bloque en el grid. Encapsula la lógica de:
- *  - Selección / drop / hover.
- *  - Detección de **overflow vertical**: si el contenido renderizado
- *    es más alto que el slot configurado, se muestra un badge sutil
- *    abajo-derecha indicando "+ contenido" con icono. Esto evita que
- *    el usuario se sorprenda al ver el bloque cortado y le insinúa
- *    que debería hacer resize.
- */
-function BlockSlot<TBlock extends BaseTemplateBlock>({
-    block,
-    preview,
-    isSelected,
-    isDropTarget,
-    onSelect,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-    renderPreview,
-}: {
-    block: TBlock;
+interface BlockSlotProps {
+    blockId: string;
+    blockW: number;
+    blockH: number;
     preview: boolean;
     isSelected: boolean;
     isDropTarget: boolean;
@@ -221,8 +206,54 @@ function BlockSlot<TBlock extends BaseTemplateBlock>({
     onDragOver: (id: string, e: React.DragEvent) => void;
     onDragLeave: (e: React.DragEvent) => void;
     onDrop: (id: string, e: React.DragEvent) => void;
-    renderPreview: () => React.ReactNode;
-}): JSX.Element {
+    renderPreview: () => ReactNode;
+    /** Props inyectadas por react-grid-layout via cloneElement. */
+    style?: CSSProperties;
+    className?: string;
+    children?: ReactNode;
+}
+
+/**
+ * Slot del bloque en el grid.
+ *
+ * **CRÍTICO — children de react-grid-layout deben spreadear props
+ * inyectadas y forwardear ref**: el library clona cada child para
+ * agregarle `style` (position absolute + transform), `className`
+ * (`react-grid-item`), `ref` (para medición) y handlers de mouse
+ * para el drag. Si el child no propaga estas al outer DOM node, los
+ * bloques quedan sin posicionamiento ni interactividad. Por eso este
+ * componente:
+ *  - Usa `forwardRef` para que react-grid-layout pueda medir el nodo.
+ *  - Acepta `style` / `className` / `children` (los resize handles
+ *    vienen como children del clone) y los aplica al outer div.
+ *  - Compone su propio className con el del library en vez de pisarlo.
+ *
+ * Encapsula además:
+ *  - Selección / drop / hover.
+ *  - Detección de **overflow vertical**: si el contenido renderizado
+ *    es más alto que el slot configurado, muestra un badge ámbar
+ *    abajo-derecha sugiriendo resize.
+ */
+const BlockSlot = forwardRef<HTMLDivElement, BlockSlotProps>(function BlockSlot(
+    {
+        blockId,
+        blockW,
+        blockH,
+        preview,
+        isSelected,
+        isDropTarget,
+        onSelect,
+        onDragOver,
+        onDragLeave,
+        onDrop,
+        renderPreview,
+        style,
+        className,
+        children,
+        ...rest
+    },
+    ref,
+) {
     const innerRef = useRef<HTMLDivElement | null>(null);
     const [overflows, setOverflows] = useState(false);
 
@@ -230,28 +261,30 @@ function BlockSlot<TBlock extends BaseTemplateBlock>({
         const el = innerRef.current;
         if (! el) return;
         const check = (): void => {
-            // scrollHeight > clientHeight indica que el contenido es
-            // más alto que el contenedor (overflow vertical).
             setOverflows(el.scrollHeight - 1 > el.clientHeight);
         };
         check();
         const ro = new ResizeObserver(check);
         ro.observe(el);
         return () => ro.disconnect();
-    }, [block.w, block.h]);
+    }, [blockW, blockH]);
 
     return (
         <div
+            ref={ref}
+            style={style}
+            {...rest}
             onClickCapture={(e) => {
                 if (preview) return;
                 e.stopPropagation();
-                onSelect(block.id, e.shiftKey);
+                onSelect(blockId, e.shiftKey);
             }}
-            onDragOver={preview ? undefined : (e) => onDragOver(block.id, e)}
+            onDragOver={preview ? undefined : (e) => onDragOver(blockId, e)}
             onDragLeave={preview ? undefined : onDragLeave}
-            onDrop={preview ? undefined : (e) => onDrop(block.id, e)}
+            onDrop={preview ? undefined : (e) => onDrop(blockId, e)}
             className={cn(
-                'imcrm-group imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-transition-all',
+                className,
+                'imcrm-group imcrm-overflow-hidden imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-transition-all',
                 isDropTarget
                     ? 'imcrm-ring-2 imcrm-ring-primary imcrm-ring-offset-2 imcrm-ring-offset-background'
                     : isSelected
@@ -261,12 +294,15 @@ function BlockSlot<TBlock extends BaseTemplateBlock>({
                             : 'imcrm-ring-border hover:imcrm-ring-primary/40',
             )}
         >
-            <div ref={innerRef} className="imcrm-pointer-events-none imcrm-flex-1 imcrm-overflow-hidden">
+            <div
+                ref={innerRef}
+                className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-overflow-hidden"
+            >
                 {renderPreview()}
             </div>
             {overflows && ! isDropTarget && (
                 <div
-                    className="imcrm-pointer-events-none imcrm-absolute imcrm-bottom-1.5 imcrm-right-1.5 imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-amber-500/95 imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-medium imcrm-text-white imcrm-shadow-imcrm-sm"
+                    className="imcrm-pointer-events-none imcrm-absolute imcrm-bottom-1.5 imcrm-right-1.5 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-amber-500/95 imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-medium imcrm-text-white imcrm-shadow-imcrm-sm"
                     title={__('El contenido excede la altura del bloque. En el front se mostrará completo pero el bloque tendrá altura mayor. Hacé resize para evitar desfase.')}
                 >
                     <ArrowDown className="imcrm-h-2.5 imcrm-w-2.5" aria-hidden />
@@ -274,15 +310,18 @@ function BlockSlot<TBlock extends BaseTemplateBlock>({
                 </div>
             )}
             {isDropTarget && (
-                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-bg-primary/10">
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-bg-primary/10">
                     <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">
                         {__('Soltar para agregar al grupo')}
                     </p>
                 </div>
             )}
+            {/* `children` viene de react-grid-layout (resize handles).
+                Debe ir al final para superponerse sobre el preview. */}
+            {children}
         </div>
     );
-}
+});
 
 function GridGuides({ cols }: { cols: number }): JSX.Element {
     return (

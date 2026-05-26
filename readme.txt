@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.2
+Stable tag: 0.57.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,21 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.3 =
+**Hotfix — drag & resize en el editor del portal del cliente.**
+
+* El refactor del 0.57.2 introdujo `BlockSlot` como componente
+  funcional intermedio entre el grid y el bloque. `react-grid-layout`
+  inyecta `style` (position absolute + transform), `className`
+  (`react-grid-item`) y refs via `cloneElement`, y un componente
+  funcional sin `forwardRef` ni spread descarta esas props
+  silenciosamente. Resultado: los bloques se renderizaban full-width
+  en flujo vertical (sin posición de grid) y los resize handles no
+  recibían eventos.
+* Fix: `BlockSlot` ahora usa `forwardRef`, acepta y propaga `style`,
+  `className` y `children` (los resize handles vienen como children
+  del clone) al outer div.
 
 = 0.57.2 =
 **Editor de portal — altura auto, preview live y override de colores en hero.**

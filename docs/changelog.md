@@ -4,6 +4,53 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.3] — 2026-05-26
+
+**Hotfix crítico — drag, resize y posicionamiento del editor del
+portal del cliente roto desde 0.57.2.**
+
+### El bug
+
+En 0.57.2 refactoricé el children del `react-grid-layout` para
+extraer `BlockSlot` como componente funcional con `ResizeObserver`
+interno (badge "contenido excede"). Lo escribí con props explícitas
+sin `forwardRef` ni spread de extras — y eso rompió completamente
+el editor:
+
+* `react-grid-layout` clona cada child con `cloneElement` agregando:
+  - `style={{ position: 'absolute', transform: 'translate(x, y)', width, height }}`
+  - `className="react-grid-item ..."`
+  - `ref` para medición (no funciona con componentes funcionales sin
+    `forwardRef`).
+  - `children` con los resize handles `.react-resizable-handle`.
+* Cuando el child es un componente funcional que no spreadea esas
+  props ni forwardea el ref, **todas se descartan silenciosamente**.
+* Resultado en el editor del portal:
+  - Bloques sin `position: absolute` → fluyen en orden vertical
+    full-width, ignorando `x/y/w/h` del grid.
+  - Resize handles ausentes (children no renderizados).
+  - Drag handlers no llegaban al DOM correcto.
+
+El editor del CRM no se rompió porque su `GridEditor` usa `<div>`
+directos (no componente intermedio), que reciben las props inyectadas
+naturalmente.
+
+### El fix
+
+`BlockSlot` ahora:
+* Usa `forwardRef<HTMLDivElement, BlockSlotProps>`.
+* Acepta `style`, `className` y `children` como props y los aplica
+  al outer div (style primero, className compuesto con `cn()`).
+* Spreadea cualquier prop adicional con `{...rest}` antes de los
+  handlers propios.
+* Renderea `{children}` al final del outer (los resize handles
+  vienen como children del clone y deben superponerse al preview).
+
+### Cambios en archivos
+
+- `app/admin/template-editor-core/GridCanvas.tsx` — `BlockSlot`
+  reescrito con `forwardRef`.
+
 ## [0.57.2] — 2026-05-26
 
 **Editor del portal del cliente — altura auto, preview live y
