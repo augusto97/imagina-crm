@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { usePortalPreview } from '../PreviewContext';
 import type { PortalBootData } from '../types';
 
 interface Props {
@@ -31,10 +32,17 @@ interface Props {
  * records ajenos.
  */
 export function KpiWidgetBlock({ config, boot }: Props): JSX.Element {
-    const [value, setValue] = useState<string | number | null | undefined>(undefined);
+    const isPreview = usePortalPreview();
+    const [value, setValue] = useState<string | number | null | undefined>(
+        isPreview ? mockValueForMetric(config.metric ?? 'count') : undefined,
+    );
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (isPreview) {
+            setValue(mockValueForMetric(config.metric ?? 'count'));
+            return;
+        }
         const listSlug = config.list_slug ?? '';
         const fieldId = config.field_id ?? 0;
         const metric = config.metric ?? 'count';
@@ -79,7 +87,7 @@ export function KpiWidgetBlock({ config, boot }: Props): JSX.Element {
                 setError('No se pudo calcular la métrica.');
             });
         return () => ac.abort();
-    }, [boot, config.list_slug, config.field_id, config.metric]);
+    }, [boot, config.list_slug, config.field_id, config.metric, isPreview]);
 
     const variant = config.variant ?? 'card';
     const accentStyle = config.accent_color
@@ -135,4 +143,19 @@ export function KpiWidgetBlock({ config, boot }: Props): JSX.Element {
             </div>
         </section>
     );
+}
+
+/**
+ * Valor representativo de cada métrica para el preview del editor.
+ * No es aleatorio: dame un valor estable y "lindo" para que el admin
+ * vea cómo se ve un KPI promedio sin tener que conectar a datos reales.
+ */
+function mockValueForMetric(metric: 'count' | 'sum' | 'avg' | 'min' | 'max'): number {
+    switch (metric) {
+        case 'count': return 42;
+        case 'sum':   return 12500;
+        case 'avg':   return 285.5;
+        case 'min':   return 15;
+        case 'max':   return 1850;
+    }
 }

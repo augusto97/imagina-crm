@@ -30,7 +30,7 @@ import type {
 } from '@/admin/template-editor-core';
 
 import { PortalBlockForm } from './PortalBlockForms';
-import { PortalBlockPreview } from './PortalBlockPreview';
+import { PortalBlockLivePreview } from './PortalBlockLivePreview';
 import { defaultConfigFor, defaultHeightFor, defaultWidthFor } from './portalLayout';
 
 /** Bloque del portal compatible con el shape genérico del editor core. */
@@ -258,7 +258,7 @@ export const portalRegistry: BlockRegistry<PortalEditorBlock> = {
     },
 
     renderPreview: (block, ctx) => {
-        return <PortalBlockPreview block={block} fields={ctx.fields} />;
+        return <PortalBlockLivePreview block={block} fields={ctx.fields} />;
     },
 
     labelForType: (type) => LABEL_BY_TYPE[type as PortalBlockType] ?? type,

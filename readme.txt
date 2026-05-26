@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.1
+Stable tag: 0.57.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.2 =
+**Editor de portal — altura auto, preview live y override de colores en hero.**
+
+* **Altura auto en el front**: los bloques del portal del cliente ya
+  no se recortan ni muestran scroll interno cuando el contenido excede
+  la altura configurada en el editor. Cada fila del grid CSS se
+  expande al contenido del bloque más alto y los bloques siguientes
+  se desplazan automáticamente.
+* **Max-height opcional**: campo nuevo en el inspector de cada bloque
+  ("Avanzado — altura máxima"). Si se setea un valor en px, el bloque
+  aplica scroll interno cuando se excede ese tope.
+* **Preview real en el editor**: reemplazado el mockup simplificado
+  por el componente real del portal con datos mock. El editor ahora
+  muestra exactamente el mismo HTML/CSS/tamaños que ve el cliente en
+  el portal — pixel-identical entre editor y front.
+* **Badge "contenido excede"**: cuando el contenido de un bloque es
+  más alto que el slot del grid en el editor, aparece un indicador
+  ámbar abajo-derecha sugiriendo hacer resize.
+* **Hero con override de bg + text**: dos campos nuevos opcionales en
+  el inspector del hero ("Color de fondo" y "Color del texto") que
+  pisan el bg/color del variant. Útil para hero con paleta custom
+  fuera del accent del tema.
 
 = 0.57.1 =
 **Mejoras visuales a 4 bloques existentes del portal.**

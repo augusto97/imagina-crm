@@ -172,6 +172,10 @@ export type PortalBlock = PortalBlockGridPosition & (
               cta_href?: string;
               variant?: 'gradient' | 'solid' | 'plain';
               accent_color?: string | null;
+              /** Override del bg del variant. Si está seteado, gradient/solid se reemplazan por bg sólido. */
+              background_color?: string | null;
+              /** Override del color del texto. Default: white para gradient/solid, heredado para plain. */
+              text_color?: string | null;
               align?: 'left' | 'center';
           };
       }

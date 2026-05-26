@@ -4,6 +4,90 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.2] — 2026-05-26
+
+**Editor del portal del cliente — altura auto, preview live y
+override de colores en hero.**
+
+Iteración de UX sobre el editor del portal, motivada por tres
+problemas reportados:
+1. Los bloques en el front se veían recortados/con scroll cuando el
+   contenido excedía la altura configurada en el editor.
+2. El preview del editor (mockup tailwind simplificado) no coincidía
+   en tamaño ni estilo con el front, generando confusión sobre cómo
+   se verá realmente cada bloque.
+3. El bloque hero solo permitía configurar accent color, sin opción
+   de bg custom para temas con paleta específica.
+
+### Altura auto en el front (`portal.css`)
+
+* `grid-auto-rows: 40px` → `grid-auto-rows: minmax(40px, max-content)`.
+  El grid CSS ahora respeta la altura natural del contenido del
+  bloque más alto de cada fila lógica. Los bloques de filas
+  siguientes se desplazan abajo automáticamente.
+* `overflow: hidden` → `overflow: visible` en el cell y en el block.
+  Sin más recortes por defecto.
+* Soporte opcional de `max_height` por bloque: si el config define
+  un valor numérico (px), el cell aplica `max-height` + scroll
+  interno. Si está vacío, sin tope.
+
+### Preview live del editor (`PortalBlockLivePreview.tsx`)
+
+* Reemplazo del `PortalBlockPreview` legacy (mockup tailwind con
+  `text-[10px]/text-xs`, tamaños ~50% del front) por el componente
+  **real** del portal con datos mock — mismo HTML, mismas clases,
+  mismo CSS del portal cargado al admin bundle.
+* Nuevo `PortalPreviewContext` (`app/portal/PreviewContext.tsx`):
+  los 6 bloques que normalmente fetchean (`kpi_widget`,
+  `stats_grid`, `activity_timeline`, `download_files`,
+  `comments_thread`, `related_records_table`) chequean el contexto;
+  si está en preview, muestran data mock estable (no aleatoria) en
+  lugar de llamar a la REST API.
+* Wrapper `.imcrm-portal-preview-root` envuelve el preview con scope
+  para los tokens CSS (`--imcrm-portal-*`) — sin esto los bloques
+  heredarían los colores del admin (oscuros) en lugar de los del
+  portal (claros).
+
+### Badge "contenido excede" en el editor (`GridCanvas.tsx`)
+
+* `BlockSlot` extraído como componente con `ResizeObserver` interno
+  que detecta cuando `scrollHeight > clientHeight` del contenido.
+* Badge ámbar abajo-derecha con icono `ArrowDown` y tooltip
+  explicativo. Sugiere hacer resize sin forzarlo (el front se
+  expande igual gracias al cambio de altura auto).
+
+### Hero — `background_color` + `text_color` overrides
+
+* `HeroBlock.tsx`: dos campos opcionales nuevos. Si `background_color`
+  está seteado, override del bg del variant (gradient/solid) con
+  bg sólido. Si `text_color` está seteado, override del color del
+  texto. Vacíos = comportamiento anterior.
+* `HexColorInput` nuevo (`PortalBlockForms.tsx`): input con color
+  picker nativo HTML5 + input HEX libre + botón "Limpiar". A
+  diferencia del `ColorPicker` paletizado, permite cualquier color.
+
+### Archivos tocados
+
+**Front del portal:**
+- `assets/portal.css` — grid auto-rows + CSS de preview-root + bg
+- `app/portal/PortalRenderer.tsx` — soporte de `max_height`
+- `app/portal/PreviewContext.tsx` — nuevo
+- `app/portal/blocks/HeroBlock.tsx` — bg/text overrides
+- `app/portal/blocks/KpiWidgetBlock.tsx` — mock en preview
+- `app/portal/blocks/StatsGridBlock.tsx` — mock en preview
+- `app/portal/blocks/ActivityTimelineBlock.tsx` — mock en preview
+- `app/portal/blocks/DownloadFilesBlock.tsx` — mock en preview
+- `app/portal/blocks/CommentsThreadBlock.tsx` — mock en preview
+- `app/portal/blocks/RelatedRecordsTableBlock.tsx` — mock en preview
+- `app/portal/types.ts` — hero shape + max_height
+
+**Editor del admin:**
+- `app/main.tsx` — import del portal.css
+- `app/admin/template-editor-core/GridCanvas.tsx` — BlockSlot + badge
+- `app/admin/lists/portal-template-editor/PortalBlockLivePreview.tsx` — nuevo
+- `app/admin/lists/portal-template-editor/portalRegistry.tsx` — switch a Live
+- `app/admin/lists/portal-template-editor/PortalBlockForms.tsx` — HexColorInput, MaxHeightField, Hero fields
+
 ## [0.57.1] — 2026-05-26
 
 **Mejoras visuales a 4 bloques existentes del portal.**

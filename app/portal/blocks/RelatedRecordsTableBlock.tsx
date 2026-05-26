@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { fetchRelatedRecords } from '../api';
+import { usePortalPreview } from '../PreviewContext';
 import type { PortalBootData, PortalRecord } from '../types';
 
 interface Props {
@@ -30,11 +31,15 @@ export function RelatedRecordsTableBlock({ config, boot }: Props): JSX.Element {
     const columns = config.visible_field_slugs ?? [];
     const variant = config.variant ?? 'table';
 
-    const [records, setRecords] = useState<PortalRecord[] | null>(null);
-    const [total, setTotal] = useState(0);
+    const isPreview = usePortalPreview();
+    const [records, setRecords] = useState<PortalRecord[] | null>(
+        isPreview ? buildMockRecords(columns) : null,
+    );
+    const [total, setTotal] = useState(isPreview ? 3 : 0);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (isPreview) return;
         if (listSlug === '') {
             setError('Bloque no configurado: falta list_slug.');
             return;
@@ -50,7 +55,7 @@ export function RelatedRecordsTableBlock({ config, boot }: Props): JSX.Element {
                 setError('No se pudieron cargar los registros.');
             });
         return () => ac.abort();
-    }, [boot, listSlug, perPage]);
+    }, [boot, listSlug, perPage, isPreview]);
 
     return (
         <section className="imcrm-portal-block imcrm-portal-block--related">
@@ -130,4 +135,22 @@ function renderCell(value: unknown): string {
     if (value === false || value === 0 || value === '0') return '✗';
     if (Array.isArray(value)) return value.map(String).join(', ');
     return String(value);
+}
+
+function buildMockRecords(columns: string[]): PortalRecord[] {
+    const samples = ['Proyecto Alpha', 'Sitio web v2', 'Campaña mayo'];
+    const dates = ['2026-05-26', '2026-05-20', '2026-05-15'];
+    const statuses = ['Activo', 'En revisión', 'Completado'];
+    return samples.map((_, i) => {
+        const fields: Record<string, unknown> = {};
+        const useCols = columns.length > 0 ? columns : ['name', 'status', 'date'];
+        useCols.forEach((slug) => {
+            const lower = slug.toLowerCase();
+            if (lower.includes('date') || lower.includes('fecha')) fields[slug] = dates[i] ?? '2026-01-01';
+            else if (lower.includes('status') || lower.includes('estado')) fields[slug] = statuses[i] ?? 'Activo';
+            else if (lower.includes('total') || lower.includes('monto') || lower.includes('amount')) fields[slug] = (i + 1) * 350;
+            else fields[slug] = samples[i] ?? `Item ${i + 1}`;
+        });
+        return { id: i + 1, fields, relations: {} };
+    });
 }

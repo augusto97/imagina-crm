@@ -30,43 +30,98 @@ interface FormProps {
  *  - **Color de acento** donde aplica.
  */
 export function PortalBlockForm({ block, fields, onConfigChange }: FormProps): JSX.Element {
-    switch (block.type) {
-        case 'static_text':
-            return <StaticTextForm config={block.config} onChange={onConfigChange} />;
-        case 'client_data':
-            return <ClientDataForm config={block.config} fields={fields} onChange={onConfigChange} />;
-        case 'related_records_table':
-            return <RelatedRecordsForm config={block.config} onChange={onConfigChange} />;
-        case 'editable_form':
-            return <EditableFormConfig config={block.config} fields={fields} onChange={onConfigChange} />;
-        case 'external_link':
-            return <ExternalLinkForm config={block.config} onChange={onConfigChange} />;
-        case 'kpi_widget':
-            return <KpiForm config={block.config} onChange={onConfigChange} />;
-        case 'activity_timeline':
-            return <ActivityForm config={block.config} onChange={onConfigChange} />;
-        case 'download_files':
-            return <DownloadFilesForm config={block.config} fields={fields} onChange={onConfigChange} />;
-        case 'comments_thread':
-            return <CommentsForm config={block.config} onChange={onConfigChange} />;
-        // 0.57.0 — bloques UX/jerarquía
-        case 'heading':
-            return <HeadingForm config={block.config} onChange={onConfigChange} />;
-        case 'hero':
-            return <HeroForm config={block.config} onChange={onConfigChange} />;
-        case 'stats_grid':
-            return <StatsGridForm config={block.config} onChange={onConfigChange} />;
-        case 'quick_actions':
-            return <QuickActionsForm config={block.config} onChange={onConfigChange} />;
-        case 'notice':
-            return <NoticeForm config={block.config} onChange={onConfigChange} />;
-        case 'divider':
-            return <DividerForm config={block.config} onChange={onConfigChange} />;
-        case 'faq':
-            return <FaqForm config={block.config} onChange={onConfigChange} />;
-        case 'contact_card':
-            return <ContactCardForm config={block.config} onChange={onConfigChange} />;
-    }
+    const specific = ((): JSX.Element => {
+        switch (block.type) {
+            case 'static_text':
+                return <StaticTextForm config={block.config} onChange={onConfigChange} />;
+            case 'client_data':
+                return <ClientDataForm config={block.config} fields={fields} onChange={onConfigChange} />;
+            case 'related_records_table':
+                return <RelatedRecordsForm config={block.config} onChange={onConfigChange} />;
+            case 'editable_form':
+                return <EditableFormConfig config={block.config} fields={fields} onChange={onConfigChange} />;
+            case 'external_link':
+                return <ExternalLinkForm config={block.config} onChange={onConfigChange} />;
+            case 'kpi_widget':
+                return <KpiForm config={block.config} onChange={onConfigChange} />;
+            case 'activity_timeline':
+                return <ActivityForm config={block.config} onChange={onConfigChange} />;
+            case 'download_files':
+                return <DownloadFilesForm config={block.config} fields={fields} onChange={onConfigChange} />;
+            case 'comments_thread':
+                return <CommentsForm config={block.config} onChange={onConfigChange} />;
+            // 0.57.0 — bloques UX/jerarquía
+            case 'heading':
+                return <HeadingForm config={block.config} onChange={onConfigChange} />;
+            case 'hero':
+                return <HeroForm config={block.config} onChange={onConfigChange} />;
+            case 'stats_grid':
+                return <StatsGridForm config={block.config} onChange={onConfigChange} />;
+            case 'quick_actions':
+                return <QuickActionsForm config={block.config} onChange={onConfigChange} />;
+            case 'notice':
+                return <NoticeForm config={block.config} onChange={onConfigChange} />;
+            case 'divider':
+                return <DividerForm config={block.config} onChange={onConfigChange} />;
+            case 'faq':
+                return <FaqForm config={block.config} onChange={onConfigChange} />;
+            case 'contact_card':
+                return <ContactCardForm config={block.config} onChange={onConfigChange} />;
+        }
+    })();
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-4">
+            {specific}
+            <MaxHeightField config={block.config} onChange={onConfigChange} />
+        </div>
+    );
+}
+
+/**
+ * Campo común a todos los bloques. Si se setea un valor numérico,
+ * el bloque en el front respeta esa altura máxima y aplica scroll
+ * interno cuando el contenido la excede. Si está vacío, el bloque
+ * crece según contenido sin tope (default desde 0.57.2).
+ */
+function MaxHeightField({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const current = typeof config.max_height === 'number' ? config.max_height : '';
+    return (
+        <details className="imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-2">
+            <summary className="imcrm-cursor-pointer imcrm-text-xs imcrm-font-medium imcrm-text-muted-foreground">
+                {__('Avanzado — altura máxima')}
+            </summary>
+            <div className="imcrm-mt-2">
+                <Field label={__('Altura máxima (px)')}>
+                    <Input
+                        type="number"
+                        min={0}
+                        value={current}
+                        onChange={(e) => {
+                            const raw = e.target.value;
+                            const num = raw === '' ? null : Number(raw);
+                            const next = { ...config };
+                            if (num === null || ! Number.isFinite(num) || num <= 0) {
+                                delete next.max_height;
+                            } else {
+                                next.max_height = Math.floor(num);
+                            }
+                            onChange(next);
+                        }}
+                        placeholder={__('Vacío = sin tope')}
+                    />
+                    <Hint>
+                        {__('Si lo dejás vacío el bloque crece según contenido. Si ponés un valor, se aplica scroll interno cuando se excede.')}
+                    </Hint>
+                </Field>
+            </div>
+        </details>
+    );
 }
 
 // ─── static_text ──────────────────────────────────────────────────────
@@ -693,6 +748,8 @@ function HeroForm({
     const variant = (config.variant as string) ?? 'gradient';
     const align = (config.align as string) ?? 'left';
     const accent = (config.accent_color as string | null) ?? null;
+    const bg = (config.background_color as string | null) ?? null;
+    const textColor = (config.text_color as string | null) ?? null;
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <VariantPicker
@@ -748,7 +805,26 @@ function HeroForm({
             <AccentColorField
                 value={accent}
                 onChange={(v) => onChange({ ...config, accent_color: v })}
+                label={__('Color de acento (CTA)')}
             />
+            <Field label={__('Color de fondo (override)')}>
+                <HexColorInput
+                    value={bg ?? ''}
+                    onChange={(v) => onChange({ ...config, background_color: v === '' ? null : v })}
+                />
+                <Hint>
+                    {__('Si lo dejás vacío, el fondo viene del variant arriba. Si ponés un color, reemplaza al gradient/sólido.')}
+                </Hint>
+            </Field>
+            <Field label={__('Color del texto (override)')}>
+                <HexColorInput
+                    value={textColor ?? ''}
+                    onChange={(v) => onChange({ ...config, text_color: v === '' ? null : v })}
+                />
+                <Hint>
+                    {__('Útil cuando ponés un bg claro y el texto blanco default no se ve. Vacío = default del variant.')}
+                </Hint>
+            </Field>
         </div>
     );
 }
@@ -1435,12 +1511,14 @@ function VariantPicker({
 function AccentColorField({
     value,
     onChange,
+    label,
 }: {
     value: string | null;
     onChange: (v: string | null) => void;
+    label?: string;
 }): JSX.Element {
     return (
-        <Field label={__('Color de acento (opcional)')}>
+        <Field label={label ?? __('Color de acento (opcional)')}>
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
                 <ColorPicker
                     value={value as OptionColor | null}
@@ -1449,6 +1527,47 @@ function AccentColorField({
                 <Hint>{__('Default: color primario del tema.')}</Hint>
             </div>
         </Field>
+    );
+}
+
+/**
+ * Input HEX libre (free-form) con color swatch nativo. A diferencia
+ * del `<ColorPicker>` paletizado, permite cualquier color custom.
+ * Útil para overrides como bg del hero donde el admin quiere un
+ * matiz específico fuera de la paleta del tema.
+ */
+function HexColorInput({
+    value,
+    onChange,
+}: {
+    value: string;
+    onChange: (v: string) => void;
+}): JSX.Element {
+    return (
+        <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+            <input
+                type="color"
+                value={value === '' ? '#ffffff' : value}
+                onChange={(e) => onChange(e.target.value)}
+                className="imcrm-h-9 imcrm-w-12 imcrm-rounded imcrm-border imcrm-border-input imcrm-bg-background imcrm-cursor-pointer"
+            />
+            <Input
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="#rrggbb"
+                className="imcrm-flex-1"
+            />
+            {value !== '' && (
+                <button
+                    type="button"
+                    onClick={() => onChange('')}
+                    className="imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-text-foreground imcrm-no-drag"
+                    aria-label={__('Limpiar color')}
+                >
+                    {__('Limpiar')}
+                </button>
+            )}
+        </div>
     );
 }
 

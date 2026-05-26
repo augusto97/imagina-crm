@@ -10,6 +10,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 
+import { usePortalPreview } from '../PreviewContext';
 import type { PortalRecord } from '../types';
 
 interface Props {
@@ -89,10 +90,12 @@ export function DownloadFilesBlock({ config, record }: Props): JSX.Element {
     const value = record.fields[fieldSlug];
     const attachmentIds = useMemo(() => normalizeAttachmentIds(value), [value]);
 
-    const [items, setItems] = useState<ResolvedAttachment[] | null>(null);
+    const isPreview = usePortalPreview();
+    const [items, setItems] = useState<ResolvedAttachment[] | null>(isPreview ? MOCK_FILES : null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (isPreview) return;
         if (fieldSlug === '') {
             setError('Bloque no configurado: falta field_slug.');
             return;
@@ -129,7 +132,7 @@ export function DownloadFilesBlock({ config, record }: Props): JSX.Element {
                 setError('No se pudieron cargar los archivos.');
             });
         return () => ac.abort();
-    }, [attachmentIds, fieldSlug]);
+    }, [attachmentIds, fieldSlug, isPreview]);
 
     const variant = config.variant ?? 'list';
     return (
@@ -234,3 +237,9 @@ function normalizeAttachmentIds(value: unknown): number[] {
 function stripHtml(html: string): string {
     return html.replace(/<[^>]+>/g, '').trim();
 }
+
+const MOCK_FILES: ResolvedAttachment[] = [
+    { id: 1, title: 'Contrato_2026.pdf',  url: '#', mimeType: 'application/pdf' },
+    { id: 2, title: 'Factura_mayo.xlsx',  url: '#', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    { id: 3, title: 'Logo_corporativo.png', url: '#', mimeType: 'image/png' },
+];

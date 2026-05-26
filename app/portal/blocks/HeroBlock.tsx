@@ -8,6 +8,16 @@ interface Props {
         cta_href?: string;
         variant?: 'gradient' | 'solid' | 'plain';
         accent_color?: string | null;
+        /**
+         * Color de fondo opcional. Si está seteado, override del bg
+         * del `variant` (el gradient/solid se reemplaza por este
+         * color sólido). El `accent_color` sigue mandando en CTA
+         * border. Si `background_color` es null/vacío, comportamiento
+         * tradicional del variant.
+         */
+        background_color?: string | null;
+        /** Color del texto. Si está vacío, white para gradient/solid y heredado para plain. */
+        text_color?: string | null;
         align?: 'left' | 'center';
     };
     record: PortalRecord;
@@ -24,6 +34,10 @@ interface Props {
  *  - `gradient` (default): fondo con gradient del accent
  *  - `solid`: bg sólido en accent
  *  - `plain`: sin fondo, con border
+ *
+ * Override: `background_color` y `text_color` opcionales pisan el
+ * bg/color del variant — útil cuando el admin quiere un look custom
+ * sin restringirse a la paleta del accent.
  */
 export function HeroBlock({ config, record }: Props): JSX.Element {
     const title = interpolate(config.title ?? '', record);
@@ -33,10 +47,18 @@ export function HeroBlock({ config, record }: Props): JSX.Element {
     const variant = config.variant ?? 'gradient';
     const align = config.align ?? 'left';
     const accent = config.accent_color ?? '#4f46e5';
+    const bg = config.background_color ?? null;
+    const textColor = config.text_color ?? null;
 
     const style: React.CSSProperties = {
         ['--imcrm-portal-hero-accent' as string]: accent,
     };
+    if (bg !== null && bg !== '') {
+        style.background = bg;
+    }
+    if (textColor !== null && textColor !== '') {
+        style.color = textColor;
+    }
 
     return (
         <section

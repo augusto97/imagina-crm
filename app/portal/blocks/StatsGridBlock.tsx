@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { usePortalPreview } from '../PreviewContext';
 import type { PortalBootData } from '../types';
 
 interface StatItem {
@@ -34,9 +35,18 @@ interface Props {
 export function StatsGridBlock({ config, boot }: Props): JSX.Element {
     const items = config.items ?? [];
     const columns = config.columns ?? 3;
-    const [resolved, setResolved] = useState<Record<number, string | null>>({});
+    const isPreview = usePortalPreview();
+    const [resolved, setResolved] = useState<Record<number, string | null>>(() => {
+        if (! isPreview) return {};
+        const mock: Record<number, string | null> = {};
+        items.forEach((it, idx) => {
+            if (it.metric !== 'static') mock[idx] = mockValueForMetric(it.metric);
+        });
+        return mock;
+    });
 
     useEffect(() => {
+        if (isPreview) return;
         const ac = new AbortController();
         items.forEach((it, idx) => {
             if (it.metric === 'static') return;
@@ -72,7 +82,7 @@ export function StatsGridBlock({ config, boot }: Props): JSX.Element {
         });
         return () => ac.abort();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [boot, JSON.stringify(items)]);
+    }, [boot, JSON.stringify(items), isPreview]);
 
     if (items.length === 0) return <></>;
 
@@ -105,4 +115,14 @@ export function StatsGridBlock({ config, boot }: Props): JSX.Element {
             </div>
         </section>
     );
+}
+
+function mockValueForMetric(metric: 'count' | 'sum' | 'avg' | 'min' | 'max'): string {
+    switch (metric) {
+        case 'count': return '42';
+        case 'sum':   return '12500';
+        case 'avg':   return '285.5';
+        case 'min':   return '15';
+        case 'max':   return '1850';
+    }
 }

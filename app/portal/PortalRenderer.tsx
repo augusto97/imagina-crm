@@ -89,14 +89,17 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
                 const rendered = renderBlock(block, idx, data, boot);
                 if (rendered === null) return null;
                 if (hasGridLayout) {
+                    const maxH = readMaxHeight(block.config as Record<string, unknown>);
+                    const style: React.CSSProperties = {
+                        gridColumn: `${(block.x ?? 0) + 1} / span ${block.w ?? 12}`,
+                        gridRow: `${(block.y ?? 0) + 1} / span ${block.h ?? 4}`,
+                    };
+                    if (maxH !== null) style.maxHeight = `${maxH}px`;
                     return (
                         <div
                             key={idx}
                             className="imcrm-portal-grid__cell"
-                            style={{
-                                gridColumn: `${(block.x ?? 0) + 1} / span ${block.w ?? 12}`,
-                                gridRow: `${(block.y ?? 0) + 1} / span ${block.h ?? 4}`,
-                            }}
+                            style={style}
                         >
                             {rendered}
                         </div>
@@ -106,6 +109,21 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
             })}
         </div>
     );
+}
+
+/**
+ * Lee `config.max_height` y devuelve el valor en px o null. Valida
+ * que sea un número > 0 — cualquier otra cosa (string, NaN, 0,
+ * negativo) se ignora. Permite al admin limitar la altura del
+ * bloque desde el editor cuando no quiere que crezca indefinidamente
+ * (ej. listados largos), sumando scroll interno automáticamente
+ * desde el CSS del cell.
+ */
+function readMaxHeight(config: Record<string, unknown>): number | null {
+    const v = config['max_height'];
+    if (typeof v !== 'number') return null;
+    if (! Number.isFinite(v) || v <= 0) return null;
+    return Math.floor(v);
 }
 
 function renderBlock(

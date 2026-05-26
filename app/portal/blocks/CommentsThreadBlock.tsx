@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { usePortalPreview } from '../PreviewContext';
 import type { PortalBootData } from '../types';
 
 interface CommentItem {
@@ -35,7 +36,8 @@ interface Props {
  */
 export function CommentsThreadBlock({ config, boot }: Props): JSX.Element {
     const readonly = config.readonly ?? false;
-    const [items, setItems] = useState<CommentItem[] | null>(null);
+    const isPreview = usePortalPreview();
+    const [items, setItems] = useState<CommentItem[] | null>(isPreview ? MOCK_COMMENTS : null);
     const [error, setError] = useState<string | null>(null);
     const [draft, setDraft] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -43,6 +45,7 @@ export function CommentsThreadBlock({ config, boot }: Props): JSX.Element {
     const baseUrl = boot.rest_root.replace(/\/$/, '');
 
     useEffect(() => {
+        if (isPreview) return;
         const ac = new AbortController();
         fetch(`${baseUrl}/portal/me/comments`, {
             signal: ac.signal,
@@ -59,7 +62,7 @@ export function CommentsThreadBlock({ config, boot }: Props): JSX.Element {
                 setError('No se pudieron cargar los comentarios.');
             });
         return () => ac.abort();
-    }, [baseUrl, boot.rest_nonce]);
+    }, [baseUrl, boot.rest_nonce, isPreview]);
 
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
@@ -145,3 +148,8 @@ function formatRelativeDate(iso: string): string {
     if (Number.isNaN(date.getTime())) return iso;
     return date.toLocaleString();
 }
+
+const MOCK_COMMENTS: CommentItem[] = [
+    { id: 1, user_id: 2, created_at: '2026-05-26 10:15:00', content: 'Hola, ¿podemos coordinar una reunión esta semana?' },
+    { id: 2, user_id: 1, created_at: '2026-05-26 11:20:00', content: 'Claro, tengo disponible el jueves a las 15h. ¿Te sirve?' },
+];

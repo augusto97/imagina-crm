@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
-import { LayoutGrid } from 'lucide-react';
+import { ArrowDown, LayoutGrid } from 'lucide-react';
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -139,6 +139,10 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                 key={blocks.map((b) => b.id).join(',')}
                 className="imcrm-template-editor-grid imcrm-relative imcrm-z-10"
                 cols={12}
+                // Mismo rowHeight que el front (`grid-auto-rows: 40px`).
+                // El zoom visual del editor se controla con el ancho
+                // del canvas, no con esta unidad — así un h=4 ocupa
+                // 4 * 40 = 160px tanto en editor como en front.
                 rowHeight={40}
                 margin={[12, 12]}
                 containerPadding={[0, 0]}
@@ -157,38 +161,18 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                     const isSelected = ! preview && selectedSet.has(b.id);
                     const isDropTarget = hoveredBlockId === b.id;
                     return (
-                        <div
+                        <BlockSlot
                             key={b.id}
-                            onClickCapture={(e) => {
-                                if (preview) return;
-                                e.stopPropagation();
-                                onSelectBlock(b.id, e.shiftKey);
-                            }}
-                            onDragOver={preview ? undefined : (e) => handleBlockDragOver(b.id, e)}
-                            onDragLeave={preview ? undefined : handleBlockDragLeave}
-                            onDrop={preview ? undefined : (e) => handleBlockDrop(b.id, e)}
-                            className={cn(
-                                'imcrm-group imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-transition-all',
-                                isDropTarget
-                                    ? 'imcrm-ring-2 imcrm-ring-primary imcrm-ring-offset-2 imcrm-ring-offset-background'
-                                    : isSelected
-                                        ? 'imcrm-ring-2 imcrm-ring-primary'
-                                        : preview
-                                            ? 'imcrm-ring-border'
-                                            : 'imcrm-ring-border hover:imcrm-ring-primary/40',
-                            )}
-                        >
-                            <div className="imcrm-pointer-events-none imcrm-flex-1 imcrm-overflow-hidden">
-                                {registry.renderPreview(b, ctx)}
-                            </div>
-                            {isDropTarget && (
-                                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-bg-primary/10">
-                                    <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">
-                                        {__('Soltar para agregar al grupo')}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+                            block={b}
+                            preview={preview}
+                            isSelected={isSelected}
+                            isDropTarget={isDropTarget}
+                            onSelect={onSelectBlock}
+                            onDragOver={handleBlockDragOver}
+                            onDragLeave={handleBlockDragLeave}
+                            onDrop={handleBlockDrop}
+                            renderPreview={() => registry.renderPreview(b, ctx)}
+                        />
                     );
                 })}
             </SizedGrid>
@@ -202,6 +186,97 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                         {preview
                             ? __('Sin bloques — la plantilla está vacía.')
                             : __('Canvas vacío. Arrastrá un bloque desde la paleta de la izquierda.')}
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Slot del bloque en el grid. Encapsula la lógica de:
+ *  - Selección / drop / hover.
+ *  - Detección de **overflow vertical**: si el contenido renderizado
+ *    es más alto que el slot configurado, se muestra un badge sutil
+ *    abajo-derecha indicando "+ contenido" con icono. Esto evita que
+ *    el usuario se sorprenda al ver el bloque cortado y le insinúa
+ *    que debería hacer resize.
+ */
+function BlockSlot<TBlock extends BaseTemplateBlock>({
+    block,
+    preview,
+    isSelected,
+    isDropTarget,
+    onSelect,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    renderPreview,
+}: {
+    block: TBlock;
+    preview: boolean;
+    isSelected: boolean;
+    isDropTarget: boolean;
+    onSelect: (id: string | null, additive?: boolean) => void;
+    onDragOver: (id: string, e: React.DragEvent) => void;
+    onDragLeave: (e: React.DragEvent) => void;
+    onDrop: (id: string, e: React.DragEvent) => void;
+    renderPreview: () => React.ReactNode;
+}): JSX.Element {
+    const innerRef = useRef<HTMLDivElement | null>(null);
+    const [overflows, setOverflows] = useState(false);
+
+    useEffect(() => {
+        const el = innerRef.current;
+        if (! el) return;
+        const check = (): void => {
+            // scrollHeight > clientHeight indica que el contenido es
+            // más alto que el contenedor (overflow vertical).
+            setOverflows(el.scrollHeight - 1 > el.clientHeight);
+        };
+        check();
+        const ro = new ResizeObserver(check);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [block.w, block.h]);
+
+    return (
+        <div
+            onClickCapture={(e) => {
+                if (preview) return;
+                e.stopPropagation();
+                onSelect(block.id, e.shiftKey);
+            }}
+            onDragOver={preview ? undefined : (e) => onDragOver(block.id, e)}
+            onDragLeave={preview ? undefined : onDragLeave}
+            onDrop={preview ? undefined : (e) => onDrop(block.id, e)}
+            className={cn(
+                'imcrm-group imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-transition-all',
+                isDropTarget
+                    ? 'imcrm-ring-2 imcrm-ring-primary imcrm-ring-offset-2 imcrm-ring-offset-background'
+                    : isSelected
+                        ? 'imcrm-ring-2 imcrm-ring-primary'
+                        : preview
+                            ? 'imcrm-ring-border'
+                            : 'imcrm-ring-border hover:imcrm-ring-primary/40',
+            )}
+        >
+            <div ref={innerRef} className="imcrm-pointer-events-none imcrm-flex-1 imcrm-overflow-hidden">
+                {renderPreview()}
+            </div>
+            {overflows && ! isDropTarget && (
+                <div
+                    className="imcrm-pointer-events-none imcrm-absolute imcrm-bottom-1.5 imcrm-right-1.5 imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-amber-500/95 imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-medium imcrm-text-white imcrm-shadow-imcrm-sm"
+                    title={__('El contenido excede la altura del bloque. En el front se mostrará completo pero el bloque tendrá altura mayor. Hacé resize para evitar desfase.')}
+                >
+                    <ArrowDown className="imcrm-h-2.5 imcrm-w-2.5" aria-hidden />
+                    {__('contenido excede')}
+                </div>
+            )}
+            {isDropTarget && (
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-bg-primary/10">
+                    <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">
+                        {__('Soltar para agregar al grupo')}
                     </p>
                 </div>
             )}

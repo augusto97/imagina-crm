@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { usePortalPreview } from '../PreviewContext';
 import type { PortalBootData } from '../types';
 
 interface ActivityItem {
@@ -33,10 +34,12 @@ interface Props {
  */
 export function ActivityTimelineBlock({ config, boot }: Props): JSX.Element {
     const limit = config.limit ?? 20;
-    const [items, setItems] = useState<ActivityItem[] | null>(null);
+    const isPreview = usePortalPreview();
+    const [items, setItems] = useState<ActivityItem[] | null>(isPreview ? MOCK_ACTIVITY : null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (isPreview) return;
         const ac = new AbortController();
         const url = `${boot.rest_root.replace(/\/$/, '')}/portal/me/activity?limit=${limit}`;
         fetch(url, {
@@ -54,7 +57,7 @@ export function ActivityTimelineBlock({ config, boot }: Props): JSX.Element {
                 setError('No se pudo cargar la actividad.');
             });
         return () => ac.abort();
-    }, [boot, limit]);
+    }, [boot, limit, isPreview]);
 
     return (
         <section className="imcrm-portal-block imcrm-portal-block--activity">
@@ -114,3 +117,9 @@ function formatDate(iso: string): string {
         return iso;
     }
 }
+
+const MOCK_ACTIVITY: ActivityItem[] = [
+    { id: 1, action: 'record.updated',  created_at: '2026-05-26T14:30:00', user_id: 1 },
+    { id: 2, action: 'comment.created', created_at: '2026-05-25T11:15:00', user_id: 2 },
+    { id: 3, action: 'record.created',  created_at: '2026-05-20T09:00:00', user_id: 1 },
+];

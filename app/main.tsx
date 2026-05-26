@@ -9,6 +9,11 @@ import { ToastProvider } from '@/components/ui/toast';
 import { queryClient } from '@/lib/query-client';
 import { getBootData } from '@/lib/boot';
 import '@/styles/globals.css';
+// Cargar el CSS del portal del cliente también dentro del bundle del
+// admin. Necesario porque el editor de template del portal renderea
+// los componentes reales del portal como preview — sin estos estilos
+// los bloques se verían sin formato (default browser styles).
+import '../assets/portal.css';
 
 function mount(): void {
     const boot = getBootData();
