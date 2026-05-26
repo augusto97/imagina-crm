@@ -195,6 +195,7 @@ export function RecordDetailDrawer({
                     {tab === 'details' ? (
                         <>
                             <RecordFieldsForm
+                                listId={listId}
                                 fields={fields}
                                 values={values}
                                 onChange={setValues}

@@ -2,17 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
+import { OptionPicker } from '@/components/ui/option-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { UserPicker } from '@/components/ui/user-picker';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { extractFieldOptions } from '@/admin/records/fieldOptions';
 import type { FieldEntity } from '@/types/field';
 
 import { FieldValueDisplay } from './FieldValueDisplay';
 
 interface CompactFieldRowProps {
     field: FieldEntity;
+    /** Necesario para que OptionPicker pueda crear opciones inline. */
+    listId: number | string;
     value: unknown;
     onChange: (value: unknown) => void;
     error?: string;
@@ -33,6 +35,7 @@ interface CompactFieldRowProps {
  */
 export function CompactFieldRow({
     field,
+    listId,
     value,
     onChange,
     error,
@@ -73,7 +76,7 @@ export function CompactFieldRow({
 
             <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-1">
                 {isInlineControl ? (
-                    <InlineControl field={field} value={value} onChange={onChange} />
+                    <InlineControl field={field} listId={listId} value={value} onChange={onChange} />
                 ) : isReadOnly ? (
                     <div className="imcrm-min-h-[24px] imcrm-py-0.5 imcrm-text-sm">
                         <FieldValueDisplay field={field} value={value} />
@@ -291,10 +294,12 @@ function EditingControl({
 
 function InlineControl({
     field,
+    listId,
     value,
     onChange,
 }: {
     field: FieldEntity;
+    listId: number | string;
     value: unknown;
     onChange: (v: unknown) => void;
 }): JSX.Element {
@@ -333,53 +338,28 @@ function InlineControl({
     }
 
     if (field.type === 'select') {
-        const options = extractFieldOptions(field);
         return (
-            <select
-                id={id}
-                value={typeof value === 'string' ? value : ''}
-                onChange={(e) => onChange(e.target.value || null)}
-                className="imcrm-h-8 imcrm-w-full imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
-            >
-                <option value="">{__('— Sin valor —')}</option>
-                {options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                    </option>
-                ))}
-            </select>
+            <OptionPicker
+                field={field}
+                listId={listId}
+                mode="single"
+                value={typeof value === 'string' ? value : null}
+                onChange={(v) => onChange(v ?? null)}
+                compact
+            />
         );
     }
 
     if (field.type === 'multi_select') {
-        // Multi-select inline: usamos checkboxes en una fila ondulada.
-        const options = extractFieldOptions(field);
-        const current = Array.isArray(value) ? value.map(String) : [];
-        const toggle = (v: string): void => {
-            const next = current.includes(v) ? current.filter((x) => x !== v) : [...current, v];
-            onChange(next);
-        };
         return (
-            <div className="imcrm-flex imcrm-flex-wrap imcrm-gap-1.5 imcrm-py-1">
-                {options.map((opt) => {
-                    const checked = current.includes(opt.value);
-                    return (
-                        <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => toggle(opt.value)}
-                            className={cn(
-                                'imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded-md imcrm-border imcrm-px-2 imcrm-py-0.5 imcrm-text-xs imcrm-font-medium imcrm-transition-colors',
-                                checked
-                                    ? 'imcrm-border-primary imcrm-bg-primary/10 imcrm-text-primary'
-                                    : 'imcrm-border-border imcrm-bg-background imcrm-text-muted-foreground hover:imcrm-bg-accent/40',
-                            )}
-                        >
-                            {opt.label}
-                        </button>
-                    );
-                })}
-            </div>
+            <OptionPicker
+                field={field}
+                listId={listId}
+                mode="multi"
+                value={Array.isArray(value) ? value.map(String) : []}
+                onChange={(v) => onChange(Array.isArray(v) ? v : [])}
+                compact
+            />
         );
     }
 

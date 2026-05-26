@@ -514,6 +514,72 @@ final class FieldService
         return preg_replace('/\s+/', ' ', strtolower(trim($def))) ?? $def;
     }
 
+    /**
+     * Agrega una opción nueva al `config.options` de un campo `select` o
+     * `multi_select`. Operación atómica a nivel app: lee el field
+     * actual, agrega la opción al final, escribe. Si dos usuarios
+     * crean opciones al mismo tiempo el último gana — aceptable para
+     * un caso de uso poco frecuente (admin/manager operations).
+     *
+     * Si ya existe una opción con el mismo `value` (case-sensitive),
+     * retorna ValidationResult — el caller decide si re-usar o avisar.
+     *
+     * @param array{value:string, label?:string, color?:string} $option
+     */
+    public function appendOption(
+        int $listId,
+        int $fieldId,
+        array $option,
+    ): FieldEntity|ValidationResult {
+        $field = $this->fields->find($fieldId);
+        if ($field === null || $field->listId !== $listId) {
+            return ValidationResult::failWith('id', __('El campo no existe.', 'imagina-crm'));
+        }
+        if (! in_array($field->type, ['select', 'multi_select'], true)) {
+            return ValidationResult::failWith(
+                'type',
+                __('Solo los campos select y multi_select pueden tener opciones.', 'imagina-crm'),
+            );
+        }
+
+        $value = trim((string) ($option['value'] ?? ''));
+        if ($value === '') {
+            return ValidationResult::failWith('value', __('El valor de la opción es obligatorio.', 'imagina-crm'));
+        }
+        $label = trim((string) ($option['label'] ?? $value));
+        $color = isset($option['color']) && is_string($option['color']) ? $option['color'] : null;
+
+        $current = $field->config;
+        $options = is_array($current['options'] ?? null) ? $current['options'] : [];
+
+        // Check duplicado por `value`.
+        foreach ($options as $existing) {
+            if (is_array($existing) && ($existing['value'] ?? null) === $value) {
+                return ValidationResult::failWith(
+                    'value',
+                    sprintf(
+                        /* translators: %s: option value */
+                        __('Ya existe una opción con el valor "%s".', 'imagina-crm'),
+                        $value,
+                    ),
+                );
+            }
+        }
+
+        $newOption = ['value' => $value, 'label' => $label];
+        if ($color !== null && $color !== '') {
+            $newOption['color'] = $color;
+        }
+        $options[] = $newOption;
+
+        $newConfig = array_merge($current, ['options' => $options]);
+
+        // Reusa el flujo normal de update — incluye ALTER del default
+        // del field si aplicara, y dispara el hook `field_updated`.
+        $result = $this->update($listId, $fieldId, ['config' => $newConfig]);
+        return $result;
+    }
+
     public function renameSlug(int $listId, int $fieldId, string $newSlug): RenameResult
     {
         $field = $this->fields->find($fieldId);

@@ -92,6 +92,24 @@ final class FieldsController extends AbstractController
             ],
         );
 
+        // POST /lists/{list}/fields/{field}/options — agrega una opción
+        // inline a un select/multi_select. Usado por el OptionPicker
+        // del admin para creación de opciones on-the-fly.
+        register_rest_route(
+            $this->namespace,
+            '/' . $base . '/(?P<id_or_slug>[a-zA-Z0-9_-]+)/options',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'appendOption'],
+                'permission_callback' => $canManage,
+                'args'                => [
+                    'value' => ['type' => 'string', 'required' => true],
+                    'label' => ['type' => 'string'],
+                    'color' => ['type' => 'string'],
+                ],
+            ],
+        );
+
         register_rest_route(
             $this->namespace,
             '/' . $base . '/(?P<id_or_slug>[a-zA-Z0-9_-]+)/values',
@@ -294,6 +312,43 @@ final class FieldsController extends AbstractController
                 'transitions' => FieldTypeMigration::allowedTransitions($field->type),
             ],
         ]);
+    }
+
+    /**
+     * Agrega una opción inline a un select/multi_select field. El body
+     * espera `{value, label?, color?}` — `label` defaultea a `value`,
+     * `color` queda null si no se pasa (chip neutro).
+     *
+     * El frontend (OptionPicker) usa esto cuando el user escribe algo
+     * en el search del dropdown que no matchea ninguna opción existente
+     * y clickea "+ Crear".
+     */
+    public function appendOption(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $list = $this->lists->findByIdOrSlug((string) $request->get_param('list'));
+        if ($list === null) {
+            return $this->notFound(__('Lista no encontrada.', 'imagina-crm'));
+        }
+        $idOrSlug = (string) $request->get_param('id_or_slug');
+        $field    = $this->service->findByIdOrSlug($list->id, $idOrSlug);
+        if ($field === null) {
+            return $this->notFound();
+        }
+
+        $params = $request->get_json_params();
+        if (! is_array($params)) {
+            $params = $request->get_params();
+        }
+
+        $result = $this->service->appendOption($list->id, $field->id, [
+            'value' => (string) ($params['value'] ?? ''),
+            'label' => (string) ($params['label'] ?? ''),
+            'color' => isset($params['color']) ? (string) $params['color'] : '',
+        ]);
+        if ($result instanceof ValidationResult) {
+            return $this->validationError($result);
+        }
+        return new WP_REST_Response(['data' => $result->toArray(includePhysical: true)]);
     }
 
     public function deleteItem(WP_REST_Request $request): WP_REST_Response|WP_Error

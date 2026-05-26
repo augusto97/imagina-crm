@@ -4,6 +4,42 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.54.0] — 2026-05-26
+
+**Crear opciones de select/multi_select inline desde el editor.**
+
+Antes había que ir al field builder a agregar la opción y volver al
+record. Ahora el picker custom (`OptionPicker`) tiene un footer
+"+ Crear …" que aparece cuando lo escrito no matchea ninguna opción
+existente; un click lo agrega via `POST /lists/{list}/fields/{field}/options`
+y auto-selecciona la nueva opción.
+
+### Backend
+- `FieldService::appendOption(listId, fieldId, option)`: lee fresh,
+  valida tipo y duplicados por `value`, escribe vía `update()`. Reusa
+  el flujo de update para que se disparen hooks e invalidations.
+- `POST /lists/{list}/fields/{field}/options` (FieldsController):
+  body `{value, label?, color?}`. Permission `canManage`.
+
+### Frontend
+- Nuevo `app/components/ui/option-picker.tsx`: popover con search +
+  lista filtrada + footer "+ Crear" + navegación teclado.
+- Nuevo `useAppendFieldOption(listId)` hook: POST mutation +
+  `invalidateQueries(fieldsKeys.forList)`.
+- Reemplazados los 3 callsites con `<select>` nativo:
+  - `RecordFieldsForm` (RecordCreateDialog, RecordPage, drawer).
+  - `CompactFieldRow` (drawer + CRM layout).
+  - `EditableCell` (tabla principal).
+- Propagado `listId` en cascada por los wrappers (`RecordFieldsForm`,
+  `CompactFieldRow`, `PropertiesSidebar`, `BlockRenderer.FieldsContent`).
+
+Notas:
+- Opciones creadas inline arrancan sin color (chip neutro). Editables
+  después desde el field builder.
+- Race condition: duplicados detectados en backend con read fresh.
+
+Build: 0 errores TS, 548 tests OK.
+
 ## [0.53.4] — 2026-05-26
 
 **Fixes del shortcode público: layout del toolbar + sin dark mode auto.**

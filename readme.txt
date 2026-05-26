@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.53.4
+Stable tag: 0.54.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.54.0 =
+**Crear opciones de select/multi_select inline.**
+
+Antes: si el valor que querías no existía en las opciones del campo,
+tenías que ir al editor de campos, agregarlo ahí, volver al record.
+Ahora: al editar un `select` o `multi_select` se abre un popover con
+búsqueda y, si lo que escribís no matchea ninguna opción existente,
+aparece un botón "+ Crear" al pie que la agrega y la selecciona en
+un solo click.
+
+Implementado en los 3 lugares donde se editan estos campos:
+- Tabla principal (inline edit de celdas).
+- Drawer lateral y página de detalle.
+- Layout CRM (bloques de propiedades).
+
+Reemplazamos los `<select>` nativos con un picker custom que muestra
+los chips con sus colores configurados, soporta navegación por
+teclado (↑/↓/Enter/Escape), y dedupea por value (no se puede crear
+una opción con un valor ya existente).
 
 = 0.53.4 =
 **Fixes del shortcode público: filtros sin stackear + sin dark mode automático.**

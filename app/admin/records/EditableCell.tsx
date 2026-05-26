@@ -2,6 +2,7 @@ import { forwardRef, memo, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
+import { OptionPicker } from '@/components/ui/option-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { useRecurrencesForRecord } from '@/hooks/useRecurrences';
 import { useUpdateRecord } from '@/hooks/useRecords';
@@ -10,7 +11,6 @@ import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
-import { extractFieldOptions } from './fieldOptions';
 import { DateCellEditor } from './DateCellEditor';
 import { renderCellValue } from './renderCellValue';
 
@@ -158,6 +158,7 @@ function EditableCellInner({
         <div className="imcrm-relative imcrm--mx-1 imcrm--my-0.5">
             <CellEditor
                 field={field}
+                listId={listId}
                 value={draft}
                 onChange={setDraft}
                 onCommit={(v) => void commit(v)}
@@ -203,6 +204,7 @@ export const EditableCell = memo(EditableCellInner, (prev, next) => {
 
 interface CellEditorProps {
     field: FieldEntity;
+    listId: number;
     value: unknown;
     onChange: (value: unknown) => void;
     onCommit: (value: unknown) => void;
@@ -210,7 +212,7 @@ interface CellEditorProps {
     isPending: boolean;
 }
 
-function CellEditor({ field, value, onChange, onCommit, onCancel, isPending }: CellEditorProps): JSX.Element {
+function CellEditor({ field, listId, value, onChange, onCommit, onCancel, isPending }: CellEditorProps): JSX.Element {
     const ref = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
 
     useEffect(() => {
@@ -274,78 +276,40 @@ function CellEditor({ field, value, onChange, onCommit, onCancel, isPending }: C
                     disabled={isPending}
                 />
             );
-        case 'select': {
-            const options = extractFieldOptions(field);
+        case 'select':
             return (
-                <select
-                    ref={ref as React.RefObject<HTMLSelectElement>}
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(e) => {
-                        onChange(e.target.value || null);
-                        onCommit(e.target.value || null);
+                <OptionPicker
+                    field={field}
+                    listId={listId}
+                    mode="single"
+                    value={typeof value === 'string' ? value : null}
+                    onChange={(v) => {
+                        // Auto-commit al cambiar (igual que la versión
+                        // con `<select>` que llamaba a onCommit en
+                        // `onChange`). El OptionPicker cierra su popover
+                        // tras la selección.
+                        onChange(v ?? null);
+                        onCommit(v ?? null);
                     }}
-                    onKeyDown={handleKeyDown}
-                    onBlur={() => onCommit(value)}
-                    disabled={isPending}
-                    className="imcrm-h-7 imcrm-w-full imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-2 imcrm-text-sm"
-                >
-                    <option value="">—</option>
-                    {options.map((o) => (
-                        <option key={o.value} value={o.value}>
-                            {o.label}
-                        </option>
-                    ))}
-                </select>
+                />
             );
-        }
-        case 'multi_select': {
-            // Para multi_select, abrimos un mini panel con checkboxes.
-            // Confirmamos solo al hacer blur fuera del contenedor entero.
-            const options = extractFieldOptions(field);
-            const current = Array.isArray(value) ? (value as string[]) : [];
+        case 'multi_select':
             return (
-                <div
-                    tabIndex={-1}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Escape') onCancel();
-                        if (e.key === 'Enter') onCommit(current);
+                <OptionPicker
+                    field={field}
+                    listId={listId}
+                    mode="multi"
+                    value={Array.isArray(value) ? (value as string[]) : []}
+                    onChange={(v) => {
+                        // Commit on every toggle — TanStack Query dedupea
+                        // mutations sucesivas con la misma key, así que
+                        // marcar 3 opciones seguidas genera ~1 request.
+                        const next = Array.isArray(v) ? v : [];
+                        onChange(next);
+                        onCommit(next);
                     }}
-                    className="imcrm-flex imcrm-flex-wrap imcrm-gap-1 imcrm-rounded imcrm-border imcrm-border-input imcrm-bg-background imcrm-p-1"
-                >
-                    {options.map((o) => {
-                        const checked = current.includes(o.value);
-                        return (
-                            <label
-                                key={o.value}
-                                className={cn(
-                                    'imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-px-1.5 imcrm-py-0.5 imcrm-text-xs imcrm-cursor-pointer',
-                                    checked && 'imcrm-bg-secondary',
-                                )}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => {
-                                        const next = e.target.checked
-                                            ? [...current, o.value]
-                                            : current.filter((v) => v !== o.value);
-                                        onChange(next);
-                                    }}
-                                />
-                                {o.label}
-                            </label>
-                        );
-                    })}
-                    <button
-                        type="button"
-                        onClick={() => onCommit(value)}
-                        className="imcrm-ml-auto imcrm-rounded imcrm-px-1.5 imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-text-foreground"
-                    >
-                        OK
-                    </button>
-                </div>
+                />
             );
-        }
         case 'number':
         case 'currency':
             return (

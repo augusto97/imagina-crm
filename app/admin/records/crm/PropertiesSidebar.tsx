@@ -11,6 +11,7 @@ import { CompactFieldRow } from './CompactFieldRow';
 
 interface PropertiesSidebarProps {
     layout: ResolvedLayout;
+    listId: number | string;
     values: Record<string, unknown>;
     onChange: (values: Record<string, unknown>) => void;
     fieldErrors?: Record<string, string>;
@@ -26,6 +27,7 @@ interface PropertiesSidebarProps {
  */
 export function PropertiesSidebar({
     layout,
+    listId,
     values,
     onChange,
     fieldErrors,
@@ -47,6 +49,7 @@ export function PropertiesSidebar({
                 <PropertyGroup
                     key={g.id}
                     group={g}
+                    listId={listId}
                     values={values}
                     onChange={onChange}
                     fieldErrors={fieldErrors}
@@ -58,12 +61,13 @@ export function PropertiesSidebar({
 
 interface PropertyGroupProps {
     group: SidebarGroup;
+    listId: number | string;
     values: Record<string, unknown>;
     onChange: (values: Record<string, unknown>) => void;
     fieldErrors?: Record<string, string>;
 }
 
-function PropertyGroup({ group, values, onChange, fieldErrors }: PropertyGroupProps): JSX.Element {
+function PropertyGroup({ group, listId, values, onChange, fieldErrors }: PropertyGroupProps): JSX.Element {
     const [open, setOpen] = useState(! group.collapsedByDefault);
     const Icon = group.icon;
 
@@ -98,6 +102,7 @@ function PropertyGroup({ group, values, onChange, fieldErrors }: PropertyGroupPr
                         <CompactFieldRow
                             key={f.id}
                             field={f}
+                            listId={listId}
                             value={values[f.slug]}
                             onChange={(v) => setValue(f.slug, v)}
                             error={fieldErrors?.[f.slug]}

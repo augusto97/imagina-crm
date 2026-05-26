@@ -239,6 +239,7 @@ export function RecordPage(): JSX.Element {
                     <section className="imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-6">
                         {fields.data && (
                             <RecordFieldsForm
+                                listId={list.data.id}
                                 fields={fields.data}
                                 values={values}
                                 onChange={setValues}

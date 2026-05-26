@@ -89,6 +89,7 @@ export function RecordCreateDialog({
 
                     <form onSubmit={handleSubmit} className="imcrm-mt-4 imcrm-flex imcrm-flex-col imcrm-gap-4">
                         <RecordFieldsForm
+                            listId={listId}
                             fields={fields}
                             values={values}
                             onChange={setValues}

@@ -116,3 +116,34 @@ export function useReorderFields(listId: string | number) {
         },
     });
 }
+
+/**
+ * Agrega una opción inline a un campo select/multi_select. Usado por
+ * el `<OptionPicker>` cuando el usuario escribe un valor que no
+ * existe y clickea "+ Crear".
+ *
+ * El backend valida que el field sea select/multi_select y que el
+ * `value` no esté duplicado. Si todo OK, devuelve el field actualizado
+ * y se invalida el cache para refetch.
+ */
+export function useAppendFieldOption(listId: string | number) {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: {
+            fieldId: number;
+            value: string;
+            label?: string;
+            color?: string;
+        }) => {
+            const { fieldId, ...body } = input;
+            const res = await api.post<FieldEntity>(
+                `/lists/${listId}/fields/${fieldId}/options`,
+                body,
+            );
+            return res.data;
+        },
+        onSuccess: () => {
+            void qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
+        },
+    });
+}

@@ -1,15 +1,19 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { OptionPicker } from '@/components/ui/option-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { UserPicker } from '@/components/ui/user-picker';
 import { __ } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 
 import { CompactFieldRow } from './crm/CompactFieldRow';
-import { extractFieldOptions } from './fieldOptions';
 
 interface RecordFieldsFormProps {
+    /**
+     * ID de la lista — necesario para el OptionPicker de
+     * select/multi_select, que puede crear opciones inline via REST.
+     */
+    listId: number | string;
     fields: FieldEntity[];
     values: Record<string, unknown>;
     onChange: (values: Record<string, unknown>) => void;
@@ -40,6 +44,7 @@ const NON_INLINE_TYPES: ReadonlyArray<string> = ['user', 'file', 'relation'];
  * posterior).
  */
 export function RecordFieldsForm({
+    listId,
     fields,
     values,
     onChange,
@@ -65,6 +70,7 @@ export function RecordFieldsForm({
                     <CompactFieldRow
                         key={field.id}
                         field={field}
+                        listId={listId}
                         value={values[field.slug]}
                         onChange={(v) => setValue(field.slug, v)}
                         error={fieldErrors?.[field.slug]}
@@ -79,6 +85,7 @@ export function RecordFieldsForm({
             {visible.map((field) => (
                 <FieldInput
                     key={field.id}
+                    listId={listId}
                     field={field}
                     value={values[field.slug]}
                     onChange={(v) => setValue(field.slug, v)}
@@ -90,13 +97,14 @@ export function RecordFieldsForm({
 }
 
 interface FieldInputProps {
+    listId: number | string;
     field: FieldEntity;
     value: unknown;
     onChange: (value: unknown) => void;
     error?: string;
 }
 
-function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Element {
+function FieldInput({ listId, field, value, onChange, error }: FieldInputProps): JSX.Element {
     const id = `record-field-${field.id}`;
 
     let control: JSX.Element;
@@ -157,10 +165,26 @@ function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Ele
             );
             break;
         case 'select':
-            control = renderSelect(id, field, value, onChange);
+            control = (
+                <OptionPicker
+                    field={field}
+                    listId={listId}
+                    mode="single"
+                    value={typeof value === 'string' ? value : null}
+                    onChange={(v) => onChange(v ?? null)}
+                />
+            );
             break;
         case 'multi_select':
-            control = renderMultiSelect(id, field, value, onChange);
+            control = (
+                <OptionPicker
+                    field={field}
+                    listId={listId}
+                    mode="multi"
+                    value={Array.isArray(value) ? value.map(String) : []}
+                    onChange={(v) => onChange(Array.isArray(v) ? v : [])}
+                />
+            );
             break;
         case 'email':
             control = (
@@ -262,64 +286,6 @@ function FieldInput({ field, value, onChange, error }: FieldInputProps): JSX.Ele
     );
 }
 
-function renderSelect(
-    id: string,
-    field: FieldEntity,
-    value: unknown,
-    onChange: (v: unknown) => void,
-): JSX.Element {
-    const options = extractFieldOptions(field);
-    return (
-        <select
-            id={id}
-            value={typeof value === 'string' ? value : ''}
-            onChange={(e) => onChange(e.target.value || null)}
-            className="imcrm-flex imcrm-h-9 imcrm-w-full imcrm-rounded-md imcrm-border imcrm-border-input imcrm-bg-background imcrm-px-3 imcrm-text-sm"
-        >
-            <option value="">{__('— Seleccionar —')}</option>
-            {options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                </option>
-            ))}
-        </select>
-    );
-}
-
-function renderMultiSelect(
-    id: string,
-    field: FieldEntity,
-    value: unknown,
-    onChange: (v: unknown) => void,
-): JSX.Element {
-    const options = extractFieldOptions(field);
-    const current = Array.isArray(value) ? value.map(String) : [];
-    return (
-        <div id={id} className="imcrm-flex imcrm-flex-wrap imcrm-gap-2">
-            {options.map((opt) => {
-                const checked = current.includes(opt.value);
-                return (
-                    <label
-                        key={opt.value}
-                        className={cn(
-                            'imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-px-2 imcrm-py-1 imcrm-text-xs imcrm-cursor-pointer',
-                            checked && 'imcrm-bg-secondary',
-                        )}
-                    >
-                        <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                                const next = e.target.checked
-                                    ? [...current, opt.value]
-                                    : current.filter((v) => v !== opt.value);
-                                onChange(next);
-                            }}
-                        />
-                        {opt.label}
-                    </label>
-                );
-            })}
-        </div>
-    );
-}
+// `renderSelect` y `renderMultiSelect` se eliminaron — los `case 'select'`
+// y `'multi_select'` ahora usan `<OptionPicker>` que soporta búsqueda
+// + creación inline de opciones.
