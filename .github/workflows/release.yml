@@ -50,28 +50,37 @@ jobs:
         run: bin/build-release.sh --zip
 
       - name: Publish to release branch
-        # Push del subdirectorio build/imagina-crm como root de la rama
-        # `release`, MÁS el ZIP empaquetado al lado. Cada release es un
-        # commit orphan — la rama no acumula histórico (siempre es un
-        # único commit con la build más reciente). Eso mantiene el
-        # "Download ZIP" liviano.
+        # La rama `release` contiene UN SOLO archivo: `imagina-crm.zip`
+        # (más un README mínimo con instrucciones de descarga). Cada
+        # build es un commit orphan — la rama no acumula histórico,
+        # siempre tiene un único commit con la build más reciente.
         #
-        # El ZIP queda visible en la raíz de la rama: el user puede
-        # descargarlo directo con click derecho → "Save link as" o vía
-        # `https://github.com/<repo>/raw/release/imagina-crm.zip` sin
-        # tener que clonar / "Code → Download ZIP" (que envuelve todo
-        # en una carpeta extra `imagina-crm-release/` que rompe el
-        # uploader de plugins de WP).
+        # El user descarga el plugin directamente con:
+        #   https://github.com/<repo>/raw/release/imagina-crm.zip
+        # o navegando a la branch en GitHub y clickeando el archivo.
+        #
+        # No commiteamos el árbol descomprimido porque hace ruido y
+        # confunde al user — la rama `main` ya tiene el código fuente
+        # para developers, y la `release` es solo el artefacto.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Copiamos el ZIP DENTRO del árbol de release. Queda en
-          # `build/imagina-crm/imagina-crm.zip` — al hacer `git init` ahí
-          # y commitear todo, el ZIP entra al commit como cualquier
-          # archivo.
-          cp build/imagina-crm.zip build/imagina-crm/imagina-crm.zip
-          cd build/imagina-crm
+          mkdir -p release-out
+          cp build/imagina-crm.zip release-out/imagina-crm.zip
+          cat > release-out/README.md <<EOF
+          # Imagina CRM — release branch
+
+          Esta rama contiene solo el plugin compilado listo para subir
+          a WordPress. Descargá \`imagina-crm.zip\` y subilo via
+          **Plugins → Añadir nuevo → Subir plugin**.
+
+          Build: \`${GITHUB_SHA::7}\` · $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          Para el código fuente ver la rama [\`main\`](https://github.com/${GITHUB_REPOSITORY}).
+          EOF
+
+          cd release-out
 
           git init -q -b release
           git config user.name "github-actions[bot]"
