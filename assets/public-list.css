@@ -1,211 +1,249 @@
 /**
- * Estilos base para el shortcode/bloque `[imcrm-list]` (Fase 8 — 2.B).
+ * Estilos del shortcode/bloque `[imcrm-list]` (frontend público).
  *
- * Diseñado para coexistir con CUALQUIER tema:
- *  - Sin reset agresivo de estilos del tema (no usa `* { ... }`).
- *  - Selectores específicos `imcrm-public-list__*` para no chocar.
- *  - Variables CSS para que el tema pueda override sin tocar este CSS.
- *  - Sin Tailwind — el bundle público es independiente del admin.
+ * Diseño defensivo contra temas con resets agresivos (Twenty Twenty
+ * Six, GeneratePress, etc. tienden a aplicar `display: block` a
+ * tables, `appearance: none` a inputs, o sus propios `padding: 0`
+ * destructivos). En lugar de confiar en `inherit` y `transparent`,
+ * fijamos defaults explícitos en los selectores `.imcrm-public-list__*`
+ * — el tema puede overridear via las variables `--imcrm-public-*`.
  *
- * Strategy: defaults conservadores tipo "tabla nativa con un poco de
- * pulido". El tema puede pisar todo via las variables `--imcrm-public-*`
- * declaradas abajo.
+ * Mobile-first: tablas a partir de 640px; bajo eso colapsamos a cards
+ * por record con label/valor por línea (igual que Linear / Notion en
+ * móvil).
  */
 
 .imcrm-public-list {
-    /* Variables override-ables por el tema. */
-    --imcrm-public-text: inherit;
-    --imcrm-public-bg: transparent;
-    --imcrm-public-border: rgba(0, 0, 0, 0.12);
-    --imcrm-public-border-strong: rgba(0, 0, 0, 0.2);
-    --imcrm-public-row-hover: rgba(0, 0, 0, 0.03);
-    --imcrm-public-muted: rgba(0, 0, 0, 0.55);
+    /* Tokens override-ables por el tema. Defaults conservadores
+     * (paleta neutra fría) que viven bien sobre fondos claros. */
+    --imcrm-public-text: #1f2937;
+    --imcrm-public-text-muted: #6b7280;
+    --imcrm-public-bg: #ffffff;
+    --imcrm-public-bg-soft: #f9fafb;
+    --imcrm-public-bg-hover: #f3f4f6;
+    --imcrm-public-border: #e5e7eb;
+    --imcrm-public-border-strong: #d1d5db;
     --imcrm-public-primary: #4f46e5;
-    --imcrm-public-pill-bg: rgba(79, 70, 229, 0.1);
+    --imcrm-public-primary-soft: #eef2ff;
+    --imcrm-public-pill-bg: #eef2ff;
     --imcrm-public-pill-text: #4338ca;
-    --imcrm-public-radius: 0.5rem;
-    --imcrm-public-font: inherit;
-    --imcrm-public-font-size: 0.95rem;
+    --imcrm-public-pill-border: #c7d2fe;
+    --imcrm-public-radius: 10px;
+    --imcrm-public-radius-sm: 6px;
+    --imcrm-public-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --imcrm-public-shadow-md: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.05);
+    --imcrm-public-font-size: 0.9375rem;
+    --imcrm-public-font-size-sm: 0.8125rem;
 
     color: var(--imcrm-public-text);
-    background: var(--imcrm-public-bg);
-    font-family: var(--imcrm-public-font);
     font-size: var(--imcrm-public-font-size);
-    margin: 1.5rem 0;
+    line-height: 1.5;
+    margin: 1.75rem 0;
+    /* Forzamos box-sizing en el árbol — temas con reset incompleto
+     * a veces dejan border-box solo en algunos elementos. */
+    box-sizing: border-box;
 }
+.imcrm-public-list *,
+.imcrm-public-list *::before,
+.imcrm-public-list *::after {
+    box-sizing: border-box;
+}
+
+/* ─── Descripción ─────────────────────────────────────────────────── */
 
 .imcrm-public-list__description {
-    color: var(--imcrm-public-muted);
+    color: var(--imcrm-public-text-muted);
     margin: 0 0 1rem 0;
-    font-size: 0.95em;
+    font-size: var(--imcrm-public-font-size);
 }
 
-.imcrm-public-list__empty {
-    color: var(--imcrm-public-muted);
-    font-style: italic;
-    padding: 1rem;
-    text-align: center;
-    border: 1px dashed var(--imcrm-public-border);
-    border-radius: var(--imcrm-public-radius);
-}
-
-.imcrm-public-list__table {
-    width: 100%;
-    border-collapse: collapse;
-    border: 1px solid var(--imcrm-public-border);
-    border-radius: var(--imcrm-public-radius);
-    overflow: hidden;
-    /* `border-radius` no afecta a <table> con `border-collapse: collapse`
-       en todos los browsers. El wrapper visual queda aceptable sin él. */
-}
-
-.imcrm-public-list__table thead {
-    background: var(--imcrm-public-row-hover);
-    border-bottom: 1px solid var(--imcrm-public-border-strong);
-}
-
-.imcrm-public-list__table th {
-    text-align: left;
-    padding: 0.6rem 0.8rem;
-    font-weight: 600;
-    font-size: 0.8em;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--imcrm-public-muted);
-    border-bottom: 1px solid var(--imcrm-public-border);
-}
-
-.imcrm-public-list__table td {
-    padding: 0.7rem 0.8rem;
-    border-bottom: 1px solid var(--imcrm-public-border);
-    vertical-align: top;
-}
-
-.imcrm-public-list__table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.imcrm-public-list__table tbody tr:hover {
-    background: var(--imcrm-public-row-hover);
-}
-
-.imcrm-public-list__table a {
-    color: var(--imcrm-public-primary);
-    text-decoration: none;
-}
-.imcrm-public-list__table a:hover {
-    text-decoration: underline;
-}
-
-.imcrm-public-list__empty-cell {
-    color: var(--imcrm-public-muted);
-}
-
-.imcrm-public-list__pill {
-    display: inline-block;
-    background: var(--imcrm-public-pill-bg);
-    color: var(--imcrm-public-pill-text);
-    padding: 0.15rem 0.5rem;
-    border-radius: 9999px;
-    font-size: 0.85em;
-    margin-right: 0.25rem;
-    line-height: 1.4;
-}
-
-.imcrm-public-list__pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 0.2rem 0;
-    color: var(--imcrm-public-muted);
-    font-size: 0.9em;
-}
-.imcrm-public-list__page-info {
-    font-weight: 500;
-}
-.imcrm-public-list__total {
-    font-size: 0.9em;
-    opacity: 0.85;
-}
-
-/* ─── Interactividad (Fase 8 — 2.C, hidratación JS) ─────────────────── */
+/* ─── Toolbar (búsqueda + filtros) ────────────────────────────────── */
 
 .imcrm-public-list__toolbar {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin: 0 0 1rem 0;
+    padding: 0.75rem;
+    background: var(--imcrm-public-bg-soft);
+    border: 1px solid var(--imcrm-public-border);
+    border-radius: var(--imcrm-public-radius);
 }
 
 .imcrm-public-list__search {
-    flex: 1;
+    flex: 1 1 220px;
     min-width: 200px;
-    max-width: 320px;
-    height: 2.25rem;
-    padding: 0.4rem 0.75rem;
-    border: 1px solid var(--imcrm-public-border);
-    border-radius: var(--imcrm-public-radius);
+    height: 2.5rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px solid var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius-sm);
     background: var(--imcrm-public-bg);
     color: var(--imcrm-public-text);
     font: inherit;
-    font-size: 0.95em;
+    font-size: var(--imcrm-public-font-size);
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.12s, box-shadow 0.12s;
+}
+.imcrm-public-list__search::placeholder {
+    color: var(--imcrm-public-text-muted);
+    opacity: 1;
 }
 .imcrm-public-list__search:focus {
-    outline: 2px solid var(--imcrm-public-primary);
-    outline-offset: -1px;
+    outline: none;
     border-color: var(--imcrm-public-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
-/* Filter dropdowns (Fase 12.E) */
+/* Selects de filtro. `appearance: none` + chevron SVG inline → se
+ * ven igual en todos los browsers/temas. */
 .imcrm-public-list__filter {
-    height: 2.25rem;
-    padding: 0.4rem 1.75rem 0.4rem 0.75rem;
-    border: 1px solid var(--imcrm-public-border);
-    border-radius: var(--imcrm-public-radius);
-    background: var(--imcrm-public-bg);
+    height: 2.5rem;
+    padding: 0.5rem 2.25rem 0.5rem 0.875rem;
+    border: 1px solid var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius-sm);
+    background-color: var(--imcrm-public-bg);
     color: var(--imcrm-public-text);
     font: inherit;
-    font-size: 0.9em;
+    font-size: var(--imcrm-public-font-size-sm);
     cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%236b7280' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 12px 12px;
+    transition: border-color 0.12s, box-shadow 0.12s;
 }
 .imcrm-public-list__filter:focus {
-    outline: 2px solid var(--imcrm-public-primary);
-    outline-offset: -1px;
+    outline: none;
     border-color: var(--imcrm-public-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
+
 .imcrm-public-list__clear-filters {
-    height: 2.25rem;
-    padding: 0.4rem 0.75rem;
-    border: 1px dashed var(--imcrm-public-border);
-    border-radius: var(--imcrm-public-radius);
+    height: 2.5rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px dashed var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius-sm);
     background: transparent;
-    color: var(--imcrm-public-muted);
+    color: var(--imcrm-public-text-muted);
     font: inherit;
-    font-size: 0.85em;
+    font-size: var(--imcrm-public-font-size-sm);
     cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
 }
 .imcrm-public-list__clear-filters:hover {
-    color: var(--imcrm-public-text);
-    border-color: var(--imcrm-public-text);
+    color: var(--imcrm-public-primary);
+    border-color: var(--imcrm-public-primary);
+    border-style: solid;
+    background: var(--imcrm-public-primary-soft);
 }
 
 .imcrm-public-list__loading {
-    color: var(--imcrm-public-muted);
-    font-size: 0.85em;
-    opacity: 0.8;
+    margin-left: auto;
+    padding: 0 0.5rem;
+    color: var(--imcrm-public-text-muted);
+    font-size: var(--imcrm-public-font-size-sm);
 }
 
-.imcrm-public-list__error {
-    margin: 0 0 1rem 0;
-    padding: 0.75rem 1rem;
-    background: rgba(239, 68, 68, 0.08);
-    color: #b91c1c;
-    border-left: 3px solid #ef4444;
+/* ─── Tabla (≥ 640px) ─────────────────────────────────────────────── */
+
+.imcrm-public-list__table-wrap {
+    /* Wrap externo para que el border-radius se vea correctamente
+     * incluso con `border-collapse: collapse` y para habilitar
+     * scroll horizontal en pantallas medianas (entre 640 y ~900px). */
+    border: 1px solid var(--imcrm-public-border);
     border-radius: var(--imcrm-public-radius);
-    font-size: 0.9em;
+    background: var(--imcrm-public-bg);
+    box-shadow: var(--imcrm-public-shadow);
+    overflow: hidden;
 }
+
+.imcrm-public-list__table {
+    width: 100%;
+    /* `separate` con `border-spacing: 0` evita los issues clásicos de
+     * `border-collapse` con border-radius en el wrapper. */
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: var(--imcrm-public-bg);
+    color: var(--imcrm-public-text);
+    font-size: var(--imcrm-public-font-size);
+}
+
+.imcrm-public-list__table thead {
+    background: var(--imcrm-public-bg-soft);
+}
+
+.imcrm-public-list__table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--imcrm-public-text-muted);
+    border-bottom: 1px solid var(--imcrm-public-border);
+    background: var(--imcrm-public-bg-soft);
+    white-space: nowrap;
+}
+
+.imcrm-public-list__table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--imcrm-public-border);
+    vertical-align: top;
+    color: var(--imcrm-public-text);
+}
+
+.imcrm-public-list__table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.imcrm-public-list__table tbody tr {
+    transition: background-color 0.08s;
+}
+.imcrm-public-list__table tbody tr:hover {
+    background: var(--imcrm-public-bg-hover);
+}
+
+/* Links dentro de la tabla — primary color, underline al hover. */
+.imcrm-public-list__table a {
+    color: var(--imcrm-public-primary);
+    text-decoration: none;
+    word-break: break-word;
+}
+.imcrm-public-list__table a:hover,
+.imcrm-public-list__table a:focus {
+    text-decoration: underline;
+}
+
+.imcrm-public-list__empty-cell {
+    color: var(--imcrm-public-text-muted);
+    opacity: 0.7;
+}
+
+/* Pills para multi_select — explícito con border, no solo bg tenue
+ * (que en el tema anterior se veía washed out). */
+.imcrm-public-list__pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.625rem;
+    margin: 0.125rem 0.25rem 0.125rem 0;
+    border: 1px solid var(--imcrm-public-pill-border);
+    border-radius: 9999px;
+    background: var(--imcrm-public-pill-bg);
+    color: var(--imcrm-public-pill-text);
+    font-size: var(--imcrm-public-font-size-sm);
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* ─── Sort buttons en headers ────────────────────────────────────── */
 
 .imcrm-public-list__sort-btn {
     display: inline-flex;
@@ -216,9 +254,13 @@
     padding: 0;
     color: inherit;
     font: inherit;
+    font-size: inherit;
+    font-weight: inherit;
     text-transform: inherit;
     letter-spacing: inherit;
     cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
 }
 .imcrm-public-list__sort-btn:hover {
     color: var(--imcrm-public-text);
@@ -227,51 +269,200 @@
     opacity: 0.55;
     font-size: 0.85em;
 }
+.imcrm-public-list__sort-btn:hover .imcrm-public-list__sort-indicator,
+.imcrm-public-list__sort-btn:focus .imcrm-public-list__sort-indicator {
+    opacity: 1;
+    color: var(--imcrm-public-primary);
+}
+
+/* ─── Empty state ─────────────────────────────────────────────────── */
+
+.imcrm-public-list__empty {
+    margin: 0;
+    padding: 2.5rem 1.5rem;
+    background: var(--imcrm-public-bg-soft);
+    border: 1px dashed var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius);
+    color: var(--imcrm-public-text-muted);
+    text-align: center;
+    font-size: var(--imcrm-public-font-size);
+}
+
+/* ─── Error banner ────────────────────────────────────────────────── */
+
+.imcrm-public-list__error {
+    margin: 0 0 1rem 0;
+    padding: 0.875rem 1rem;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-left: 3px solid #ef4444;
+    border-radius: var(--imcrm-public-radius-sm);
+    font-size: var(--imcrm-public-font-size-sm);
+}
+
+/* ─── Paginación ──────────────────────────────────────────────────── */
+
+.imcrm-public-list__pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem 0.25rem;
+    color: var(--imcrm-public-text-muted);
+    font-size: var(--imcrm-public-font-size-sm);
+}
+.imcrm-public-list__page-info {
+    font-weight: 500;
+    color: var(--imcrm-public-text);
+}
+.imcrm-public-list__total {
+    opacity: 0.85;
+}
 
 .imcrm-public-list__page-btn {
     display: inline-flex;
     align-items: center;
-    height: 2rem;
-    padding: 0 0.85rem;
-    border: 1px solid var(--imcrm-public-border);
-    border-radius: var(--imcrm-public-radius);
+    height: 2.25rem;
+    padding: 0 0.875rem;
+    border: 1px solid var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius-sm);
     background: var(--imcrm-public-bg);
     color: var(--imcrm-public-text);
     font: inherit;
-    font-size: 0.85em;
+    font-size: var(--imcrm-public-font-size-sm);
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.12s;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
 }
 .imcrm-public-list__page-btn:hover:not(:disabled) {
-    background: var(--imcrm-public-row-hover);
+    background: var(--imcrm-public-primary-soft);
+    border-color: var(--imcrm-public-primary);
+    color: var(--imcrm-public-primary);
 }
 .imcrm-public-list__page-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
-/* Placeholder visible solo en el editor de bloques cuando el slug no
-   está configurado (Fase 8 — 2.D). El frontend público recibe string
-   vacío en su lugar — los visitantes nunca ven este placeholder. */
-.imcrm-public-list--placeholder {
-    padding: 1.5rem;
-    border: 2px dashed var(--imcrm-public-border-strong);
-    border-radius: var(--imcrm-public-radius);
-    text-align: center;
-    color: var(--imcrm-public-muted);
-    font-style: italic;
-    background: var(--imcrm-public-row-hover);
+/* ─── Card layout (< 640px) ───────────────────────────────────────── */
+
+@media (max-width: 639px) {
+    .imcrm-public-list__toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .imcrm-public-list__search,
+    .imcrm-public-list__filter,
+    .imcrm-public-list__clear-filters {
+        width: 100%;
+        max-width: none;
+    }
+
+    /* Convertimos cada <tr> en una card. Cada <td> queda como una
+     * fila label-izquierda / valor-derecha. El label viene del
+     * atributo `data-label` que setea PublicList.tsx.
+     *
+     * Si el tema fuerza `display: block` (algunos lo hacen), nuestra
+     * card layout sigue funcionando porque la basamos en `display:
+     * block` también. */
+    .imcrm-public-list__table-wrap {
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+    .imcrm-public-list__table,
+    .imcrm-public-list__table thead,
+    .imcrm-public-list__table tbody,
+    .imcrm-public-list__table tr,
+    .imcrm-public-list__table th,
+    .imcrm-public-list__table td {
+        display: block;
+        width: 100%;
+    }
+    /* Ocultamos el thead — los labels van por celda como `data-label`. */
+    .imcrm-public-list__table thead {
+        position: absolute;
+        left: -9999px;
+        top: -9999px;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+    }
+    .imcrm-public-list__table tbody tr {
+        margin: 0 0 0.75rem 0;
+        padding: 0.5rem 0;
+        background: var(--imcrm-public-bg);
+        border: 1px solid var(--imcrm-public-border);
+        border-radius: var(--imcrm-public-radius);
+        box-shadow: var(--imcrm-public-shadow);
+    }
+    .imcrm-public-list__table tbody tr:hover {
+        background: var(--imcrm-public-bg);
+    }
+    .imcrm-public-list__table td {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.5rem 0.875rem;
+        border-bottom: 1px solid var(--imcrm-public-border);
+        text-align: right;
+    }
+    .imcrm-public-list__table tbody tr td:last-child {
+        border-bottom: none;
+    }
+    .imcrm-public-list__table td::before {
+        content: attr(data-label);
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--imcrm-public-text-muted);
+        text-align: left;
+        flex-shrink: 0;
+        max-width: 40%;
+        word-break: break-word;
+    }
+    /* Si el cell no tiene data-label, no mostramos nada. */
+    .imcrm-public-list__table td:not([data-label])::before {
+        content: none;
+    }
 }
 
-/* Modo oscuro automático cuando el tema lo declara con prefers-color-scheme.
-   Si el tema usa data-theme="dark" en lugar, el integrator puede override. */
+/* ─── Placeholder (solo en editor de bloques de Gutenberg) ────────── */
+
+.imcrm-public-list--placeholder {
+    padding: 1.75rem;
+    border: 2px dashed var(--imcrm-public-border-strong);
+    border-radius: var(--imcrm-public-radius);
+    background: var(--imcrm-public-bg-soft);
+    color: var(--imcrm-public-text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
+/* ─── Dark mode automático ────────────────────────────────────────── */
+
 @media (prefers-color-scheme: dark) {
     .imcrm-public-list {
-        --imcrm-public-border: rgba(255, 255, 255, 0.15);
-        --imcrm-public-border-strong: rgba(255, 255, 255, 0.25);
-        --imcrm-public-row-hover: rgba(255, 255, 255, 0.05);
-        --imcrm-public-muted: rgba(255, 255, 255, 0.6);
-        --imcrm-public-pill-bg: rgba(99, 102, 241, 0.2);
+        --imcrm-public-text: #e5e7eb;
+        --imcrm-public-text-muted: #9ca3af;
+        --imcrm-public-bg: #1f2937;
+        --imcrm-public-bg-soft: #111827;
+        --imcrm-public-bg-hover: #374151;
+        --imcrm-public-border: #374151;
+        --imcrm-public-border-strong: #4b5563;
+        --imcrm-public-primary: #818cf8;
+        --imcrm-public-primary-soft: rgba(129, 140, 248, 0.1);
+        --imcrm-public-pill-bg: rgba(129, 140, 248, 0.15);
         --imcrm-public-pill-text: #c7d2fe;
+        --imcrm-public-pill-border: rgba(129, 140, 248, 0.35);
     }
 }

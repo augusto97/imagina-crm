@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.53.1
+Stable tag: 0.53.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,31 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.53.2 =
+**Rediseño completo del shortcode `[imcrm-list]` (frontend público).**
+
+El CSS anterior era demasiado tímido (usaba `transparent`, `inherit`,
+opacidades muy bajas) confiando en que el tema "ayudara" — pero la
+mayoría de los temas modernos aplican resets que destruían el chrome:
+inputs sin border, selects sin chevron, tabla sin bordes.
+
+Reescrito con defaults explícitos:
+
+- **Toolbar visible** con bg suave, border y radius. Filtros como
+  selects reales con chevron SVG inline (anti-reset de tema).
+- **Tabla** envuelta en card con shadow + radius + border-collapse
+  `separate` (compatible con border-radius).
+- **Pills de multi_select** con border + bg + color de marca claro.
+- **Mobile card layout** (≤ 639px): cada `<tr>` se convierte en una
+  card con label-izquierda / valor-derecha (estilo Linear/Notion).
+- **Empty state** con border dashed + padding generoso.
+- **Pagination** con botones reales (hover primary).
+- **Dark mode** automático con `prefers-color-scheme`.
+
+Sin cambios al schema, sin cambios al backend de datos — solo CSS +
+HTML envuelto en `.imcrm-public-list__table-wrap` + `data-label` por
+celda para el card mobile.
 
 = 0.53.1 =
 **Dialog dedicado para reordenar y mostrar/ocultar columnas.**

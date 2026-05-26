@@ -4,6 +4,78 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.53.2] — 2026-05-25
+
+**Rediseño visual del shortcode `[imcrm-list]` (frontend público).**
+
+### Motivación
+
+Screenshot del usuario mostró el shortcode en un tema moderno
+(Twenty Twenty Six style) y se veía **sin estilos**: tabla sin border,
+selects sin chevron, search input sin chrome, pills washed-out, sin
+responsive. El CSS anterior usaba `transparent` / `inherit` /
+opacidades muy bajas, confiando en que el tema heredara o "ayudara"
+con sus propios estilos — pero la mayoría de los temas modernos
+aplican resets agresivos (`appearance: none`, `border: 0`,
+`padding: 0`, etc.) que destruían el chrome del shortcode.
+
+### Cambios
+
+**`assets/public-list.css` reescrito completamente** con approach
+defensivo:
+
+- **Tokens explícitos**: defaults conservadores (paleta neutra fría
+  con accent indigo) en lugar de `inherit`. El tema sigue pudiendo
+  hacer override via las variables `--imcrm-public-*`.
+- **Toolbar prominente** con `bg-soft` + border + radius. Search
+  input con focus state propio (border + ring), selects con chevron
+  SVG inline base64 para que se vean igual en todos los browsers/temas
+  (anti-`appearance: none` del tema).
+- **Tabla** envuelta en `<div class="imcrm-public-list__table-wrap">`
+  con border + shadow + border-radius + overflow hidden. La tabla
+  interna usa `border-collapse: separate !important` con
+  `border-spacing: 0 !important` — defensa contra temas que pisan
+  border-collapse y romperían el radius del wrap.
+- **Pills de multi_select** con border + bg + color de marca claros
+  (antes era solo `rgba(_, 0.1)`, casi invisible).
+- **Pagination** con botones reales: border, padding, hover state que
+  vira a primary.
+- **Empty state** rediseñado: bg suave, border dashed, padding
+  generoso (antes era italic muted invisible).
+- **Card layout mobile** (≤ 639px): cada `<tr>` colapsa a una card
+  con label-izquierda / valor-derecha. Se lee el `data-label` que
+  ahora setea PublicList.tsx y Shortcode.php en cada `<td>`. Estilo
+  Linear/Notion en móvil. El thead queda visualmente oculto pero
+  accesible (`absolute; left: -9999px`).
+- **Dark mode automático** con `prefers-color-scheme: dark` —
+  tokens override con paleta gray-900/gray-800.
+- **`box-sizing: border-box` forzado** en el árbol del shortcode
+  (defensa contra temas con reset incompleto).
+
+**HTML actualizado** en ambos lados (servidor + cliente hidrated):
+- `Shortcode.php` envuelve la tabla en `<div class="...__table-wrap">`
+  y agrega `data-label` a cada `<td>` con el label de la columna.
+- `PublicList.tsx` hace lo mismo: el wrapper div + `data-label` en
+  `<Row>`. El bundle público hidrata el SSR sin desincronización.
+
+### Sin cambios
+
+- Schema, REST, autorización, `PublicListReader`, `PublicListConfig`,
+  validación — todo intacto.
+- El template `chipSoftStyle` del admin no se reusa acá — el bundle
+  público es deliberadamente independiente del admin (sin Tailwind,
+  sin shadcn) y este CSS vive como `assets/public-list.css` autonomo
+  cargado vía `PublicAssets`.
+
+### Archivos
+
+Modificados:
+- `assets/public-list.css` (reescrito completo — 277 → 350 líneas)
+- `src/PublicLists/Shortcode.php` (wrapper + data-label en `<td>`)
+- `app/public/PublicList.tsx` (wrapper + data-label en `<Row>`)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.53.1] — 2026-05-25
 
 **Dialog "Configurar columnas" para reorder masivo + visibilidad combinada.**

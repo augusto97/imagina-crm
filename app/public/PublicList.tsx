@@ -175,40 +175,42 @@ export function PublicList({ config, initial, columns }: Props): JSX.Element {
             {records.length === 0 ? (
                 <p className="imcrm-public-list__empty">No hay registros para mostrar.</p>
             ) : (
-                <table className="imcrm-public-list__table">
-                    <thead>
-                        <tr>
-                            {columns.map((col) => {
-                                const sortable = config.sort_allowed_slugs.includes(col.slug);
-                                const active = sort !== null && sort.slug === col.slug;
-                                return (
-                                    <th key={col.slug} scope="col">
-                                        {sortable ? (
-                                            <button
-                                                type="button"
-                                                className="imcrm-public-list__sort-btn"
-                                                onClick={() => toggleSort(col.slug)}
-                                                aria-label={`Ordenar por ${col.label}`}
-                                            >
-                                                {col.label}
-                                                <span aria-hidden className="imcrm-public-list__sort-indicator">
-                                                    {active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}
-                                                </span>
-                                            </button>
-                                        ) : (
-                                            col.label
-                                        )}
-                                    </th>
-                                );
-                            })}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {records.map((rec) => (
-                            <Row key={rec.id} record={rec} columns={columns} />
-                        ))}
-                    </tbody>
-                </table>
+                <div className="imcrm-public-list__table-wrap">
+                    <table className="imcrm-public-list__table">
+                        <thead>
+                            <tr>
+                                {columns.map((col) => {
+                                    const sortable = config.sort_allowed_slugs.includes(col.slug);
+                                    const active = sort !== null && sort.slug === col.slug;
+                                    return (
+                                        <th key={col.slug} scope="col">
+                                            {sortable ? (
+                                                <button
+                                                    type="button"
+                                                    className="imcrm-public-list__sort-btn"
+                                                    onClick={() => toggleSort(col.slug)}
+                                                    aria-label={`Ordenar por ${col.label}`}
+                                                >
+                                                    {col.label}
+                                                    <span aria-hidden className="imcrm-public-list__sort-indicator">
+                                                        {active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}
+                                                    </span>
+                                                </button>
+                                            ) : (
+                                                col.label
+                                            )}
+                                        </th>
+                                    );
+                                })}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {records.map((rec) => (
+                                <Row key={rec.id} record={rec} columns={columns} />
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
 
             {totalPages > 1 ? (
@@ -275,7 +277,10 @@ function Row({ record, columns }: { record: PublicRecord; columns: PublicFieldMe
     return (
         <tr>
             {columns.map((col) => (
-                <td key={col.slug}>
+                // `data-label` lo lee el CSS en mobile (≤ 639px) para mostrar
+                // el label de columna a la izquierda y el valor a la derecha
+                // (card layout estilo Linear/Notion).
+                <td key={col.slug} data-label={col.label}>
                     <Cell value={extractValue(record, col)} type={col.type} />
                 </td>
             ))}

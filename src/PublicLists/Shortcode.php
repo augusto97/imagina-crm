@@ -150,31 +150,33 @@ final class Shortcode
                     <?php echo esc_html__('No hay registros para mostrar.', 'imagina-crm'); ?>
                 </p>
             <?php else: ?>
-                <table class="imcrm-public-list__table">
-                    <thead>
-                        <tr>
-                            <?php foreach ($columns as $col): ?>
-                                <th scope="col">
-                                    <?php echo esc_html($col['label']); ?>
-                                </th>
-                            <?php endforeach; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($initial['data'] as $record): ?>
+                <div class="imcrm-public-list__table-wrap">
+                    <table class="imcrm-public-list__table">
+                        <thead>
                             <tr>
                                 <?php foreach ($columns as $col): ?>
-                                    <td>
-                                        <?php
-                                        $value = $this->extractValue($record, $col);
-                                        echo $this->formatCellHtml($value, $col);
-                                        ?>
-                                    </td>
-                                <?php endforeach; // phpcs:ignore ?>
+                                    <th scope="col">
+                                        <?php echo esc_html($col['label']); ?>
+                                    </th>
+                                <?php endforeach; ?>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($initial['data'] as $record): ?>
+                                <tr>
+                                    <?php foreach ($columns as $col): ?>
+                                        <td data-label="<?php echo esc_attr($col['label']); ?>">
+                                            <?php
+                                            $value = $this->extractValue($record, $col);
+                                            echo $this->formatCellHtml($value, $col);
+                                            ?>
+                                        </td>
+                                    <?php endforeach; // phpcs:ignore ?>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
 
                 <?php $meta = $initial['meta']; ?>
                 <?php if ($meta['total_pages'] > 1): ?>
