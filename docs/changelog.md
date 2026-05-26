@@ -4,6 +4,115 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.55.1] — 2026-05-26
+
+**Portal editor: paridad de calidad visual con el editor del CRM panel.**
+
+### Motivación
+
+Feedback: "el editor del CRM tiene editor total de bloques con anchos
+y muchas opciones, y en el de portal cliente es un chiste comparado a
+ese... no está ni siquiera cerca del nivel la una de la otra ni en
+calidad ni en opciones o estilos". La iteración 0.55.0 tenía la
+arquitectura correcta (grid+palette+inspector) pero el detalle visual
+y las opciones quedaban muy por debajo del editor CRM.
+
+### Cambios
+
+**Top toolbar**: undo/redo (stack en memoria, 30 entries max) +
+contador de bloques + botón modo avanzado JSON. Mismo strip que el
+editor del CRM.
+
+**Palette categorizada** en 4 grupos (Datos, Entrada, Visualización,
+Contenido) — cada bloque es una card con icono + nombre + descripción
+en texto chico. Las descripciones explican qué hace cada bloque.
+Antes: items en lista pelada con `+`. Ahora: cards profesionales con
+hover de borde primary.
+
+**Previews visuales reales** (`PortalBlockPreview.tsx` reescrito): cada
+tipo renderea un mockup estilizado fiel a cómo se va a ver en el
+portal, no un wireframe genérico. KPI muestra número grande con
+formato simulado (`$ 1.234`), client_data renderea dl o cards grid
+según variante, related_records muestra tabla con filas-mock,
+download_files muestra archivos enumerados (enero/febrero/marzo) o
+grid de tarjetas, comments_thread muestra cards de mensajes con
+composer placeholder, etc.
+
+**Inspector estructurado** con secciones (BLOQUE título + descripción
+en header, form en cuerpo, footer con Duplicar + Eliminar) — paridad
+con el `BlockInspectorPanel` del CRM editor.
+
+**Variantes por tipo** (paridad con `header` del CRM que tiene
+hero/compact/minimal/banner). Cada bloque ahora soporta:
+- `static_text` → card vs plano
+- `client_data` → lista vs cards grid
+- `related_records_table` → tabla completa vs lista compacta
+- `kpi_widget` → card grande vs inline
+- `external_link` → botón vs card CTA
+- `download_files` → lista vs grid 3-col
+
+Las variantes se persisten en `block.config.variant` (additivo al
+shape del bundle público — backward-compat).
+
+**Color de acento** con `<ColorPicker>` (mismo del admin: 18 presets
++ hex custom) para `kpi_widget` y `external_link`. Persistido en
+`block.config.accent_color`.
+
+**Field pickers reales**: `<FieldSlugMultiPicker>` reusado de la
+versión anterior — lista reordenable con flechas + dropdown para
+agregar. Reemplaza completamente los `<input type="text">` con CSVs
+de slugs del editor antiguo.
+
+**Duplicar bloque**: nuevo botón en el footer del inspector. Crea una
+copia del bloque actual con id nuevo + `y += height` (debajo del
+original).
+
+### Alineamiento de shapes con bundle público
+
+Detecté que las keys que el editor 0.55.0 generaba no matcheaban con
+las que `app/portal/types.ts::PortalBlock` esperaba leer en el bundle
+público. Por ej:
+- editor: `content` / bundle: `html`
+- editor: `relation_field_slug` / bundle: `list_slug`
+- editor: `max_rows` / bundle: `per_page`
+- editor: `url` / bundle: `href`
+- editor: `file_field_slugs[]` / bundle: `field_slug` (singular)
+- editor: `field_slug` / bundle: `list_slug + field_id + metric` (kpi)
+- editor: `max_items` / bundle: `limit` (activity_timeline)
+
+Ahora alineado 1:1 con `PortalBlock`. Las keys nuevas (`variant`,
+`accent_color`) son aditivas — el bundle las ignora hasta que cada
+block component se actualice para honrarlas.
+
+**Cambios importantes en forms**:
+- `related_records_table`: ya no usa relation field; usa
+  `<Select>` con todas las listas (vía `useLists()`) — el cliente
+  ve los records de esa lista filtrados por scope del portal.
+- `kpi_widget`: form completo con `list_slug` (select), `metric`
+  (select count/sum/avg/min/max), `field_id` (numérico cuando
+  metric ≠ count), `prefix`, `suffix`.
+- `external_link`: agrega `title`, `description`, `new_window`
+  (checkbox).
+- `download_files`: usa `field_slug` singular (select de fields
+  tipo file de la lista actual).
+- `comments_thread`: agrega checkbox "Solo lectura".
+
+### Archivos
+
+Modificados:
+- `app/admin/lists/portal-template-editor/portalLayout.ts`
+  (defaultConfigFor con keys alineadas al bundle + variantes aditivas)
+- `app/admin/lists/portal-template-editor/PortalBlockForms.tsx`
+  (reescrito completo — keys alineadas, variantes, color accent,
+   useLists para selects de lista relacionada)
+- `app/admin/lists/portal-template-editor/PortalBlockPreview.tsx`
+  (mockups estilizados por tipo + uso de keys correctas)
+- `app/admin/lists/portal-template-editor/PortalGridEditor.tsx`
+  (top toolbar + palette categorizada + inspector con secciones y
+   footer Duplicar/Eliminar)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.55.0] — 2026-05-26
 
 **Editor visual del portal del cliente con paridad arquitectónica al

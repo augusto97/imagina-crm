@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.55.0
+Stable tag: 0.55.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,39 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.55.1 =
+**Editor del portal: paridad de calidad con el editor del CRM panel.**
+
+El editor de la versión 0.55.0 tenía la arquitectura correcta (grid +
+palette + inspector) pero quedaba pobre visualmente comparado al del
+panel CRM. Esta iteración cierra la brecha:
+
+- **Top toolbar** con undo/redo y contador de bloques.
+- **Palette categorizada** (Datos, Entrada, Visualización, Contenido)
+  con cards ricas por bloque (icono, nombre, descripción) — no más
+  items pelados con `+`.
+- **Previews visuales reales** en cada celda del canvas: cada tipo
+  renderea un mockup estilizado (KPI con número grande, tabla con
+  filas mock, formulario con inputs, timeline con dots, comments
+  con avatares, etc.). No más wireframes genéricos.
+- **Inspector con secciones reales**: variante visual (selector como
+  el header del CRM), título por bloque, campos editables con
+  pickers reordenables, color de acento donde aplica.
+- **Footer con Duplicar + Eliminar** (paridad con el inspector del
+  panel CRM).
+- **Variantes por tipo de bloque**: client_data (lista vs cards),
+  kpi (card vs inline), external_link (botón vs card CTA),
+  download_files (lista vs grid), static_text (card vs plano),
+  related_records (tabla vs lista compacta).
+
+**Alineado al shape esperado por el bundle público:** las keys que
+genera el editor (html, title, list_slug, href, field_slug singular,
+etc.) ahora coinciden 1:1 con lo que `app/portal/types.ts::PortalBlock`
+espera leer. Templates anteriores que usaban el shape correcto siguen
+funcionando; los que usaban shapes incorrectos (porque el editor
+viejo era JSON crudo) seguían rotos antes y ahora se pueden corregir
+desde el editor visual.
 
 = 0.55.0 =
 **Editor visual del portal del cliente — paridad con el editor del CRM panel.**

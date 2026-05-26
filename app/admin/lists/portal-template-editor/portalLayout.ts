@@ -78,27 +78,44 @@ export function defaultWidthFor(type: PortalBlockType): number {
     }
 }
 
-/** Default config inicial por tipo — usado por la palette al crear. */
+/**
+ * Default config inicial por tipo — usado por la palette al crear.
+ *
+ * Las **keys core** matchean el shape que el bundle público
+ * (`app/portal/types.ts::PortalBlock`) espera leer. Las **keys
+ * adicionales** del editor (`variant`, `accent_color`) son aditivas:
+ * el bundle las ignora hasta que cada componente del block del
+ * bundle se actualice para honrarlas.
+ */
 export function defaultConfigFor(type: PortalBlockType): Record<string, unknown> {
     switch (type) {
         case 'static_text':
-            return { content: '' };
+            // Bundle: { html?: string; title?: string }
+            return { html: '', title: '', variant: 'card' };
         case 'client_data':
-            return { visible_field_slugs: [] };
+            // Bundle: { visible_field_slugs?: string[]; title?: string }
+            return { visible_field_slugs: [], title: '', variant: 'definition_list' };
         case 'related_records_table':
-            return { relation_field_slug: '', visible_field_slugs: [], max_rows: 10 };
+            // Bundle: { list_slug?: string; visible_field_slugs?: string[]; title?: string; per_page?: number }
+            return { list_slug: '', visible_field_slugs: [], title: '', per_page: 10, variant: 'table' };
         case 'editable_form':
-            return { editable_field_slugs: [], submit_label: 'Guardar' };
+            // Bundle: { editable_field_slugs?: string[]; title?: string; submit_label?: string }
+            return { editable_field_slugs: [], title: 'Actualizar mis datos', submit_label: 'Guardar' };
         case 'external_link':
-            return { label: 'Abrir', url: '' };
+            // Bundle: { title?: string; description?: string; href?: string; label?: string; new_window?: boolean }
+            return { title: '', description: '', href: '', label: 'Abrir', new_window: true, variant: 'button', accent_color: null };
         case 'kpi_widget':
-            return { field_slug: '', label: '' };
+            // Bundle: { title?: string; list_slug?: string; field_id?: number; metric?: 'count' | 'sum' | 'avg' | 'min' | 'max'; suffix?: string; prefix?: string }
+            return { title: '', list_slug: '', field_id: 0, metric: 'count', prefix: '', suffix: '', variant: 'card', accent_color: null };
         case 'activity_timeline':
-            return { max_items: 10 };
+            // Bundle: { title?: string; limit?: number }
+            return { title: 'Actividad reciente', limit: 10 };
         case 'download_files':
-            return { file_field_slugs: [] };
+            // Bundle: { title?: string; field_slug?: string }
+            return { title: 'Archivos', field_slug: '', variant: 'list' };
         case 'comments_thread':
-            return { title: 'Comentarios' };
+            // Bundle: { title?: string; readonly?: boolean }
+            return { title: 'Comentarios', readonly: false };
     }
 }
 
