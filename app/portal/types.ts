@@ -31,7 +31,20 @@ export interface PortalUserMeta {
     email: string;
 }
 
-export type PortalBlock =
+/**
+ * Posicionamiento opcional en grid 12-col. Aditivo a `PortalBlock`
+ * (intersection abajo). Si los campos están ausentes, el renderer
+ * cae a layout vertical full-width (backward-compat).
+ */
+export interface PortalBlockGridPosition {
+    id?: string;
+    x?: number;
+    y?: number;
+    w?: number;
+    h?: number;
+}
+
+export type PortalBlock = PortalBlockGridPosition & (
     | { type: 'static_text'; config: { html?: string; title?: string } }
     | {
           type: 'client_data';
@@ -102,7 +115,8 @@ export type PortalBlock =
               /** Solo lectura: cliente ve pero no puede crear comments. */
               readonly?: boolean;
           };
-      };
+      }
+);
 
 export interface PortalMeResponse {
     data: {

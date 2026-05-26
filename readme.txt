@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.54.1
+Stable tag: 0.55.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,38 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.55.0 =
+**Editor visual del portal del cliente — paridad con el editor del CRM panel.**
+
+Antes el editor del portal era una lista vertical primitiva: bloques
+apilados uno debajo del otro, con `<input type="text">` donde había
+que escribir los slugs de los campos a mano. Diferencia abismal
+contra el editor de "Apariencia del registro" (CRM panel) que tiene
+grid 12-col + drag/drop + resize + palette + inspector.
+
+Ahora paridad real:
+
+- **Grid 12-col** con drag-and-drop (`react-grid-layout`, misma
+  librería que el editor CRM).
+- **Resize** de cada bloque por la esquina inferior derecha.
+- **Palette colapsable** a la izquierda con los 9 tipos disponibles;
+  click "+" agrega al final del grid.
+- **Inspector lateral** a la derecha al seleccionar un bloque, con
+  field pickers reales (selects de los campos de la lista, no
+  inputs de texto donde había que tipear slugs).
+- **Modo avanzado JSON** preservado para copy-paste de templates
+  entre listas.
+
+**Renderer del frontend público** ahora honra las posiciones del
+grid. Si el bloque tiene `x/y/w/h`, usa CSS grid con las posiciones
+declaradas. Si no, layout vertical clásico (backward-compat). En
+móvil (< 768px) siempre colapsa a una columna full-width.
+
+**Backward-compat total**: templates persistidos antes de 0.55.0
+siguen funcionando idénticos. El resolver auto-asigna layout
+vertical full-width si falta posicionamiento; al primer guardado
+del editor visual, se persisten las posiciones.
 
 = 0.54.1 =
 **Rediseño del CSS del portal del cliente — defensivo contra temas oscuros.**

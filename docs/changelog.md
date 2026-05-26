@@ -4,6 +4,118 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.55.0] — 2026-05-26
+
+**Editor visual del portal del cliente con paridad arquitectónica al
+editor del CRM panel.**
+
+### Motivación
+
+Feedback del usuario: "el editor de Portal del cliente es totalmente
+diferente al del panel CRM personalizado de Apariencia del registro,
+en este último tenemos editor total de bloques con anchos y muchas
+opciones, y en el de portal cliente es un chiste comparado a ese ya
+que solo son bloques que se ponen uno abajo de otro y hasta toca
+escribir los campos".
+
+El editor anterior (`PortalTemplateEditor.tsx`) era una lista vertical
+con flechas up/down y `<input type="text">` para slugs. Diferencia
+abismal vs el editor CRM (`TemplateEditorPage`) con grid 12-col,
+drag-and-drop, palette, inspector y forms ricos.
+
+### Nuevo editor
+
+Reemplazo `PortalTemplateEditor.tsx` (eliminado) por
+`app/admin/lists/portal-template-editor/` con la misma arquitectura
+del editor CRM:
+
+**`PortalGridEditor.tsx`** — orchestrador con layout 3-col:
+- Palette izquierda (~180px): los 9 tipos de bloque con icono y
+  label, click agrega al grid.
+- Grid central: `react-grid-layout` con `cols=12, rowHeight=40`,
+  drag y resize habilitados, `compactType: vertical`.
+- Inspector derecha (~280px): config del bloque seleccionado con
+  forms type-specific.
+- Modo avanzado: switchea a textarea JSON crudo (preservado del
+  editor anterior).
+
+**`PortalBlockPreview.tsx`** — preview compacto en cada celda del
+grid: icono + tipo + summary del config (chips de slugs, label de
+KPI, etc.). No requiere `sampleRecord` (el CRM editor sí; el portal
+es más liviano).
+
+**`PortalBlockForms.tsx`** — un form por cada uno de los 9 tipos:
+- `static_text` → textarea de HTML.
+- `client_data` → `<FieldSlugMultiPicker>` (lista reordenable + select
+  para agregar; reemplaza el `<input type="text">` con CSVs).
+- `related_records_table` → select de relation field + multi-picker
+  de columnas + número de max rows.
+- `editable_form` → multi-picker de campos editables (excluye
+  relation/file/computed) + label del submit.
+- `external_link` → label + URL.
+- `kpi_widget` → select de campo numérico/computed/text/date + label.
+- `activity_timeline` → max_items.
+- `download_files` → multi-picker de campos `file`.
+- `comments_thread` → título.
+
+**`portalLayout.ts`** — utilidades:
+- `resolvePortalBlocks()`: auto-asigna `id/x/y/w/h` si faltan
+  (backward-compat con templates pre-grid).
+- `defaultHeightFor()` / `defaultWidthFor()` / `defaultConfigFor()`:
+  defaults por tipo (KPI/external_link son half-width; el resto full).
+- `createPortalBlock()`: factory para la palette.
+- `toPortalTemplate()`: serializer al shape persistido.
+
+### Schema
+
+`PortalTemplateBlock` (frontend en `app/types/portal.ts` + backend en
+`PortalTemplate.php::fromListSettings`) ahora acepta `id, x, y, w, h`
+opcionales. Backward-compat: si faltan, el resolver auto-asigna; el
+template renderea idéntico al antes; al primer guardado del editor
+visual se persisten posiciones.
+
+`PortalBlock` (frontend del bundle público en `app/portal/types.ts`)
+extendido con `PortalBlockGridPosition` (intersection types) para
+mantener el shape estricto + posiciones opcionales.
+
+### Renderer público
+
+`PortalRenderer.tsx` detecta si los bloques tienen posiciones (`x/y/w/h`).
+Si sí → CSS grid 12-col con `gridColumn`/`gridRow` por celda. Si no
+→ layout vertical clásico (un block tras otro).
+
+**Mobile**: en `< 768px` el grid colapsa a `flex-direction: column`
+con `grid-column/grid-row: unset !important` — paridad con cómo
+funcionan las apps de productividad modernas en móvil.
+
+### CSS
+
+`assets/portal.css` agrega:
+- `.imcrm-portal-grid` con `display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 40px; gap: 12px`.
+- `.imcrm-portal-grid__cell` con `min-width/height: 0; overflow: hidden`.
+- Media query mobile que colapsa a columna.
+
+### Archivos
+
+Nuevos:
+- `app/admin/lists/portal-template-editor/PortalGridEditor.tsx`
+- `app/admin/lists/portal-template-editor/PortalBlockPreview.tsx`
+- `app/admin/lists/portal-template-editor/PortalBlockForms.tsx`
+- `app/admin/lists/portal-template-editor/portalLayout.ts`
+
+Eliminados:
+- `app/admin/lists/PortalTemplateEditor.tsx` (reemplazado)
+
+Modificados:
+- `app/types/portal.ts` (id/x/y/w/h opcionales en `PortalTemplateBlock`)
+- `app/portal/types.ts` (intersection con `PortalBlockGridPosition`)
+- `app/portal/PortalRenderer.tsx` (grid layout cuando hay posiciones)
+- `app/admin/lists/PortalConfigPanel.tsx` (usa `PortalGridEditor`)
+- `src/Portal/PortalTemplate.php` (parsea id/x/y/w/h opcionales)
+- `assets/portal.css` (grid + mobile collapse)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.54.1] — 2026-05-26
 
 **Rediseño del CSS del portal del cliente — defensivo contra temas

@@ -41,6 +41,17 @@ export const PORTAL_BLOCK_TYPES: Array<{ value: PortalBlockType; label: string }
 export interface PortalTemplateBlock {
     type: PortalBlockType;
     config: Record<string, unknown>;
+    /**
+     * Posicionamiento en grid 12-col (Fase 9 — pulido grid editor).
+     * Si están ausentes, el renderer asume layout vertical en orden
+     * de declaración y auto-asigna posiciones full-width (x=0, w=12).
+     * Backward-compat: templates antiguos siguen funcionando idénticos.
+     */
+    id?: string;
+    x?: number;
+    y?: number;
+    w?: number;
+    h?: number;
 }
 
 export interface PortalTemplate {

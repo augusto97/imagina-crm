@@ -105,7 +105,27 @@ final class PortalTemplate
                 continue;
             }
             $config = isset($block['config']) && is_array($block['config']) ? $block['config'] : [];
-            $blocks[] = ['type' => $type, 'config' => $config];
+
+            // Positioning del grid (Fase 9 — grid editor). Opcionales
+            // para backward-compat — si faltan, el renderer auto-asigna
+            // layout vertical full-width.
+            $entry = ['type' => $type, 'config' => $config];
+            if (isset($block['id']) && is_string($block['id'])) {
+                $entry['id'] = $block['id'];
+            }
+            if (isset($block['x']) && is_int($block['x'])) {
+                $entry['x'] = $block['x'];
+            }
+            if (isset($block['y']) && is_int($block['y'])) {
+                $entry['y'] = $block['y'];
+            }
+            if (isset($block['w']) && is_int($block['w'])) {
+                $entry['w'] = $block['w'];
+            }
+            if (isset($block['h']) && is_int($block['h'])) {
+                $entry['h'] = $block['h'];
+            }
+            $blocks[] = $entry;
         }
 
         return new self($blocks);

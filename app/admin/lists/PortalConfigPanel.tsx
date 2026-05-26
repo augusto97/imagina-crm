@@ -17,7 +17,7 @@ import { __ } from '@/lib/i18n';
 import type { ListSummary } from '@/types/list';
 import { PORTAL_DEFAULTS, type PortalSettings, type PortalTemplate } from '@/types/portal';
 
-import { PortalTemplateEditor } from './PortalTemplateEditor';
+import { PortalGridEditor } from './portal-template-editor/PortalGridEditor';
 
 interface Props {
     list: ListSummary;
@@ -154,7 +154,8 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
                             <Label>{__('Template del portal')}</Label>
-                            <PortalTemplateEditor
+                            <PortalGridEditor
+                                listId={list.id}
                                 template={template}
                                 onChange={setTemplate}
                                 advancedMode={advancedMode}
