@@ -24,18 +24,35 @@ export type PortalBlockType =
     | 'kpi_widget'
     | 'activity_timeline'
     | 'download_files'
-    | 'comments_thread';
+    | 'comments_thread'
+    // 0.57.0 — bloques de UX/jerarquía visual
+    | 'heading'
+    | 'hero'
+    | 'stats_grid'
+    | 'quick_actions'
+    | 'notice'
+    | 'divider'
+    | 'faq'
+    | 'contact_card';
 
 export const PORTAL_BLOCK_TYPES: Array<{ value: PortalBlockType; label: string }> = [
+    { value: 'heading', label: 'Título de sección' },
+    { value: 'hero', label: 'Hero (saludo destacado)' },
     { value: 'static_text', label: 'Texto / HTML' },
+    { value: 'notice', label: 'Aviso / Alerta' },
+    { value: 'divider', label: 'Divisor' },
     { value: 'client_data', label: 'Datos del cliente' },
     { value: 'editable_form', label: 'Formulario editable' },
     { value: 'related_records_table', label: 'Tabla de registros relacionados' },
     { value: 'kpi_widget', label: 'KPI / métrica' },
+    { value: 'stats_grid', label: 'Grid de estadísticas' },
     { value: 'external_link', label: 'Enlace externo (CTA)' },
+    { value: 'quick_actions', label: 'Acciones rápidas' },
     { value: 'activity_timeline', label: 'Timeline de actividad' },
     { value: 'download_files', label: 'Archivos descargables' },
     { value: 'comments_thread', label: 'Hilo de comentarios' },
+    { value: 'faq', label: 'Preguntas frecuentes' },
+    { value: 'contact_card', label: 'Tarjeta de contacto' },
 ];
 
 export interface PortalTemplateBlock {

@@ -65,6 +65,15 @@ export function defaultHeightFor(type: PortalBlockType): number {
         case 'activity_timeline':     return 8;
         case 'download_files':        return 5;
         case 'comments_thread':       return 8;
+        // 0.57.0
+        case 'heading':               return 2;
+        case 'hero':                  return 6;
+        case 'stats_grid':            return 3;
+        case 'quick_actions':         return 5;
+        case 'notice':                return 3;
+        case 'divider':               return 2;
+        case 'faq':                   return 8;
+        case 'contact_card':          return 5;
         default:                      return 4;
     }
 }
@@ -74,6 +83,7 @@ export function defaultWidthFor(type: PortalBlockType): number {
     switch (type) {
         case 'kpi_widget':    return 4;
         case 'external_link': return 4;
+        case 'contact_card':  return 6;
         default:              return 12;
     }
 }
@@ -116,6 +126,72 @@ export function defaultConfigFor(type: PortalBlockType): Record<string, unknown>
         case 'comments_thread':
             // Bundle: { title?: string; readonly?: boolean }
             return { title: 'Comentarios', readonly: false };
+        // 0.57.0 — bloques de UX/jerarquía visual ─────────────────────
+        case 'heading':
+            return {
+                text: 'Título de sección',
+                eyebrow: '',
+                level: 2 as 1 | 2 | 3,
+                align: 'left' as 'left' | 'center',
+                accent_color: null,
+            };
+        case 'hero':
+            return {
+                title: 'Hola, {{nombre}}',
+                subtitle: 'Bienvenido a tu portal',
+                cta_label: '',
+                cta_href: '',
+                variant: 'gradient' as 'gradient' | 'solid' | 'plain',
+                accent_color: null,
+                align: 'left' as 'left' | 'center',
+            };
+        case 'stats_grid':
+            return {
+                title: '',
+                items: [
+                    { label: 'Total', value: '0', metric: 'count', list_slug: '', field_id: 0, prefix: '', suffix: '' },
+                ],
+                columns: 3 as 2 | 3 | 4,
+            };
+        case 'quick_actions':
+            return {
+                title: 'Acciones rápidas',
+                items: [
+                    { icon: 'link', label: 'Acción 1', href: '', new_window: true },
+                ],
+                columns: 3 as 2 | 3 | 4,
+            };
+        case 'notice':
+            return {
+                title: '',
+                body: 'Mensaje importante para el cliente.',
+                variant: 'info' as 'info' | 'success' | 'warning' | 'error' | 'announce',
+                cta_label: '',
+                cta_href: '',
+                dismissible: false,
+            };
+        case 'divider':
+            return {
+                label: '',
+                style: 'solid' as 'solid' | 'dashed' | 'dotted',
+            };
+        case 'faq':
+            return {
+                title: 'Preguntas frecuentes',
+                items: [
+                    { question: '¿Cómo accedo a mi portal?', answer: 'Recibirás un enlace mágico por email.' },
+                ],
+            };
+        case 'contact_card':
+            return {
+                title: 'Tu asesor',
+                name: '',
+                role: '',
+                avatar_url: '',
+                email: '',
+                phone: '',
+                whatsapp: '',
+            };
     }
 }
 

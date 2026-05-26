@@ -4,6 +4,90 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.0] — 2026-05-26
+
+**8 bloques nuevos del portal del cliente + fix de pantalla en blanco
+al actualizar el plugin.**
+
+### Motivación — bloques del portal
+
+Feedback: "los bloques están muy básicos en diseño y opciones, no veo
+un bloque de heading o algo vistoso. en general replanteate estos
+bloques del panel del cliente".
+
+Diagnóstico: los 9 bloques existentes eran funcionales pero feel de
+"dashboard de datos", no de "portal humano". Faltaba:
+
+* Jerarquía visual (headings, hero sections, dividers)
+* Comunicación de urgencia (notice/alert banners)
+* Personalidad (FAQ, contacto del asesor)
+* Composición eficiente (un `stats_grid` en lugar de N `kpi_widget`)
+
+### Bloques nuevos
+
+| Tipo | Descripción |
+|------|-------------|
+| `heading` | H1/H2/H3 con eyebrow, alineación left/center, color de acento |
+| `hero` | Saludo destacado con título + subtítulo + CTA. Interpolación `{{slug}}` para personalizar con datos del record. Variantes gradient/solid/plain |
+| `stats_grid` | 2-4 mini-KPIs en un solo bloque. Cada uno puede ser estático o métrica dinámica (count/sum/avg/min/max) sobre records relacionados |
+| `quick_actions` | Grid de N action cards con icono unicode + label + URL. Variantes 2/3/4 columnas |
+| `notice` | Banner info/success/warning/error/announce con icono semántico, título, mensaje, CTA opcional y dismissible |
+| `divider` | Separador visual con label centrado opcional. Estilos solid/dashed/dotted |
+| `faq` | Acordeón Q&A colapsable. Una pregunta abierta a la vez |
+| `contact_card` | Tarjeta del asesor con avatar (URL o iniciales), nombre, rol y botones de Email/Llamar/WhatsApp (con saludo predefinido) |
+
+Cada bloque incluye:
+* Tipo TS en `app/types/portal.ts` + `app/portal/types.ts`
+* Inspector form en `PortalBlockForms.tsx` (reactive form con validación)
+* Preview en `PortalBlockPreview.tsx` (mockup estilizado en el editor)
+* Entry en `portalRegistry.tsx` (icon, label, descripción, categoría)
+* Default config + tamaño en `portalLayout.ts`
+* Renderer real en `app/portal/blocks/`
+* Caso en el dispatcher de `PortalRenderer.tsx`
+* CSS responsive en `assets/portal.css`
+* Allowlist en backend `PortalTemplate::VALID_BLOCK_TYPES`
+
+### Fix — pantalla en blanco al actualizar el plugin
+
+Reporte del usuario:
+```
+Failed to fetch dynamically imported module:
+.../dist/assets/TemplateEditorPage-BwiCWqy5.js
+```
+
+Pasaba cuando el admin actualizaba el plugin con el SPA abierto en
+otra pestaña. Vite usa content-hashing en filenames de chunks lazy,
+así que al actualizar:
+
+1. El usuario tenía cargado el SPA del build N en memoria.
+2. El plugin se actualizó al build N+1 — los chunks viejos del build
+   N ya no existen en el server (`dist/` se reemplaza completo).
+3. El user clickeaba una ruta lazy-loaded (ej. "Editor de plantilla").
+4. El navegador intentaba descargar el chunk con el filename del
+   build N → 404 → React quedaba con pantalla en blanco.
+
+**Fix:** nuevo helper `app/lib/lazyWithReload.ts` que wrappea `React.lazy`
+y si el dynamic import falla con un error tipo "chunk failed", recarga
+la página automáticamente. Trae el HTML nuevo que apunta a los chunks
+del build N+1 y la navegación sigue. Una sola recarga por sesión para
+evitar loops si el problema es otro.
+
+Wrappeamos todos los `lazy(...)` del codebase (App.tsx + RecordsPage.tsx)
+con el nuevo helper. La firma es idéntica a `React.lazy` — drop-in
+replacement.
+
+### Archivos nuevos
+
+* `app/portal/blocks/HeadingBlock.tsx`
+* `app/portal/blocks/HeroBlock.tsx`
+* `app/portal/blocks/StatsGridBlock.tsx`
+* `app/portal/blocks/QuickActionsBlock.tsx`
+* `app/portal/blocks/NoticeBlock.tsx`
+* `app/portal/blocks/DividerBlock.tsx`
+* `app/portal/blocks/FaqBlock.tsx`
+* `app/portal/blocks/ContactCardBlock.tsx`
+* `app/lib/lazyWithReload.ts`
+
 ## [0.56.0] — 2026-05-26
 
 **Editor unificado entre CRM y portal — un solo motor compartido.**

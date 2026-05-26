@@ -1,13 +1,21 @@
 import {
     Activity,
+    AlertCircle,
     Calendar,
+    CheckCircle2,
+    ChevronDown,
     Download,
     ExternalLink as ExternalLinkIcon,
     File,
+    HeadphonesIcon,
     Image as ImageIcon,
+    Info,
     Mail,
     MessageSquare,
+    Phone,
+    Sparkles,
     User,
+    XCircle,
 } from 'lucide-react';
 
 import { __ } from '@/lib/i18n';
@@ -48,6 +56,23 @@ export function PortalBlockPreview({ block, fields }: Props): JSX.Element {
             return <DownloadFilesPreview block={block} fields={fields} />;
         case 'comments_thread':
             return <CommentsThreadPreview block={block} />;
+        // 0.57.0
+        case 'heading':
+            return <HeadingPreview block={block} />;
+        case 'hero':
+            return <HeroPreview block={block} />;
+        case 'stats_grid':
+            return <StatsGridPreview block={block} />;
+        case 'quick_actions':
+            return <QuickActionsPreview block={block} />;
+        case 'notice':
+            return <NoticePreview block={block} />;
+        case 'divider':
+            return <DividerPreview block={block} />;
+        case 'faq':
+            return <FaqPreview block={block} />;
+        case 'contact_card':
+            return <ContactCardPreview block={block} />;
     }
 }
 
@@ -457,6 +482,315 @@ function CommentsThreadPreview({ block }: { block: ResolvedPortalBlock }): JSX.E
                 </div>
             </div>
         </Card>
+    );
+}
+
+// ─── heading ──────────────────────────────────────────────────────────
+
+function HeadingPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const text = (block.config.text as string) || __('Título de sección');
+    const eyebrow = (block.config.eyebrow as string) || '';
+    const level = (block.config.level as number) ?? 2;
+    const align = (block.config.align as string) ?? 'left';
+    const accent = (block.config.accent_color as string | null) ?? null;
+    const sizeClass = level === 1
+        ? 'imcrm-text-2xl imcrm-font-bold'
+        : level === 2
+            ? 'imcrm-text-lg imcrm-font-semibold'
+            : 'imcrm-text-sm imcrm-font-semibold imcrm-uppercase imcrm-tracking-wider';
+    const alignClass = align === 'center' ? 'imcrm-text-center imcrm-items-center' : 'imcrm-text-left imcrm-items-start';
+    return (
+        <div className={`imcrm-flex imcrm-h-full imcrm-flex-col imcrm-justify-center imcrm-gap-1 imcrm-px-3 ${alignClass}`}>
+            {eyebrow && (
+                <span
+                    className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wider"
+                    style={{ color: accent ?? 'hsl(var(--imcrm-primary))' }}
+                >
+                    {eyebrow}
+                </span>
+            )}
+            <p className={`${sizeClass} imcrm-text-foreground imcrm-leading-tight`}>
+                {text}
+            </p>
+        </div>
+    );
+}
+
+// ─── hero ─────────────────────────────────────────────────────────────
+
+function HeroPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const title = (block.config.title as string) || __('Hola, Cliente');
+    const subtitle = (block.config.subtitle as string) || '';
+    const ctaLabel = (block.config.cta_label as string) || '';
+    const variant = (block.config.variant as string) ?? 'gradient';
+    const align = (block.config.align as string) ?? 'left';
+    const accent = (block.config.accent_color as string | null) ?? '#4f46e5';
+
+    const bg =
+        variant === 'gradient'
+            ? `linear-gradient(135deg, ${accent}cc 0%, ${accent} 100%)`
+            : variant === 'solid'
+                ? accent
+                : 'transparent';
+    const isOnAccent = variant !== 'plain';
+    const textColor = isOnAccent ? '#ffffff' : 'hsl(var(--imcrm-foreground))';
+
+    return (
+        <div
+            className={`imcrm-flex imcrm-h-full imcrm-flex-col imcrm-justify-center imcrm-gap-1.5 imcrm-rounded-md imcrm-p-4 ${align === 'center' ? 'imcrm-text-center imcrm-items-center' : 'imcrm-items-start'} ${variant === 'plain' ? 'imcrm-border imcrm-border-border' : ''}`}
+            style={{ background: bg, color: textColor }}
+        >
+            <Sparkles className="imcrm-h-4 imcrm-w-4 imcrm-opacity-70" />
+            <p className="imcrm-text-xl imcrm-font-bold imcrm-leading-tight">{title.replace(/\{\{[^}]+\}\}/g, 'Cliente')}</p>
+            {subtitle && (
+                <p className="imcrm-text-xs imcrm-opacity-90">{subtitle}</p>
+            )}
+            {ctaLabel && (
+                <button
+                    type="button"
+                    className="imcrm-mt-1 imcrm-rounded imcrm-bg-white imcrm-px-3 imcrm-py-1 imcrm-text-xs imcrm-font-medium"
+                    style={{ color: isOnAccent ? accent : '#ffffff', background: isOnAccent ? '#ffffff' : accent }}
+                >
+                    {ctaLabel}
+                </button>
+            )}
+        </div>
+    );
+}
+
+// ─── stats_grid ───────────────────────────────────────────────────────
+
+function StatsGridPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const title = (block.config.title as string) || '';
+    const items = (Array.isArray(block.config.items) ? block.config.items : []) as Array<{
+        label: string;
+        value?: string;
+        prefix?: string;
+        suffix?: string;
+    }>;
+    const columns = (block.config.columns as number) ?? 3;
+
+    if (items.length === 0) {
+        return <EmptyCard title={title || __('Estadísticas')} icon={Activity} hint={__('Agregá métricas en el inspector.')} />;
+    }
+
+    const gridCols = columns === 2 ? 'imcrm-grid-cols-2' : columns === 4 ? 'imcrm-grid-cols-4' : 'imcrm-grid-cols-3';
+
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-p-3">
+            {title && (
+                <p className="imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                    {title}
+                </p>
+            )}
+            <div className={`imcrm-grid imcrm-flex-1 imcrm-gap-2 ${gridCols}`}>
+                {items.map((it, i) => (
+                    <div
+                        key={i}
+                        className="imcrm-flex imcrm-flex-col imcrm-justify-center imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-2"
+                    >
+                        <p className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground imcrm-truncate">
+                            {it.label || `Stat ${i + 1}`}
+                        </p>
+                        <p className="imcrm-text-lg imcrm-font-semibold imcrm-tabular-nums imcrm-text-foreground">
+                            {it.prefix ?? ''}{it.value ?? '42'}{it.suffix ? ` ${it.suffix}` : ''}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── quick_actions ────────────────────────────────────────────────────
+
+function QuickActionsPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const title = (block.config.title as string) || '';
+    const items = (Array.isArray(block.config.items) ? block.config.items : []) as Array<{
+        icon: string;
+        label: string;
+    }>;
+    const columns = (block.config.columns as number) ?? 3;
+
+    if (items.length === 0) {
+        return <EmptyCard title={title || __('Acciones rápidas')} icon={Sparkles} hint={__('Agregá acciones en el inspector.')} />;
+    }
+
+    const gridCols = columns === 2 ? 'imcrm-grid-cols-2' : columns === 4 ? 'imcrm-grid-cols-4' : 'imcrm-grid-cols-3';
+
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-p-3">
+            {title && (
+                <p className="imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                    {title}
+                </p>
+            )}
+            <div className={`imcrm-grid imcrm-flex-1 imcrm-gap-2 ${gridCols}`}>
+                {items.slice(0, 8).map((it, i) => (
+                    <div
+                        key={i}
+                        className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-2"
+                    >
+                        <div className="imcrm-flex imcrm-h-7 imcrm-w-7 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-bg-primary/10 imcrm-text-primary">
+                            <ExternalLinkIcon className="imcrm-h-3.5 imcrm-w-3.5" />
+                        </div>
+                        <p className="imcrm-truncate imcrm-text-[10px] imcrm-font-medium imcrm-text-foreground imcrm-text-center imcrm-w-full">
+                            {it.label || `${it.icon}`}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── notice ───────────────────────────────────────────────────────────
+
+function NoticePreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const title = (block.config.title as string) || '';
+    const body = (block.config.body as string) || __('Mensaje importante.');
+    const variant = (block.config.variant as string) ?? 'info';
+    const ctaLabel = (block.config.cta_label as string) || '';
+
+    const variants: Record<string, { bg: string; border: string; text: string; icon: typeof Info }> = {
+        info:     { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af', icon: Info },
+        success:  { bg: '#f0fdf4', border: '#22c55e', text: '#15803d', icon: CheckCircle2 },
+        warning:  { bg: '#fffbeb', border: '#f59e0b', text: '#b45309', icon: AlertCircle },
+        error:    { bg: '#fef2f2', border: '#ef4444', text: '#b91c1c', icon: XCircle },
+        announce: { bg: '#eef2ff', border: '#6366f1', text: '#4338ca', icon: Sparkles },
+    };
+    const v = variants[variant] ?? variants.info!;
+    const Icon = v.icon;
+
+    return (
+        <div
+            className="imcrm-flex imcrm-h-full imcrm-items-start imcrm-gap-2 imcrm-rounded-md imcrm-border-l-4 imcrm-p-3"
+            style={{ background: v.bg, borderLeftColor: v.border, color: v.text }}
+        >
+            <Icon className="imcrm-mt-0.5 imcrm-h-4 imcrm-w-4 imcrm-shrink-0" />
+            <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-0.5">
+                {title && (
+                    <p className="imcrm-text-xs imcrm-font-semibold">{title}</p>
+                )}
+                <p className="imcrm-text-[11px] imcrm-leading-snug imcrm-line-clamp-3">{body}</p>
+                {ctaLabel && (
+                    <span className="imcrm-mt-1 imcrm-text-[11px] imcrm-font-medium imcrm-underline">
+                        {ctaLabel} →
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ─── divider ──────────────────────────────────────────────────────────
+
+function DividerPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const label = (block.config.label as string) || '';
+    const style = (block.config.style as string) ?? 'solid';
+    const borderStyle = style === 'dashed' ? 'dashed' : style === 'dotted' ? 'dotted' : 'solid';
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-items-center imcrm-gap-3 imcrm-px-3">
+            <div className="imcrm-flex-1" style={{ borderTopWidth: 1, borderTopStyle: borderStyle, borderColor: 'hsl(var(--imcrm-border))' }} />
+            {label && (
+                <span className="imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                    {label}
+                </span>
+            )}
+            {label && <div className="imcrm-flex-1" style={{ borderTopWidth: 1, borderTopStyle: borderStyle, borderColor: 'hsl(var(--imcrm-border))' }} />}
+        </div>
+    );
+}
+
+// ─── faq ──────────────────────────────────────────────────────────────
+
+function FaqPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const title = (block.config.title as string) || __('Preguntas frecuentes');
+    const items = (Array.isArray(block.config.items) ? block.config.items : []) as Array<{
+        question: string;
+        answer: string;
+    }>;
+    if (items.length === 0) {
+        return <EmptyCard title={title} icon={MessageSquare} hint={__('Agregá preguntas en el inspector.')} />;
+    }
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-p-3">
+            {title && (
+                <p className="imcrm-text-xs imcrm-font-semibold imcrm-text-foreground">{title}</p>
+            )}
+            <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
+                {items.slice(0, 4).map((it, i) => (
+                    <li
+                        key={i}
+                        className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-2 imcrm-py-1.5"
+                    >
+                        <span className="imcrm-truncate imcrm-text-[11px] imcrm-text-foreground">
+                            {it.question || __('Pregunta')}
+                        </span>
+                        <ChevronDown className="imcrm-h-3 imcrm-w-3 imcrm-text-muted-foreground" />
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+// ─── contact_card ─────────────────────────────────────────────────────
+
+function ContactCardPreview({ block }: { block: ResolvedPortalBlock }): JSX.Element {
+    const title = (block.config.title as string) || __('Tu asesor');
+    const name = (block.config.name as string) || __('Nombre del asesor');
+    const role = (block.config.role as string) || '';
+    const avatar = (block.config.avatar_url as string) || '';
+    const email = (block.config.email as string) || '';
+    const phone = (block.config.phone as string) || '';
+    const whatsapp = (block.config.whatsapp as string) || '';
+    const initials = name.split(' ').filter(Boolean).slice(0, 2).map((s) => s[0]).join('').toUpperCase();
+
+    return (
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
+            <p className="imcrm-text-[10px] imcrm-font-semibold imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
+                {title}
+            </p>
+            <div className="imcrm-flex imcrm-items-center imcrm-gap-3">
+                {avatar ? (
+                    <img
+                        src={avatar}
+                        alt=""
+                        className="imcrm-h-10 imcrm-w-10 imcrm-rounded-full imcrm-object-cover"
+                    />
+                ) : (
+                    <div className="imcrm-flex imcrm-h-10 imcrm-w-10 imcrm-shrink-0 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-primary/10 imcrm-text-xs imcrm-font-semibold imcrm-text-primary">
+                        {initials || <HeadphonesIcon className="imcrm-h-4 imcrm-w-4" />}
+                    </div>
+                )}
+                <div className="imcrm-min-w-0 imcrm-flex-1">
+                    <p className="imcrm-truncate imcrm-text-xs imcrm-font-semibold imcrm-text-foreground">{name}</p>
+                    {role && (
+                        <p className="imcrm-truncate imcrm-text-[10px] imcrm-text-muted-foreground">{role}</p>
+                    )}
+                </div>
+            </div>
+            <div className="imcrm-flex imcrm-flex-wrap imcrm-gap-1.5">
+                {email && (
+                    <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-primary/10 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-text-primary">
+                        <Mail className="imcrm-h-2.5 imcrm-w-2.5" />
+                        Email
+                    </span>
+                )}
+                {phone && (
+                    <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-primary/10 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-text-primary">
+                        <Phone className="imcrm-h-2.5 imcrm-w-2.5" />
+                        Tel
+                    </span>
+                )}
+                {whatsapp && (
+                    <span className="imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-emerald-50 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-text-emerald-700">
+                        WhatsApp
+                    </span>
+                )}
+            </div>
+        </div>
     );
 }
 

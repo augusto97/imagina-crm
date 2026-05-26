@@ -71,6 +71,15 @@ final class PortalTemplate
         'download_files',
         // Fase 12.D — hilo de comentarios
         'comments_thread',
+        // 0.57.0 — bloques de UX/jerarquía visual para portal
+        'heading',
+        'hero',
+        'stats_grid',
+        'quick_actions',
+        'notice',
+        'divider',
+        'faq',
+        'contact_card',
     ];
 
     /**

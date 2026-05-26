@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -10,18 +10,24 @@ import { AdminShell } from '@/admin/layout/AdminShell';
 import { ListsIndexPage } from '@/admin/lists/ListsIndexPage';
 import { RecordPage } from '@/admin/records/RecordPage';
 import { RecordsPage } from '@/admin/records/RecordsPage';
+import { lazyWithReload } from '@/lib/lazyWithReload';
 
 // Lazy-loaded pages. React.lazy + Vite produce un chunk por cada
 // import — esos chunks viven en `dist/assets/*-<hash>.js` y se
 // descargan solo cuando el user navega a la ruta. Con esto el bundle
 // inicial baja ~40% en sites donde el usuario solo usa records.
-const ListBuilderPage = lazy(() => import('@/admin/lists/ListBuilderPage').then(m => ({ default: m.ListBuilderPage })));
-const TemplateEditorPage = lazy(() => import('@/admin/lists/template-editor/TemplateEditorPage').then(m => ({ default: m.TemplateEditorPage })));
-const PortalTemplateEditorPage = lazy(() => import('@/admin/lists/portal-template-editor/PortalTemplateEditorPage').then(m => ({ default: m.PortalTemplateEditorPage })));
-const AutomationsPage = lazy(() => import('@/admin/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
-const DashboardsIndexPage = lazy(() => import('@/admin/dashboards/DashboardsIndexPage').then(m => ({ default: m.DashboardsIndexPage })));
-const DashboardPage = lazy(() => import('@/admin/dashboards/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const SettingsPage = lazy(() => import('@/admin/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
+//
+// Usamos `lazyWithReload` en lugar de `React.lazy`: si el chunk falla
+// porque el plugin se actualizó y los content-hashes cambiaron (deploy
+// stale), recarga la página automáticamente. Previene la pantalla en
+// blanco que pasaba con `Failed to fetch dynamically imported module`.
+const ListBuilderPage = lazyWithReload(() => import('@/admin/lists/ListBuilderPage').then(m => ({ default: m.ListBuilderPage })));
+const TemplateEditorPage = lazyWithReload(() => import('@/admin/lists/template-editor/TemplateEditorPage').then(m => ({ default: m.TemplateEditorPage })));
+const PortalTemplateEditorPage = lazyWithReload(() => import('@/admin/lists/portal-template-editor/PortalTemplateEditorPage').then(m => ({ default: m.PortalTemplateEditorPage })));
+const AutomationsPage = lazyWithReload(() => import('@/admin/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
+const DashboardsIndexPage = lazyWithReload(() => import('@/admin/dashboards/DashboardsIndexPage').then(m => ({ default: m.DashboardsIndexPage })));
+const DashboardPage = lazyWithReload(() => import('@/admin/dashboards/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const SettingsPage = lazyWithReload(() => import('@/admin/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
 
 /**
  * Fallback minimal mientras un chunk lazy se descarga. Suficiente:

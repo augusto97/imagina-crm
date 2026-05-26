@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FileUp, Loader2, Plus, Search, Settings, Zap } from 'lucide-react';
 
@@ -11,6 +11,7 @@ import { useRecord, useRecords } from '@/hooks/useRecords';
 import { useSavedViews } from '@/hooks/useSavedViews';
 import { clientSideSearch } from '@/lib/clientSearch';
 import { __, sprintf } from '@/lib/i18n';
+import { lazyWithReload } from '@/lib/lazyWithReload';
 import { CAP, useCan } from '@/lib/permissions';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
@@ -33,10 +34,10 @@ import {
 // el bundle del Records page bajó ~80 KB raw porque Kanban/Calendar/
 // Cards/GroupedTable solo se cargan cuando una saved view de ese
 // tipo está activa. TableView sigue eager porque es la vista default.
-const CalendarView = lazy(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
-const CardsView = lazy(() => import('./views/CardsView').then((m) => ({ default: m.CardsView })));
-const KanbanView = lazy(() => import('./views/KanbanView').then((m) => ({ default: m.KanbanView })));
-const GroupedTableView = lazy(() => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView })));
+const CalendarView = lazyWithReload(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
+const CardsView = lazyWithReload(() => import('./views/CardsView').then((m) => ({ default: m.CardsView })));
+const KanbanView = lazyWithReload(() => import('./views/KanbanView').then((m) => ({ default: m.KanbanView })));
+const GroupedTableView = lazyWithReload(() => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView })));
 
 import { ColumnsMenu } from './views/ColumnsMenu';
 import { GroupSelector } from './views/GroupSelector';

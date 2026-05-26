@@ -49,6 +49,23 @@ export function PortalBlockForm({ block, fields, onConfigChange }: FormProps): J
             return <DownloadFilesForm config={block.config} fields={fields} onChange={onConfigChange} />;
         case 'comments_thread':
             return <CommentsForm config={block.config} onChange={onConfigChange} />;
+        // 0.57.0 — bloques UX/jerarquía
+        case 'heading':
+            return <HeadingForm config={block.config} onChange={onConfigChange} />;
+        case 'hero':
+            return <HeroForm config={block.config} onChange={onConfigChange} />;
+        case 'stats_grid':
+            return <StatsGridForm config={block.config} onChange={onConfigChange} />;
+        case 'quick_actions':
+            return <QuickActionsForm config={block.config} onChange={onConfigChange} />;
+        case 'notice':
+            return <NoticeForm config={block.config} onChange={onConfigChange} />;
+        case 'divider':
+            return <DividerForm config={block.config} onChange={onConfigChange} />;
+        case 'faq':
+            return <FaqForm config={block.config} onChange={onConfigChange} />;
+        case 'contact_card':
+            return <ContactCardForm config={block.config} onChange={onConfigChange} />;
     }
 }
 
@@ -559,6 +576,761 @@ function CommentsForm({
                     </span>
                 </span>
             </label>
+        </div>
+    );
+}
+
+// ─── heading ──────────────────────────────────────────────────────────
+
+function HeadingForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const text = (config.text as string) ?? '';
+    const eyebrow = (config.eyebrow as string) ?? '';
+    const level = (config.level as number) ?? 2;
+    const align = (config.align as string) ?? 'left';
+    const accent = (config.accent_color as string | null) ?? null;
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Eyebrow (texto pequeño arriba)')}>
+                <Input
+                    value={eyebrow}
+                    onChange={(e) => onChange({ ...config, eyebrow: e.target.value })}
+                    placeholder={__('Ej. "FACTURACIÓN"')}
+                />
+            </Field>
+            <Field label={__('Texto del título')}>
+                <Input
+                    value={text}
+                    onChange={(e) => onChange({ ...config, text: e.target.value })}
+                    placeholder={__('Título de sección')}
+                />
+            </Field>
+            <Field label={__('Jerarquía')}>
+                <Select
+                    value={String(level)}
+                    onChange={(e) => onChange({ ...config, level: Number(e.target.value) })}
+                >
+                    <option value="1">{__('H1 — máximo')}</option>
+                    <option value="2">{__('H2 — sección')}</option>
+                    <option value="3">{__('H3 — subsección')}</option>
+                </Select>
+            </Field>
+            <Field label={__('Alineación')}>
+                <Select
+                    value={align}
+                    onChange={(e) => onChange({ ...config, align: e.target.value })}
+                >
+                    <option value="left">{__('Izquierda')}</option>
+                    <option value="center">{__('Centrada')}</option>
+                </Select>
+            </Field>
+            <AccentColorField
+                value={accent}
+                onChange={(v) => onChange({ ...config, accent_color: v })}
+            />
+        </div>
+    );
+}
+
+// ─── hero ─────────────────────────────────────────────────────────────
+
+function HeroForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const title = (config.title as string) ?? '';
+    const subtitle = (config.subtitle as string) ?? '';
+    const ctaLabel = (config.cta_label as string) ?? '';
+    const ctaHref = (config.cta_href as string) ?? '';
+    const variant = (config.variant as string) ?? 'gradient';
+    const align = (config.align as string) ?? 'left';
+    const accent = (config.accent_color as string | null) ?? null;
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <VariantPicker
+                value={variant}
+                onChange={(v) => onChange({ ...config, variant: v })}
+                options={[
+                    { value: 'gradient', label: __('Gradiente (con accent)') },
+                    { value: 'solid', label: __('Sólido (accent)') },
+                    { value: 'plain', label: __('Plano (sin fondo)') },
+                ]}
+            />
+            <Field label={__('Título principal')}>
+                <Input
+                    value={title}
+                    onChange={(e) => onChange({ ...config, title: e.target.value })}
+                    placeholder={__('Hola, {{nombre}}')}
+                />
+                <Hint>{__('Usá {{slug}} para interpolar campos del cliente (ej. {{nombre}}).')}</Hint>
+            </Field>
+            <Field label={__('Subtítulo')}>
+                <Input
+                    value={subtitle}
+                    onChange={(e) => onChange({ ...config, subtitle: e.target.value })}
+                    placeholder={__('Bienvenido a tu portal')}
+                />
+            </Field>
+            <Field label={__('Alineación')}>
+                <Select
+                    value={align}
+                    onChange={(e) => onChange({ ...config, align: e.target.value })}
+                >
+                    <option value="left">{__('Izquierda')}</option>
+                    <option value="center">{__('Centrada')}</option>
+                </Select>
+            </Field>
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
+                <Field label={__('CTA — texto')}>
+                    <Input
+                        value={ctaLabel}
+                        onChange={(e) => onChange({ ...config, cta_label: e.target.value })}
+                        placeholder={__('Ej. "Pagar"')}
+                    />
+                </Field>
+                <Field label={__('CTA — URL')}>
+                    <Input
+                        type="url"
+                        value={ctaHref}
+                        onChange={(e) => onChange({ ...config, cta_href: e.target.value })}
+                        placeholder="https://…"
+                    />
+                </Field>
+            </div>
+            <AccentColorField
+                value={accent}
+                onChange={(v) => onChange({ ...config, accent_color: v })}
+            />
+        </div>
+    );
+}
+
+// ─── stats_grid ───────────────────────────────────────────────────────
+
+interface StatItem {
+    label: string;
+    value: string;
+    metric: 'static' | 'count' | 'sum' | 'avg' | 'min' | 'max';
+    list_slug: string;
+    field_id: number;
+    prefix: string;
+    suffix: string;
+}
+
+function StatsGridForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const lists = useLists();
+    const items = (Array.isArray(config.items) ? config.items : []) as StatItem[];
+    const columns = (config.columns as number) ?? 3;
+    const title = (config.title as string) ?? '';
+
+    const updateItem = (idx: number, patch: Partial<StatItem>): void => {
+        const next = items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+        onChange({ ...config, items: next });
+    };
+    const addItem = (): void => {
+        if (items.length >= 4) return;
+        onChange({
+            ...config,
+            items: [
+                ...items,
+                { label: __('Nueva'), value: '0', metric: 'static', list_slug: '', field_id: 0, prefix: '', suffix: '' },
+            ],
+        });
+    };
+    const removeItem = (idx: number): void => {
+        onChange({ ...config, items: items.filter((_, i) => i !== idx) });
+    };
+    const moveItem = (idx: number, dir: -1 | 1): void => {
+        const target = idx + dir;
+        if (target < 0 || target >= items.length) return;
+        const next = [...items];
+        [next[idx], next[target]] = [next[target]!, next[idx]!];
+        onChange({ ...config, items: next });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Título (opcional)')}>
+                <Input
+                    value={title}
+                    onChange={(e) => onChange({ ...config, title: e.target.value })}
+                    placeholder={__('Resumen')}
+                />
+            </Field>
+            <Field label={__('Columnas')}>
+                <Select
+                    value={String(columns)}
+                    onChange={(e) => onChange({ ...config, columns: Number(e.target.value) })}
+                >
+                    <option value="2">{__('2 columnas')}</option>
+                    <option value="3">{__('3 columnas')}</option>
+                    <option value="4">{__('4 columnas')}</option>
+                </Select>
+            </Field>
+            <Field label={__('Métricas (máx. 4)')}>
+                {items.length === 0 ? (
+                    <p className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-2 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Sin métricas. Agregá una abajo.')}
+                    </p>
+                ) : (
+                    <ul className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                        {items.map((it, i) => (
+                            <li
+                                key={i}
+                                className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-2"
+                            >
+                                <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-2">
+                                    <Input
+                                        value={it.label}
+                                        onChange={(e) => updateItem(i, { label: e.target.value })}
+                                        placeholder={__('Label')}
+                                    />
+                                    <div className="imcrm-flex imcrm-gap-0.5 imcrm-shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => moveItem(i, -1)}
+                                            disabled={i === 0}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                            title={__('Subir')}
+                                        >
+                                            <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => moveItem(i, 1)}
+                                            disabled={i === items.length - 1}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                            title={__('Bajar')}
+                                        >
+                                            <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeItem(i)}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-text-destructive"
+                                            title={__('Quitar')}
+                                        >
+                                            <X className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <Select
+                                    value={it.metric}
+                                    onChange={(e) => updateItem(i, { metric: e.target.value as StatItem['metric'] })}
+                                >
+                                    <option value="static">{__('Valor estático')}</option>
+                                    <option value="count">{__('Contar registros')}</option>
+                                    <option value="sum">{__('Suma')}</option>
+                                    <option value="avg">{__('Promedio')}</option>
+                                    <option value="min">{__('Mínimo')}</option>
+                                    <option value="max">{__('Máximo')}</option>
+                                </Select>
+                                {it.metric === 'static' ? (
+                                    <Input
+                                        value={it.value}
+                                        onChange={(e) => updateItem(i, { value: e.target.value })}
+                                        placeholder={__('Valor (ej. 42)')}
+                                    />
+                                ) : (
+                                    <>
+                                        <Select
+                                            value={it.list_slug}
+                                            onChange={(e) => updateItem(i, { list_slug: e.target.value })}
+                                        >
+                                            <option value="">{__('— Elegir lista —')}</option>
+                                            {(lists.data ?? []).map((l) => (
+                                                <option key={l.id} value={l.slug}>{l.name}</option>
+                                            ))}
+                                        </Select>
+                                        {it.metric !== 'count' && (
+                                            <Input
+                                                type="number"
+                                                value={it.field_id}
+                                                onChange={(e) => updateItem(i, { field_id: Number(e.target.value) })}
+                                                placeholder={__('ID del campo numérico')}
+                                            />
+                                        )}
+                                    </>
+                                )}
+                                <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-1.5">
+                                    <Input
+                                        value={it.prefix}
+                                        onChange={(e) => updateItem(i, { prefix: e.target.value })}
+                                        placeholder={__('Prefijo')}
+                                    />
+                                    <Input
+                                        value={it.suffix}
+                                        onChange={(e) => updateItem(i, { suffix: e.target.value })}
+                                        placeholder={__('Sufijo')}
+                                    />
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <button
+                    type="button"
+                    onClick={addItem}
+                    disabled={items.length >= 4}
+                    className="imcrm-h-8 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-background imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-50"
+                >
+                    + {__('Agregar métrica')}
+                </button>
+            </Field>
+        </div>
+    );
+}
+
+// ─── quick_actions ────────────────────────────────────────────────────
+
+interface QuickAction {
+    icon: string;
+    label: string;
+    href: string;
+    new_window: boolean;
+}
+
+const QUICK_ACTION_ICONS = [
+    'link', 'download', 'upload', 'file-text', 'mail', 'phone', 'message-circle',
+    'calendar', 'credit-card', 'help-circle', 'settings', 'user', 'shield', 'zap',
+] as const;
+
+function QuickActionsForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const items = (Array.isArray(config.items) ? config.items : []) as QuickAction[];
+    const columns = (config.columns as number) ?? 3;
+    const title = (config.title as string) ?? '';
+
+    const updateItem = (idx: number, patch: Partial<QuickAction>): void => {
+        const next = items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+        onChange({ ...config, items: next });
+    };
+    const addItem = (): void => {
+        onChange({
+            ...config,
+            items: [...items, { icon: 'link', label: __('Acción'), href: '', new_window: true }],
+        });
+    };
+    const removeItem = (idx: number): void => {
+        onChange({ ...config, items: items.filter((_, i) => i !== idx) });
+    };
+    const moveItem = (idx: number, dir: -1 | 1): void => {
+        const target = idx + dir;
+        if (target < 0 || target >= items.length) return;
+        const next = [...items];
+        [next[idx], next[target]] = [next[target]!, next[idx]!];
+        onChange({ ...config, items: next });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Título (opcional)')}>
+                <Input
+                    value={title}
+                    onChange={(e) => onChange({ ...config, title: e.target.value })}
+                    placeholder={__('Acciones rápidas')}
+                />
+            </Field>
+            <Field label={__('Columnas')}>
+                <Select
+                    value={String(columns)}
+                    onChange={(e) => onChange({ ...config, columns: Number(e.target.value) })}
+                >
+                    <option value="2">{__('2 columnas')}</option>
+                    <option value="3">{__('3 columnas')}</option>
+                    <option value="4">{__('4 columnas')}</option>
+                </Select>
+            </Field>
+            <Field label={__('Acciones')}>
+                {items.length === 0 ? (
+                    <p className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-2 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Sin acciones. Agregá una abajo.')}
+                    </p>
+                ) : (
+                    <ul className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                        {items.map((it, i) => (
+                            <li
+                                key={i}
+                                className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-2"
+                            >
+                                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                                    <Select
+                                        value={it.icon}
+                                        onChange={(e) => updateItem(i, { icon: e.target.value })}
+                                    >
+                                        {QUICK_ACTION_ICONS.map((ic) => (
+                                            <option key={ic} value={ic}>{ic}</option>
+                                        ))}
+                                    </Select>
+                                    <div className="imcrm-flex imcrm-gap-0.5 imcrm-shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => moveItem(i, -1)}
+                                            disabled={i === 0}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                        >
+                                            <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => moveItem(i, 1)}
+                                            disabled={i === items.length - 1}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                        >
+                                            <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeItem(i)}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-text-destructive"
+                                        >
+                                            <X className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <Input
+                                    value={it.label}
+                                    onChange={(e) => updateItem(i, { label: e.target.value })}
+                                    placeholder={__('Label')}
+                                />
+                                <Input
+                                    type="url"
+                                    value={it.href}
+                                    onChange={(e) => updateItem(i, { href: e.target.value })}
+                                    placeholder="https://…"
+                                />
+                                <label className="imcrm-flex imcrm-items-center imcrm-gap-1.5 imcrm-text-[11px]">
+                                    <input
+                                        type="checkbox"
+                                        checked={it.new_window}
+                                        onChange={(e) => updateItem(i, { new_window: e.target.checked })}
+                                    />
+                                    {__('Pestaña nueva')}
+                                </label>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <button
+                    type="button"
+                    onClick={addItem}
+                    className="imcrm-h-8 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-background imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-muted"
+                >
+                    + {__('Agregar acción')}
+                </button>
+            </Field>
+        </div>
+    );
+}
+
+// ─── notice ───────────────────────────────────────────────────────────
+
+function NoticeForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const title = (config.title as string) ?? '';
+    const body = (config.body as string) ?? '';
+    const variant = (config.variant as string) ?? 'info';
+    const ctaLabel = (config.cta_label as string) ?? '';
+    const ctaHref = (config.cta_href as string) ?? '';
+    const dismissible = config.dismissible === true;
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <VariantPicker
+                value={variant}
+                onChange={(v) => onChange({ ...config, variant: v })}
+                options={[
+                    { value: 'info', label: __('Info (azul)') },
+                    { value: 'success', label: __('Éxito (verde)') },
+                    { value: 'warning', label: __('Advertencia (ámbar)') },
+                    { value: 'error', label: __('Error (rojo)') },
+                    { value: 'announce', label: __('Anuncio (primario)') },
+                ]}
+            />
+            <Field label={__('Título (opcional)')}>
+                <Input
+                    value={title}
+                    onChange={(e) => onChange({ ...config, title: e.target.value })}
+                    placeholder={__('Ej. "Factura próxima a vencer"')}
+                />
+            </Field>
+            <Field label={__('Mensaje')}>
+                <Textarea
+                    rows={3}
+                    value={body}
+                    onChange={(e) => onChange({ ...config, body: e.target.value })}
+                />
+            </Field>
+            <div className="imcrm-grid imcrm-grid-cols-2 imcrm-gap-2">
+                <Field label={__('CTA — texto')}>
+                    <Input
+                        value={ctaLabel}
+                        onChange={(e) => onChange({ ...config, cta_label: e.target.value })}
+                        placeholder={__('Ej. "Pagar ahora"')}
+                    />
+                </Field>
+                <Field label={__('CTA — URL')}>
+                    <Input
+                        type="url"
+                        value={ctaHref}
+                        onChange={(e) => onChange({ ...config, cta_href: e.target.value })}
+                        placeholder="https://…"
+                    />
+                </Field>
+            </div>
+            <label className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs imcrm-cursor-pointer">
+                <input
+                    type="checkbox"
+                    checked={dismissible}
+                    onChange={(e) => onChange({ ...config, dismissible: e.target.checked })}
+                />
+                {__('El cliente puede ocultarlo (session-scoped)')}
+            </label>
+        </div>
+    );
+}
+
+// ─── divider ──────────────────────────────────────────────────────────
+
+function DividerForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const label = (config.label as string) ?? '';
+    const style = (config.style as string) ?? 'solid';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Label centrado (opcional)')}>
+                <Input
+                    value={label}
+                    onChange={(e) => onChange({ ...config, label: e.target.value })}
+                    placeholder={__('Ej. "FACTURACIÓN"')}
+                />
+            </Field>
+            <Field label={__('Estilo')}>
+                <Select
+                    value={style}
+                    onChange={(e) => onChange({ ...config, style: e.target.value })}
+                >
+                    <option value="solid">{__('Sólida')}</option>
+                    <option value="dashed">{__('Punteada larga')}</option>
+                    <option value="dotted">{__('Punteada')}</option>
+                </Select>
+            </Field>
+        </div>
+    );
+}
+
+// ─── faq ──────────────────────────────────────────────────────────────
+
+interface FaqItem {
+    question: string;
+    answer: string;
+}
+
+function FaqForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const title = (config.title as string) ?? '';
+    const items = (Array.isArray(config.items) ? config.items : []) as FaqItem[];
+    const updateItem = (idx: number, patch: Partial<FaqItem>): void => {
+        const next = items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+        onChange({ ...config, items: next });
+    };
+    const addItem = (): void => {
+        onChange({
+            ...config,
+            items: [...items, { question: __('Nueva pregunta'), answer: '' }],
+        });
+    };
+    const removeItem = (idx: number): void => {
+        onChange({ ...config, items: items.filter((_, i) => i !== idx) });
+    };
+    const moveItem = (idx: number, dir: -1 | 1): void => {
+        const target = idx + dir;
+        if (target < 0 || target >= items.length) return;
+        const next = [...items];
+        [next[idx], next[target]] = [next[target]!, next[idx]!];
+        onChange({ ...config, items: next });
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Título (opcional)')}>
+                <Input
+                    value={title}
+                    onChange={(e) => onChange({ ...config, title: e.target.value })}
+                    placeholder={__('Preguntas frecuentes')}
+                />
+            </Field>
+            <Field label={__('Preguntas')}>
+                {items.length === 0 ? (
+                    <p className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-2 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground">
+                        {__('Sin preguntas. Agregá una abajo.')}
+                    </p>
+                ) : (
+                    <ul className="imcrm-flex imcrm-flex-col imcrm-gap-2">
+                        {items.map((it, i) => (
+                            <li
+                                key={i}
+                                className="imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-2"
+                            >
+                                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                                    <Input
+                                        value={it.question}
+                                        onChange={(e) => updateItem(i, { question: e.target.value })}
+                                        placeholder={__('Pregunta')}
+                                    />
+                                    <div className="imcrm-flex imcrm-gap-0.5 imcrm-shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => moveItem(i, -1)}
+                                            disabled={i === 0}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                        >
+                                            <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => moveItem(i, 1)}
+                                            disabled={i === items.length - 1}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                        >
+                                            <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeItem(i)}
+                                            className="imcrm-rounded imcrm-p-1 imcrm-text-muted-foreground hover:imcrm-text-destructive"
+                                        >
+                                            <X className="imcrm-h-3 imcrm-w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <Textarea
+                                    rows={2}
+                                    value={it.answer}
+                                    onChange={(e) => updateItem(i, { answer: e.target.value })}
+                                    placeholder={__('Respuesta')}
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <button
+                    type="button"
+                    onClick={addItem}
+                    className="imcrm-h-8 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-background imcrm-text-xs imcrm-text-muted-foreground hover:imcrm-bg-muted"
+                >
+                    + {__('Agregar pregunta')}
+                </button>
+            </Field>
+        </div>
+    );
+}
+
+// ─── contact_card ─────────────────────────────────────────────────────
+
+function ContactCardForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (c: Record<string, unknown>) => void;
+}): JSX.Element {
+    const title = (config.title as string) ?? '';
+    const name = (config.name as string) ?? '';
+    const role = (config.role as string) ?? '';
+    const avatarUrl = (config.avatar_url as string) ?? '';
+    const email = (config.email as string) ?? '';
+    const phone = (config.phone as string) ?? '';
+    const whatsapp = (config.whatsapp as string) ?? '';
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <Field label={__('Título de la tarjeta')}>
+                <Input
+                    value={title}
+                    onChange={(e) => onChange({ ...config, title: e.target.value })}
+                    placeholder={__('Tu asesor')}
+                />
+            </Field>
+            <Field label={__('Nombre del asesor')}>
+                <Input
+                    value={name}
+                    onChange={(e) => onChange({ ...config, name: e.target.value })}
+                    placeholder={__('Ej. "María González"')}
+                />
+            </Field>
+            <Field label={__('Rol / cargo')}>
+                <Input
+                    value={role}
+                    onChange={(e) => onChange({ ...config, role: e.target.value })}
+                    placeholder={__('Ej. "Account Manager"')}
+                />
+            </Field>
+            <Field label={__('Avatar URL (opcional)')}>
+                <Input
+                    type="url"
+                    value={avatarUrl}
+                    onChange={(e) => onChange({ ...config, avatar_url: e.target.value })}
+                    placeholder="https://…/avatar.jpg"
+                />
+                <Hint>{__('Si está vacío, se muestran las iniciales sobre fondo de color.')}</Hint>
+            </Field>
+            <Field label={__('Email')}>
+                <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => onChange({ ...config, email: e.target.value })}
+                    placeholder="asesor@empresa.com"
+                />
+            </Field>
+            <Field label={__('Teléfono')}>
+                <Input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => onChange({ ...config, phone: e.target.value })}
+                    placeholder="+57 300 123 4567"
+                />
+            </Field>
+            <Field label={__('WhatsApp (número con código país, sin +)')}>
+                <Input
+                    value={whatsapp}
+                    onChange={(e) => onChange({ ...config, whatsapp: e.target.value })}
+                    placeholder="573001234567"
+                />
+                <Hint>{__('Genera link wa.me/<número> con saludo predefinido.')}</Hint>
+            </Field>
         </div>
     );
 }

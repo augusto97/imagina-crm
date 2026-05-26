@@ -4,12 +4,20 @@ import { fetchMe } from './api';
 import { ActivityTimelineBlock } from './blocks/ActivityTimelineBlock';
 import { ClientDataBlock } from './blocks/ClientDataBlock';
 import { CommentsThreadBlock } from './blocks/CommentsThreadBlock';
+import { ContactCardBlock } from './blocks/ContactCardBlock';
+import { DividerBlock } from './blocks/DividerBlock';
 import { DownloadFilesBlock } from './blocks/DownloadFilesBlock';
 import { EditableFormBlock } from './blocks/EditableFormBlock';
 import { ExternalLinkBlock } from './blocks/ExternalLinkBlock';
+import { FaqBlock } from './blocks/FaqBlock';
+import { HeadingBlock } from './blocks/HeadingBlock';
+import { HeroBlock } from './blocks/HeroBlock';
 import { KpiWidgetBlock } from './blocks/KpiWidgetBlock';
+import { NoticeBlock } from './blocks/NoticeBlock';
+import { QuickActionsBlock } from './blocks/QuickActionsBlock';
 import { RelatedRecordsTableBlock } from './blocks/RelatedRecordsTableBlock';
 import { StaticTextBlock } from './blocks/StaticTextBlock';
+import { StatsGridBlock } from './blocks/StatsGridBlock';
 import type { PortalBootData, PortalMeResponse } from './types';
 
 interface Props {
@@ -132,6 +140,22 @@ function renderBlock(
             return <DownloadFilesBlock key={idx} config={block.config} record={data.record} />;
         case 'comments_thread':
             return <CommentsThreadBlock key={idx} config={block.config} boot={boot} />;
+        case 'heading':
+            return <HeadingBlock key={idx} config={block.config} />;
+        case 'hero':
+            return <HeroBlock key={idx} config={block.config} record={data.record} />;
+        case 'stats_grid':
+            return <StatsGridBlock key={idx} config={block.config} boot={boot} />;
+        case 'quick_actions':
+            return <QuickActionsBlock key={idx} config={block.config} />;
+        case 'notice':
+            return <NoticeBlock key={idx} config={block.config} />;
+        case 'divider':
+            return <DividerBlock key={idx} config={block.config} />;
+        case 'faq':
+            return <FaqBlock key={idx} config={block.config} />;
+        case 'contact_card':
+            return <ContactCardBlock key={idx} config={block.config} />;
         default:
             return null;
     }

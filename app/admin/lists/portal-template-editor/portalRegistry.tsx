@@ -1,9 +1,17 @@
 import {
     Activity,
+    AlertCircle,
     Download,
     ExternalLink as ExternalLinkIcon,
     FileText,
+    Grid3x3,
+    HeadphonesIcon,
+    Heading as HeadingIcon,
+    HelpCircle,
+    LayoutTemplate,
     MessageSquare,
+    Minus,
+    MousePointerClick,
     PenLine,
     Table,
     TrendingUp,
@@ -31,13 +39,44 @@ export interface PortalEditorBlock extends BaseTemplateBlock {
 }
 
 const CATEGORIES: PaletteCategory[] = [
+    { id: 'layout', label: __('Estructura') },
     { id: 'data', label: __('Datos') },
     { id: 'input', label: __('Entrada') },
     { id: 'display', label: __('Visualización') },
     { id: 'content', label: __('Contenido') },
+    { id: 'help', label: __('Soporte') },
 ];
 
 const TYPES: BlockTypeDef[] = [
+    // Estructura
+    {
+        type: 'hero',
+        label: __('Hero'),
+        description: __('Saludo destacado con título grande, subtítulo y CTA opcional.'),
+        icon: LayoutTemplate,
+        category: 'layout',
+    },
+    {
+        type: 'heading',
+        label: __('Título de sección'),
+        description: __('Heading h1/h2/h3 con eyebrow y alineación configurable.'),
+        icon: HeadingIcon,
+        category: 'layout',
+    },
+    {
+        type: 'divider',
+        label: __('Divisor'),
+        description: __('Línea horizontal con label opcional centrado.'),
+        icon: Minus,
+        category: 'layout',
+    },
+    {
+        type: 'notice',
+        label: __('Aviso / Alerta'),
+        description: __('Banner info/success/warning/error con icono y CTA opcional.'),
+        icon: AlertCircle,
+        category: 'layout',
+    },
     // Datos
     {
         type: 'client_data',
@@ -58,6 +97,13 @@ const TYPES: BlockTypeDef[] = [
         label: __('KPI / métrica'),
         description: __('Número grande con label. Útil para totales y cuentas.'),
         icon: TrendingUp,
+        category: 'data',
+    },
+    {
+        type: 'stats_grid',
+        label: __('Grid de estadísticas'),
+        description: __('Varias métricas (2-4) en un solo bloque compacto.'),
+        icon: Grid3x3,
         category: 'data',
     },
     // Entrada
@@ -105,6 +151,28 @@ const TYPES: BlockTypeDef[] = [
         icon: ExternalLinkIcon,
         category: 'content',
     },
+    {
+        type: 'quick_actions',
+        label: __('Acciones rápidas'),
+        description: __('Grid de N acciones con icono + label + URL.'),
+        icon: MousePointerClick,
+        category: 'content',
+    },
+    // Soporte
+    {
+        type: 'faq',
+        label: __('Preguntas frecuentes'),
+        description: __('Acordeón Q&A colapsable.'),
+        icon: HelpCircle,
+        category: 'help',
+    },
+    {
+        type: 'contact_card',
+        label: __('Tarjeta de contacto'),
+        description: __('Asesor con avatar + nombre + email/teléfono/WhatsApp.'),
+        icon: HeadphonesIcon,
+        category: 'help',
+    },
 ];
 
 const LABEL_BY_TYPE: Record<PortalBlockType, string> = {
@@ -117,6 +185,14 @@ const LABEL_BY_TYPE: Record<PortalBlockType, string> = {
     activity_timeline:      __('Timeline de actividad'),
     download_files:         __('Archivos descargables'),
     comments_thread:        __('Hilo de comentarios'),
+    heading:                __('Título de sección'),
+    hero:                   __('Hero'),
+    stats_grid:             __('Grid de estadísticas'),
+    quick_actions:          __('Acciones rápidas'),
+    notice:                 __('Aviso / Alerta'),
+    divider:                __('Divisor'),
+    faq:                    __('Preguntas frecuentes'),
+    contact_card:           __('Tarjeta de contacto'),
 };
 
 const DESC_BY_TYPE: Record<PortalBlockType, string> = {
@@ -129,6 +205,14 @@ const DESC_BY_TYPE: Record<PortalBlockType, string> = {
     activity_timeline:      __('Cronología de cambios recientes del record.'),
     download_files:         __('Adjuntos del record disponibles para descarga.'),
     comments_thread:        __('Conversación cliente ↔ operador.'),
+    heading:                __('Heading con eyebrow opcional, alineación y color de acento.'),
+    hero:                   __('Saludo destacado con título grande, subtítulo y CTA opcional.'),
+    stats_grid:             __('Varias métricas (2-4) en un solo bloque compacto.'),
+    quick_actions:          __('Grid de N acciones con icono, label y URL.'),
+    notice:                 __('Banner alerta info/success/warning/error con icono y CTA opcional.'),
+    divider:                __('Línea horizontal con label opcional centrado.'),
+    faq:                    __('Acordeón Q&A — preguntas frecuentes colapsables.'),
+    contact_card:           __('Tarjeta del asesor con avatar, nombre y datos de contacto.'),
 };
 
 function makeId(type: string): string {

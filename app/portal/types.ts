@@ -146,6 +146,98 @@ export type PortalBlock = PortalBlockGridPosition & (
               readonly?: boolean;
           };
       }
+    // 0.57.0 — bloques de UX/jerarquía visual
+    | {
+          type: 'heading';
+          config: {
+              text?: string;
+              eyebrow?: string;
+              level?: 1 | 2 | 3;
+              align?: 'left' | 'center';
+              accent_color?: string | null;
+          };
+      }
+    | {
+          type: 'hero';
+          config: {
+              title?: string;
+              subtitle?: string;
+              cta_label?: string;
+              cta_href?: string;
+              variant?: 'gradient' | 'solid' | 'plain';
+              accent_color?: string | null;
+              align?: 'left' | 'center';
+          };
+      }
+    | {
+          type: 'stats_grid';
+          config: {
+              title?: string;
+              items?: Array<{
+                  label: string;
+                  value?: string;
+                  metric: 'static' | 'count' | 'sum' | 'avg' | 'min' | 'max';
+                  list_slug?: string;
+                  field_id?: number;
+                  prefix?: string;
+                  suffix?: string;
+              }>;
+              columns?: 2 | 3 | 4;
+          };
+      }
+    | {
+          type: 'quick_actions';
+          config: {
+              title?: string;
+              items?: Array<{
+                  icon: string;
+                  label: string;
+                  href: string;
+                  new_window?: boolean;
+              }>;
+              columns?: 2 | 3 | 4;
+          };
+      }
+    | {
+          type: 'notice';
+          config: {
+              title?: string;
+              body?: string;
+              variant?: 'info' | 'success' | 'warning' | 'error' | 'announce';
+              cta_label?: string;
+              cta_href?: string;
+              dismissible?: boolean;
+          };
+      }
+    | {
+          type: 'divider';
+          config: {
+              label?: string;
+              style?: 'solid' | 'dashed' | 'dotted';
+          };
+      }
+    | {
+          type: 'faq';
+          config: {
+              title?: string;
+              items?: Array<{
+                  question: string;
+                  answer: string;
+              }>;
+          };
+      }
+    | {
+          type: 'contact_card';
+          config: {
+              title?: string;
+              name?: string;
+              role?: string;
+              avatar_url?: string;
+              email?: string;
+              phone?: string;
+              whatsapp?: string;
+          };
+      }
 );
 
 export interface PortalMeResponse {

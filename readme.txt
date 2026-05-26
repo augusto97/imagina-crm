@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.56.0
+Stable tag: 0.57.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,44 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.0 =
+**8 bloques nuevos del portal del cliente + fix de pantalla en blanco al actualizar.**
+
+Replanteamos los bloques del portal: los 9 anteriores eran funcionales
+pero feel de "dashboard de datos", no de "portal humano". Faltaba
+jerarquía visual (heading, hero), urgencia (notice), personalidad
+(FAQ, contacto), y composición eficiente (un stats_grid en vez de 4
+KPIs separados).
+
+**Bloques nuevos:**
+
+1. **Heading** — h1/h2/h3 con eyebrow, alineación y color de acento.
+2. **Hero** — Saludo destacado con título grande + subtítulo + CTA.
+   Soporta interpolación `{{slug}}` para personalizar con datos del
+   cliente. Variantes gradient / solid / plain.
+3. **Stats grid** — 2-4 KPIs en un solo bloque (mucho más compacto
+   que tener N bloques `kpi_widget`).
+4. **Quick actions** — Grid de N action cards con icono + label + URL.
+5. **Notice / Alert** — Banner info/success/warning/error/announce
+   con icono, título, mensaje, CTA opcional y dismissible.
+6. **Divider** — Separador visual con label centrado opcional.
+7. **FAQ** — Acordeón Q&A colapsable.
+8. **Contact card** — Tarjeta del asesor con avatar (URL o iniciales),
+   nombre, rol y botones de Email/Llamar/WhatsApp.
+
+**Fix: pantalla en blanco al actualizar el plugin (lazy chunk).**
+
+Cuando actualizabas el plugin mientras tenías el admin abierto,
+algunas rutas (editor de plantilla, automations, etc.) crasheaban
+con error `Failed to fetch dynamically imported module` y pantalla
+en blanco. Causa: Vite usa content-hashing en filenames, así que el
+SPA viejo cargado en el browser intentaba cargar chunks que ya no
+existían en el server (build nuevo = filenames nuevos).
+
+Ahora envolvimos los `React.lazy` en un `lazyWithReload` que detecta
+ese error y recarga la página automáticamente. Una sola recarga por
+sesión para evitar loops si el problema es otro.
 
 = 0.56.0 =
 **Editor unificado entre CRM y portal — un solo motor compartido.**
