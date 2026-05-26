@@ -1,44 +1,56 @@
 import type { PortalRecord } from '../types';
 
 interface Props {
-    config: { visible_field_slugs?: string[]; title?: string };
+    config: {
+        visible_field_slugs?: string[];
+        title?: string;
+        variant?: 'definition_list' | 'cards';
+    };
     record: PortalRecord;
 }
 
 /**
- * Bloque `client_data` (Fase 9 — 3.D). Muestra los campos del record
- * cliente como una "ficha de datos" simple (label + valor).
+ * Bloque `client_data`. Muestra los campos del record cliente.
  *
- * Para 3.D mostramos solo el valor crudo. Tipos especiales
- * (multi_select, checkbox, etc.) se formatean básicamente —
- * formatters elaborados llegan con el bloque más rico de 3.E o
- * cuando el shape `client_data.config` se extienda con `field_types`.
+ * Variantes:
+ *  - `definition_list` (default) — `<dl>` denso label izq / valor der.
+ *  - `cards` — grid 2-col, cada campo en su card propia.
  */
 export function ClientDataBlock({ config, record }: Props): JSX.Element {
     const slugs = config.visible_field_slugs ?? [];
     const fields = record.fields;
+    const variant = config.variant ?? 'definition_list';
 
     return (
         <section className="imcrm-portal-block imcrm-portal-block--client-data">
             <h2 className="imcrm-portal-block__title">{config.title ?? 'Mis datos'}</h2>
-            <dl className="imcrm-portal-data-list">
-                {slugs.map((slug) => {
-                    const value = fields[slug];
-                    return (
+            {slugs.length === 0 ? (
+                <p className="imcrm-portal-block__empty">
+                    Este bloque no tiene campos configurados.
+                </p>
+            ) : variant === 'cards' ? (
+                <div className="imcrm-portal-data-cards">
+                    {slugs.map((slug) => (
+                        <div key={slug} className="imcrm-portal-data-cards__item">
+                            <p className="imcrm-portal-data-cards__label">{slug}</p>
+                            <div className="imcrm-portal-data-cards__value">
+                                {renderValue(fields[slug])}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <dl className="imcrm-portal-data-list">
+                    {slugs.map((slug) => (
                         <div key={slug} className="imcrm-portal-data-list__item">
                             <dt className="imcrm-portal-data-list__label">{slug}</dt>
                             <dd className="imcrm-portal-data-list__value">
-                                {renderValue(value)}
+                                {renderValue(fields[slug])}
                             </dd>
                         </div>
-                    );
-                })}
-                {slugs.length === 0 ? (
-                    <p className="imcrm-portal-block__empty">
-                        Este bloque no tiene campos configurados.
-                    </p>
-                ) : null}
-            </dl>
+                    ))}
+                </dl>
+            )}
         </section>
     );
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.55.1
+Stable tag: 0.55.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,36 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.55.2 =
+**Editor del portal en página propia + variantes funcionando en el portal real.**
+
+Dos cambios complementarios:
+
+1. **Editor del portal movido a su propia ruta** (`/lists/:slug/portal-editor`),
+   replicando el patrón del editor del CRM panel (Apariencia del
+   registro). Ya no se renderea embebido dentro de los Ajustes de
+   la lista — desde ahí ahora hay un botón "Crear" / "Editar" que
+   navega al editor dedicado a pantalla completa. La página propia
+   tiene header con "← Volver" + "Guardar plantilla" y avisa antes
+   de salir si hay cambios sin guardar.
+
+2. **Las variantes que agregaba el editor (0.55.1) ahora tienen
+   efecto real en el portal del cliente** — antes el frontend las
+   ignoraba. Cambios por bloque:
+   - `static_text` honra `variant: card / plain`.
+   - `client_data` honra `variant: definition_list / cards` (grid 2-col).
+   - `related_records_table` honra `variant: table / compact_list`
+     (lista por record con título + meta, apta mobile).
+   - `external_link` honra `variant: button / card_cta` (card con
+     icono + descripción + link) + `accent_color` (border-left del
+     card / bg del botón).
+   - `kpi_widget` honra `variant: card / inline` (label + valor en
+     línea) + `accent_color` (color del número).
+   - `download_files` honra `variant: list / grid` (grid 3-col con
+     icono encima del nombre).
+
+   CSS para todas las variantes nuevas agregado a `assets/portal.css`.
 
 = 0.55.1 =
 **Editor del portal: paridad de calidad con el editor del CRM panel.**

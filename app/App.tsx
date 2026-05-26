@@ -17,6 +17,7 @@ import { RecordsPage } from '@/admin/records/RecordsPage';
 // inicial baja ~40% en sites donde el usuario solo usa records.
 const ListBuilderPage = lazy(() => import('@/admin/lists/ListBuilderPage').then(m => ({ default: m.ListBuilderPage })));
 const TemplateEditorPage = lazy(() => import('@/admin/lists/template-editor/TemplateEditorPage').then(m => ({ default: m.TemplateEditorPage })));
+const PortalTemplateEditorPage = lazy(() => import('@/admin/lists/portal-template-editor/PortalTemplateEditorPage').then(m => ({ default: m.PortalTemplateEditorPage })));
 const AutomationsPage = lazy(() => import('@/admin/automations/AutomationsPage').then(m => ({ default: m.AutomationsPage })));
 const DashboardsIndexPage = lazy(() => import('@/admin/dashboards/DashboardsIndexPage').then(m => ({ default: m.DashboardsIndexPage })));
 const DashboardPage = lazy(() => import('@/admin/dashboards/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -47,6 +48,9 @@ export function App(): JSX.Element {
                 } />
                 <Route path="lists/:listSlug/template-editor" element={
                     <Suspense fallback={<RouteFallback />}><TemplateEditorPage /></Suspense>
+                } />
+                <Route path="lists/:listSlug/portal-editor" element={
+                    <Suspense fallback={<RouteFallback />}><PortalTemplateEditorPage /></Suspense>
                 } />
                 <Route path="lists/:listSlug/records" element={<RecordsPage />} />
                 <Route path="lists/:listSlug/records/:recordId" element={<RecordPage />} />

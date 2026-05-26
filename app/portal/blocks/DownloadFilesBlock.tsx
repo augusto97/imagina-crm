@@ -8,6 +8,8 @@ interface Props {
         title?: string;
         /** Slug del field tipo `file` cuyo valor es un attachment ID (o array). */
         field_slug?: string;
+        /** `list` (default) lista vertical. `grid` 3-col con icono encima. */
+        variant?: 'list' | 'grid';
     };
     record: PortalRecord;
 }
@@ -78,6 +80,7 @@ export function DownloadFilesBlock({ config, record }: Props): JSX.Element {
         return () => ac.abort();
     }, [attachmentIds, fieldSlug]);
 
+    const variant = config.variant ?? 'list';
     return (
         <section className="imcrm-portal-block imcrm-portal-block--downloads">
             <h2 className="imcrm-portal-block__title">{config.title ?? 'Archivos'}</h2>
@@ -89,6 +92,29 @@ export function DownloadFilesBlock({ config, record }: Props): JSX.Element {
                 <p className="imcrm-portal-block__loading">Cargando…</p>
             ) : items.length === 0 ? (
                 <p className="imcrm-portal-block__empty">Sin archivos disponibles.</p>
+            ) : variant === 'grid' ? (
+                <ul className="imcrm-portal-downloads-grid">
+                    {items.map((att) => (
+                        <li key={att.id} className="imcrm-portal-downloads-grid__item">
+                            <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="imcrm-portal-downloads-grid__link"
+                                download
+                            >
+                                <FileText className="imcrm-portal-downloads-grid__icon" aria-hidden />
+                                <span className="imcrm-portal-downloads-grid__title">
+                                    {att.title}
+                                </span>
+                                <Download
+                                    className="imcrm-portal-downloads-grid__action"
+                                    aria-hidden
+                                />
+                            </a>
+                        </li>
+                    ))}
+                </ul>
             ) : (
                 <ul className="imcrm-portal-downloads">
                     {items.map((att) => (

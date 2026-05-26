@@ -4,6 +4,105 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.55.2] — 2026-05-26
+
+**Editor del portal en ruta propia + variantes con efecto real.**
+
+### Motivación
+
+Feedback 1: "no me pongas ese editor ahí visualmente recargandome la
+sección de ajustes de la lista, hazlo como hace el de crm que es un
+botón que manda solo a ese editor".
+
+Feedback 2 (implícito de 0.55.1): yo dije que las variantes que
+agregaba mi editor (`variant`, `accent_color`) eran aditivas y "el
+bundle las ignora hasta que cada block component se actualice".
+Entregar el editor sin que las variantes funcionen en el portal real
+era a medias. Esta iteración cierra eso.
+
+### Ruta dedicada para el editor
+
+**Nuevo `app/admin/lists/portal-template-editor/PortalTemplateEditorPage.tsx`** —
+página standalone (similar a `TemplateEditorPage` del CRM):
+- Carga la lista por slug desde URL params.
+- Lee `settings.portal_template` y lo edita localmente.
+- Header con "← Lista | Editor de portal del cliente" + chip "Cambios
+  sin guardar" + botón "Guardar plantilla".
+- `beforeunload` listener que avisa si hay cambios sin guardar.
+- Cuerpo: el `<PortalGridEditor>` reusado (grid + palette + inspector).
+
+**Ruta nueva en `app/App.tsx`**: `/lists/:listSlug/portal-editor`
+montada con `Suspense + lazy import`. Mismo patrón del template-editor
+del CRM.
+
+**`PortalConfigPanel` simplificado**: removí el `<PortalGridEditor>`
+embebido. En su lugar un card resumen con counter de bloques + botón
+"Crear" / "Editar" que navega a la ruta nueva. El panel ya no toca
+`settings.portal_template` en su `handleSave` para evitar pisar
+cambios del editor dedicado (ambos podrían persistir en paralelo).
+
+### Variantes con efecto real
+
+Actualicé 6 block components del bundle público para honrar las
+variantes del editor:
+
+1. **`StaticTextBlock`** → variant `card` (default, border+bg) vs
+   `plain` (sin marco).
+2. **`ClientDataBlock`** → variant `definition_list` (default, `<dl>`
+   denso) vs `cards` (grid 2-col, cada campo en su card).
+3. **`RelatedRecordsTableBlock`** → variant `table` (default,
+   `<table>` completa) vs `compact_list` (lista por record con
+   título + meta de los demás campos como string concat,
+   responsive-friendly).
+4. **`ExternalLinkBlock`** → variant `button` (default, botón
+   centrado) vs `card_cta` (card con icono "↗" + título +
+   descripción + link al pie). `accent_color` hex setea la CSS
+   var `--imcrm-portal-cta-accent` que controla el border-left
+   del card y el bg del botón.
+5. **`KpiWidgetBlock`** → variant `card` (default, número grande
+   estilo card) vs `inline` (label + valor en línea horizontal).
+   `accent_color` controla el color del número via
+   `--imcrm-portal-kpi-accent`.
+6. **`DownloadFilesBlock`** → variant `list` (default, lista
+   vertical) vs `grid` (grid 3-col con icono encima del nombre,
+   apto galería).
+
+### `PortalBlock` types (`app/portal/types.ts`)
+
+Extendidos con las keys nuevas (variant, accent_color) por bloque
+correspondiente. Strict types — TS valida que cada variant string
+matchee las opciones del bloque.
+
+### CSS
+
+`assets/portal.css` agrega:
+- `.imcrm-portal-block--card` / `--plain` (static_text)
+- `.imcrm-portal-data-cards` con grid responsive
+- `.imcrm-portal-related-list` (compact_list de related)
+- `.imcrm-portal-block--kpi-inline` con `--imcrm-portal-kpi-accent`
+- `.imcrm-portal-cta-card` con icono circular + accent border-left
+- `.imcrm-portal-downloads-grid` responsive (3 cols desktop, 2 mobile)
+
+### Archivos
+
+Nuevos:
+- `app/admin/lists/portal-template-editor/PortalTemplateEditorPage.tsx`
+
+Modificados:
+- `app/App.tsx` (nueva ruta `/lists/:listSlug/portal-editor`)
+- `app/admin/lists/PortalConfigPanel.tsx` (botón Link en lugar del
+  editor embebido; no toca portal_template en save)
+- `app/portal/types.ts` (variant + accent_color por bloque)
+- `app/portal/blocks/StaticTextBlock.tsx`
+- `app/portal/blocks/ClientDataBlock.tsx`
+- `app/portal/blocks/RelatedRecordsTableBlock.tsx`
+- `app/portal/blocks/ExternalLinkBlock.tsx`
+- `app/portal/blocks/KpiWidgetBlock.tsx`
+- `app/portal/blocks/DownloadFilesBlock.tsx`
+- `assets/portal.css` (CSS para todas las variantes nuevas)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.55.1] — 2026-05-26
 
 **Portal editor: paridad de calidad visual con el editor del CRM panel.**

@@ -5,24 +5,72 @@ interface Props {
         href?: string;
         label?: string;
         new_window?: boolean;
+        variant?: 'button' | 'card_cta';
+        /** Hex (`#rrggbb`) que override el bg del botón o el accent del card. */
+        accent_color?: string | null;
     };
 }
 
 /**
- * Bloque `external_link` (Fase 9 — 3.E). Renderiza un CTA con link a
- * recurso externo. Útil para acciones como "Pagar factura",
- * "Descargar PDF", "Agendar reunión", etc.
+ * Bloque `external_link`. CTA con link a recurso externo.
  *
- * El admin configura el HREF — sin sustitución de merge tags por ahora
- * (queda para iteración futura si el usuario lo pide; con merge tags
- * tipo {{record.field}} se vuelve un mini-template engine).
+ * Variantes:
+ *  - `button` (default) — botón centrado con label. Título y
+ *    descripción se muestran arriba si están seteados.
+ *  - `card_cta` — card con icono externo + título + descripción +
+ *    label como link al pie. Más prominente, útil para "destacados".
+ *
+ * `accent_color` (hex opcional) overridea el primary del tema para
+ * el bg del botón o el borde izquierdo del card.
  */
 export function ExternalLinkBlock({ config }: Props): JSX.Element | null {
     const href = config.href?.trim() ?? '';
     if (href === '') return null;
+    const variant = config.variant ?? 'button';
+    const newWindow = config.new_window !== false;
+    const accentStyle = config.accent_color
+        ? ({ '--imcrm-portal-cta-accent': config.accent_color } as React.CSSProperties)
+        : undefined;
 
+    if (variant === 'card_cta') {
+        return (
+            <section
+                className="imcrm-portal-block imcrm-portal-block--external-link imcrm-portal-block--cta-card"
+                style={accentStyle}
+            >
+                <div className="imcrm-portal-cta-card">
+                    <span className="imcrm-portal-cta-card__icon" aria-hidden>
+                        ↗
+                    </span>
+                    <div className="imcrm-portal-cta-card__body">
+                        {config.title !== undefined && config.title !== '' ? (
+                            <h2 className="imcrm-portal-cta-card__title">{config.title}</h2>
+                        ) : null}
+                        {config.description !== undefined && config.description !== '' ? (
+                            <p className="imcrm-portal-cta-card__description">
+                                {config.description}
+                            </p>
+                        ) : null}
+                        <a
+                            href={href}
+                            target={newWindow ? '_blank' : undefined}
+                            rel={newWindow ? 'noopener noreferrer' : undefined}
+                            className="imcrm-portal-cta-card__link"
+                        >
+                            {config.label ?? 'Abrir'} →
+                        </a>
+                    </div>
+                </div>
+            </section>
+        );
+    }
+
+    // variant === 'button'
     return (
-        <section className="imcrm-portal-block imcrm-portal-block--external-link">
+        <section
+            className="imcrm-portal-block imcrm-portal-block--external-link"
+            style={accentStyle}
+        >
             {config.title !== undefined && config.title !== '' ? (
                 <h2 className="imcrm-portal-block__title">{config.title}</h2>
             ) : null}
@@ -31,8 +79,8 @@ export function ExternalLinkBlock({ config }: Props): JSX.Element | null {
             ) : null}
             <a
                 href={href}
-                target={config.new_window !== false ? '_blank' : undefined}
-                rel={config.new_window !== false ? 'noopener noreferrer' : undefined}
+                target={newWindow ? '_blank' : undefined}
+                rel={newWindow ? 'noopener noreferrer' : undefined}
                 className="imcrm-portal-card__btn imcrm-portal-external-link__btn"
             >
                 {config.label ?? 'Abrir'}

@@ -9,6 +9,7 @@ interface Props {
         visible_field_slugs?: string[];
         title?: string;
         per_page?: number;
+        variant?: 'table' | 'compact_list';
     };
     boot: PortalBootData;
 }
@@ -27,6 +28,7 @@ export function RelatedRecordsTableBlock({ config, boot }: Props): JSX.Element {
     const listSlug = config.list_slug ?? '';
     const perPage = config.per_page ?? 10;
     const columns = config.visible_field_slugs ?? [];
+    const variant = config.variant ?? 'table';
 
     const [records, setRecords] = useState<PortalRecord[] | null>(null);
     const [total, setTotal] = useState(0);
@@ -62,6 +64,33 @@ export function RelatedRecordsTableBlock({ config, boot }: Props): JSX.Element {
                 <p className="imcrm-portal-block__loading">Cargando…</p>
             ) : records.length === 0 ? (
                 <p className="imcrm-portal-block__empty">No hay registros para mostrar.</p>
+            ) : variant === 'compact_list' ? (
+                <>
+                    <ul className="imcrm-portal-related-list">
+                        {records.map((rec) => {
+                            const [firstSlug, ...restSlugs] = columns;
+                            return (
+                                <li key={rec.id} className="imcrm-portal-related-list__item">
+                                    <p className="imcrm-portal-related-list__title">
+                                        {firstSlug ? renderCell(rec.fields[firstSlug]) : `#${rec.id}`}
+                                    </p>
+                                    {restSlugs.length > 0 && (
+                                        <p className="imcrm-portal-related-list__meta">
+                                            {restSlugs
+                                                .map((slug) => `${slug}: ${renderCell(rec.fields[slug])}`)
+                                                .join(' · ')}
+                                        </p>
+                                    )}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                    {total > records.length ? (
+                        <p className="imcrm-portal-related-table__footer">
+                            Mostrando {records.length} de {total} registros.
+                        </p>
+                    ) : null}
+                </>
             ) : (
                 <>
                     <div className="imcrm-portal-related-table-wrap">

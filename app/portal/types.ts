@@ -45,12 +45,25 @@ export interface PortalBlockGridPosition {
 }
 
 export type PortalBlock = PortalBlockGridPosition & (
-    | { type: 'static_text'; config: { html?: string; title?: string } }
+    | {
+          type: 'static_text';
+          config: {
+              html?: string;
+              title?: string;
+              /** `card` (default) envuelve el contenido en un card con
+               *  border + bg. `plain` lo renderea directo, sin marco. */
+              variant?: 'card' | 'plain';
+          };
+      }
     | {
           type: 'client_data';
           config: {
               visible_field_slugs?: string[];
               title?: string;
+              /** `definition_list` (default) muestra label izquierda /
+               *  valor derecha en una `<dl>` densa. `cards` muestra un
+               *  grid 2-col con cada campo en su propia card. */
+              variant?: 'definition_list' | 'cards';
           };
       }
     | {
@@ -60,6 +73,10 @@ export type PortalBlock = PortalBlockGridPosition & (
               visible_field_slugs?: string[];
               title?: string;
               per_page?: number;
+              /** `table` (default) muestra tabla completa con todas las
+               *  columnas. `compact_list` muestra solo el primer campo
+               *  como título + un meta de los demás abajo (apto mobile). */
+              variant?: 'table' | 'compact_list';
           };
       }
     // Fase 9 — 3.E
@@ -79,6 +96,12 @@ export type PortalBlock = PortalBlockGridPosition & (
               href?: string;
               label?: string;
               new_window?: boolean;
+              /** `button` (default) botón centrado solo con label.
+               *  `card_cta` card con icono + título + descripción + label. */
+              variant?: 'button' | 'card_cta';
+              /** Hex (`#rrggbb`) que override el primary del tema para el
+               *  bg del botón / borde del card. Default: primary del CSS. */
+              accent_color?: string | null;
           };
       }
     | {
@@ -90,6 +113,10 @@ export type PortalBlock = PortalBlockGridPosition & (
               metric?: 'count' | 'sum' | 'avg' | 'min' | 'max';
               suffix?: string;
               prefix?: string;
+              /** `card` (default) número grande con label. `inline`
+               *  label + valor en línea horizontal. */
+              variant?: 'card' | 'inline';
+              accent_color?: string | null;
           };
       }
     // Fase 9 — pulidos
@@ -105,6 +132,9 @@ export type PortalBlock = PortalBlockGridPosition & (
           config: {
               title?: string;
               field_slug?: string;
+              /** `list` (default) lista vertical de archivos. `grid`
+               *  grid 3-col con icono + nombre debajo. */
+              variant?: 'list' | 'grid';
           };
       }
     // Fase 12.D

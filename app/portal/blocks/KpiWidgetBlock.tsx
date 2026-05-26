@@ -7,13 +7,11 @@ interface Props {
         title?: string;
         list_slug?: string;
         field_id?: number;
-        /**
-         * Tipo de agregado a mostrar. RecordAggregator emite varios
-         * (count, sum, avg, min, max, etc.) — el bloque elige uno.
-         */
         metric?: 'count' | 'sum' | 'avg' | 'min' | 'max';
         suffix?: string;
         prefix?: string;
+        variant?: 'card' | 'inline';
+        accent_color?: string | null;
     };
     boot: PortalBootData;
 }
@@ -77,24 +75,39 @@ export function KpiWidgetBlock({ config, boot }: Props): JSX.Element {
         return () => ac.abort();
     }, [boot, config.list_slug, config.field_id, config.metric]);
 
+    const variant = config.variant ?? 'card';
+    const accentStyle = config.accent_color
+        ? ({ '--imcrm-portal-kpi-accent': config.accent_color } as React.CSSProperties)
+        : undefined;
+    const variantClass =
+        variant === 'inline'
+            ? 'imcrm-portal-block--kpi-inline'
+            : 'imcrm-portal-block--kpi-card';
+
+    const valueNode =
+        error !== null ? (
+            <span className="imcrm-portal-block__error" role="alert">
+                {error}
+            </span>
+        ) : value === undefined ? (
+            <span className="imcrm-portal-block__loading">Cargando…</span>
+        ) : (
+            <>
+                {config.prefix ?? ''}
+                {value === null ? '—' : String(value)}
+                {config.suffix ?? ''}
+            </>
+        );
+
     return (
-        <section className="imcrm-portal-block imcrm-portal-block--kpi">
+        <section
+            className={`imcrm-portal-block imcrm-portal-block--kpi ${variantClass}`}
+            style={accentStyle}
+        >
             {config.title !== undefined && config.title !== '' ? (
                 <p className="imcrm-portal-kpi__label">{config.title}</p>
             ) : null}
-            {error !== null ? (
-                <p className="imcrm-portal-block__error" role="alert">
-                    {error}
-                </p>
-            ) : value === undefined ? (
-                <p className="imcrm-portal-block__loading">Cargando…</p>
-            ) : (
-                <p className="imcrm-portal-kpi__value">
-                    {config.prefix ?? ''}
-                    {value === null ? '—' : String(value)}
-                    {config.suffix ?? ''}
-                </p>
-            )}
+            <p className="imcrm-portal-kpi__value">{valueNode}</p>
         </section>
     );
 }

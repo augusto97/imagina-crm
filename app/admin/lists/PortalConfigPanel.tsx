@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, UserRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Copy, LayoutGrid, UserRound } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +18,10 @@ import { __ } from '@/lib/i18n';
 import type { ListSummary } from '@/types/list';
 import { PORTAL_DEFAULTS, type PortalSettings, type PortalTemplate } from '@/types/portal';
 
-import { PortalGridEditor } from './portal-template-editor/PortalGridEditor';
+// El editor visual del portal ahora vive en su propia ruta
+// (`/lists/:slug/portal-editor`, ver `PortalTemplateEditorPage`).
+// Desde acá solo enlazamos vía botón — replica el patrón del editor
+// del CRM panel (Apariencia del registro).
 
 interface Props {
     list: ListSummary;
@@ -46,15 +50,16 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
     const initialTemplate = useMemo<PortalTemplate>(() => readTemplate(list.settings), [list.settings]);
 
     const [portal, setPortal] = useState<PortalSettings>(initialPortal);
-    const [template, setTemplate] = useState<PortalTemplate>(initialTemplate);
-    const [advancedMode, setAdvancedMode] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [copyHint, setCopyHint] = useState<string | null>(null);
 
     useEffect(() => {
         setPortal(initialPortal);
-        setTemplate(initialTemplate);
-    }, [initialPortal, initialTemplate]);
+    }, [initialPortal]);
+
+    // El template solo se lee acá para mostrar el counter de bloques —
+    // se modifica desde la página dedicada `/lists/:slug/portal-editor`.
+    const template = initialTemplate;
 
     const userFields = useMemo(() => (fields.data ?? []).filter((f) => f.type === 'user'), [fields.data]);
 
@@ -78,7 +83,11 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
         }
 
         try {
-            const nextSettings = mergeIntoSettings(list.settings, portal, template);
+            // No tocamos `portal_template` desde acá — se administra
+            // desde la página dedicada `/lists/:slug/portal-editor`.
+            // Si lo incluyéramos pisaríamos los cambios que el user
+            // hizo allá sin haber refrescado este panel.
+            const nextSettings = mergeIntoSettings(list.settings, portal);
             await update.mutateAsync({ settings: nextSettings });
         } catch (err) {
             setSubmitError(
@@ -153,14 +162,25 @@ export function PortalConfigPanel({ list }: Props): JSX.Element {
                         </div>
 
                         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2">
-                            <Label>{__('Template del portal')}</Label>
-                            <PortalGridEditor
-                                listId={list.id}
-                                template={template}
-                                onChange={setTemplate}
-                                advancedMode={advancedMode}
-                                onAdvancedToggle={setAdvancedMode}
-                            />
+                            <Label>{__('Diseño del portal')}</Label>
+                            <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-px-4 imcrm-py-3">
+                                <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-0.5">
+                                    <p className="imcrm-text-sm imcrm-font-medium imcrm-text-foreground">
+                                        {template.blocks.length === 0
+                                            ? __('Sin bloques configurados')
+                                            : `${template.blocks.length} ${template.blocks.length === 1 ? __('bloque') : __('bloques')} ${__('en la plantilla')}`}
+                                    </p>
+                                    <p className="imcrm-text-xs imcrm-text-muted-foreground">
+                                        {__('Abrí el editor visual para diseñar el portal con grid 12-col, drag-and-drop, palette de bloques y configuración por cada uno.')}
+                                    </p>
+                                </div>
+                                <Button asChild size="sm" variant="outline" className="imcrm-shrink-0 imcrm-gap-1.5">
+                                    <Link to={`/lists/${list.slug}/portal-editor`}>
+                                        <LayoutGrid className="imcrm-h-3.5 imcrm-w-3.5" />
+                                        {template.blocks.length === 0 ? __('Crear') : __('Editar')}
+                                    </Link>
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/30 imcrm-px-3 imcrm-py-3">
@@ -247,12 +267,10 @@ function readTemplate(settings: Record<string, unknown>): PortalTemplate {
 function mergeIntoSettings(
     current: Record<string, unknown>,
     portal: PortalSettings,
-    template: PortalTemplate,
 ): Record<string, unknown> {
     return {
         ...current,
         portal,
-        portal_template: template,
     };
 }
 

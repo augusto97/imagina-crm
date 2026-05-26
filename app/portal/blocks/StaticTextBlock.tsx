@@ -1,28 +1,32 @@
 interface Props {
-    config: { html?: string; title?: string };
+    config: { html?: string; title?: string; variant?: 'card' | 'plain' };
 }
 
 /**
- * Bloque `static_text` (Fase 9 — 3.D). Renderiza HTML estático
- * configurado por el admin desde el template editor.
+ * Bloque `static_text`. Renderiza HTML estático configurado por el
+ * admin. Soporta variante `card` (default, con border + bg) o `plain`
+ * (sin marco, fluye con el contexto).
  *
  * El HTML viene server-side y el admin es quien lo configuró —
- * confiamos en su input. Si el modelo cambia en el futuro para
- * permitir input del cliente, hay que pasar por `dompurify` o
- * similar.
+ * trusted. Si el modelo cambia para permitir input del cliente, hay
+ * que pasar por `dompurify` antes.
  */
 export function StaticTextBlock({ config }: Props): JSX.Element {
+    const variant = config.variant ?? 'card';
+    const variantClass =
+        variant === 'plain'
+            ? 'imcrm-portal-block--plain'
+            : 'imcrm-portal-block--card';
     return (
-        <section className="imcrm-portal-block imcrm-portal-block--static-text">
+        <section
+            className={`imcrm-portal-block imcrm-portal-block--static-text ${variantClass}`}
+        >
             {config.title !== undefined && config.title !== '' ? (
                 <h2 className="imcrm-portal-block__title">{config.title}</h2>
             ) : null}
             {config.html !== undefined && config.html !== '' ? (
                 <div
                     className="imcrm-portal-block__content"
-                    // El HTML lo escribió el admin del CRM via template editor.
-                    // Trusted source — mismo modelo que el `static_text` del
-                    // panel CRM (ver `app/admin/records/crm/blocks/`).
                     dangerouslySetInnerHTML={{ __html: config.html }}
                 />
             ) : null}
