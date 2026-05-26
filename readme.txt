@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.55.2
+Stable tag: 0.56.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,42 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.56.0 =
+**Editor unificado entre CRM y portal — un solo motor compartido.**
+
+Los editores del panel CRM (Apariencia del registro) y del portal
+del cliente eran dos bases de código distintas que evolucionaban
+en paralelo. Esto hacía que las mejoras tuvieran que portarse a
+ambos lados, y que el portal se quedara consistentemente atrás del
+CRM en features y pulido.
+
+Ahora hay un motor único — `app/admin/template-editor-core/` —
+con un `BlockRegistry<TBlock>` parametrizable que cada consumidor
+implementa con sus tipos de bloque, forms de inspector y renderers
+de preview:
+
+* **Toolbar completo:** Deshacer/Rehacer, RecordSelector para
+  preview con datos reales, toggle Editor/Preview, full-screen,
+  Guardar.
+* **Layout 3 columnas:** paleta categorizada con búsqueda y
+  drag-to-canvas / canvas con grid 12-col + guías / inspector
+  lateral con header, body custom y footer Duplicar/Eliminar.
+* **Selección multi:** click + shift-click suma. Bulk actions
+  panel cuando hay 2+ seleccionados.
+* **Drag-and-drop real desde paleta al canvas** (no solo
+  click-to-add) con previsualización del bloque mientras se
+  arrastra.
+* **Hotkeys:** ⌘S guardar, ⌘Z/⌘Y undo/redo, ⌘J full-screen,
+  ⌘P toggle preview, ⌘D duplicar, ⌫ eliminar, Esc deseleccionar.
+
+El portal del cliente fue migrado a este motor en esta release.
+El editor CRM mantendrá su shell propia un release más hasta que
+también se porte (en 0.57.0) — el shape de bloques es idéntico
+así que la migración es directa.
+
+Pros largo plazo: una mejora al motor se hereda automáticamente
+en los dos editores. No más drift entre ambos.
 
 = 0.55.2 =
 **Editor del portal en página propia + variantes funcionando en el portal real.**

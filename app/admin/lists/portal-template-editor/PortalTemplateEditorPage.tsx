@@ -1,153 +1,92 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Monitor } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/toast';
+import { useFields } from '@/hooks/useFields';
 import { useList, useUpdateList } from '@/hooks/useLists';
-import { ApiError } from '@/lib/api';
 import { __ } from '@/lib/i18n';
-import type { PortalTemplate } from '@/types/portal';
 
-import { PortalGridEditor } from './PortalGridEditor';
+import { TemplateEditorShell } from '@/admin/template-editor-core';
 
-const EMPTY_TEMPLATE: PortalTemplate = { blocks: [] };
+import {
+    blocksToPortalTemplate,
+    portalRegistry,
+    portalTemplateToBlocks,
+    type PortalEditorBlock,
+} from './portalRegistry';
 
 /**
- * Página standalone del editor de plantilla del portal — replica el
- * patrón de `TemplateEditorPage` del CRM panel: ruta dedicada,
- * carga la lista por slug, header con "Volver" + "Guardar", y body
- * con el editor visual a pantalla completa.
+ * Editor visual de la plantilla del portal del cliente. Usa el
+ * shell genérico `TemplateEditorShell` con un `portalRegistry`
+ * que define los 9 tipos de bloque del portal.
  *
- * Reemplaza el editor embebido en `PortalConfigPanel` — desde allí
- * ahora solo se accede vía botón "Abrir editor visual".
+ * Fuente única con el editor CRM: el motor (grid, undo/redo,
+ * paleta, drag, selección, multi-select, fullscreen, hotkeys) es
+ * compartido. Cualquier mejora al shell se hereda automáticamente.
  */
 export function PortalTemplateEditorPage(): JSX.Element {
     const { listSlug } = useParams<{ listSlug: string }>();
     const list = useList(listSlug);
+    const fields = useFields(list.data?.id);
     const update = useUpdateList(list.data?.id ?? listSlug ?? '');
-    const toast = useToast();
 
-    const [template, setTemplate] = useState<PortalTemplate>(EMPTY_TEMPLATE);
-    const [initialized, setInitialized] = useState(false);
-    const [advancedMode, setAdvancedMode] = useState(false);
-    const [dirty, setDirty] = useState(false);
-
-    // Init: lee `portal_template` del settings (o vacío si no hay).
-    useEffect(() => {
-        if (! list.data || initialized) return;
+    const initialBlocks = useMemo<PortalEditorBlock[] | null>(() => {
+        if (! list.data) return null;
         const settings = list.data.settings as { portal_template?: unknown };
         const raw = settings.portal_template;
         if (raw && typeof raw === 'object' && raw !== null && Array.isArray((raw as { blocks?: unknown }).blocks)) {
-            setTemplate(raw as PortalTemplate);
-        } else {
-            setTemplate(EMPTY_TEMPLATE);
+            return portalTemplateToBlocks((raw as { blocks: unknown[] }).blocks);
         }
-        setInitialized(true);
-    }, [list.data, initialized]);
+        return [];
+    }, [list.data]);
 
-    const handleChange = (next: PortalTemplate): void => {
-        setTemplate(next);
-        setDirty(true);
-    };
-
-    const handleSave = async (): Promise<void> => {
-        if (! list.data) return;
-        const settings = {
-            ...(list.data.settings as Record<string, unknown>),
-            portal_template: template,
-        };
-        try {
-            await update.mutateAsync({ settings });
-            toast.success(__('Plantilla del portal guardada'));
-            setDirty(false);
-        } catch (err) {
-            const msg = err instanceof ApiError ? err.message : __('No se pudo guardar.');
-            toast.error(__('Error al guardar'), msg);
-        }
-    };
-
-    // Aviso al user si intenta navegar con cambios sin guardar.
-    useEffect(() => {
-        if (! dirty) return;
-        const handler = (e: BeforeUnloadEvent): void => {
-            e.preventDefault();
-            e.returnValue = '';
-        };
-        window.addEventListener('beforeunload', handler);
-        return () => window.removeEventListener('beforeunload', handler);
-    }, [dirty]);
-
-    if (list.isLoading) {
+    if (list.isLoading || fields.isLoading || initialBlocks === null) {
         return (
-            <div className="imcrm-flex imcrm-items-center imcrm-justify-center imcrm-py-12">
-                <p className="imcrm-text-sm imcrm-text-muted-foreground">{__('Cargando…')}</p>
+            <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-12 imcrm-text-sm imcrm-text-muted-foreground">
+                <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
+                {__('Cargando editor…')}
             </div>
         );
     }
-    if (! list.data) {
+
+    if (! list.data || ! fields.data) {
         return (
-            <div className="imcrm-flex imcrm-flex-col imcrm-items-center imcrm-gap-3 imcrm-py-12">
-                <p className="imcrm-text-sm imcrm-text-muted-foreground">
-                    {__('Lista no encontrada.')}
-                </p>
-                <Button asChild variant="outline" size="sm">
-                    <Link to="/lists">{__('Volver a listas')}</Link>
+            <div className="imcrm-flex imcrm-flex-col imcrm-items-start imcrm-gap-3">
+                <Button asChild variant="ghost" size="sm" className="imcrm-gap-2">
+                    <Link to="/lists">
+                        <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
+                        {__('Listas')}
+                    </Link>
                 </Button>
+                <p className="imcrm-text-sm imcrm-text-destructive">{__('Lista no encontrada.')}</p>
             </div>
         );
     }
+
+    const handleSave = async (blocks: PortalEditorBlock[]): Promise<void> => {
+        const template = blocksToPortalTemplate(blocks);
+        await update.mutateAsync({
+            settings: {
+                ...(list.data!.settings as Record<string, unknown>),
+                portal_template: template,
+            },
+        });
+    };
 
     return (
-        <div className="imcrm-flex imcrm-h-[calc(100vh-8rem)] imcrm-min-h-[640px] imcrm-flex-col imcrm-gap-3">
-            {/* Header de la página ─────────────────────────────────── */}
-            <header className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-justify-between imcrm-gap-3">
-                <div className="imcrm-flex imcrm-min-w-0 imcrm-items-center imcrm-gap-2">
-                    <Button
-                        asChild
-                        variant="ghost"
-                        size="sm"
-                        className="imcrm-gap-1.5 imcrm-text-muted-foreground"
-                    >
-                        <Link to={`/lists/${list.data.slug}/settings`}>
-                            <ArrowLeft className="imcrm-h-3.5 imcrm-w-3.5" />
-                            {list.data.name}
-                        </Link>
-                    </Button>
-                    <span className="imcrm-text-muted-foreground/40">·</span>
-                    <h1 className="imcrm-text-base imcrm-font-semibold imcrm-tracking-tight">
-                        {__('Editor de portal del cliente')}
-                    </h1>
-                </div>
-                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                    {dirty && (
-                        <span className="imcrm-text-xs imcrm-text-warning">
-                            {__('Cambios sin guardar')}
-                        </span>
-                    )}
-                    <Button
-                        type="button"
-                        size="sm"
-                        className="imcrm-gap-1.5"
-                        disabled={! dirty || update.isPending}
-                        onClick={() => void handleSave()}
-                    >
-                        <Save className="imcrm-h-3.5 imcrm-w-3.5" />
-                        {update.isPending ? __('Guardando…') : __('Guardar plantilla')}
-                    </Button>
-                </div>
-            </header>
-
-            {/* Body: editor visual ────────────────────────────────── */}
-            <div className="imcrm-flex-1 imcrm-overflow-y-auto">
-                <PortalGridEditor
-                    listId={list.data.id}
-                    template={template}
-                    onChange={handleChange}
-                    advancedMode={advancedMode}
-                    onAdvancedToggle={setAdvancedMode}
-                />
-            </div>
-        </div>
+        <TemplateEditorShell<PortalEditorBlock>
+            listId={list.data.id}
+            listName={list.data.name}
+            listSlug={list.data.slug}
+            fields={fields.data}
+            registry={portalRegistry}
+            initialBlocks={initialBlocks}
+            onSave={handleSave}
+            saving={update.isPending}
+            headerIcon={Monitor}
+            headerTitle={__('Editor del portal del cliente')}
+            backTo={`/lists/${list.data.slug}/settings`}
+        />
     );
 }

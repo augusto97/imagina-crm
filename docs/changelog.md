@@ -4,6 +4,103 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.56.0] — 2026-05-26
+
+**Editor unificado entre CRM y portal — un solo motor compartido.**
+
+### Motivación
+
+Feedback del usuario: "pero veo que esto es lo que estoy pudiendo
+generar, pero no está al nivel del diseño para un panel de cliente,
+se ve muy simple y poco completo como si faltaran cosas. analiza
+muy profundamente el editor que tenemos de crm y literalmente usa
+el mismo editor para hacer este porque sigue sin convencerme este
+nuevo que hiciste".
+
+Luego: "hay forma de reutilizar el editor para los 2 lados? para a
+futuro no tener que estár ajustando y mejorando 2 editores por
+aparte sino que pueda hacer evoluiconar con el tiempo solo uno".
+
+La respuesta correcta no era hacer un fork — era extraer un motor
+único compartido entre ambos editores. Es lo que hace este release.
+
+### Arquitectura: `app/admin/template-editor-core/`
+
+Motor genérico parametrizable vía `BlockRegistry<TBlock>`:
+
+```ts
+interface BlockRegistry<TBlock extends BaseTemplateBlock> {
+    types: BlockTypeDef[];           // metadata por tipo (icon, label, category, singleton)
+    categories: PaletteCategory[];   // agrupación en la paleta
+    createBlock: (type, existing, ctx, position?) => TBlock | null;
+    renderInspector: (block, ctx, onUpdate) => JSX.Element;
+    renderPreview: (block, ctx) => JSX.Element;
+    labelForType: (type) => string;
+    descriptionForType: (type) => string;
+    fieldAsBlock?: FieldAsBlockAdapter<TBlock>;  // opcional: tab Campos
+    fieldDrop?: FieldDropAdapter<TBlock>;        // opcional: drop field sobre bloque
+}
+```
+
+El shell (`TemplateEditorShell<TBlock>`) maneja todo lo común y
+delega lo específico al registry. Componentes del core:
+
+* `TemplateEditorShell` — orquestador, header con toolbar completo,
+  layout 3-col, hotkeys.
+* `GridCanvas` — grid 12-col genérico con drag/resize, drop desde
+  paleta, drop sobre bloque, selección, guías visuales.
+* `PalettePanel` — paleta categorizada con tabs Bloques/Campos
+  (Campos solo si el registry lo provee), búsqueda, drag-to-canvas
+  + click-to-add. Singletons disabled si ya están en canvas.
+* `InspectorPanel` — header (tipo + descripción), body custom del
+  registry, footer Duplicar/Eliminar.
+* `BulkActionsPanel` — cuando hay 2+ seleccionados.
+* `hooks/useTemplateHistory<T>` — undo/redo genérico (paridad con
+  el `useConfigHistory` del CRM, ahora paramétrico).
+* `dragPayload.ts` — MIME custom + helpers para drag-and-drop.
+
+### Features que el portal hereda automáticamente
+
+Cosas que antes el portal NO tenía y ahora sí, gratis, por usar
+el mismo motor que el CRM:
+
+* **Deshacer/Rehacer** con stacks de 50 entries (antes el portal
+  tenía un stub de 30 sin hotkeys).
+* **RecordSelector** — preview con datos reales de un record
+  específico de la lista, no solo mocks.
+* **Toggle Editor/Preview** — vista WYSIWYG sin paleta ni inspector.
+* **Full-screen** con `⌘J`, oculta chromes de wp-admin y la
+  sidebar del plugin.
+* **Drag desde paleta al canvas** — antes era click-to-add only.
+* **Selección múltiple** con `shift+click` + bulk panel.
+* **Hotkeys completos:** ⌘S guardar, ⌘Z/⌘Y undo/redo, ⌘J
+  full-screen, ⌘P toggle preview, ⌘D duplicar, ⌫ eliminar,
+  Esc deseleccionar.
+* **Guías de columnas** sutiles en el canvas (12 cols).
+* **Toasts de éxito/error** consistentes con el resto del plugin.
+
+### Implementación del portal: `portalRegistry.tsx`
+
+Define los 9 tipos de bloque del portal en 4 categorías (Datos,
+Entrada, Visualización, Contenido), reusa `PortalBlockForm`
+(inspector) y `PortalBlockPreview` (canvas) que ya existían
+de la 0.55.x. La ruta `/lists/:slug/portal-editor` ahora renderea
+`<TemplateEditorShell registry={portalRegistry} ... />` en lugar
+del `PortalGridEditor` custom anterior.
+
+### Próximo paso (0.57.0)
+
+Migrar el editor CRM (`TemplateEditorPage`) para usar el mismo
+shell — el shape de bloques V2 es idéntico, solo hay que crear un
+`crmRegistry` que mapee los ~15 tipos del CRM al shape genérico.
+Después de esa migración hay UN solo motor sirviendo a los DOS
+editores, y nunca más hay que mantener funcionalidad duplicada.
+
+### Removed
+
+* `app/admin/lists/portal-template-editor/PortalGridEditor.tsx` —
+  reemplazado por el shell genérico + `portalRegistry`.
+
 ## [0.55.2] — 2026-05-26
 
 **Editor del portal en ruta propia + variantes con efecto real.**
