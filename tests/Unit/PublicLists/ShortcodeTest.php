@@ -128,7 +128,10 @@ final class ShortcodeTest extends TestCase
         $html = $shortcode->render(['slug' => 'tareas']);
 
         $this->assertStringContainsString('✓', $html);
-        $this->assertStringContainsString('✗', $html);
+        // Checkbox false ahora se renderiza como `—` (paridad con
+        // `renderCellValue.tsx` del admin); antes era `✗`. El dash
+        // está envuelto en `imcrm-public-list__empty-cell`.
+        $this->assertStringContainsString('imcrm-public-list__empty-cell', $html);
     }
 
     public function test_empty_records_renders_placeholder(): void

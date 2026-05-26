@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { fetchPage } from './api';
+import { Cell } from './cellFormat';
 import type {
     FetchParams,
     PublicFieldMeta,
@@ -281,63 +282,11 @@ function Row({ record, columns }: { record: PublicRecord; columns: PublicFieldMe
                 // el label de columna a la izquierda y el valor a la derecha
                 // (card layout estilo Linear/Notion).
                 <td key={col.slug} data-label={col.label}>
-                    <Cell value={extractValue(record, col)} type={col.type} />
+                    <Cell value={extractValue(record, col)} col={col} />
                 </td>
             ))}
         </tr>
     );
-}
-
-function Cell({ value, type }: { value: unknown; type: string }): JSX.Element {
-    if (value === null || value === undefined || value === '') {
-        return <span className="imcrm-public-list__empty-cell">—</span>;
-    }
-    switch (type) {
-        case 'url':
-            return (
-                <a href={String(value)} target="_blank" rel="noopener noreferrer">
-                    {String(value)}
-                </a>
-            );
-        case 'email':
-            return <a href={`mailto:${String(value)}`}>{String(value)}</a>;
-        case 'checkbox':
-            return value === true || value === 1 || value === '1' ? (
-                <span aria-label="Sí">✓</span>
-            ) : (
-                <span aria-label="No" className="imcrm-public-list__empty-cell">
-                    ✗
-                </span>
-            );
-        case 'multi_select':
-            if (Array.isArray(value)) {
-                return (
-                    <>
-                        {value.map((v, i) => (
-                            <span key={i} className="imcrm-public-list__pill">
-                                {String(v)}
-                            </span>
-                        ))}
-                    </>
-                );
-            }
-            return <>{String(value)}</>;
-        case 'long_text':
-            return (
-                <>
-                    {String(value)
-                        .split('\n')
-                        .map((line, i, arr) => (
-                            <span key={i}>
-                                {line}
-                                {i < arr.length - 1 ? <br /> : null}
-                            </span>
-                        ))}
-                </>
-            );
-        default:
-            return <>{String(value)}</>;
-    }
 }
 
 function Pagination({

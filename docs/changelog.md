@@ -4,6 +4,54 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.53.3] — 2026-05-26
+
+**Paridad de formato del shortcode público con la tabla del admin.**
+
+### Motivación
+
+El público no formateaba currency/date/select/multi_select como el
+admin — caía a `String(value)` por default. Selects se veían como
+texto plano; multi_selects con pills washed-out indigo, sin importar
+el color que el admin configuró.
+
+### Cambios
+
+**Nuevo `app/public/cellFormat.tsx`**: componente `<Cell>` con paridad
+de formato vs `renderCellValue.tsx`. Recibe `PublicFieldMeta`
+completo para acceder a `config.decimals/currency/options`.
+
+Formato por tipo:
+- currency → `Intl.NumberFormat({style: 'currency', currency, decimals})`
+- number → `toLocaleString` con decimals
+- date → `toLocaleDateString()`
+- datetime → UTC → local con `toLocaleString()`
+- select → chip coloreado con `options[i].color`
+- multi_select → grupo de chips, cada uno con su color
+- computed → respeta operation + decimals
+- checkbox → `✓` / `—` (antes era `✓` / `✗`)
+- user → `@ID` (público no tiene endpoint de lookup)
+
+**`Shortcode.php::formatCellHtml` reescrito** con paridad SSR. El
+primer paint muestra ya el mismo formato que el render hidratado.
+
+**Chips coloreados**: CSS vars `--imcrm-public-opt-{name}` para los 18
+presets + variante `-text`. Hex via alpha notation. Paridad con
+`chipSoftStyle` del admin (bg/14, border/32, text de la variante).
+
+**Visual** más plano alineado con admin TableView: sin shadow, header
+`bg-soft` sutil, padding 0.625rem, borders hairline. Quitada la
+"card pomposa" anterior.
+
+**Test ajustado**: `test_checkbox_renders_check_or_cross` chequea ahora
+`imcrm-public-list__empty-cell` en lugar del literal `✗`.
+
+Archivos: nuevo `app/public/cellFormat.tsx`; modificados
+`app/public/PublicList.tsx`, `src/PublicLists/Shortcode.php`,
+`assets/public-list.css`, `tests/Unit/PublicLists/ShortcodeTest.php`.
+
+Build: 548 tests OK, 0 errores TS.
+
 ## [0.53.2] — 2026-05-25
 
 **Rediseño visual del shortcode `[imcrm-list]` (frontend público).**

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.53.2
+Stable tag: 0.53.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,36 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.53.3 =
+**Paridad de formato del shortcode `[imcrm-list]` con la tabla del admin.**
+
+El render del público no formateaba como el admin: currency/number sin
+formato, fechas raw (`2025-12-10` en lugar de la fecha localizada),
+selects sin chips coloreados, multi_selects con pills genéricos
+indigo washed-out independiente del color que el admin configuró.
+
+Ahora ambos lados (PHP SSR + React hidratado) tienen paridad:
+
+- **currency** con `Intl.NumberFormat({style:'currency', currency, decimals})`
+  leyendo `field.config.currency` y `field.config.decimals`. SSR usa
+  `number_format()` con el currency code prefix.
+- **number** con `toLocaleString` respetando `decimals`.
+- **date** con `toLocaleDateString()` cliente / `wp_date(get_option('date_format'))` SSR.
+- **datetime** convertido UTC → local en cliente con `Date.toLocaleString()`;
+  SSR usa `wp_date(date_format + time_format)`.
+- **select** se muestra como chip coloreado con el `color` configurado
+  en la opción (preset name o hex), igual que en el admin.
+- **multi_select** como múltiples chips, cada uno con su color propio
+  (no todos washed-out indigo como antes).
+- **computed** respeta `operation` + `decimals`.
+- **checkbox** false ahora muestra `—` (antes `✗`) para paridad.
+
+Mantengo el estilo visual de la tabla más plano (alineado con el
+admin TableView): sin shadow, header `bg-soft` sutil, borders
+hairline. El bundle público sigue siendo independiente del admin
+(sin Tailwind, sin shadcn) — los chips usan CSS vars
+`--imcrm-public-opt-{nombre}` espejo del admin.
 
 = 0.53.2 =
 **Rediseño completo del shortcode `[imcrm-list]` (frontend público).**
