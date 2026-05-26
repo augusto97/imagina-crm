@@ -4,6 +4,70 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.53.4] — 2026-05-26
+
+**Fixes del shortcode público: layout del toolbar + sin dark mode auto.**
+
+### Motivación
+
+Feedback del usuario sobre 0.53.3:
+1. "Esos filtros que sean de ancho completo y uno debajo de otro se ve
+   muy raro y ocupan demasiado espacio" — los `<select>` se mostraban
+   apilados verticalmente full-width en lugar de en fila.
+2. "¿Por qué hiciste la tabla oscura? No entiendo si todavía no
+   estamos manejando o creado un modo oscuro" — el shortcode viraba
+   a dark cuando el OS del visitante estaba en dark mode.
+
+### Cambios
+
+**Filtros stackeados**: el problema era que muchos temas modernos
+aplican `display: block; width: 100%` global a `<select>` desde
+selectores con mayor specificity (ej. `.entry-content > div select`),
+y mi CSS sin `!important` no defendía.
+
+Fix:
+```css
+.imcrm-public-list__toolbar {
+    display: flex !important;
+    flex-direction: row !important;
+}
+.imcrm-public-list__filter {
+    display: inline-flex !important;
+    flex: 0 1 auto;
+    width: auto !important;
+    min-width: 160px;
+    max-width: 240px;
+}
+.imcrm-public-list__search {
+    width: auto !important;
+    max-width: 320px;
+}
+.imcrm-public-list__clear-filters {
+    flex: 0 0 auto;
+    width: auto !important;
+}
+```
+
+`!important` quirúrgico solo en propiedades de layout — el resto sigue
+override-able via tokens `--imcrm-public-*`. Anchos max-width evitan
+que los filtros se extiendan más allá de su contenido razonable.
+
+**Dark mode automático eliminado**: removido el bloque
+`@media (prefers-color-scheme: dark)` con sus 7 tokens override y los
+18 `-text` invertidos. El shortcode siempre se ve light salvo que el
+tema override los tokens desde su propio CSS.
+
+Cuando implementemos dark mode como feature explícita (probablemente
+un toggle en list settings + persistencia por cookie/localStorage),
+volveremos a agregar la paleta dark — pero deliberada, no automática.
+
+### Archivos
+
+- `assets/public-list.css` (selectors con `!important` quirúrgico
+  + eliminado bloque `@media (prefers-color-scheme: dark)`)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.53.3] — 2026-05-26
 
 **Paridad de formato del shortcode público con la tabla del admin.**

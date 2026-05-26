@@ -94,7 +94,12 @@
 /* ─── Toolbar (búsqueda + filtros) ────────────────────────────────── */
 
 .imcrm-public-list__toolbar {
-    display: flex;
+    /* `!important` en las propiedades de layout para defendernos de
+     * temas que aplican `display: block` o `flex-direction: column`
+     * via selectores con mayor specificity (ej. `.entry-content > div`).
+     * Sin esto el toolbar se ve apilado vertical y full-width. */
+    display: flex !important;
+    flex-direction: row !important;
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -102,8 +107,12 @@
 }
 
 .imcrm-public-list__search {
+    /* `width` auto + `max-width` para que aún cuando el tema fuerce
+     * `width: 100%` a los inputs, el search no se coma todo el toolbar. */
     flex: 1 1 220px;
-    min-width: 200px;
+    width: auto !important;
+    min-width: 180px;
+    max-width: 320px;
     height: 2.25rem;
     padding: 0.4rem 0.75rem;
     border: 1px solid var(--imcrm-public-border-strong);
@@ -128,6 +137,14 @@
 
 /* Selects de filtro — chevron SVG inline para uniformidad cross-theme. */
 .imcrm-public-list__filter {
+    /* Width auto explícito + max + flex: 0 1 auto evitan que el select
+     * se haga full-width cuando el tema aplica `width: 100%` global a
+     * los selects. */
+    display: inline-flex !important;
+    flex: 0 1 auto;
+    width: auto !important;
+    min-width: 160px;
+    max-width: 240px;
     height: 2.25rem;
     padding: 0.4rem 2rem 0.4rem 0.75rem;
     border: 1px solid var(--imcrm-public-border-strong);
@@ -153,6 +170,8 @@
 }
 
 .imcrm-public-list__clear-filters {
+    flex: 0 0 auto;
+    width: auto !important;
     height: 2.25rem;
     padding: 0.4rem 0.75rem;
     border: 1px dashed var(--imcrm-public-border-strong);
@@ -485,39 +504,7 @@
     font-style: italic;
 }
 
-/* ─── Dark mode automático ────────────────────────────────────────── */
-
-@media (prefers-color-scheme: dark) {
-    .imcrm-public-list {
-        --imcrm-public-text: #e5e7eb;
-        --imcrm-public-text-muted: #9ca3af;
-        --imcrm-public-bg: #1f2937;
-        --imcrm-public-bg-soft: #111827;
-        --imcrm-public-bg-hover: #374151;
-        --imcrm-public-border: #374151;
-        --imcrm-public-border-strong: #4b5563;
-        --imcrm-public-primary: #818cf8;
-        --imcrm-public-primary-soft: rgba(129, 140, 248, 0.1);
-
-        /* En dark mode los chips invierten la variante `-text` para
-         * que tengan contraste contra el bg dark tintado. */
-        --imcrm-public-opt-gray-text:    220 14% 72%;
-        --imcrm-public-opt-slate-text:   215 25% 72%;
-        --imcrm-public-opt-rose-text:    346 85% 78%;
-        --imcrm-public-opt-red-text:     0 85% 75%;
-        --imcrm-public-opt-orange-text:  25 95% 72%;
-        --imcrm-public-opt-amber-text:   38 92% 70%;
-        --imcrm-public-opt-yellow-text:  48 95% 70%;
-        --imcrm-public-opt-lime-text:    84 80% 68%;
-        --imcrm-public-opt-green-text:   142 70% 68%;
-        --imcrm-public-opt-emerald-text: 160 80% 65%;
-        --imcrm-public-opt-teal-text:    173 75% 65%;
-        --imcrm-public-opt-cyan-text:    188 85% 70%;
-        --imcrm-public-opt-sky-text:     200 85% 70%;
-        --imcrm-public-opt-blue-text:    217 90% 75%;
-        --imcrm-public-opt-indigo-text:  239 85% 78%;
-        --imcrm-public-opt-violet-text:  262 80% 78%;
-        --imcrm-public-opt-fuchsia-text: 292 80% 75%;
-        --imcrm-public-opt-pink-text:    330 80% 78%;
-    }
-}
+/* Nota: no exponemos un dark mode automático via
+ * `prefers-color-scheme`. Si el tema quiere mostrar el shortcode en
+ * dark, puede overridear los tokens `--imcrm-public-*` desde su propio
+ * CSS — el plugin no asume el contexto visual del tema. */

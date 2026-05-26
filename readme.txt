@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.53.3
+Stable tag: 0.53.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.53.4 =
+**Fixes del shortcode público: filtros sin stackear + sin dark mode automático.**
+
+Dos bugs visibles en temas con CSS agresivo:
+
+1. **Filtros full-width stackeados**: el tema aplicaba `display: block;
+   width: 100%` global a `<select>` y mi CSS no defendía con
+   suficiente specificity. Ahora el toolbar usa `display: flex
+   !important` con `flex-direction: row !important`, y cada select
+   tiene `display: inline-flex !important` + `width: auto !important`
+   + `max-width: 240px` para que no se coma el toolbar.
+
+2. **Tabla oscura inesperada**: tenía un `@media (prefers-color-scheme:
+   dark)` activo que viraba a oscuro automático si el OS del visitante
+   estaba en dark mode. Eliminado — el plugin no asume el contexto
+   visual del tema. Si en el futuro queremos dark mode será una
+   feature explícita (toggle en config), no automático.
 
 = 0.53.3 =
 **Paridad de formato del shortcode `[imcrm-list]` con la tabla del admin.**
