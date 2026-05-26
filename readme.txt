@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.54.0
+Stable tag: 0.54.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.54.1 =
+**Rediseño del CSS del portal del cliente — defensivo contra temas oscuros.**
+
+Mismo bug que tenía el shortcode antes de 0.53.2: el CSS del portal
+usaba `--imcrm-portal-text: inherit` y `--imcrm-portal-bg: transparent`,
+así que en temas con secciones oscuras (que setean `color: white` en
+contenedores padres) los textos del portal heredaban blanco sobre el
+fondo blanco de las cards → invisible.
+
+Reescrito con defaults explícitos:
+- Tokens neutros (paleta gris fría con accent indigo) en lugar de
+  `inherit` y `transparent`.
+- Forms con `border-color !important` para que el focus state no se
+  pierda contra resets del tema.
+- Botones con `color: #fff !important` para que los CTAs no se vuelvan
+  invisibles.
+- Sin `prefers-color-scheme: dark` automático (consistente con el
+  cambio del shortcode en 0.53.4).
+- Mobile responsive: header del portal y data-list colapsan en columna.
+
+**El portal SÍ tiene editor:** se llama "Editor de plantilla del
+portal" y está en *Editar lista → Portal de clientes → Plantilla*. Ahí
+podés agregar bloques (texto, datos del cliente, tabla de relacionados,
+formulario editable, KPI, timeline de actividad, descargas, comentarios)
+y reordenarlos. Si la plantilla está vacía, el portal no muestra nada
+salvo el saludo del header — es el comportamiento por diseño.
 
 = 0.54.0 =
 **Crear opciones de select/multi_select inline.**

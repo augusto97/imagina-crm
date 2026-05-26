@@ -64,6 +64,7 @@ export function RelatedRecordsTableBlock({ config, boot }: Props): JSX.Element {
                 <p className="imcrm-portal-block__empty">No hay registros para mostrar.</p>
             ) : (
                 <>
+                    <div className="imcrm-portal-related-table-wrap">
                     <table className="imcrm-portal-related-table">
                         <thead>
                             <tr>
@@ -82,6 +83,7 @@ export function RelatedRecordsTableBlock({ config, boot }: Props): JSX.Element {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     {total > records.length ? (
                         <p className="imcrm-portal-related-table__footer">
                             Mostrando {records.length} de {total} registros.

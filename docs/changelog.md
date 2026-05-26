@@ -4,6 +4,73 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.54.1] — 2026-05-26
+
+**Rediseño del CSS del portal del cliente — defensivo contra temas
+con secciones oscuras.**
+
+### Motivación
+
+Feedback del usuario: "los textos del portal me salen como si no
+tuvieran color porque me salen de color blanco sobre un fondo blanco
+y no se ven". Mismo bug que tenía el shortcode antes de 0.53.2: el
+CSS usaba `--imcrm-portal-text: inherit` + `--imcrm-portal-bg: transparent`,
+así que en temas con secciones que setean `color: white` en
+contenedores padres, los textos del portal heredaban blanco sobre el
+bg blanco de las cards.
+
+### Cambios
+
+`assets/portal.css` reescrito con paridad al approach de `public-list.css`:
+
+- **Tokens explícitos**: paleta gris fría con accent indigo. Defaults
+  conservadores (`text: #1f2937`, `bg: #ffffff`, etc.) en lugar de
+  `inherit`/`transparent`. Tema sigue pudiendo overridear todo via
+  `--imcrm-portal-*`.
+- **`box-sizing: border-box`** forzado en todo el árbol del portal
+  (defensa contra resets incompletos).
+- **Inputs y textareas** con `border-color !important` en el focus
+  state — temas que pisan `appearance: none` no rompen el ring de
+  focus.
+- **Botones primary** con `color: #ffffff !important` — algunos temas
+  fuerzan color blanco/negro a buttons globalmente y los CTAs del
+  portal se volvían invisibles.
+- **Tabla de related-records** envuelta en `.imcrm-portal-related-table-wrap`
+  con `border-collapse: separate !important` y `border-spacing: 0 !important`
+  para compat con border-radius del wrap (mismo patrón que public-list).
+- **Mobile responsive**: header del portal y data-list colapsan en
+  columna en pantallas chicas.
+- **Sin `prefers-color-scheme: dark` automático** — consistente con el
+  cambio del shortcode en 0.53.4. Si el tema quiere portal en dark,
+  override de tokens explícito.
+
+### HTML actualizado
+
+`RelatedRecordsTableBlock.tsx` ahora envuelve la `<table>` en un
+`<div class="imcrm-portal-related-table-wrap">` para que el CSS del
+wrap+radius funcione correctamente.
+
+### Sin cambios
+
+Schema, REST, autorización, blocks, PortalTemplate parsing — todo
+intacto. Solo presentación.
+
+### Aclaración importante
+
+El portal SÍ tiene editor visual desde Fase 9 → `PortalTemplateEditor`,
+accesible desde *Editar lista → Portal de clientes → Plantilla*. Si la
+plantilla está vacía, el portal solo muestra el saludo del header — es
+el comportamiento por diseño.
+
+### Archivos
+
+Modificados:
+- `assets/portal.css` (reescrito completo — 459 → ~430 líneas con más
+  organización)
+- `app/portal/blocks/RelatedRecordsTableBlock.tsx` (wrapper div)
+
+Build: 0 errores TS, 548 tests PHPUnit OK.
+
 ## [0.54.0] — 2026-05-26
 
 **Crear opciones de select/multi_select inline desde el editor.**
