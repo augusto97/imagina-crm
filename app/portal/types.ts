@@ -51,8 +51,10 @@ export type PortalBlock = PortalBlockGridPosition & (
               html?: string;
               title?: string;
               /** `card` (default) envuelve el contenido en un card con
-               *  border + bg. `plain` lo renderea directo, sin marco. */
-              variant?: 'card' | 'plain';
+               *  border + bg. `plain` lo renderea directo, sin marco.
+               *  `bordered_left` card con border-left de acento. */
+              variant?: 'card' | 'plain' | 'bordered_left';
+              accent_color?: string | null;
           };
       }
     | {
@@ -97,8 +99,9 @@ export type PortalBlock = PortalBlockGridPosition & (
               label?: string;
               new_window?: boolean;
               /** `button` (default) botón centrado solo con label.
-               *  `card_cta` card con icono + título + descripción + label. */
-              variant?: 'button' | 'card_cta';
+               *  `card_cta` card con icono + título + descripción + label.
+               *  `hero_cta` banner full-width con título grande + CTA. */
+              variant?: 'button' | 'card_cta' | 'hero_cta';
               /** Hex (`#rrggbb`) que override el primary del tema para el
                *  bg del botón / borde del card. Default: primary del CSS. */
               accent_color?: string | null;
@@ -117,6 +120,9 @@ export type PortalBlock = PortalBlockGridPosition & (
                *  label + valor en línea horizontal. */
               variant?: 'card' | 'inline';
               accent_color?: string | null;
+              icon?: string;
+              trend_text?: string;
+              trend_direction?: 'up' | 'down' | 'neutral';
           };
       }
     // Fase 9 — pulidos

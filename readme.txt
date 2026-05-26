@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.0
+Stable tag: 0.57.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.1 =
+**Mejoras visuales a 4 bloques existentes del portal.**
+
+* `static_text` — nueva variante `bordered_left`: card con border-left
+  de 4px en color de acento configurable. Útil para citas, notas
+  destacadas, anuncios suaves sin necesidad de un notice completo.
+* `kpi_widget` — agregado campo "Icono" (emoji unicode) que se
+  muestra a la izquierda del valor en variante card, y campo "Trend"
+  (texto + dirección up/down/neutral) que aparece debajo del valor
+  con flecha y color semántico (verde/rojo/gris).
+* `external_link` — nueva variante `hero_cta`: banner ancho con
+  gradient del color de acento, título + descripción a la izquierda
+  y botón prominente a la derecha. Pensado para CTAs principales
+  ("pagar factura", "agendar reunión").
+* `download_files` — íconos por tipo MIME (imagen, video, audio, ZIP,
+  hoja de cálculo, texto) en lugar de un icono genérico. Además se
+  muestra la extensión del archivo (PDF, XLSX, JPG…) como badge.
 
 = 0.57.0 =
 **8 bloques nuevos del portal del cliente + fix de pantalla en blanco al actualizar.**

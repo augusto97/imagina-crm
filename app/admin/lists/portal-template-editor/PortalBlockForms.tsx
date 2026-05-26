@@ -81,6 +81,7 @@ function StaticTextForm({
     const html = typeof config.html === 'string' ? config.html : '';
     const title = (config.title as string) ?? '';
     const variant = (config.variant as string) ?? 'card';
+    const accent = (config.accent_color as string | null) ?? null;
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <Field label={__('Título (opcional)')}>
@@ -96,8 +97,15 @@ function StaticTextForm({
                 options={[
                     { value: 'card', label: __('Card con borde') },
                     { value: 'plain', label: __('Sin marco') },
+                    { value: 'bordered_left', label: __('Borde izquierdo de acento') },
                 ]}
             />
+            {variant === 'bordered_left' && (
+                <AccentColorField
+                    value={accent}
+                    onChange={(v) => onChange({ ...config, accent_color: v })}
+                />
+            )}
             <Field label={__('Contenido (HTML básico)')}>
                 <Textarea
                     rows={6}
@@ -306,6 +314,7 @@ function ExternalLinkForm({
                 options={[
                     { value: 'button', label: __('Botón centrado') },
                     { value: 'card_cta', label: __('Card con icono + descripción') },
+                    { value: 'hero_cta', label: __('Hero CTA — banner ancho destacado') },
                 ]}
             />
             <Field label={__('Título (visible solo en variante card)')}>
@@ -371,6 +380,9 @@ function KpiForm({
     const suffix = (config.suffix as string) ?? '';
     const variant = (config.variant as string) ?? 'card';
     const accent = (config.accent_color as string | null) ?? null;
+    const icon = (config.icon as string) ?? '';
+    const trendText = (config.trend_text as string) ?? '';
+    const trendDirection = (config.trend_direction as string) ?? 'neutral';
 
     // Necesitamos los fields de la lista elegida (no de la lista actual)
     // — pero `useFields` requiere un listId. Buscamos el id por slug.
@@ -452,6 +464,34 @@ function KpiForm({
                 value={accent}
                 onChange={(v) => onChange({ ...config, accent_color: v })}
             />
+            <Field label={__('Icono (emoji opcional)')}>
+                <Input
+                    value={icon}
+                    onChange={(e) => onChange({ ...config, icon: e.target.value })}
+                    placeholder="💳"
+                    maxLength={4}
+                />
+                <Hint>{__('Cualquier emoji o caracter unicode. Se muestra a la izquierda del valor en variante card.')}</Hint>
+            </Field>
+            <div className="imcrm-grid imcrm-grid-cols-[1fr_auto] imcrm-gap-2">
+                <Field label={__('Trend (opcional)')}>
+                    <Input
+                        value={trendText}
+                        onChange={(e) => onChange({ ...config, trend_text: e.target.value })}
+                        placeholder={__('+12% vs mes pasado')}
+                    />
+                </Field>
+                <Field label={__('Dirección')}>
+                    <Select
+                        value={trendDirection}
+                        onChange={(e) => onChange({ ...config, trend_direction: e.target.value })}
+                    >
+                        <option value="neutral">{__('Neutral')}</option>
+                        <option value="up">{__('↑ Sube')}</option>
+                        <option value="down">{__('↓ Baja')}</option>
+                    </Select>
+                </Field>
+            </div>
         </div>
     );
 }

@@ -5,7 +5,7 @@ interface Props {
         href?: string;
         label?: string;
         new_window?: boolean;
-        variant?: 'button' | 'card_cta';
+        variant?: 'button' | 'card_cta' | 'hero_cta';
         /** Hex (`#rrggbb`) que override el bg del botón o el accent del card. */
         accent_color?: string | null;
     };
@@ -31,6 +31,36 @@ export function ExternalLinkBlock({ config }: Props): JSX.Element | null {
     const accentStyle = config.accent_color
         ? ({ '--imcrm-portal-cta-accent': config.accent_color } as React.CSSProperties)
         : undefined;
+
+    if (variant === 'hero_cta') {
+        return (
+            <section
+                className="imcrm-portal-block imcrm-portal-block--external-link imcrm-portal-block--hero-cta"
+                style={accentStyle}
+            >
+                <div className="imcrm-portal-hero-cta">
+                    <div className="imcrm-portal-hero-cta__body">
+                        {config.title !== undefined && config.title !== '' && (
+                            <h2 className="imcrm-portal-hero-cta__title">{config.title}</h2>
+                        )}
+                        {config.description !== undefined && config.description !== '' && (
+                            <p className="imcrm-portal-hero-cta__description">
+                                {config.description}
+                            </p>
+                        )}
+                    </div>
+                    <a
+                        href={href}
+                        target={newWindow ? '_blank' : undefined}
+                        rel={newWindow ? 'noopener noreferrer' : undefined}
+                        className="imcrm-portal-hero-cta__btn"
+                    >
+                        {config.label ?? 'Abrir'} →
+                    </a>
+                </div>
+            </section>
+        );
+    }
 
     if (variant === 'card_cta') {
         return (

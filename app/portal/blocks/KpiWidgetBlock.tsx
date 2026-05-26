@@ -12,6 +12,12 @@ interface Props {
         prefix?: string;
         variant?: 'card' | 'inline';
         accent_color?: string | null;
+        /** Emoji o caracter unicode mostrado como icono (ej. "💳", "📊"). */
+        icon?: string;
+        /** Texto del trend (ej. "+12%" o "vs mes pasado"). */
+        trend_text?: string;
+        /** `up` | `down` | `neutral` → controla color del trend. */
+        trend_direction?: 'up' | 'down' | 'neutral';
     };
     boot: PortalBootData;
 }
@@ -99,15 +105,34 @@ export function KpiWidgetBlock({ config, boot }: Props): JSX.Element {
             </>
         );
 
+    const trendDirection = config.trend_direction ?? 'neutral';
+    const hasIcon = config.icon !== undefined && config.icon !== '';
+    const hasTrend = config.trend_text !== undefined && config.trend_text !== '';
+
     return (
         <section
-            className={`imcrm-portal-block imcrm-portal-block--kpi ${variantClass}`}
+            className={`imcrm-portal-block imcrm-portal-block--kpi ${variantClass} ${hasIcon ? 'imcrm-portal-block--kpi-with-icon' : ''}`}
             style={accentStyle}
         >
-            {config.title !== undefined && config.title !== '' ? (
-                <p className="imcrm-portal-kpi__label">{config.title}</p>
-            ) : null}
-            <p className="imcrm-portal-kpi__value">{valueNode}</p>
+            {hasIcon && (
+                <span className="imcrm-portal-kpi__icon" aria-hidden>
+                    {config.icon}
+                </span>
+            )}
+            <div className="imcrm-portal-kpi__body">
+                {config.title !== undefined && config.title !== '' ? (
+                    <p className="imcrm-portal-kpi__label">{config.title}</p>
+                ) : null}
+                <p className="imcrm-portal-kpi__value">{valueNode}</p>
+                {hasTrend && (
+                    <p className={`imcrm-portal-kpi__trend imcrm-portal-kpi__trend--${trendDirection}`}>
+                        <span aria-hidden>
+                            {trendDirection === 'up' ? '↑' : trendDirection === 'down' ? '↓' : '·'}
+                        </span>
+                        {config.trend_text}
+                    </p>
+                )}
+            </div>
         </section>
     );
 }

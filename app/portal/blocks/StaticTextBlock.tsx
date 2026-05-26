@@ -1,11 +1,20 @@
 interface Props {
-    config: { html?: string; title?: string; variant?: 'card' | 'plain' };
+    config: {
+        html?: string;
+        title?: string;
+        variant?: 'card' | 'plain' | 'bordered_left';
+        /** Color hex del border-left (solo aplica a variant bordered_left). */
+        accent_color?: string | null;
+    };
 }
 
 /**
  * Bloque `static_text`. Renderiza HTML estático configurado por el
- * admin. Soporta variante `card` (default, con border + bg) o `plain`
- * (sin marco, fluye con el contexto).
+ * admin. Variantes:
+ *  - `card` (default): border + bg, padding interno
+ *  - `plain`: sin marco, fluye con el contexto
+ *  - `bordered_left`: card con border-left de acento (4px), útil
+ *    para citas, notas destacadas, anuncios suaves
  *
  * El HTML viene server-side y el admin es quien lo configuró —
  * trusted. Si el modelo cambia para permitir input del cliente, hay
@@ -16,10 +25,17 @@ export function StaticTextBlock({ config }: Props): JSX.Element {
     const variantClass =
         variant === 'plain'
             ? 'imcrm-portal-block--plain'
-            : 'imcrm-portal-block--card';
+            : variant === 'bordered_left'
+                ? 'imcrm-portal-block--bordered-left'
+                : 'imcrm-portal-block--card';
+    const style: React.CSSProperties | undefined =
+        variant === 'bordered_left' && config.accent_color
+            ? { borderLeftColor: config.accent_color }
+            : undefined;
     return (
         <section
             className={`imcrm-portal-block imcrm-portal-block--static-text ${variantClass}`}
+            style={style}
         >
             {config.title !== undefined && config.title !== '' ? (
                 <h2 className="imcrm-portal-block__title">{config.title}</h2>

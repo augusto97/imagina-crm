@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, FileText } from 'lucide-react';
+import {
+    Download,
+    FileArchive,
+    FileAudio,
+    FileImage,
+    FileSpreadsheet,
+    FileText,
+    FileVideo,
+    type LucideIcon,
+} from 'lucide-react';
 
 import type { PortalRecord } from '../types';
 
@@ -18,6 +27,46 @@ interface ResolvedAttachment {
     id: number;
     title: string;
     url: string;
+    mimeType: string;
+}
+
+/**
+ * Mapea un mime type a un icono lucide específico por categoría.
+ * Refleja el tipo de archivo en el preview visual del listado.
+ */
+function iconForMime(mime: string): LucideIcon {
+    if (mime.startsWith('image/')) return FileImage;
+    if (mime.startsWith('video/')) return FileVideo;
+    if (mime.startsWith('audio/')) return FileAudio;
+    if (
+        mime === 'application/zip'
+        || mime === 'application/x-rar-compressed'
+        || mime === 'application/x-7z-compressed'
+        || mime === 'application/gzip'
+    ) return FileArchive;
+    if (
+        mime === 'application/vnd.ms-excel'
+        || mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || mime === 'text/csv'
+    ) return FileSpreadsheet;
+    return FileText;
+}
+
+/**
+ * Devuelve la extensión del archivo (en mayúsculas, sin punto)
+ * desde una URL. Si no se puede extraer, devuelve null.
+ */
+function extensionFromUrl(url: string): string | null {
+    try {
+        const path = new URL(url, window.location.origin).pathname;
+        const dot = path.lastIndexOf('.');
+        const slash = path.lastIndexOf('/');
+        if (dot <= slash) return null;
+        const ext = path.slice(dot + 1).toUpperCase();
+        return ext.length > 0 && ext.length <= 5 ? ext : null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -64,12 +113,14 @@ export function DownloadFilesBlock({ config, record }: Props): JSX.Element {
                     id: number;
                     title: { rendered: string };
                     source_url: string;
+                    mime_type?: string;
                 }>;
                 setItems(
                     body.map((m) => ({
                         id: m.id,
                         title: stripHtml(m.title.rendered) || `Archivo #${m.id}`,
                         url: m.source_url,
+                        mimeType: m.mime_type ?? '',
                     })),
                 );
             })
@@ -94,44 +145,58 @@ export function DownloadFilesBlock({ config, record }: Props): JSX.Element {
                 <p className="imcrm-portal-block__empty">Sin archivos disponibles.</p>
             ) : variant === 'grid' ? (
                 <ul className="imcrm-portal-downloads-grid">
-                    {items.map((att) => (
-                        <li key={att.id} className="imcrm-portal-downloads-grid__item">
-                            <a
-                                href={att.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="imcrm-portal-downloads-grid__link"
-                                download
-                            >
-                                <FileText className="imcrm-portal-downloads-grid__icon" aria-hidden />
-                                <span className="imcrm-portal-downloads-grid__title">
-                                    {att.title}
-                                </span>
-                                <Download
-                                    className="imcrm-portal-downloads-grid__action"
-                                    aria-hidden
-                                />
-                            </a>
-                        </li>
-                    ))}
+                    {items.map((att) => {
+                        const Icon = iconForMime(att.mimeType);
+                        const ext = extensionFromUrl(att.url);
+                        return (
+                            <li key={att.id} className="imcrm-portal-downloads-grid__item">
+                                <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="imcrm-portal-downloads-grid__link"
+                                    download
+                                >
+                                    <Icon className="imcrm-portal-downloads-grid__icon" aria-hidden />
+                                    <span className="imcrm-portal-downloads-grid__title">
+                                        {att.title}
+                                    </span>
+                                    {ext !== null && (
+                                        <span className="imcrm-portal-downloads-grid__ext">{ext}</span>
+                                    )}
+                                    <Download
+                                        className="imcrm-portal-downloads-grid__action"
+                                        aria-hidden
+                                    />
+                                </a>
+                            </li>
+                        );
+                    })}
                 </ul>
             ) : (
                 <ul className="imcrm-portal-downloads">
-                    {items.map((att) => (
-                        <li key={att.id} className="imcrm-portal-downloads__item">
-                            <FileText className="imcrm-portal-downloads__icon" aria-hidden />
-                            <a
-                                href={att.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="imcrm-portal-downloads__link"
-                                download
-                            >
-                                {att.title}
-                            </a>
-                            <Download className="imcrm-portal-downloads__action" aria-hidden />
-                        </li>
-                    ))}
+                    {items.map((att) => {
+                        const Icon = iconForMime(att.mimeType);
+                        const ext = extensionFromUrl(att.url);
+                        return (
+                            <li key={att.id} className="imcrm-portal-downloads__item">
+                                <Icon className="imcrm-portal-downloads__icon" aria-hidden />
+                                <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="imcrm-portal-downloads__link"
+                                    download
+                                >
+                                    {att.title}
+                                </a>
+                                {ext !== null && (
+                                    <span className="imcrm-portal-downloads__ext">{ext}</span>
+                                )}
+                                <Download className="imcrm-portal-downloads__action" aria-hidden />
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </section>

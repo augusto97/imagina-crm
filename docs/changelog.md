@@ -4,6 +4,45 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.1] — 2026-05-26
+
+**Mejoras visuales a 4 bloques existentes del portal.**
+
+Complemento de la 0.57.0 — ahora los bloques que ya existían también
+suben de nivel visual, sin agregar tipos nuevos.
+
+### `static_text` — variante `bordered_left`
+
+Card con border-left de 4px en color de acento configurable. Útil
+para citas, notas destacadas, anuncios suaves sin necesidad de un
+notice completo. Soporta `accent_color` hex.
+
+### `kpi_widget` — icono + trend
+
+* `icon`: emoji o caracter unicode que se muestra a la izquierda
+  del valor en variante card (en un cuadrado de 48×48 con bg suave
+  del accent).
+* `trend_text` + `trend_direction` (`up`/`down`/`neutral`): texto
+  pequeño debajo del valor con flecha unicode (↑/↓/·) y color
+  semántico (verde / rojo / gris). Pensado para mostrar comparación
+  vs período anterior.
+
+### `external_link` — variante `hero_cta`
+
+Banner ancho con gradient del color de acento, título + descripción
+a la izquierda y botón prominente a la derecha. Es el CTA más
+prominente del set — pensado para acciones críticas como "pagar
+factura" o "agendar reunión".
+
+### `download_files` — iconos por tipo de archivo
+
+* Icono lucide por categoría MIME: `image/*` → FileImage, `video/*`
+  → FileVideo, `audio/*` → FileAudio, archivos comprimidos →
+  FileArchive, hojas de cálculo → FileSpreadsheet, default →
+  FileText.
+* Extensión del archivo (PDF, XLSX, JPG…) extraída de la URL y
+  mostrada como badge pequeño junto al nombre.
+
 ## [0.57.0] — 2026-05-26
 
 **8 bloques nuevos del portal del cliente + fix de pantalla en blanco
