@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.15
+Stable tag: 0.57.16
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.16 =
+**Editor de plantillas — unificación de los dos editores en uno
+solo. CRM y portal del cliente ahora comparten el mismo motor.**
+
+Histórico: existían dos editores duplicados (CRM y portal del
+cliente) con código separado a pesar de tener UX idéntica. Cualquier
+mejora visual al editor había que aplicarla dos veces (como pasó en
+0.57.14 y 0.57.15).
+
+Esta versión migra el editor del CRM (`TemplateEditorPage.tsx`,
+746 líneas) al shell genérico `TemplateEditorShell` que ya usaba el
+portal. Ahora:
+
+* El editor del CRM tiene 175 líneas — solo carga el config, mantiene
+  el header global y delega todo al shell con un `crmRegistry` que
+  conoce los 15 tipos del CRM.
+* El motor (grid, undo/redo, paleta, drag, selección multi-select,
+  fullscreen, hotkeys, paneles colapsables) es compartido.
+* Cualquier mejora futura al shell se hereda en ambos editores
+  automáticamente.
+
+Cambios visibles para el usuario:
+* Comportamiento idéntico al anterior, salvo que el atajo `Cmd+K`
+  para abrir un Command Palette interno fue eliminado (no se
+  necesitaba — el GlobalCommandPalette del admin sigue funcionando).
+* Chunk JS del editor del CRM bajó de 83KB a 46KB (≈45% menos).
 
 = 0.57.15 =
 **Editor de plantillas — paneles colapsables ahora también en CRM, no

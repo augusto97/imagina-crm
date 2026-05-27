@@ -4,6 +4,91 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.16] — 2026-05-27
+
+**Unificación de los dos editores de plantillas — CRM y portal
+del cliente ahora usan el mismo motor (`TemplateEditorShell`).**
+
+### Histórico
+
+Existían dos editores con código separado pese a tener UX idéntica:
+- `app/admin/lists/template-editor/TemplateEditorPage.tsx` (746 líneas)
+  — editor del CRM, con `GridEditor`, `BlockPalettePanel`,
+  `BlockInspectorPanel`, `BulkActionsPanel`, `useConfigHistory`
+  propios.
+- `app/admin/template-editor-core/TemplateEditorShell.tsx` (602
+  líneas) — shell genérico ya usado por el editor del portal del
+  cliente vía `portalRegistry`.
+
+Cualquier mejora visual al editor había que aplicarla dos veces
+(como pasó en 0.57.14 con los paneles colapsables y 0.57.15 con la
+unificación parcial).
+
+### Refactor (4 commits)
+
+**1. `crmRegistry.tsx` (nuevo)** — implementa `BlockRegistry<V2Block>`
+   con los 15 tipos del CRM (header, properties_group, timeline,
+   stats, related, notes, kpi, chart, files, embed, action_button,
+   markdown, divider, heading, comments_thread). Delega
+   `renderInspector` a las forms existentes en `forms/BlockForms.tsx`
+   y `renderPreview` al `BlockRenderer` del CRM (pasando por
+   `resolveV2` para que reciba el shape esperado).
+
+**2. `crmBlockAdapter.ts` (nuevo)** — adaptadores
+   `CustomTemplateConfigV2 ↔ V2Block[]`. El CRM persiste un wrapper
+   `{ v, header, blocks }` donde el `header` es global (no es un
+   bloque del grid). Los helpers `extractBlocks`, `extractHeader`,
+   `rebuildConfig` permiten desempacar/empacar sin perder el header
+   al ida-y-vuelta con el shell.
+
+**3. `CrmTemplateSettingsPanel.tsx` (nuevo)** — wrapper del
+   `TemplateSettingsPanel` original para encajar en el contrato
+   `emptySelectionPanel` del shell. Mantiene el header global como
+   estado del padre.
+
+**4. `TemplateEditorPage.tsx` reescrito** — pasa de 746 líneas a
+   175. Solo carga el config, mantiene el header global en estado,
+   y delega todo al `<TemplateEditorShell registry={crmRegistry} ...>`.
+   Para "Restaurar desde plantilla" usa la técnica de cambiar el
+   `key` del shell para forzar remount con `initialBlocks` nuevos.
+
+### Archivos eliminados
+
+- `GridEditor.tsx` (251 líneas) — reemplazado por `GridCanvas` del shell.
+- `EditorCommandPalette.tsx` (~150 líneas) — eliminado (el usuario
+  pidió quitar el atajo `Cmd+K` del editor; el GlobalCommandPalette
+  del admin sigue activo).
+- `panels/BlockPalettePanel.tsx` (495 líneas) — reemplazado por
+  `PalettePanel` del shell.
+- `panels/BlockInspectorPanel.tsx` (250 líneas) — la lógica vive
+  en `renderInspector` del registry.
+- `panels/BulkActionsPanel.tsx` — reemplazado por el del shell.
+- `hooks/useConfigHistory.ts` — reemplazado por `useTemplateHistory`
+  del shell.
+- `utils/dragPayload.ts` — reemplazado por el del shell.
+- `presets/industryPresets.ts` (331 líneas) — eliminado con el
+  Command Palette que lo usaba.
+
+### Beneficios medibles
+
+- Chunk JS del editor del CRM: **83KB → 46KB** (≈45% menos).
+- Líneas de código del editor: **746 → 175** (≈75% menos).
+- Total código eliminado/duplicado: ~1700 líneas.
+
+### Sin cambios visibles para el usuario
+
+El comportamiento del editor es idéntico al anterior — la única
+diferencia es el `Cmd+K` del editor que ya no abre un Command
+Palette propio (no se necesitaba, el del admin global sigue funcionando).
+
+### Cambios
+
+- `app/admin/lists/template-editor/crmRegistry.tsx` (nuevo)
+- `app/admin/lists/template-editor/crmBlockAdapter.ts` (nuevo)
+- `app/admin/lists/template-editor/CrmTemplateSettingsPanel.tsx` (nuevo)
+- `app/admin/lists/template-editor/TemplateEditorPage.tsx` (reescrito)
+- 8 archivos legacy eliminados (ver "Archivos eliminados").
+
 ## [0.57.15] — 2026-05-27
 
 **Editor de plantillas — paneles colapsables ahora en ambos
