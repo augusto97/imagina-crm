@@ -4,6 +4,90 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.4] — 2026-05-27
+
+**Bloque `client_data` con labels reales + formato por tipo, más
+backend que expone field metadata en `/portal/me`.**
+
+### El problema
+
+El bloque "Datos del cliente" del portal mostraba:
+- Slugs internos como labels (`MES_FACTURADO`, `SITIO_WEB`,
+  `GESTI_N_SITIO_WEB`).
+- Valores crudos de select (`gesti_n_sitio_web`) en lugar del
+  label legible de la opción.
+- Fechas sin formatear (`2025-11-25`).
+- URLs como texto plano sin link.
+- Currency / number sin separadores.
+
+Causa raíz: el frontend nunca recibió metadata de los fields. Solo
+tenía `record.fields` (mapa `slug → value`), sin acceso a los
+`FieldEntity` (label, type, config).
+
+### El fix
+
+**Backend** (`PortalController::getMe`):
+- Nuevo campo `data.fields` en el response con shape
+  `Array<{slug, label, type, config}>` — emite los fields de la
+  lista del portal después del permission sanitizer (los ocultos
+  para el rol cliente no aparecen).
+
+**Frontend** (`ClientDataBlock.tsx`):
+- Acepta nueva prop `fields?: PortalFieldMeta[]`. Sin metadata cae
+  al rendering legacy (backward-compat con templates antiguos).
+- Con metadata:
+  - `<dt>` muestra `field.label` real.
+  - `select` / `multi_select`: resuelve `value` → `label` desde
+    `config.options`. Soporta tanto `{value, label}` como strings
+    sueltos en la config.
+  - `date`: `Intl.DateTimeFormat` con `month: short` (`25 nov 2025`).
+  - `datetime`: formato corto con hora.
+  - `currency`: `Intl.NumberFormat({style: 'currency', currency})`.
+  - `number`: separadores de miles.
+  - `url`: `<a target="_blank">`.
+  - `email`: `<a href="mailto:">`.
+  - `long_text`: `white-space: pre-wrap` para preservar saltos.
+  - `checkbox`: ✓ / ✗.
+
+**Tipos** (`types.ts`):
+- Nuevo `PortalFieldMeta` exportado.
+- `PortalMeResponse.data.fields` opcional (templates pre-0.57.4).
+
+**Live preview del editor** (`PortalBlockLivePreview.tsx`):
+- Pasa `mockFields` derivado de los `FieldEntity` reales de la lista
+  al `ClientDataBlock` en el preview. Resultado: el editor ya
+  muestra labels reales también, sin necesidad de levantar el front
+  para verificar.
+
+### Bonus — fix de `slugify()` con NFD
+
+Mientras debuggeaba el slug `gesti_n_sitio_web` (esperado:
+`gestion_sitio_web` para "Gestión sitio web") descubrí que el
+`slugify()` JS y PHP no manejaba caracteres en forma descomposed
+(NFD): `ó` en NFD es `o` + combining acute U+0301. Mac OS tiende a
+generar NFD al copiar/pegar.
+
+* `app/lib/slug.ts` — `removeAccents` ahora normaliza con
+  `.normalize('NFD').replace(/[̀-ͯ]/g, '')` (canonical).
+* `src/Lists/SlugManager.php` — `slugify()` normaliza a `NFC` con
+  `Normalizer::normalize` antes de `remove_accents()` (si la
+  extensión `intl` está disponible).
+
+**No renombra slugs ya creados** — son editables pero la migración
+debe ser explícita desde el editor de la lista. El `column_name`
+físico es inmutable así que la data no se pierde.
+
+### Cambios
+
+- `src/REST/PortalController.php` — `getMe` emite `data.fields`.
+- `src/Lists/SlugManager.php` — NFC normalize antes de remove_accents.
+- `app/portal/types.ts` — `PortalFieldMeta` + `data.fields?`.
+- `app/portal/PortalRenderer.tsx` — pasa `fields` a `ClientDataBlock`.
+- `app/portal/blocks/ClientDataBlock.tsx` — rendering por tipo.
+- `app/lib/slug.ts` — NFD strip combining marks.
+- `app/admin/lists/portal-template-editor/PortalBlockLivePreview.tsx`
+  — mockFields al preview.
+
 ## [0.57.3] — 2026-05-26
 
 **Hotfix crítico — drag, resize y posicionamiento del editor del

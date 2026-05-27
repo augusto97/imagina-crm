@@ -135,6 +135,18 @@ class SlugManager
      */
     public function slugify(string $input, int $maxLength = self::MAX_SLUG_LENGTH): string
     {
+        // Normalizar a NFC (forma precomposed) antes de remove_accents.
+        // Sin esto, inputs con caracteres descomposed (NFD) — comunes en
+        // pegados desde macOS — dejan combining marks que `remove_accents`
+        // no maneja y terminan como `_` en el slug. Ejemplo: "Gestión"
+        // en NFD = "o" + combining acute → quedaba `gesti_n` en lugar de
+        // `gestion`.
+        if (class_exists('\\Normalizer')) {
+            $normalized = \Normalizer::normalize($input, \Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                $input = $normalized;
+            }
+        }
         $input = remove_accents($input);
         $input = strtolower($input);
         $input = preg_replace('/[^a-z0-9]+/', '_', $input) ?? '';

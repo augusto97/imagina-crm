@@ -6,18 +6,20 @@
 export const SLUG_REGEX = /^[a-z][a-z0-9_]{0,62}$/;
 export const MAX_SLUG_LENGTH = 63;
 
-const ACCENT_MAP: Record<string, string> = {
-    á: 'a', à: 'a', â: 'a', ä: 'a', ã: 'a',
-    é: 'e', è: 'e', ê: 'e', ë: 'e',
-    í: 'i', ì: 'i', î: 'i', ï: 'i',
-    ó: 'o', ò: 'o', ô: 'o', ö: 'o', õ: 'o',
-    ú: 'u', ù: 'u', û: 'u', ü: 'u',
-    ñ: 'n', ç: 'c',
-    Á: 'A', É: 'E', Í: 'I', Ó: 'O', Ú: 'U', Ñ: 'N',
-};
-
+/**
+ * Quita acentos y diacríticos del input. Maneja tanto formas
+ * precomposed (NFC, e.g. `ó` = `ó`) como descomposed (NFD,
+ * e.g. `ó` = `o` + combining acute). macOS tiende a generar
+ * NFD al copiar/pegar, lo que rompía el slugify anterior (basado
+ * en regex de chars precomposed) — quedaba `gesti_n_sitio_web`
+ * en lugar de `gestion_sitio_web` para "Gestión sitio web".
+ *
+ * El approach con `normalize('NFD')` + strip de combining marks
+ * (`̀-ͯ`) es la forma canónica de transliterar latín-1
+ * a ASCII en JS sin librerías externas.
+ */
 function removeAccents(input: string): string {
-    return input.replace(/[áàâäãéèêëíìîïóòôöõúùûüñçÁÉÍÓÚÑ]/g, (c) => ACCENT_MAP[c] ?? c);
+    return input.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 export function slugify(input: string, maxLength: number = MAX_SLUG_LENGTH): string {

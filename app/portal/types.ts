@@ -250,10 +250,25 @@ export type PortalBlock = PortalBlockGridPosition & (
       }
 );
 
+/**
+ * Metadata de un field de la lista del portal — emitido por
+ * `GET /portal/me`. Lo usan los bloques (`client_data`, `editable_form`,
+ * `related_records_table`) para renderear values con sus labels
+ * correctos, opciones de select traducidas, fechas formateadas, etc.
+ */
+export interface PortalFieldMeta {
+    slug: string;
+    label: string;
+    type: string;
+    config: Record<string, unknown>;
+}
+
 export interface PortalMeResponse {
     data: {
         list: PortalListMeta;
         record: PortalRecord;
+        /** Metadata de fields de la lista del portal (post-permission sanitizer). */
+        fields?: PortalFieldMeta[];
         user: PortalUserMeta;
         template: { blocks: PortalBlock[] };
     };

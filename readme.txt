@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.3
+Stable tag: 0.57.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,34 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.4 =
+**Bloque "Datos del cliente" con labels reales + formato por tipo.**
+
+* El bloque `client_data` ahora usa el **label real del campo** en
+  lugar del slug en mayúsculas (`MES_FACTURADO` → `Mes facturado`).
+* Selects y multi-selects muestran el **label de la opción**, no su
+  value/slug (`gesti_n_sitio_web` → `Gestión sitio web`).
+* Fechas formateadas en idioma del browser (`2025-11-25` → `25 nov 2025`).
+* Datetimes con hora corta.
+* Currency con separadores de miles + símbolo de la moneda configurada.
+* Number con separadores de miles.
+* URLs como links clickeables (target=_blank).
+* Email como `mailto:`.
+* Long text preserva saltos de línea.
+
+**Backend**: `GET /portal/me` ahora incluye `data.fields` — metadata
+de los fields visibles para el rol del cliente (post permission
+sanitizer). Otros bloques (`related_records_table`, etc.) podrán
+usarla en futuras versiones.
+
+**Fix de slugify**: caracteres acentuados pegados desde macOS (forma
+NFD/descomposed, como "Gestión" = `o` + combining acute) generaban
+slugs feos tipo `gesti_n_sitio_web`. Ahora `slugify()` JS y PHP
+normalizan a forma precomposed (NFC) primero. **Los slugs ya
+creados no se renombran automáticamente** — si querés limpiarlos,
+editá el slug del field desde el editor de la lista (el `column_name`
+físico queda igual, no se pierde data).
 
 = 0.57.3 =
 **Hotfix — drag & resize en el editor del portal del cliente.**

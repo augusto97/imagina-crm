@@ -688,6 +688,23 @@ final class PortalController extends AbstractController
         // de un text genérico.
         $blocks = $this->enrichTemplateBlocks($template->toArray(), $portalList->id);
 
+        // Metadata de fields de la lista del portal (label, type,
+        // config). El frontend usa este mapa para renderear values con
+        // labels correctos, opciones de select traducidas, fechas
+        // formateadas, etc. Stripeados por el permission sanitizer
+        // — los fields ocultos para el rol cliente no aparecen.
+        $portalFieldsMeta = [];
+        foreach ($this->fields->allForList($portalList->id) as $f) {
+            if ($f->deletedAt !== null) continue;
+            if (! $sanitizer->canSeeField($f->slug)) continue;
+            $portalFieldsMeta[] = [
+                'slug'   => $f->slug,
+                'label'  => $f->label,
+                'type'   => $f->type,
+                'config' => $f->config,
+            ];
+        }
+
         return new WP_REST_Response([
             'data' => [
                 'list'   => [
@@ -696,6 +713,7 @@ final class PortalController extends AbstractController
                     'name' => $portalList->name,
                 ],
                 'record' => $hydrated,
+                'fields' => $portalFieldsMeta,
                 'user'   => [
                     'id'           => $user->ID,
                     'display_name' => $user->display_name,

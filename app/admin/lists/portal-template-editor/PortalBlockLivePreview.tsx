@@ -76,10 +76,25 @@ export function PortalBlockLivePreview({ block, fields }: Props): JSX.Element {
     // (`--imcrm-portal-*`) estén en scope y los bloques se vean con
     // los mismos colores/tipos que en el front. Sin esto los bloques
     // heredan colores del admin (oscuros vs claros del portal).
+    // Mock de metadata de fields para el preview — derivado de los
+    // FieldEntity reales de la lista. Permite que el `ClientDataBlock`
+    // muestre labels reales y options resueltas en lugar de slugs
+    // crudos.
+    const mockFields = useMemo(
+        () =>
+            fields.map((f) => ({
+                slug:   f.slug,
+                label:  f.label,
+                type:   f.type,
+                config: f.config as Record<string, unknown>,
+            })),
+        [fields],
+    );
+
     return (
         <div className="imcrm-portal-root imcrm-portal-preview-root">
             <PortalPreviewContext.Provider value={true}>
-                {renderBlock(block, mockRecord, mockBoot)}
+                {renderBlock(block, mockRecord, mockBoot, mockFields)}
             </PortalPreviewContext.Provider>
         </div>
     );
@@ -89,6 +104,7 @@ function renderBlock(
     block: ResolvedPortalBlock,
     mockRecord: PortalRecord,
     mockBoot: PortalBootData,
+    mockFields: Array<{ slug: string; label: string; type: string; config: Record<string, unknown> }>,
 ): JSX.Element {
     switch (block.type) {
         case 'static_text':
@@ -102,6 +118,7 @@ function renderBlock(
                 <ClientDataBlock
                     config={block.config as Parameters<typeof ClientDataBlock>[0]['config']}
                     record={mockRecord}
+                    fields={mockFields}
                 />
             );
         case 'related_records_table':

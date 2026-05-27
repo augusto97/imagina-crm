@@ -136,7 +136,14 @@ function renderBlock(
         case 'static_text':
             return <StaticTextBlock key={idx} config={block.config} />;
         case 'client_data':
-            return <ClientDataBlock key={idx} config={block.config} record={data.record} />;
+            return (
+                <ClientDataBlock
+                    key={idx}
+                    config={block.config}
+                    record={data.record}
+                    fields={data.fields ?? []}
+                />
+            );
         case 'related_records_table':
             return <RelatedRecordsTableBlock key={idx} config={block.config} boot={boot} />;
         case 'editable_form':
