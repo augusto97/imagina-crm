@@ -4,6 +4,53 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.6] — 2026-05-27
+
+**Cold load del `RecordsPage` paraleliza los 3 fetches iniciales —
+ahorro de 100-300ms.**
+
+### Antes
+
+```ts
+const list   = useList(listSlug);
+const fields = useFields(list.data?.id);   // espera a list
+const views  = useSavedViews(list.data?.id); // espera a list
+const records = useRecords(list.data?.id, ...); // espera a list + views
+```
+
+Waterfall: `list → (fields ‖ views) → records`. Aunque fields y
+views corrían en paralelo entre sí, primero había que esperar a
+`useList` (un round-trip completo, ~150-300ms según latencia).
+
+### Ahora
+
+```ts
+const list   = useList(listSlug);
+const fields = useFields(listSlug);    // arranca en el mismo tick
+const views  = useSavedViews(listSlug); // arranca en el mismo tick
+const records = useRecords(views.data !== undefined ? listSlug : undefined, ...);
+```
+
+Los 3 endpoints REST (`/lists/{x}`, `/lists/{x}/fields`,
+`/lists/{x}/saved-views`) aceptan `id_or_slug` indistintamente,
+así que pasarles el slug directamente desde `useParams()` permite
+que arranquen en paralelo desde el primer render. `useRecords`
+sigue esperando a `views.data` para evitar el doble query del
+0.57.5 (per_page=50 → per_page=500).
+
+### Caveat
+
+El queryKey de cada hook usa lo que recibe (slug aquí, id en otros
+lugares del admin). Si una pantalla anterior ya cargó por id y
+esta entra por slug, son dos cache entries separados — un fetch
+extra la primera vez. Solo afecta a `RecordsPage`; cuando se
+migren los demás hooks a slug, se unifica.
+
+### Cambios
+
+- `app/admin/records/RecordsPage.tsx` — `useFields(listSlug)`,
+  `useSavedViews(listSlug)`, `useRecords(listSlug, …)`.
+
 ## [0.57.5] — 2026-05-27
 
 **Fix de perf — vistas Kanban / Cards / Calendar cargaban lento al

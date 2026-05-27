@@ -66,8 +66,25 @@ export function RecordsPage(): JSX.Element {
     const { listSlug } = useParams<{ listSlug: string }>();
     const navigate = useNavigate();
     const list = useList(listSlug);
-    const fields = useFields(list.data?.id);
-    const views = useSavedViews(list.data?.id);
+    // 0.57.6 — paralelización del cold load.
+    //
+    // Antes `useFields` y `useSavedViews` recibían `list.data?.id`,
+    // lo que los mantenía disabled hasta que `useList` resolvía.
+    // Resultado: dos round-trips secuenciales (list → fields/views)
+    // antes de poder pintar nada.
+    //
+    // El backend acepta `id_or_slug` en /lists/{x}/fields y /views,
+    // así que pasamos el slug del URL directamente. Los tres
+    // fetches (list, fields, views) arrancan en el mismo tick del
+    // primer render — paralelos en la red.
+    //
+    // Nota sobre cache: el queryKey de cada hook usa el identificador
+    // que recibió. Si una pantalla anterior hidrató con id numérico
+    // y esta llega con slug, son cache entries separados. No es ideal
+    // pero tampoco rompe nada — solo un fetch extra la primera vez
+    // que se viene por slug.
+    const fields = useFields(listSlug);
+    const views = useSavedViews(listSlug);
 
     const [state, setState] = useState<RecordsState>(INITIAL_STATE);
     const [activeViewId, setActiveViewId] = useState<number | null>(null);
@@ -111,17 +128,18 @@ export function RecordsPage(): JSX.Element {
         return base;
     }, [state, activeViewId, views.data]);
 
-    // Esperamos a `views.data` antes de lanzar el primer query de
-    // records. Razón: si la saved view default es Kanban/Cards/
-    // Calendar, el `baseQuery` necesita `per_page=500`. Sin esta
-    // condición disparamos un primer query con `per_page=50` (el
-    // default), después `applyView` setea el activeViewId, y eso
-    // dispara un SEGUNDO query con `per_page=500` — desperdiciando
-    // un round-trip al backend. Con esta condición esperamos los
-    // ~50ms del fetch de views y disparamos el query correcto de
-    // entrada.
+    // 0.57.6 — paralelización del cold load.
+    //
+    // Antes el primer fetch de records esperaba a `list.data?.id` Y a
+    // `views.data`. El primero ya está en paralelo con fields/views
+    // gracias al cambio de slug arriba; pero igual no podíamos
+    // disparar `useRecords` hasta tener el id. Ahora le pasamos el
+    // slug y el backend lo resuelve. Combinado con la espera de
+    // `views.data` (para evitar el doble query con per_page=50 →
+    // per_page=500), el primer query de records arranca tan pronto
+    // como las saved views resuelven, paralelo con el chunk JS lazy.
     const baseRecords = useRecords(
-        views.data !== undefined ? list.data?.id : undefined,
+        views.data !== undefined ? listSlug : undefined,
         baseQuery,
     );
 
@@ -144,7 +162,7 @@ export function RecordsPage(): JSX.Element {
     }, [state, debouncedSearch, activeViewId, views.data]);
 
     const serverSearch = useRecords(
-        useServerSearch ? list.data?.id : undefined,
+        useServerSearch ? listSlug : undefined,
         serverSearchQuery,
     );
 

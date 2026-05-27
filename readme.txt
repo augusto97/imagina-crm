@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.5
+Stable tag: 0.57.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,18 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.6 =
+**Cold load del RecordsPage paraleliza los 3 fetches iniciales.**
+
+Antes `useFields` y `useSavedViews` esperaban a que `useList`
+resolviera (necesitaban el `id`). Eso forzaba un waterfall
+serial: list → (fields ‖ views) → records. Ahora les pasamos
+el `listSlug` directamente — el backend acepta `id_or_slug` en
+todos esos endpoints. Los 3 fetches arrancan en el mismo tick
+del primer render.
+
+Ahorro: 100-300ms en el cold load según latencia del backend.
 
 = 0.57.5 =
 **Fix de perf — vistas Kanban / Cards / Calendar cargaban lento al
