@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.20
+Stable tag: 0.57.21
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.21 =
+**Fix:** regresión 0.57.20 — en el editor del portal del cliente,
+cada bloque se expandía hasta el cap máximo de auto-height (~960px),
+generando espacio vacío gigante dentro de cada bloque.
+
+Causa: los bloques del portal tienen `flex: 1` y el wrapper
+`.imcrm-portal-preview-root` tiene `height: 100%`. Como el wrapper
+interno del editor (`BlockSlot.innerRef`) es `absolute inset-0`
+(altura = slot), el bloque del portal se estiraba al alto del slot.
+El padding interno del wrapper preview (`0.75rem`) hacía que
+`scrollHeight > slot height`. El ResizeObserver detectaba overflow,
+autoRows aumentaba → slot crecía → padding se aplicaba al slot
+mayor → loop hasta el cap de 24 rows.
+
+En el editor del CRM no pasaba porque los bloques tienen altura
+natural (sin `flex: 1` ni `height: 100%`), así que la medición es
+estable.
+
+Fix: override CSS dentro de `.imcrm-template-editor-grid` para
+neutralizar el estiramiento del preview del portal:
+* `.imcrm-portal-preview-root` → `height: auto` (en vez de `100%`).
+* `.imcrm-portal-preview-root > .imcrm-portal-block` → `flex: 0 0 auto`.
+
+Resultado: el bloque toma altura natural en el editor, scrollHeight
+refleja el contenido real, no hay loop creciente.
 
 = 0.57.20 =
 **Auto-height en el editor visual** — los bloques crecen automáticamente

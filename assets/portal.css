@@ -1509,8 +1509,21 @@
 }
 /* El wrapper del bloque en el editor ya tiene su propio padding/border
  * a través de react-grid-layout — neutralizamos para que el preview
- * sea pixel-perfect. */
+ * sea pixel-perfect.
+ *
+ * **Auto-height (0.57.21)**: el editor mide `scrollHeight` del contenido
+ * para expandir el slot al alto necesario (ver GridCanvas). Para que la
+ * medición refleje el alto NATURAL del bloque (no el del slot), el
+ * preview-root y su bloque hijo NO deben estirarse:
+ *   - `height: auto` en lugar de `100%` (override de la regla base).
+ *   - `flex: 0 0 auto` en el bloque hijo (override de `flex: 1`).
+ * Sin esto, el bloque crece al alto del slot, y el padding interno
+ * sumado al alto del slot genera un loop creciente hasta el cap. */
 .imcrm-template-editor-grid .imcrm-portal-preview-root {
+    height: auto;
     padding: 0.75rem;
-    overflow: auto;
+    overflow: visible;
+}
+.imcrm-template-editor-grid .imcrm-portal-preview-root > .imcrm-portal-block {
+    flex: 0 0 auto;
 }
