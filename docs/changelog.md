@@ -4,6 +4,49 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.14] — 2026-05-27
+
+**Editor de plantillas — paneles laterales colapsables.**
+
+El `TemplateEditorShell` (compartido por el editor de CRM y el
+de portal del cliente) tiene 3 columnas: paleta (260px) · canvas
+(1fr) · inspector (320px). Para listas largas o pantallas chicas,
+580px de paneles laterales le quedaba apretado el canvas.
+
+### El cambio
+
+Cada panel lateral tiene ahora un botón pequeño (`ChevronLeft` /
+`ChevronRight`) en su esquina interna. Click colapsa el panel a
+un sliver de 28px que solo contiene el handle para re-expandir.
+El grid se actualiza con la nueva distribución de columnas:
+
+```ts
+'imcrm-grid-cols-[var(--imcrm-palette-w)_1fr_var(--imcrm-inspector-w)]'
+// --imcrm-palette-w: 260px (abierto) | 28px (colapsado)
+// --imcrm-inspector-w: 320px (abierto) | 28px (colapsado)
+```
+
+### Comportamientos
+
+- **Persistencia**: cada panel guarda su estado en
+  `localStorage['imcrm:editor:palette-collapsed']` y
+  `localStorage['imcrm:editor:inspector-collapsed']`. Al volver al
+  editor el layout es el que el usuario eligió la sesión anterior.
+- **Auto-abrir inspector al seleccionar**: si el inspector está
+  colapsado y el usuario clickea un bloque del canvas,
+  `handleSelectBlock` setea `setInspectorCollapsed(false)`. El UX
+  esperado: el usuario clickea para configurar algo, no para que
+  no vea nada.
+- **Paleta NO auto-abre**: seleccionar un bloque no implica querer
+  agregar bloques nuevos. Solo el botón explícito la abre.
+
+### Cambios
+
+- `app/admin/template-editor-core/TemplateEditorShell.tsx` —
+  estado collapsed con persistencia, helpers `CollapsedPanelHandle`
+  y `CollapseButton`, auto-open en `handleSelectBlock`, grid con
+  CSS variables para columnas dinámicas.
+
 ## [0.57.13] — 2026-05-27
 
 **Fix — al cerrar un bloque "Aviso/Alerta" dismissible, los bloques

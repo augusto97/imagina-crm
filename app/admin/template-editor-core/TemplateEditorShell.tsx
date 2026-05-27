@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     ArrowLeft,
+    ChevronLeft,
+    ChevronRight,
     Eye,
     Loader2,
     Maximize2,
@@ -104,6 +106,43 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
     } = useTemplateHistory<TBlock[]>(initialBlocks);
 
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
+
+    // Estado collapsed de los paneles laterales. Persistido en
+    // localStorage para que el editor recuerde la preferencia entre
+    // sesiones — lo que da más espacio al canvas se siente como una
+    // mejora permanente, no algo que hay que reconfigurar cada vez.
+    const [paletteCollapsed, setPaletteCollapsed] = useState<boolean>(() => {
+        try {
+            return window.localStorage.getItem('imcrm:editor:palette-collapsed') === '1';
+        } catch {
+            return false;
+        }
+    });
+    const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
+        try {
+            return window.localStorage.getItem('imcrm:editor:inspector-collapsed') === '1';
+        } catch {
+            return false;
+        }
+    });
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(
+                'imcrm:editor:palette-collapsed',
+                paletteCollapsed ? '1' : '0',
+            );
+        } catch { /* localStorage bloqueado: sin daño */ }
+    }, [paletteCollapsed]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(
+                'imcrm:editor:inspector-collapsed',
+                inspectorCollapsed ? '1' : '0',
+            );
+        } catch { /* localStorage bloqueado: sin daño */ }
+    }, [inspectorCollapsed]);
     const [preview, setPreview] = useState(false);
     const [fullScreen, setFullScreen] = useState(false);
     const [previewRecord, setPreviewRecord] = useState<RecordEntity | null>(null);
@@ -221,6 +260,14 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
         if (id === null) {
             setSelectedBlockIds([]);
             return;
+        }
+        // Auto-abrir el inspector cuando el usuario clickea un bloque.
+        // Si lo había colapsado para tener más espacio, igual queremos
+        // que vea las opciones del bloque que acaba de seleccionar.
+        // No tocamos `paletteCollapsed` — esa preferencia se respeta
+        // porque seleccionar un bloque no implica querer la paleta.
+        if (inspectorCollapsed) {
+            setInspectorCollapsed(false);
         }
         setSelectedBlockIds((prev) => {
             if (! additive) return [id];
@@ -446,21 +493,49 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
             <div
                 className={cn(
                     'imcrm-grid imcrm-flex-1 imcrm-gap-3 imcrm-overflow-hidden',
+                    // Columnas dinámicas: cuando un panel está colapsado
+                    // queda un sliver de 28px (el handle de re-expansión)
+                    // y el canvas crece para tomar el espacio. Cuando
+                    // ambos están colapsados el canvas usa casi todo el
+                    // ancho disponible.
                     preview
                         ? 'imcrm-grid-cols-1'
-                        : 'imcrm-grid-cols-[260px_1fr_320px]',
+                        : cn(
+                            'imcrm-grid-cols-[var(--imcrm-palette-w)_1fr_var(--imcrm-inspector-w)]',
+                        ),
                 )}
+                style={
+                    preview
+                        ? undefined
+                        : ({
+                            '--imcrm-palette-w': paletteCollapsed ? '28px' : '260px',
+                            '--imcrm-inspector-w': inspectorCollapsed ? '28px' : '320px',
+                        } as React.CSSProperties)
+                }
             >
                 {! preview && (
-                    <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                        <PalettePanel
-                            registry={registry}
-                            existingBlocks={blocks}
-                            fields={fields}
-                            onAddBlock={(type) => handleAddBlock(type)}
-                            onAddField={(slug) => handleAddField(slug)}
+                    paletteCollapsed ? (
+                        <CollapsedPanelHandle
+                            side="left"
+                            label={__('Mostrar paleta')}
+                            onClick={() => setPaletteCollapsed(false)}
                         />
-                    </aside>
+                    ) : (
+                        <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                            <CollapseButton
+                                side="left"
+                                label={__('Ocultar paleta')}
+                                onClick={() => setPaletteCollapsed(true)}
+                            />
+                            <PalettePanel
+                                registry={registry}
+                                existingBlocks={blocks}
+                                fields={fields}
+                                onAddBlock={(type) => handleAddBlock(type)}
+                                onAddField={(slug) => handleAddField(slug)}
+                            />
+                        </aside>
+                    )
                 )}
 
                 <main
@@ -485,39 +560,112 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                 </main>
 
                 {! preview && (
-                    <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                        {selectedBlockIds.length > 1 ? (
-                            <BulkActionsPanel
-                                count={selectedBlockIds.length}
-                                onDuplicate={() => handleDuplicateBlocks(selectedBlockIds)}
-                                onDelete={() => {
-                                    void confirm({
-                                        title: __('Eliminar bloques'),
-                                        description: __('Se eliminarán %d bloques.').replace('%d', String(selectedBlockIds.length)),
-                                        destructive: true,
-                                        confirmLabel: __('Eliminar'),
-                                    }).then((ok) => {
-                                        if (ok) handleDeleteBlocks(selectedBlockIds);
-                                    });
-                                }}
-                                onDeselect={() => setSelectedBlockIds([])}
+                    inspectorCollapsed ? (
+                        <CollapsedPanelHandle
+                            side="right"
+                            label={__('Mostrar opciones')}
+                            onClick={() => setInspectorCollapsed(false)}
+                        />
+                    ) : (
+                        <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                            <CollapseButton
+                                side="right"
+                                label={__('Ocultar opciones')}
+                                onClick={() => setInspectorCollapsed(true)}
                             />
-                        ) : selectedBlock ? (
-                            <InspectorPanel
-                                block={selectedBlock}
-                                fields={fields}
-                                registry={registry}
-                                onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
-                                onDelete={() => handleDeleteBlocks([selectedBlock.id])}
-                                onDuplicate={() => handleDuplicateBlocks([selectedBlock.id])}
-                            />
-                        ) : (
-                            emptySelectionPanel ?? <DefaultEmptyPanel listSlug={listSlug} />
-                        )}
-                    </aside>
+                            {selectedBlockIds.length > 1 ? (
+                                <BulkActionsPanel
+                                    count={selectedBlockIds.length}
+                                    onDuplicate={() => handleDuplicateBlocks(selectedBlockIds)}
+                                    onDelete={() => {
+                                        void confirm({
+                                            title: __('Eliminar bloques'),
+                                            description: __('Se eliminarán %d bloques.').replace('%d', String(selectedBlockIds.length)),
+                                            destructive: true,
+                                            confirmLabel: __('Eliminar'),
+                                        }).then((ok) => {
+                                            if (ok) handleDeleteBlocks(selectedBlockIds);
+                                        });
+                                    }}
+                                    onDeselect={() => setSelectedBlockIds([])}
+                                />
+                            ) : selectedBlock ? (
+                                <InspectorPanel
+                                    block={selectedBlock}
+                                    fields={fields}
+                                    registry={registry}
+                                    onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
+                                    onDelete={() => handleDeleteBlocks([selectedBlock.id])}
+                                    onDuplicate={() => handleDuplicateBlocks([selectedBlock.id])}
+                                />
+                            ) : (
+                                emptySelectionPanel ?? <DefaultEmptyPanel listSlug={listSlug} />
+                            )}
+                        </aside>
+                    )
                 )}
             </div>
         </div>
+    );
+}
+
+/**
+ * Tira angosta (28px) que reemplaza al panel cuando está colapsado.
+ * Click la re-expande. El icono apunta hacia donde va a abrirse el
+ * panel (→ para left, ← para right) para sugerir la dirección del
+ * gesto. Aria-label completo para lectores de pantalla.
+ */
+function CollapsedPanelHandle({
+    side,
+    label,
+    onClick,
+}: {
+    side: 'left' | 'right';
+    label: string;
+    onClick: () => void;
+}): JSX.Element {
+    const Icon = side === 'left' ? ChevronRight : ChevronLeft;
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            title={label}
+            className="imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground imcrm-transition-colors"
+        >
+            <Icon className="imcrm-h-4 imcrm-w-4" aria-hidden />
+        </button>
+    );
+}
+
+/**
+ * Botón pequeño en la esquina superior del panel para colapsarlo.
+ * Posicionado absolute sobre el borde interno; el panel debe ser
+ * `position: relative` para que el botón se ancle correctamente.
+ */
+function CollapseButton({
+    side,
+    label,
+    onClick,
+}: {
+    side: 'left' | 'right';
+    label: string;
+    onClick: () => void;
+}): JSX.Element {
+    const Icon = side === 'left' ? ChevronLeft : ChevronRight;
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            title={label}
+            className={cn(
+                'imcrm-absolute imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground imcrm-transition-colors',
+                side === 'left' ? 'imcrm-right-2' : 'imcrm-left-2',
+            )}
+        >
+            <Icon className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
+        </button>
     );
 }
 

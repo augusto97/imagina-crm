@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.13
+Stable tag: 0.57.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,25 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.14 =
+**Editor de plantillas — paleta izquierda y panel de opciones
+derecho ahora colapsables.**
+
+Tanto el editor del CRM como el del portal del cliente usan el
+mismo shell de 3 columnas (paleta · canvas · inspector). Ahora
+cada panel lateral tiene un botón pequeño en su esquina interna
+para colapsarlo a un sliver de 28px — el canvas se expande para
+tomar el espacio liberado.
+
+Si el inspector está colapsado y el usuario clickea un bloque del
+canvas, **el inspector se auto-abre** para mostrar las opciones
+del bloque recién seleccionado. La paleta NO se auto-abre porque
+seleccionar un bloque no implica querer mostrar más bloques nuevos.
+
+La preferencia (qué paneles están colapsados) se guarda en
+localStorage por nombre de panel — al volver al editor, los paneles
+recuerdan el estado de la sesión anterior.
 
 = 0.57.13 =
 **Fix — al cerrar un bloque "Aviso/Alerta" dismissible, los bloques
