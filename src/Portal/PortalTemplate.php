@@ -134,6 +134,11 @@ final class PortalTemplate
             if (isset($block['h']) && is_int($block['h'])) {
                 $entry['h'] = $block['h'];
             }
+            // 0.57.24 — `pos` permite apilar varios bloques en la misma
+            // columna (mismo x/y). Opcional; default 0 en el front.
+            if (isset($block['pos']) && is_int($block['pos'])) {
+                $entry['pos'] = $block['pos'];
+            }
             $blocks[] = $entry;
         }
 

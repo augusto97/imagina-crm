@@ -430,16 +430,17 @@ body.imcrm-template-editor-fullscreen .imcrm-template-editor-root {
 }
 .imcrm-row__cell {
     /* `flex-basis` se asigna inline desde el componente:
-     * `style={{ flexBasis: ${(w/12)*100}%, maxWidth: ... }}`
-     * Acá solo declaramos el comportamiento común. */
+     * `style={{ flexBasis: ${(w/12)*100}%, maxWidth: ... }}`.
+     * Cada cell es un flex column container que apila los bloques
+     * de esa columna verticalmente con gap entre ellos. */
     flex-grow: 0;
     flex-shrink: 0;
     min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    gap: 12px;
 }
 .imcrm-row__cell > * {
-    flex: 1;
     min-height: 0;
 }

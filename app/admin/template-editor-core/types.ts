@@ -14,10 +14,16 @@ export interface BaseTemplateBlock {
     id: string;
     type: string;
     config: Record<string, unknown>;
+    /** Índice de columna dentro de la fila (0, 1, 2...). */
     x: number;
+    /** Índice de fila (0, 1, 2...). */
     y: number;
+    /** Ancho de la columna en cols de 12. */
     w: number;
+    /** [Legacy] Altura — ignorado desde 0.57.22. */
     h: number;
+    /** Posición vertical dentro de la columna (0, 1, 2...). Default 0. */
+    pos?: number;
 }
 
 export interface BaseTemplateConfig<TBlock extends BaseTemplateBlock> {
@@ -58,7 +64,7 @@ export interface FieldAsBlockAdapter<TBlock extends BaseTemplateBlock> {
     createBlock: (
         field: FieldEntity,
         existing: TBlock[],
-        position?: { x: number; y: number },
+        position?: { x: number; y: number; pos?: number },
     ) => TBlock | null;
     /** Filtra cuáles fields aparecen en la paleta. Default: todos. */
     fieldFilter?: (field: FieldEntity) => boolean;
@@ -92,7 +98,7 @@ export interface BlockRegistry<TBlock extends BaseTemplateBlock> {
         type: string,
         existing: TBlock[],
         ctx: { fields: FieldEntity[] },
-        position?: { x: number; y: number },
+        position?: { x: number; y: number; pos?: number },
     ) => TBlock | null;
 
     /** Razón por la cual `createBlock` devolvió null (para mostrar toast). */

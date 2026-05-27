@@ -1545,10 +1545,19 @@ export type V2BlockType =
 
 interface V2BlockBase {
     id: string;
+    /** Índice de columna dentro de la fila (0, 1, 2...). */
     x: number;
+    /** Índice de fila (0, 1, 2...). */
     y: number;
+    /** Ancho de la columna en cols de 12. */
     w: number;
+    /** [Legacy] Altura — ignorado desde 0.57.22. */
     h: number;
+    /**
+     * Posición vertical dentro de la columna (0, 1, 2...). Permite
+     * apilar varios bloques en la misma columna. Default 0.
+     */
+    pos?: number;
 }
 
 /**

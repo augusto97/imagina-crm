@@ -24,7 +24,7 @@ export function createBlock(
     type: V2BlockType,
     fields: FieldEntity[],
     existing: V2Block[],
-    position?: { x: number; y: number },
+    position?: { x: number; y: number; pos?: number },
 ): V2Block | null {
     const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     // 0.57.23 — `y` es índice de fila. Append al final = max(y)+1.
@@ -34,6 +34,7 @@ export function createBlock(
         id,
         x: position?.x ?? 0,
         y: position?.y ?? fallbackY,
+        pos: position?.pos ?? 0,
         w: 4,
         h: 0,
     };
@@ -124,7 +125,7 @@ export function appendBlock(
     config: CustomTemplateConfigV2,
     type: V2BlockType,
     fields: FieldEntity[],
-    position?: { x: number; y: number },
+    position?: { x: number; y: number; pos?: number },
 ): { config: CustomTemplateConfigV2; addedId: string } | null {
     const block = createBlock(type, fields, config.blocks, position);
     if (! block) return null;
@@ -145,7 +146,7 @@ export function appendBlock(
 export function appendFieldAsGroup(
     config: CustomTemplateConfigV2,
     field: FieldEntity,
-    position?: { x: number; y: number },
+    position?: { x: number; y: number; pos?: number },
 ): { config: CustomTemplateConfigV2; addedId: string } {
     const id = `properties_group-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const maxY = config.blocks.reduce((m, b) => Math.max(m, b.y ?? 0), -1);
@@ -154,6 +155,7 @@ export function appendFieldAsGroup(
         id,
         x: position?.x ?? 0,
         y: position?.y ?? fallbackY,
+        pos: position?.pos ?? 0,
         w: 4,
         h: 0,
         type: 'properties_group',

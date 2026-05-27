@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { groupBlocksByRow } from '@/lib/rowsLayout';
+import { groupBlocksByRowsAndColumns } from '@/lib/rowsLayout';
 
 import { fetchMe } from './api';
 import { ActivityTimelineBlock } from './blocks/ActivityTimelineBlock';
@@ -81,68 +81,76 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
         return <p className="imcrm-portal-block__loading">Cargando tu portal…</p>;
     }
 
-    // 0.57.23 — Layout unificado por filas.
+    // 0.57.24 — Layout filas → columnas → bloques apilados.
     //
-    // Agrupo bloques por `y` (índice de fila), dentro de cada fila los
-    // ordeno por `x`. Cada fila se renderea como flex row con cada
-    // bloque ocupando `flex-basis: ${w/12 * 100}%`. La altura de la
-    // fila la define el bloque más alto adentro — los demás se
-    // estiran a su altura via `flex: 1` (definido en CSS).
-    //
-    // Sin pretensión de "huecos" — bloques con x intermedios sin
-    // bloque previo simplemente se posicionan al inicio de su fila.
-    // El editor solo crea x consecutivos (0, 1, 2...) así que esto
-    // no debería ocurrir en templates nuevos. Templates viejos que
-    // tuvieran "x=5 con espacio en x=0..4" pierden el espacio en
-    // blanco — decisión consciente (ver CLAUDE.md / 0.57.23).
-    const rows = groupBlocksByRow(
+    // Cada fila contiene N columnas (con ancho propio en /12). Cada
+    // columna contiene una pila vertical de bloques. El HTML/CSS es
+    // idéntico al editor: clases `imcrm-rows-layout` / `imcrm-row` /
+    // `imcrm-row__cell`. Bloques apilados se separan con `gap: 12px`
+    // del CSS del cell (flex column).
+    if (data.template.blocks.length === 0) return <></>;
+
+    const rows = groupBlocksByRowsAndColumns(
         data.template.blocks.map((b, i) => ({ ...b, __idx: i })),
     );
-
-    const hasAnyBlock = data.template.blocks.length > 0;
-    if (! hasAnyBlock) return <></>;
 
     return (
         <div className="imcrm-rows-layout">
             {rows.map((row) => {
-                // Filtrar bloques dismissed de esta fila. Si toda la
-                // fila queda vacía, no renderizamos el wrapper para
-                // que no genere gap inútil.
-                const visible = row.blocks.filter((b) => ! dismissed.has(b.__idx));
-                if (visible.length === 0) return null;
+                // Si TODOS los bloques de la fila están dismissed,
+                // no renderizamos la fila para no generar gap inútil.
+                const visibleColumns = row.columns
+                    .map((col) => ({
+                        ...col,
+                        blocks: col.blocks.filter((b) => ! dismissed.has(b.__idx)),
+                    }))
+                    .filter((col) => col.blocks.length > 0);
+
+                if (visibleColumns.length === 0) return null;
+
                 return (
                     <div key={`row-${row.index}`} className="imcrm-row">
-                        {visible.map((block) => {
-                            const handleDismiss = (): void => {
-                                setDismissed((prev) => {
-                                    const next = new Set(prev);
-                                    next.add(block.__idx);
-                                    return next;
-                                });
-                            };
-                            const rendered = renderBlock(
-                                block,
-                                block.__idx,
-                                data,
-                                boot,
-                                handleDismiss,
-                            );
-                            if (rendered === null) return null;
-                            const maxH = readMaxHeight(block.config as Record<string, unknown>);
-                            const w = block.w ?? 12;
-                            const basis = `${(w / 12) * 100}%`;
-                            const style: React.CSSProperties = {
+                        {visibleColumns.map((col) => {
+                            const basis = `${(col.width / 12) * 100}%`;
+                            const cellStyle: React.CSSProperties = {
                                 flexBasis: basis,
                                 maxWidth: basis,
                             };
-                            if (maxH !== null) style.maxHeight = `${maxH}px`;
                             return (
                                 <div
-                                    key={block.__idx}
+                                    key={`col-${row.index}-${col.colIdx}`}
                                     className="imcrm-row__cell"
-                                    style={style}
+                                    style={cellStyle}
                                 >
-                                    {rendered}
+                                    {col.blocks.map((block) => {
+                                        const handleDismiss = (): void => {
+                                            setDismissed((prev) => {
+                                                const next = new Set(prev);
+                                                next.add(block.__idx);
+                                                return next;
+                                            });
+                                        };
+                                        const rendered = renderBlock(
+                                            block,
+                                            block.__idx,
+                                            data,
+                                            boot,
+                                            handleDismiss,
+                                        );
+                                        if (rendered === null) return null;
+                                        const maxH = readMaxHeight(
+                                            block.config as Record<string, unknown>,
+                                        );
+                                        const wrapStyle: React.CSSProperties | undefined =
+                                            maxH !== null
+                                                ? { maxHeight: `${maxH}px`, overflowY: 'auto' }
+                                                : undefined;
+                                        return (
+                                            <div key={block.__idx} style={wrapStyle}>
+                                                {rendered}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             );
                         })}

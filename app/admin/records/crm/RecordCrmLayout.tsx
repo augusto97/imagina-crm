@@ -8,7 +8,7 @@ import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
 import { getResolvedV2 } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
-import { groupBlocksByRow } from '@/lib/rowsLayout';
+import { groupBlocksByRowsAndColumns } from '@/lib/rowsLayout';
 import type { FieldEntity } from '@/types/field';
 import type { ListSummary } from '@/types/list';
 import type { RecordEntity } from '@/types/record';
@@ -70,9 +70,9 @@ export function RecordCrmLayout({
         [list.settings, fields],
     );
 
-    // 0.57.23 — Layout por filas (idéntico al portal).
+    // 0.57.24 — Layout filas → columnas → bloques apilados (idéntico al portal).
     const rows = useMemo(
-        () => groupBlocksByRow(resolved.blocks),
+        () => groupBlocksByRowsAndColumns(resolved.blocks),
         [resolved.blocks],
     );
 
@@ -119,31 +119,34 @@ export function RecordCrmLayout({
                 <div className="imcrm-rows-layout">
                     {rows.map((row) => (
                         <div key={`row-${row.index}`} className="imcrm-row">
-                            {row.blocks.map((b) => {
-                                const basis = `${(b.w / 12) * 100}%`;
+                            {row.columns.map((col) => {
+                                const basis = `${(col.width / 12) * 100}%`;
                                 return (
                                     <div
-                                        key={b.id}
+                                        key={`col-${row.index}-${col.colIdx}`}
                                         className="imcrm-row__cell"
                                         style={{ flexBasis: basis, maxWidth: basis }}
                                     >
-                                        <BlockRenderer
-                                            block={b}
-                                            listId={list.id}
-                                            recordId={record.id}
-                                            currentUserId={currentUserId}
-                                            isAdmin={isAdmin}
-                                            values={values}
-                                            onChange={setValues}
-                                            fieldErrors={fieldErrors}
-                                            record={record}
-                                            headerData={resolved.header}
-                                            onSave={() => void handleSave()}
-                                            onDelete={onDelete}
-                                            canSave={dirty}
-                                            saving={update.isPending}
-                                            deleting={deleting}
-                                        />
+                                        {col.blocks.map((b) => (
+                                            <BlockRenderer
+                                                key={b.id}
+                                                block={b}
+                                                listId={list.id}
+                                                recordId={record.id}
+                                                currentUserId={currentUserId}
+                                                isAdmin={isAdmin}
+                                                values={values}
+                                                onChange={setValues}
+                                                fieldErrors={fieldErrors}
+                                                record={record}
+                                                headerData={resolved.header}
+                                                onSave={() => void handleSave()}
+                                                onDelete={onDelete}
+                                                canSave={dirty}
+                                                saving={update.isPending}
+                                                deleting={deleting}
+                                            />
+                                        ))}
                                     </div>
                                 );
                             })}

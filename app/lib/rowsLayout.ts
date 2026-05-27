@@ -1,122 +1,165 @@
 /**
- * Layout por filas — el modelo unificado de render desde 0.57.23.
+ * Layout por filas/columnas/bloques apilados — modelo unificado desde 0.57.24.
  *
- * Antes (modelo libre tipo react-grid-layout):
- *   Cada bloque tenía `(x, y, w, h)` libre en una grilla 12-col × N-row
- *   con rowHeight fijo. Esto creaba dos problemas crónicos:
- *     1. **Huecos por fila distinta**: dos bloques con distinto `y`
- *        pero misma "columna visual" generaban una fila CSS Grid de
- *        altura del más alto, dejando hueco abajo del más chico.
- *     2. **Editor vs front divergente**: el editor usaba rowHeight
- *        fijo (h × 40px) y el front intentaba auto-height — nunca
- *        coincidían visualmente.
+ * Estructura conceptual (jerárquica):
  *
- * Ahora (modelo por filas explícitas):
- *   - El template = lista ORDENADA de filas (`Row`).
- *   - Cada fila contiene N bloques en orden horizontal.
- *   - La altura de cada fila la define el bloque más alto adentro.
- *   - Cada bloque tiene `width` (1-12) que es su fracción de 12-col.
- *   - La suma de widths de una fila puede ser ≤ 12 (el resto queda vacío).
+ *   Template
+ *     ├─ Row 0
+ *     │    ├─ Column 0 (w=8)
+ *     │    │    ├─ Block "header"
+ *     │    │    ├─ Block "properties"
+ *     │    │    └─ Block "timeline"
+ *     │    └─ Column 1 (w=4)
+ *     │         ├─ Block "stats"
+ *     │         └─ Block "related"
+ *     ├─ Row 1
+ *     │    └─ Column 0 (w=12)
+ *     │         └─ Block "notes"
+ *     ...
  *
- * Almacenamiento (JSON-compat con templates viejos):
- *   El JSON sigue siendo `blocks: [{ id, type, config, x, y, w, h }]`.
- *   Reinterpretamos los campos:
- *     - `y` → índice de fila (0, 1, 2, ...)
- *     - `x` → posición dentro de la fila (0, 1, 2, ...)
- *     - `w` → ancho en cols de 12 (no cambia semántica)
- *     - `h` → ignorado en render (se mantiene para compat)
+ * Storage (sigue flat en el JSON):
  *
- * Migración automática:
- *   Los templates viejos tienen `y` con valores arbitrarios (0, 4, 8, ...)
- *   correspondientes a "row offset" del rowHeight. `normalizeToRows`
- *   los re-numera a índices consecutivos (0, 1, 2, ...) agrupando por
- *   `y` original.
+ *   Cada bloque tiene `{ y, x, w, pos }`:
+ *     - `y` → índice de fila (0, 1, 2...)
+ *     - `x` → índice de columna dentro de la fila (0, 1, 2...)
+ *     - `w` → ancho de la columna en cols de 12
+ *     - `pos` → posición vertical dentro de la columna (0, 1, 2...)
+ *
+ *   Dos bloques con el mismo (y, x) están en la MISMA columna,
+ *   apilados verticalmente según `pos`.
+ *   Dos bloques con (y, x) distintos están en columnas separadas
+ *   de la misma fila (si comparten `y`) o en filas distintas.
+ *
+ * El `w` se infiere de la PRIMERA columna definida en cada (y, x) —
+ * para que dos bloques en la misma columna no puedan disagree sobre
+ * el ancho. Al editar el ancho de una columna, se aplica a todos los
+ * bloques de esa columna.
+ *
+ * Compatibilidad con templates legacy (modelo pre-0.57.24):
+ *   - Bloques sin `pos` → default 0 (una columna = un bloque).
+ *   - Bloques con `y` arbitrarios → siguen funcionando (groupBlocks
+ *     usa el `y` tal cual). Al editar, se normalizan a consecutivos.
+ *   - El campo `h` se ignora completamente.
  */
 
 export interface PositionedBlock {
-    /** Opcional para compat con el front del portal que no siempre lo
-     * lleva. Los métodos que mutan por id (`moveBlock`, `removeBlock`,
-     * `setBlockWidth`) requieren su variante `& { id: string }`. */
     id?: string;
-    x?: number;
-    y?: number;
-    w?: number;
-    h?: number;
+    x?: number;     // índice de columna en la fila (0, 1, 2...)
+    y?: number;     // índice de fila (0, 1, 2...)
+    w?: number;     // ancho de la columna en /12
+    h?: number;     // [legacy, ignorado]
+    pos?: number;   // posición vertical dentro de la columna (0, 1, 2...)
 }
 
 type WithId<T> = T & { id: string };
 
-export interface Row<T extends PositionedBlock> {
-    /** Índice de la fila (0-based). */
-    index: number;
-    /** Bloques de la fila en orden horizontal de izq a der. */
+export interface Column<T extends PositionedBlock> {
+    /** Índice de la columna dentro de su fila (0, 1, 2...). */
+    colIdx: number;
+    /** Ancho en cols de 12 (inferido del primer bloque). */
+    width: number;
+    /** Bloques apilados verticalmente, ordenados por `pos` ascendente. */
     blocks: T[];
 }
 
+export interface Row<T extends PositionedBlock> {
+    /** Índice de fila (puede ser no-consecutivo en templates legacy). */
+    index: number;
+    /** Columnas ordenadas por colIdx ascendente. */
+    columns: Column<T>[];
+}
+
 /**
- * Agrupa blocks por su `y` (índice de fila) y los ordena por `x`
- * dentro de cada fila. Devuelve las filas ordenadas por índice.
+ * Agrupa los bloques en una jerarquía Filas → Columnas → Bloques.
  *
- * El `y` resultante de los blocks NO se re-numera — se usa tal cual.
- * Si los blocks vienen migrados (índices consecutivos 0, 1, 2...) las
- * filas también lo son. Si vienen sin migrar (y arbitrarios), las
- * filas tendrán los `y` originales como índice pero estarán en orden.
+ * El orden interno:
+ *  - Filas: por `y` ascendente.
+ *  - Columnas dentro de fila: por `x` ascendente.
+ *  - Bloques dentro de columna: por `pos` ascendente; empate → orden
+ *    de inserción.
  *
- * Si querés que los blocks queden con índices consecutivos, usá
- * `normalizeToRows` antes.
+ * No re-numera nada — los valores `y/x/pos` se devuelven tal cual.
+ * Para normalizar a índices consecutivos, usar `normalizeToRows`.
  */
-export function groupBlocksByRow<T extends PositionedBlock>(
+export function groupBlocksByRowsAndColumns<T extends PositionedBlock>(
     blocks: ReadonlyArray<T>,
 ): Row<T>[] {
-    const byRow = new Map<number, T[]>();
+    // Agrupo por (y, x) en un nested Map.
+    const byRow = new Map<number, Map<number, T[]>>();
     for (const b of blocks) {
         const y = b.y ?? 0;
-        const arr = byRow.get(y) ?? [];
-        arr.push(b);
-        byRow.set(y, arr);
+        const x = b.x ?? 0;
+        const inRow = byRow.get(y) ?? new Map<number, T[]>();
+        const inCol = inRow.get(x) ?? [];
+        inCol.push(b);
+        inRow.set(x, inCol);
+        byRow.set(y, inRow);
     }
 
+    const rowKeys = Array.from(byRow.keys()).sort((a, b) => a - b);
     const rows: Row<T>[] = [];
-    const sortedKeys = Array.from(byRow.keys()).sort((a, b) => a - b);
-    for (const key of sortedKeys) {
-        const inRow = byRow.get(key) ?? [];
-        // Orden horizontal por `x` ascendente; empate → orden de inserción.
-        inRow.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
-        rows.push({ index: key, blocks: inRow });
+    for (const rowKey of rowKeys) {
+        const colMap = byRow.get(rowKey);
+        if (! colMap) continue;
+        const colKeys = Array.from(colMap.keys()).sort((a, b) => a - b);
+        const columns: Column<T>[] = [];
+        for (const colKey of colKeys) {
+            const inCol = colMap.get(colKey) ?? [];
+            // Orden vertical por `pos`. Empate → orden de inserción.
+            inCol.sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0));
+            const width = clampWidth(inCol[0]?.w ?? 12);
+            columns.push({ colIdx: colKey, width, blocks: inCol });
+        }
+        rows.push({ index: rowKey, columns });
     }
     return rows;
 }
 
 /**
- * Migra blocks legacy (con `y` arbitrarios del modelo react-grid-layout)
- * al modelo por filas con índices consecutivos.
+ * Alias retro-compat — algunos consumidores aún esperan filas planas
+ * (sin la dimensión de columna). Devuelve filas con TODOS los bloques
+ * en un array plano, en orden (x asc, pos asc).
+ *
+ * Útil cuando un consumidor no necesita conocer la columna y solo
+ * quiere recorrer los bloques de una fila en orden visual.
+ */
+export function groupBlocksByRow<T extends PositionedBlock>(
+    blocks: ReadonlyArray<T>,
+): Array<{ index: number; blocks: T[] }> {
+    return groupBlocksByRowsAndColumns(blocks).map((r) => ({
+        index: r.index,
+        blocks: r.columns.flatMap((c) => c.blocks),
+    }));
+}
+
+/**
+ * Normaliza un template legacy al modelo (row, col, pos) con índices
+ * consecutivos. Idempotente.
  *
  * Pasos:
- *  1. Agrupa por `y` original.
- *  2. Reasigna `y` como índice consecutivo (0, 1, 2...).
- *  3. Reasigna `x` como posición consecutiva dentro de la fila (0, 1, 2...).
- *  4. Mantiene `w` (ancho en cols de 12).
- *  5. Limpia `h` poniéndolo en 0 (señaliza "auto height" pero
- *     conservamos el campo por compat de schema).
- *
- * El orden de los blocks en el array de salida es:
- *   row 0 left-to-right, row 1 left-to-right, etc.
- *
- * Es **idempotente**: aplicar dos veces da el mismo resultado.
+ *  1. Agrupa por (y, x).
+ *  2. Reasigna `y` como índice consecutivo de fila (0, 1, 2...).
+ *  3. Reasigna `x` como índice consecutivo de columna en la fila.
+ *  4. Reasigna `pos` como índice consecutivo dentro de la columna.
+ *  5. Mantiene `w` del primer bloque de cada columna; lo aplica a
+ *     todos los bloques de esa columna (consistencia).
  */
 export function normalizeToRows<T extends PositionedBlock>(
     blocks: ReadonlyArray<T>,
 ): T[] {
-    const grouped = groupBlocksByRow(blocks);
+    const rows = groupBlocksByRowsAndColumns(blocks);
     const out: T[] = [];
-    grouped.forEach((row, rowIdx) => {
-        row.blocks.forEach((block, colIdx) => {
-            out.push({
-                ...block,
-                x: colIdx,
-                y: rowIdx,
-                w: clampWidth(block.w ?? 12),
-                h: 0,
+    rows.forEach((row, rowIdx) => {
+        row.columns.forEach((col, colIdx) => {
+            col.blocks.forEach((block, posIdx) => {
+                out.push({
+                    ...block,
+                    x: colIdx,
+                    y: rowIdx,
+                    pos: posIdx,
+                    w: col.width,
+                    h: 0,
+                });
             });
         });
     });
@@ -124,110 +167,128 @@ export function normalizeToRows<T extends PositionedBlock>(
 }
 
 /**
- * Inserta una nueva fila vacía en `rowIndex`. Los blocks de esa fila
- * en adelante se shiftan +1.
+ * Mueve un bloque al destino (rowIdx, colIdx, posIdx). Si la columna
+ * o fila destino no existe, se crea. Después aplana y re-numera todo
+ * a índices consecutivos.
  *
- * Devuelve los blocks shifteados — el caller agrega después los blocks
- * nuevos con `y = rowIndex`.
- */
-export function shiftRowsDown<T extends PositionedBlock>(
-    blocks: ReadonlyArray<T>,
-    fromRowIndex: number,
-): T[] {
-    return blocks.map((b) => {
-        const y = b.y ?? 0;
-        if (y >= fromRowIndex) return { ...b, y: y + 1 };
-        return { ...b };
-    });
-}
-
-/**
- * Recompacta los `y` después de eliminar bloques (cierra huecos).
- * Si tras un delete la fila 3 quedó vacía, los blocks de filas 4+
- * bajan a 3, 4, 5...
- */
-export function compactRows<T extends PositionedBlock>(
-    blocks: ReadonlyArray<T>,
-): T[] {
-    const rows = groupBlocksByRow(blocks);
-    const out: T[] = [];
-    rows.forEach((row, newIdx) => {
-        row.blocks.forEach((block, colIdx) => {
-            out.push({ ...block, x: colIdx, y: newIdx });
-        });
-    });
-    return out;
-}
-
-/**
- * Mueve un block dentro del array a un destino (rowIndex, colIndex).
- * Si el destino está fuera del rango actual de filas, crea una nueva
- * fila al final. Después compacta para que no queden huecos.
- *
- * Útil para drag-and-drop en el editor.
+ * Comportamiento de destino:
+ *   - Si `colIdx` apunta a una columna existente en `rowIdx`, el
+ *     bloque se inserta APILADO en esa columna en posición `posIdx`.
+ *     El `w` del bloque se ajusta al `w` de la columna destino.
+ *   - Si `colIdx` apunta a una columna nueva (> colCount), se crea
+ *     una columna nueva al final de la fila con el `w` original del
+ *     bloque (o el `widthHint` provisto).
+ *   - Si `rowIdx` es > rowCount, se crea una fila nueva al final.
  */
 export function moveBlock<T extends WithId<PositionedBlock>>(
     blocks: ReadonlyArray<T>,
     blockId: string,
-    targetRow: number,
-    targetCol: number,
+    target: { row: number; col: number; pos: number },
+    widthHint?: number,
 ): T[] {
     const block = blocks.find((b) => b.id === blockId);
     if (! block) return [...blocks];
 
-    // Excluir el block del array y armar el grouped sin él.
     const without = blocks.filter((b) => b.id !== blockId);
-    const grouped = groupBlocksByRow(without);
+    const rows = groupBlocksByRowsAndColumns(without);
 
-    // Asegurar que el target row exista (rellenar con vacías si hace
-    // falta). Trabajamos sobre un array `rowsArr` indexado por índice
-    // nuevo consecutivo.
-    const rowsArr: T[][] = grouped.map((r) => r.blocks);
-    while (rowsArr.length <= targetRow) rowsArr.push([]);
+    // Asegurar que la fila destino existe.
+    while (rows.length <= target.row) {
+        rows.push({ index: rows.length, columns: [] });
+    }
+    const targetRow = rows[target.row]!;
 
-    // Insertar block en posición targetCol de la fila target.
-    const targetArr = rowsArr[targetRow] ?? [];
-    const insertIdx = Math.max(0, Math.min(targetCol, targetArr.length));
-    targetArr.splice(insertIdx, 0, block);
-    rowsArr[targetRow] = targetArr;
+    // Asegurar que la columna destino existe; si no, crear nueva.
+    let targetCol: Column<T>;
+    if (target.col < targetRow.columns.length) {
+        targetCol = targetRow.columns[target.col]!;
+    } else {
+        targetCol = {
+            colIdx: targetRow.columns.length,
+            width: clampWidth(widthHint ?? block.w ?? 12),
+            blocks: [],
+        };
+        targetRow.columns.push(targetCol);
+    }
 
-    // Aplanar reasignando x, y consecutivos.
-    const out: T[] = [];
-    rowsArr.forEach((row, rowIdx) => {
-        row.forEach((b, colIdx) => {
-            out.push({ ...b, x: colIdx, y: rowIdx });
-        });
-    });
-    return out;
+    // Inserto el bloque en la columna en posición posIdx. El `w` del
+    // bloque movido se ajusta al `width` de la columna destino para
+    // que la columna sea consistente.
+    const insertAt = Math.max(0, Math.min(target.pos, targetCol.blocks.length));
+    const moved: T = { ...block, w: targetCol.width };
+    targetCol.blocks.splice(insertAt, 0, moved);
+
+    // Re-aplanar con índices consecutivos.
+    return flattenWithConsecutiveIndices(rows);
 }
 
 /**
- * Quita un block del array y compacta filas para cerrar huecos.
+ * Quita un bloque y compacta filas/columnas para cerrar huecos.
  */
 export function removeBlock<T extends WithId<PositionedBlock>>(
     blocks: ReadonlyArray<T>,
     blockId: string,
 ): T[] {
-    return compactRows(blocks.filter((b) => b.id !== blockId));
+    return flattenWithConsecutiveIndices(
+        groupBlocksByRowsAndColumns(blocks.filter((b) => b.id !== blockId)),
+    );
 }
 
 /**
- * Cambia el ancho de un block en cols (1-12). El width final se
- * clampea entre 1 y 12. La suma de la fila puede quedar > 12; en
- * render usamos `flex-wrap: wrap` para que los excedentes pasen
- * a la siguiente línea visual dentro de la fila lógica — esto
- * raramente ocurre porque el editor previene seleccionar widths
- * que excedan el espacio disponible.
+ * Cambia el ancho de la columna que contiene un bloque. Si el bloque
+ * comparte columna con otros, el cambio se aplica a TODA la columna
+ * (mantiene consistencia).
  */
-export function setBlockWidth<T extends WithId<PositionedBlock>>(
+export function setColumnWidth<T extends WithId<PositionedBlock>>(
     blocks: ReadonlyArray<T>,
     blockId: string,
     width: number,
 ): T[] {
-    return blocks.map((b) => {
-        if (b.id !== blockId) return b;
-        return { ...b, w: clampWidth(width) };
-    });
+    const block = blocks.find((b) => b.id === blockId);
+    if (! block) return [...blocks];
+    const clamped = clampWidth(width);
+    const targetY = block.y ?? 0;
+    const targetX = block.x ?? 0;
+    return blocks.map((b) =>
+        (b.y ?? 0) === targetY && (b.x ?? 0) === targetX
+            ? { ...b, w: clamped }
+            : b,
+    );
+}
+
+/**
+ * Compacta filas/columnas/pos a índices consecutivos sin huecos.
+ */
+export function compactRows<T extends PositionedBlock>(
+    blocks: ReadonlyArray<T>,
+): T[] {
+    return flattenWithConsecutiveIndices(groupBlocksByRowsAndColumns(blocks));
+}
+
+function flattenWithConsecutiveIndices<T extends PositionedBlock>(
+    rows: Row<T>[],
+): T[] {
+    const out: T[] = [];
+    let rowIdx = 0;
+    for (const row of rows) {
+        // Filas vacías (sin columnas con bloques) se saltan.
+        const nonEmptyCols = row.columns.filter((c) => c.blocks.length > 0);
+        if (nonEmptyCols.length === 0) continue;
+        nonEmptyCols.forEach((col, colIdx) => {
+            col.blocks.forEach((block, posIdx) => {
+                out.push({
+                    ...block,
+                    x: colIdx,
+                    y: rowIdx,
+                    pos: posIdx,
+                    w: col.width,
+                    h: 0,
+                });
+            });
+        });
+        rowIdx += 1;
+    }
+    return out;
 }
 
 function clampWidth(w: number): number {
@@ -246,17 +307,9 @@ export const WIDTH_PRESETS: ReadonlyArray<{ value: number; label: string }> = [
 ];
 
 /**
- * Espacio disponible en cols (de 12) en la fila después de los
- * bloques actuales, excluyendo opcionalmente un block (para cálculos
- * "si saco este, cuánto queda libre").
+ * Suma de widths de todas las columnas en una fila.
  */
-export function rowRemainingWidth<T extends PositionedBlock>(
-    blocksInRow: ReadonlyArray<T>,
-    excludeBlockId?: string,
-): number {
-    const used = blocksInRow.reduce((sum, b) => {
-        if (excludeBlockId && b.id === excludeBlockId) return sum;
-        return sum + (b.w ?? 12);
-    }, 0);
-    return Math.max(0, 12 - used);
+export function rowTotalWidth<T extends PositionedBlock>(row: Row<T>): number {
+    return row.columns.reduce((sum, c) => sum + c.width, 0);
 }
+

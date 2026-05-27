@@ -130,10 +130,10 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    gap: 12px;
 }
 .imcrm-row__cell > .imcrm-portal-block {
     margin-bottom: 0;
-    flex: 1;
     overflow-y: visible;
 }
 .imcrm-row__cell[style*="max-height"] {

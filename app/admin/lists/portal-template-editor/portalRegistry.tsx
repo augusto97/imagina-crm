@@ -239,6 +239,7 @@ export const portalRegistry: BlockRegistry<PortalEditorBlock> = {
             config: defaultConfigFor(blockType),
             x: position?.x ?? 0,
             y: position?.y ?? fallbackY,
+            pos: position?.pos ?? 0,
             w,
             h: 0,
         };

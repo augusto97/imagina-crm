@@ -30,7 +30,7 @@ import {
     CollapsePanelButton,
     useCollapsablePanel,
 } from './CollapsablePanels';
-import { GridCanvas } from './GridCanvas';
+import { GridCanvas, type DropTarget } from './GridCanvas';
 import { InspectorPanel } from './InspectorPanel';
 import { PalettePanel } from './PalettePanel';
 import { useTemplateHistory } from './hooks/useTemplateHistory';
@@ -151,27 +151,32 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
         }
     };
 
+    /** Posición de "append al final": una fila nueva al final del canvas. */
+    const appendPosition = (): { x: number; y: number; pos: number } => {
+        const maxY = blocks.reduce((m, b) => Math.max(m, b.y ?? 0), -1);
+        return { x: 0, y: maxY + 1, pos: 0 };
+    };
+
     const handleAddBlock = (
         type: string,
-        position?: { x: number; y: number },
-        baseBlocks?: TBlock[],
+        position: { x: number; y: number; pos: number },
+        baseBlocks: TBlock[],
     ): void => {
-        const base = baseBlocks ?? blocks;
-        const created = registry.createBlock(type, base, { fields }, position);
+        const created = registry.createBlock(type, baseBlocks, { fields }, position);
         if (! created) {
             const msg = registry.createBlockErrorMessage?.(type, { fields })
                 ?? __('No se pudo crear el bloque.');
             toast.warning(msg);
             return;
         }
-        setBlocks([...base, created]);
+        setBlocks([...baseBlocks, created]);
         setSelectedBlockIds([created.id]);
     };
 
     const handleAddField = (
         slug: string,
-        position?: { x: number; y: number },
-        baseBlocks?: TBlock[],
+        position: { x: number; y: number; pos: number },
+        baseBlocks: TBlock[],
     ): void => {
         if (! registry.fieldAsBlock) return;
         const field = fields.find((f) => f.slug === slug);
@@ -179,29 +184,51 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
             toast.error(__('Campo no encontrado.'));
             return;
         }
-        const base = baseBlocks ?? blocks;
-        const created = registry.fieldAsBlock.createBlock(field, base, position);
+        const created = registry.fieldAsBlock.createBlock(field, baseBlocks, position);
         if (! created) return;
-        setBlocks([...base, created]);
+        setBlocks([...baseBlocks, created]);
         setSelectedBlockIds([created.id]);
     };
 
+    /**
+     * Drop desde la paleta — resuelve el `DropTarget` a:
+     *  - `base` blocks: array de bloques de partida (puede tener shifts
+     *    aplicados para "intercalar fila/columna").
+     *  - `position`: coordenadas físicas (x, y, pos) del nuevo bloque.
+     */
     const handleDropFromPalette = (
         payload: PalettePayload,
-        position: { x: number; y: number },
-        options?: { shiftRowsFrom?: number },
+        target: DropTarget,
     ): void => {
-        // Si el drop crea una fila nueva intercalada, shifteamos los
-        // bloques existentes con `y >= shiftRowsFrom` hacia abajo +1.
-        // El nuevo bloque se inserta en (x=position.x, y=position.y)
-        // sin chocar con nadie.
-        const base = options?.shiftRowsFrom !== undefined
-            ? (blocks.map((b) =>
-                (b.y ?? 0) >= options.shiftRowsFrom!
-                    ? { ...b, y: (b.y ?? 0) + 1 }
+        let base: TBlock[];
+        let position: { x: number; y: number; pos: number };
+
+        if (target.kind === 'new-row') {
+            // Shift de y para bloques en row >= target.row.
+            base = blocks.map((b) =>
+                (b.y ?? 0) >= target.row ? { ...b, y: (b.y ?? 0) + 1 } : b,
+            ) as TBlock[];
+            position = { x: 0, y: target.row, pos: 0 };
+        } else if (target.kind === 'new-col') {
+            // Shift de x para columnas en row=target.row con x >= target.col.
+            base = blocks.map((b) =>
+                (b.y ?? 0) === target.row && (b.x ?? 0) >= target.col
+                    ? { ...b, x: (b.x ?? 0) + 1 }
                     : b,
-            ) as TBlock[])
-            : undefined;
+            ) as TBlock[];
+            position = { x: target.col, y: target.row, pos: 0 };
+        } else {
+            // append-col: shift de `pos` para bloques en la misma columna
+            // con pos >= target.pos.
+            base = blocks.map((b) =>
+                (b.y ?? 0) === target.row
+                    && (b.x ?? 0) === target.col
+                    && (b.pos ?? 0) >= target.pos
+                    ? { ...b, pos: (b.pos ?? 0) + 1 }
+                    : b,
+            ) as TBlock[];
+            position = { x: target.col, y: target.row, pos: target.pos };
+        }
 
         if (payload.kind === 'block-type') {
             handleAddBlock(payload.type, position, base);
@@ -532,8 +559,8 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                                 registry={registry}
                                 existingBlocks={blocks}
                                 fields={fields}
-                                onAddBlock={(type) => handleAddBlock(type)}
-                                onAddField={(slug) => handleAddField(slug)}
+                                onAddBlock={(type) => handleAddBlock(type, appendPosition(), blocks)}
+                                onAddField={(slug) => handleAddField(slug, appendPosition(), blocks)}
                             />
                         </aside>
                     )

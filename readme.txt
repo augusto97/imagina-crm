@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.23
+Stable tag: 0.57.24
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,41 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.24 =
+**Drag-and-drop real + columnas con bloques apilados (estilo Notion).**
+
+Refactor del modelo de layout de 0.57.23 para soportar lo que faltaba:
+
+* **Bloques apilados verticalmente dentro de una misma columna.** Ahora
+  podés crear una fila con 2 columnas (ej. 70% / 30%) y poner varios
+  bloques *uno debajo del otro* dentro de cada columna. Antes cada
+  bloque ocupaba toda la altura de su fila — limitación que hacía
+  imposible armar layouts tipo "sidebar con varios widgets".
+
+* **Drag-and-drop real con HTML5 DnD nativo.** Cada bloque tiene un
+  handle ≡ (visible al hover) que permite arrastrarlo a cualquier
+  drop zone:
+  * Entre filas → crea fila nueva.
+  * Entre columnas de la misma fila → crea columna nueva.
+  * Al final de una columna → apila un bloque más en esa columna.
+  * Antes de otro bloque dentro de una columna → reordena vertical.
+
+* **Drops desde la paleta** usan las mismas drop zones — el flujo es
+  consistente entre "crear bloque nuevo" y "mover bloque existente".
+
+**Modelo nuevo:**
+
+Almacenamiento sigue siendo flat `{blocks: [...]}` con un campo
+extra `pos: number` por bloque para indicar su posición vertical
+dentro de la columna. Dos bloques con el mismo `(y, x)` están en la
+misma columna, ordenados por `pos` ascendente.
+
+**Compatibilidad:**
+
+Templates legacy siguen funcionando — bloques sin `pos` defaultean a
+0 y se renderean tal cual. Al editar cualquier bloque, el layout
+se normaliza a índices consecutivos automáticamente.
 
 = 0.57.23 =
 **Solución definitiva: layout por filas (estilo Notion/ClickUp).**
