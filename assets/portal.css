@@ -114,13 +114,14 @@
 .imcrm-portal-grid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
-    /* Filas implícitas con altura mínima de 40px pero permitiendo
-     * que crezcan según el contenido del bloque más alto en la fila.
-     * Esto garantiza que el contenido nunca se recorte: si un bloque
-     * necesita más espacio que el `h` configurado en el editor, la
-     * fila se expande y los bloques siguientes se desplazan abajo. */
-    grid-auto-rows: minmax(40px, max-content);
-    align-items: stretch;
+    /* 0.57.22 — altura siempre auto. Cada bloque ocupa su contenido
+     * natural; las filas implícitas se generan por auto-flow según
+     * el orden HTML (pre-sorteado por `y` en el renderer). Sin
+     * `align-items: stretch` para que los bloques en la misma row
+     * no se estiren al alto del más alto. */
+    grid-auto-flow: row;
+    grid-auto-rows: min-content;
+    align-items: start;
     gap: 12px;
 }
 .imcrm-portal-grid__cell {
@@ -135,7 +136,7 @@
 }
 .imcrm-portal-grid__cell > .imcrm-portal-block {
     margin-bottom: 0;
-    flex: 1;
+    /* No `flex: 1` — queremos altura natural, no estirada al cell. */
     overflow-y: visible;
 }
 /* Si el cell tiene max-height aplicado por style inline (config

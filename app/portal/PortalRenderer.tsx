@@ -87,43 +87,58 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
         (b) => typeof b.x === 'number' && typeof b.y === 'number' && typeof b.w === 'number' && typeof b.h === 'number',
     );
 
-    // Pre-calcula el shift vertical de cada bloque para cerrar los
-    // huecos que dejan los bloques dismissed. CSS Grid tiene cada
-    // cell en posición absoluta (`gridRow: N / span M`), así que
-    // sacar uno NO mueve los de abajo automáticamente. Acá calculamos
-    // el "y efectivo" de cada bloque restando las filas que liberó
-    // un dismissed full-width (w=12) que estaba arriba. Si el
-    // dismissed no era full-width, el hueco queda como está — moverlo
-    // podría chocar con otros bloques de la misma fila.
-    const shifts = computeRowShifts(data.template.blocks, dismissed);
+    // Desde 0.57.22 el modelo es "altura siempre auto":
+    //   - Cada bloque toma su altura natural del contenido.
+    //   - El `block.h` persistido se ignora en el render.
+    //   - `block.y` solo determina el ORDEN vertical (no la distancia).
+    //   - `block.x` y `block.w` determinan posición horizontal en el
+    //     grid 12-col.
+    // Por eso pre-ordenamos los bloques por (y, x) y dejamos que el
+    // CSS Grid los apile con auto-flow: cada bloque ocupa su columna
+    // horizontal; cuando una row se llena, los siguientes saltan a la
+    // próxima row implícita.
+    //
+    // Esto elimina los huecos que generaba `grid-row: ... / span h`
+    // cuando el contenido natural era menor que `h * 40px`. También
+    // hace innecesario el cálculo de shifts por dismissed — al sacar
+    // un bloque del HTML, los siguientes se recompactan automáticamente
+    // por el auto-flow.
+    const orderedBlocks = data.template.blocks
+        .map((block, originalIdx) => ({ block, originalIdx }))
+        .sort((a, b) => {
+            const ay = a.block.y ?? 0;
+            const by = b.block.y ?? 0;
+            if (ay !== by) return ay - by;
+            return (a.block.x ?? 0) - (b.block.x ?? 0);
+        });
 
     return (
         <div
             className={hasGridLayout ? 'imcrm-portal-grid' : undefined}
             style={hasGridLayout ? { '--imcrm-portal-grid-cols': 12 } as React.CSSProperties : undefined}
         >
-            {data.template.blocks.map((block, idx) => {
-                if (dismissed.has(idx)) return null;
+            {orderedBlocks.map(({ block, originalIdx }) => {
+                if (dismissed.has(originalIdx)) return null;
                 const handleDismiss = (): void => {
                     setDismissed((prev) => {
                         const next = new Set(prev);
-                        next.add(idx);
+                        next.add(originalIdx);
                         return next;
                     });
                 };
-                const rendered = renderBlock(block, idx, data, boot, handleDismiss);
+                const rendered = renderBlock(block, originalIdx, data, boot, handleDismiss);
                 if (rendered === null) return null;
                 if (hasGridLayout) {
                     const maxH = readMaxHeight(block.config as Record<string, unknown>);
-                    const effectiveY = (block.y ?? 0) - (shifts.get(idx) ?? 0);
                     const style: React.CSSProperties = {
                         gridColumn: `${(block.x ?? 0) + 1} / span ${block.w ?? 12}`,
-                        gridRow: `${effectiveY + 1} / span ${block.h ?? 4}`,
+                        // grid-row OMITIDO — auto-flow posiciona según
+                        // orden HTML (que pre-ordenamos por `y`).
                     };
                     if (maxH !== null) style.maxHeight = `${maxH}px`;
                     return (
                         <div
-                            key={idx}
+                            key={originalIdx}
                             className="imcrm-portal-grid__cell"
                             style={style}
                         >
@@ -135,61 +150,6 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
             })}
         </div>
     );
-}
-
-/**
- * Calcula cuántas filas debe subir cada bloque visible para cerrar
- * los huecos dejados por los bloques dismissed.
- *
- * Estrategia: solo los dismissed con `w=12` (full-width) liberan
- * todo el ancho de su rango de filas — ahí podemos subir los
- * bloques siguientes sin riesgo de colisión. Si el dismissed era
- * parcial (compartía fila con otros bloques), dejamos el hueco
- * como está; mover los siguientes podría hacerlos chocar con
- * vecinos laterales.
- *
- * Devuelve un map `blockIdx → cantidad de filas a restar de y`.
- */
-function computeRowShifts(
-    blocks: PortalMeResponse['data']['template']['blocks'],
-    dismissed: Set<number>,
-): Map<number, number> {
-    const shifts = new Map<number, number>();
-    if (dismissed.size === 0) return shifts;
-
-    // Recolecta los rangos [yStart, yEnd) que cada dismissed full-width
-    // ocupaba. Solo esos consideramos para el shift.
-    const liberatedRanges: Array<{ start: number; end: number }> = [];
-    blocks.forEach((b, i) => {
-        if (! dismissed.has(i)) return;
-        const w = b.w ?? 12;
-        if (w < 12) return;
-        const y = b.y ?? 0;
-        const h = b.h ?? 4;
-        liberatedRanges.push({ start: y, end: y + h });
-    });
-
-    if (liberatedRanges.length === 0) return shifts;
-
-    // Para cada bloque visible: contar cuántas filas de los rangos
-    // liberados están ESTRICTAMENTE arriba de su y. Esa cantidad es
-    // su shift hacia arriba.
-    blocks.forEach((b, i) => {
-        if (dismissed.has(i)) return;
-        const y = b.y ?? 0;
-        let shift = 0;
-        for (const range of liberatedRanges) {
-            if (range.end <= y) {
-                // Rango entero arriba: liberadas todas sus filas.
-                shift += range.end - range.start;
-            }
-            // Rangos que se solapan o están por debajo no contribuyen
-            // (no podemos cortar un bloque visible al medio).
-        }
-        if (shift > 0) shifts.set(i, shift);
-    });
-
-    return shifts;
 }
 
 /**

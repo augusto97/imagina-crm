@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.21
+Stable tag: 0.57.22
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,43 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.22 =
+**Altura siempre auto: fin de los espacios vacíos en bloques.**
+
+El modelo de altura cambió en los 4 paths de render (editor CRM,
+editor portal, front CRM, front portal). Antes el `block.h` se usaba
+como altura fija o mínima en pixels; eso generaba huecos cuando el
+contenido natural era menor que `h * 40px`.
+
+Ahora `block.h` se ignora en el render. La altura de cada bloque es
+siempre la natural de su contenido. `block.y` solo determina el ORDEN
+vertical (no la distancia); `block.x` y `block.w` determinan posición
+horizontal en el grid 12-col.
+
+**Cambios concretos:**
+
+* **Editor (CRM y portal)**: el shell `GridCanvas` ahora calcula
+  `effectiveH = autoRows[id] ?? b.h` (autoRows manda sobre b.h, no
+  como mínimo). El resize handle vertical está deshabilitado
+  (`resizeHandles=['e']`) — solo se puede resize horizontal.
+* **Front del CRM (record detail)**: se eliminó `react-grid-layout`
+  como viewer estático y se reemplazó por CSS Grid puro (igual que
+  el portal). El bundle inicial bajó ~57KB.
+* **Front del portal**: se eliminó `grid-row: y / span h` del style
+  inline de cada cell. Los bloques se pre-ordenan por (y, x) y
+  CSS Grid auto-flow los apila. `grid-auto-rows` cambió de
+  `minmax(40px, max-content)` a `min-content`, sin `align-items:
+  stretch`.
+* **Eliminada** la función `computeRowShifts` del PortalRenderer
+  (~50 líneas) — el auto-flow ya recompacta los bloques al hacer
+  dismiss automáticamente.
+
+**Trade-off de diseño**: el user ya no puede hacer un bloque más
+grande que su contenido para ganar espacio visual via resize manual.
+Si necesita más espacio, debe usar padding/margin internos del config
+del bloque. Decisión consciente ante el feedback "bloques recortados,
+espacios vacíos arriba y abajo, espacios muy grandes entre bloques".
 
 = 0.57.21 =
 **Fix:** regresión 0.57.20 — en el editor del portal del cliente,

@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
-import type { LayoutItem } from 'react-grid-layout';
-
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -19,8 +14,6 @@ import type { RecordEntity } from '@/types/record';
 
 import { BlockRenderer } from './BlockRenderer';
 import { PortalAccessButton } from './PortalAccessButton';
-
-const SizedGrid = WidthProvider(GridLayout);
 
 interface RecordCrmLayoutProps {
     list: ListSummary;
@@ -76,16 +69,16 @@ export function RecordCrmLayout({
         [list.settings, fields],
     );
 
-    const gridLayout: LayoutItem[] = useMemo(
-        () =>
-            resolved.blocks.map((b) => ({
-                i: b.id,
-                x: b.x,
-                y: b.y,
-                w: b.w,
-                h: b.h,
-                static: true,
-            })),
+    // Desde 0.57.22 el front del CRM usa CSS Grid puro (igual que el
+    // portal) en vez de react-grid-layout — altura siempre auto del
+    // contenido. Pre-ordenamos por (y, x) y dejamos que el auto-flow
+    // del CSS Grid apile los bloques. El `block.h` persistido se
+    // ignora en el render.
+    const orderedBlocks = useMemo(
+        () => [...resolved.blocks].sort((a, b) => {
+            if (a.y !== b.y) return a.y - b.y;
+            return a.x - b.x;
+        }),
         [resolved.blocks],
     );
 
@@ -129,28 +122,13 @@ export function RecordCrmLayout({
                     {__('La plantilla activa no tiene bloques. Editá la plantilla en "Editar lista → Apariencia del registro".')}
                 </p>
             ) : (
-                <SizedGrid
-                    // Key basado en el template id activo + ids de bloques.
-                    // `react-grid-layout/legacy` cachea internamente y a
-                    // veces no detecta cambios del prop `layout` cuando
-                    // las identidades de bloques cambian. Forzar
-                    // re-mount con `key` lo arregla — sin esto, switchear
-                    // entre plantillas (ej. "Contacto" → "Venta") no
-                    // refrescaba el grid visible aunque el resolver
-                    // ya devolvía el layout nuevo.
-                    key={`${(list.settings as { crm_template_id?: string }).crm_template_id ?? 'auto'}-${resolved.blocks.map((b) => b.id).join(',')}`}
-                    className="imcrm-record-grid"
-                    cols={12}
-                    rowHeight={40}
-                    margin={[12, 12]}
-                    containerPadding={[0, 0]}
-                    layout={gridLayout}
-                    isDraggable={false}
-                    isResizable={false}
-                    compactType="vertical"
-                >
-                    {resolved.blocks.map((b) => (
-                        <div key={b.id} className="imcrm-record-block">
+                <div className="imcrm-record-grid">
+                    {orderedBlocks.map((b) => (
+                        <div
+                            key={b.id}
+                            className="imcrm-record-block"
+                            style={{ gridColumn: `${b.x + 1} / span ${b.w}` }}
+                        >
                             <BlockRenderer
                                 block={b}
                                 listId={list.id}
@@ -170,7 +148,7 @@ export function RecordCrmLayout({
                             />
                         </div>
                     ))}
-                </SizedGrid>
+                </div>
             )}
         </div>
     );

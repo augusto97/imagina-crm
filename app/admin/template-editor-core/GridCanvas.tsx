@@ -60,16 +60,18 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
     const selectedSet = useMemo(() => new Set(selectedBlockIds), [selectedBlockIds]);
 
     // Auto-height: rows necesarias medidas del contenido natural de cada
-    // bloque. Cuando el contenido excede el `block.h` configurado, el
-    // bloque se expande visualmente al alto necesario sin modificar el
-    // `block.h` persistido. Replicamos así el `minmax(40px, max-content)`
-    // que usa el grid CSS del front del portal (0.57.2).
+    // bloque. La altura del bloque es SIEMPRE el contenido natural —
+    // `block.h` solo se usa como hint inicial mientras el ResizeObserver
+    // hace la primera medición, después autoRows manda.
     //
-    // El `block.h` persistido actúa como **alto mínimo**:
-    //   effectiveH = max(block.h, autoRows[id] ?? 0)
-    // Solo el resize manual del user cambia `block.h`. Esto permite que
-    // un user pueda hacer el bloque MÁS grande que su contenido (espacio
-    // vacío) pero NO más chico (el contenido siempre se respeta).
+    //   effectiveH = autoRows[id] ?? b.h
+    //
+    // Esto elimina espacios vacíos: si el contenido es más chico que
+    // el `block.h` heredado de plantillas viejas, el slot se contrae.
+    // Si es más grande, expande. El user no puede hacer slot más grande
+    // que el contenido manualmente — para más espacio visual hay que
+    // usar padding/margin internos del config del bloque (decisión de
+    // diseño tomada en 0.57.22 ante feedback de espacios desperdiciados).
     const [autoRows, setAutoRows] = useState<Record<string, number>>({});
 
     const reportMeasure = useCallback((blockId: string, rows: number): void => {
@@ -100,7 +102,7 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                 x: b.x,
                 y: b.y,
                 w: b.w,
-                h: Math.max(b.h, autoRows[b.id] ?? 0),
+                h: autoRows[b.id] ?? b.h,
                 minW: 2,
                 minH: 2,
             })),
@@ -108,11 +110,11 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
     );
 
     const handleLayoutStop = (next: Layout): void => {
-        // El `h` reportado por react-grid-layout puede venir del
-        // auto-fit (no del user). Si coincide con el `effectiveH` que
-        // le pasamos (max de configurado + auto), el user NO hizo
-        // resize manual de altura → mantenemos `b.h` persistido. Si
-        // difiere, sí fue resize explícito → persistimos `l.h`.
+        // Persistimos solo cambios de posición (x, y) y ancho (w) — la
+        // altura `h` es siempre derivada del contenido (autoRows), así
+        // que ignoramos `l.h` del library. Si el user hizo resize
+        // vertical, el resize se "deshace" al próximo render porque
+        // effectiveH vuelve a autoRows[id].
         const byId = new Map(
             next.filter((l) => l.i !== DROPPING_ITEM_ID).map((l) => [l.i, l]),
         );
@@ -120,10 +122,8 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
             .map((b) => {
                 const l = byId.get(b.id);
                 if (! l) return null;
-                const effectiveH = Math.max(b.h, autoRows[b.id] ?? 0);
-                const persistedH = l.h === effectiveH ? b.h : l.h;
-                if (l.x === b.x && l.y === b.y && l.w === b.w && persistedH === b.h) return b;
-                return { ...b, x: l.x, y: l.y, w: l.w, h: persistedH };
+                if (l.x === b.x && l.y === b.y && l.w === b.w) return b;
+                return { ...b, x: l.x, y: l.y, w: l.w };
             })
             .filter((b): b is TBlock => b !== null);
         const changed = updated.some((b, i) => b !== blocks[i]);
@@ -190,6 +190,11 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                 layout={gridLayout}
                 isDraggable={! preview}
                 isResizable={! preview}
+                // Solo handle del este → resize horizontal. La altura
+                // es siempre auto del contenido (autoRows), así que un
+                // handle vertical sería engañoso (cambia el `h` que se
+                // descarta al próximo render).
+                resizeHandles={['e']}
                 isDroppable={! preview}
                 droppingItem={DROPPING_ITEM}
                 compactType="vertical"
