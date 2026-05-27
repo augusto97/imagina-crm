@@ -109,57 +109,48 @@
     color: var(--imcrm-portal-text);
 }
 
-/* ─── Grid layout (Fase 9 — grid editor) ─────────────────────────── */
+/* ─── Layout por filas (0.57.23 — unificado editor + front) ───────── */
 
-.imcrm-portal-grid {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    /* 0.57.22 — altura siempre auto. Cada bloque ocupa su contenido
-     * natural; las filas implícitas se generan por auto-flow según
-     * el orden HTML (pre-sorteado por `y` en el renderer). Sin
-     * `align-items: stretch` para que los bloques en la misma row
-     * no se estiren al alto del más alto. */
-    grid-auto-flow: row;
-    grid-auto-rows: min-content;
-    align-items: start;
+.imcrm-rows-layout {
+    display: flex;
+    flex-direction: column;
     gap: 12px;
 }
-.imcrm-portal-grid__cell {
-    /* El cell tiene altura natural según contenido. Si el bloque
-     * define un `max_height` en config se aplica desde un style
-     * inline en el wrapper (con overflow-y: auto en ese caso). */
+.imcrm-row {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 12px;
+    min-width: 0;
+}
+.imcrm-row__cell {
+    flex-grow: 0;
+    flex-shrink: 0;
     min-width: 0;
     min-height: 0;
-    overflow: visible;
     display: flex;
     flex-direction: column;
 }
-.imcrm-portal-grid__cell > .imcrm-portal-block {
+.imcrm-row__cell > .imcrm-portal-block {
     margin-bottom: 0;
-    /* No `flex: 1` — queremos altura natural, no estirada al cell. */
+    flex: 1;
     overflow-y: visible;
 }
-/* Si el cell tiene max-height aplicado por style inline (config
- * max_height), activa scroll vertical interno. */
-.imcrm-portal-grid__cell[style*="max-height"] {
+.imcrm-row__cell[style*="max-height"] {
     overflow-y: auto;
 }
 
-/* Mobile: el grid colapsa a una sola columna full-width.
- * Cada bloque ocupa el ancho completo en su propio renglón. */
+/* Mobile: cada fila colapsa a stack vertical. Los flex-basis inline
+ * se ignoran con `flex-basis: 100% !important` para que cada bloque
+ * ocupe el ancho completo. */
 @media (max-width: 767px) {
-    .imcrm-portal-grid {
-        display: flex;
+    .imcrm-row {
         flex-direction: column;
         gap: 1rem;
     }
-    .imcrm-portal-grid__cell {
-        grid-column: unset !important;
-        grid-row: unset !important;
-        overflow: visible;
-    }
-    .imcrm-portal-grid__cell > .imcrm-portal-block {
-        overflow-y: visible;
+    .imcrm-row__cell {
+        flex-basis: 100% !important;
+        max-width: 100% !important;
     }
 }
 

@@ -27,13 +27,15 @@ export function createBlock(
     position?: { x: number; y: number },
 ): V2Block | null {
     const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const fallbackY = existing.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+    // 0.57.23 — `y` es índice de fila. Append al final = max(y)+1.
+    const maxY = existing.reduce((m, b) => Math.max(m, b.y ?? 0), -1);
+    const fallbackY = maxY + 1;
     const base = {
         id,
         x: position?.x ?? 0,
         y: position?.y ?? fallbackY,
         w: 4,
-        h: 4,
+        h: 0,
     };
 
     if (type === 'header') {
@@ -146,13 +148,14 @@ export function appendFieldAsGroup(
     position?: { x: number; y: number },
 ): { config: CustomTemplateConfigV2; addedId: string } {
     const id = `properties_group-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const fallbackY = config.blocks.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+    const maxY = config.blocks.reduce((m, b) => Math.max(m, b.y ?? 0), -1);
+    const fallbackY = maxY + 1;
     const block: V2Block = {
         id,
         x: position?.x ?? 0,
         y: position?.y ?? fallbackY,
         w: 4,
-        h: 3,
+        h: 0,
         type: 'properties_group',
         config: {
             label: field.label,

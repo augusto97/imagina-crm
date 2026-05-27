@@ -2299,18 +2299,18 @@ export function resolveV2(
 
     // Backward-compat: plantillas V2 serializadas antes de 0.49.0 (y
     // todas las built-in resueltas por V2Builder, que no emite header
-    // block) no tienen header. Inyectamos uno sintético al tope y
-    // desplazamos los demás 4 filas hacia abajo — el hardcoded
-    // `<RecordHeader>` previo vivía fuera del grid ocupando ~4 filas
-    // de espacio vertical visual, así que el shift preserva el look
-    // sin colisiones.
+    // block) no tienen header. Inyectamos uno sintético al tope.
+    //
+    // 0.57.23 — En el modelo por filas, `y` es índice de fila. Para
+    // insertar header al tope shifteamos los y existentes +1 (no +4
+    // como en el modelo legacy de rowHeight).
     if (! hasHeader) {
         for (const b of blocks) {
-            b.y += 4;
+            b.y += 1;
         }
         blocks.unshift({
             id: '__synthetic_header__',
-            x: 0, y: 0, w: 12, h: 4,
+            x: 0, y: 0, w: 12, h: 0,
             type: 'header',
             config: defaultHeaderResolvedConfig(),
         });

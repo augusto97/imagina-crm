@@ -151,41 +151,64 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
         }
     };
 
-    const handleAddBlock = (type: string, position?: { x: number; y: number }): void => {
-        const created = registry.createBlock(type, blocks, { fields }, position);
+    const handleAddBlock = (
+        type: string,
+        position?: { x: number; y: number },
+        baseBlocks?: TBlock[],
+    ): void => {
+        const base = baseBlocks ?? blocks;
+        const created = registry.createBlock(type, base, { fields }, position);
         if (! created) {
             const msg = registry.createBlockErrorMessage?.(type, { fields })
                 ?? __('No se pudo crear el bloque.');
             toast.warning(msg);
             return;
         }
-        setBlocks([...blocks, created]);
+        setBlocks([...base, created]);
         setSelectedBlockIds([created.id]);
     };
 
-    const handleAddField = (slug: string, position?: { x: number; y: number }): void => {
+    const handleAddField = (
+        slug: string,
+        position?: { x: number; y: number },
+        baseBlocks?: TBlock[],
+    ): void => {
         if (! registry.fieldAsBlock) return;
         const field = fields.find((f) => f.slug === slug);
         if (! field) {
             toast.error(__('Campo no encontrado.'));
             return;
         }
-        const created = registry.fieldAsBlock.createBlock(field, blocks, position);
+        const base = baseBlocks ?? blocks;
+        const created = registry.fieldAsBlock.createBlock(field, base, position);
         if (! created) return;
-        setBlocks([...blocks, created]);
+        setBlocks([...base, created]);
         setSelectedBlockIds([created.id]);
     };
 
     const handleDropFromPalette = (
         payload: PalettePayload,
         position: { x: number; y: number },
+        options?: { shiftRowsFrom?: number },
     ): void => {
+        // Si el drop crea una fila nueva intercalada, shifteamos los
+        // bloques existentes con `y >= shiftRowsFrom` hacia abajo +1.
+        // El nuevo bloque se inserta en (x=position.x, y=position.y)
+        // sin chocar con nadie.
+        const base = options?.shiftRowsFrom !== undefined
+            ? (blocks.map((b) =>
+                (b.y ?? 0) >= options.shiftRowsFrom!
+                    ? { ...b, y: (b.y ?? 0) + 1 }
+                    : b,
+            ) as TBlock[])
+            : undefined;
+
         if (payload.kind === 'block-type') {
-            handleAddBlock(payload.type, position);
+            handleAddBlock(payload.type, position, base);
             return;
         }
         if (payload.kind === 'field') {
-            handleAddField(payload.slug, position);
+            handleAddField(payload.slug, position, base);
         }
     };
 

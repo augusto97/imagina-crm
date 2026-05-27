@@ -230,8 +230,9 @@ export const portalRegistry: BlockRegistry<PortalEditorBlock> = {
         if (! known) return null;
         const blockType = type as PortalBlockType;
         const w = defaultWidthFor(blockType);
-        const h = defaultHeightFor(blockType);
-        const fallbackY = existing.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+        // 0.57.23 — `y` es índice de fila. Append al final = max(y)+1.
+        const maxY = existing.reduce((m, b) => Math.max(m, b.y ?? 0), -1);
+        const fallbackY = maxY + 1;
         return {
             id: makeId(blockType),
             type: blockType,
@@ -239,7 +240,7 @@ export const portalRegistry: BlockRegistry<PortalEditorBlock> = {
             x: position?.x ?? 0,
             y: position?.y ?? fallbackY,
             w,
-            h,
+            h: 0,
         };
     },
 

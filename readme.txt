@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.22
+Stable tag: 0.57.23
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,61 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.23 =
+**Solución definitiva: layout por filas (estilo Notion/ClickUp).**
+
+Refactor profundo del sistema de layout en los 4 paths de render
+(editor CRM, editor portal, front CRM, front portal). Reemplazo el
+modelo de coordenadas libres `(x, y, w, h)` por un modelo explícito
+de **filas con columnas adentro**.
+
+**Modelo nuevo:**
+
+* Una plantilla = lista ordenada de filas.
+* Cada fila contiene N bloques en orden horizontal.
+* Cada bloque ocupa `w/12` del ancho de la fila.
+* La altura de cada bloque = su contenido natural. No hay rowHeight
+  fijo ni `h` que reservar espacio.
+* `y` = índice de fila (0, 1, 2...). `x` = posición dentro de la
+  fila (0, 1, 2...). `w` = ancho en cols de 12.
+
+**Cambios técnicos:**
+
+* **Eliminado `react-grid-layout`** del editor CRM y del front CRM.
+  El bundle inicial baja ~140KB (vendor) + se elimina toda la lógica
+  de WidthProvider + rowHeight + autoRows.
+* **Front portal y front CRM** usan IDÉNTICAMENTE las clases
+  `.imcrm-rows-layout` / `.imcrm-row` / `.imcrm-row__cell` (flex
+  rows con `flex-basis` proporcional). WYSIWYG real con el editor.
+* **Editor (`GridCanvas` → ahora "RowsCanvas" internamente)**:
+  - Render por filas idéntico al front.
+  - Click en bloque → selecciona.
+  - Toolbar flotante en el bloque seleccionado con botones ↑/↓
+    (mover entre filas), ←/→ (mover dentro de fila) y selector
+    de ancho (1/4, 1/3, 1/2, 2/3, 3/4, full).
+  - Drop desde paleta → SIEMPRE crea fila nueva (intercalada o al
+    final). Para mover bloques entre filas existentes se usa el
+    toolbar — evita confusión por overflow de widths.
+* **Migración**: templates legacy con `y` arbitrarios siguen
+  funcionando (el resolver agrupa por `y` original). Cuando el user
+  toca cualquier botón del editor, el layout se normaliza
+  automáticamente a índices consecutivos.
+
+**Trade-offs aceptados:**
+
+* No hay drag-and-drop libre tipo Trello. Mover entre filas se hace
+  con botones del toolbar. Decisión deliberada para máxima
+  predictibilidad.
+* El `block.h` queda obsoleto (mantenemos el campo en el JSON por
+  compat de schema, pero se setea a 0 al crear/mover y se ignora
+  en el render).
+
+**Helpers nuevos:**
+
+* `app/lib/rowsLayout.ts` con `groupBlocksByRow`, `normalizeToRows`,
+  `moveBlock`, `removeBlock`, `setBlockWidth` y `WIDTH_PRESETS`.
+  Reusable desde cualquier renderer/editor.
 
 = 0.57.22 =
 **Altura siempre auto: fin de los espacios vacíos en bloques.**

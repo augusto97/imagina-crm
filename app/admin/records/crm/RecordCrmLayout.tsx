@@ -8,6 +8,7 @@ import { useUpdateRecord } from '@/hooks/useRecords';
 import { ApiError } from '@/lib/api';
 import { getResolvedV2 } from '@/lib/crmTemplates';
 import { __ } from '@/lib/i18n';
+import { groupBlocksByRow } from '@/lib/rowsLayout';
 import type { FieldEntity } from '@/types/field';
 import type { ListSummary } from '@/types/list';
 import type { RecordEntity } from '@/types/record';
@@ -69,16 +70,9 @@ export function RecordCrmLayout({
         [list.settings, fields],
     );
 
-    // Desde 0.57.22 el front del CRM usa CSS Grid puro (igual que el
-    // portal) en vez de react-grid-layout — altura siempre auto del
-    // contenido. Pre-ordenamos por (y, x) y dejamos que el auto-flow
-    // del CSS Grid apile los bloques. El `block.h` persistido se
-    // ignora en el render.
-    const orderedBlocks = useMemo(
-        () => [...resolved.blocks].sort((a, b) => {
-            if (a.y !== b.y) return a.y - b.y;
-            return a.x - b.x;
-        }),
+    // 0.57.23 — Layout por filas (idéntico al portal).
+    const rows = useMemo(
+        () => groupBlocksByRow(resolved.blocks),
         [resolved.blocks],
     );
 
@@ -122,30 +116,37 @@ export function RecordCrmLayout({
                     {__('La plantilla activa no tiene bloques. Editá la plantilla en "Editar lista → Apariencia del registro".')}
                 </p>
             ) : (
-                <div className="imcrm-record-grid">
-                    {orderedBlocks.map((b) => (
-                        <div
-                            key={b.id}
-                            className="imcrm-record-block"
-                            style={{ gridColumn: `${b.x + 1} / span ${b.w}` }}
-                        >
-                            <BlockRenderer
-                                block={b}
-                                listId={list.id}
-                                recordId={record.id}
-                                currentUserId={currentUserId}
-                                isAdmin={isAdmin}
-                                values={values}
-                                onChange={setValues}
-                                fieldErrors={fieldErrors}
-                                record={record}
-                                headerData={resolved.header}
-                                onSave={() => void handleSave()}
-                                onDelete={onDelete}
-                                canSave={dirty}
-                                saving={update.isPending}
-                                deleting={deleting}
-                            />
+                <div className="imcrm-rows-layout">
+                    {rows.map((row) => (
+                        <div key={`row-${row.index}`} className="imcrm-row">
+                            {row.blocks.map((b) => {
+                                const basis = `${(b.w / 12) * 100}%`;
+                                return (
+                                    <div
+                                        key={b.id}
+                                        className="imcrm-row__cell"
+                                        style={{ flexBasis: basis, maxWidth: basis }}
+                                    >
+                                        <BlockRenderer
+                                            block={b}
+                                            listId={list.id}
+                                            recordId={record.id}
+                                            currentUserId={currentUserId}
+                                            isAdmin={isAdmin}
+                                            values={values}
+                                            onChange={setValues}
+                                            fieldErrors={fieldErrors}
+                                            record={record}
+                                            headerData={resolved.header}
+                                            onSave={() => void handleSave()}
+                                            onDelete={onDelete}
+                                            canSave={dirty}
+                                            saving={update.isPending}
+                                            deleting={deleting}
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     ))}
                 </div>

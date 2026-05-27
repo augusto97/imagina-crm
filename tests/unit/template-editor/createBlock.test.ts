@@ -59,13 +59,15 @@ describe('createBlock', () => {
         }
     });
 
-    it('positions new block at maxY by default', () => {
+    it('positions new block in a new row (max(y)+1) by default', () => {
+        // 0.57.23 — `y` es índice de fila (0, 1, 2...), no row-offset.
+        // El append crea fila nueva = max(y) + 1.
         const existing = [
-            { id: 'a', x: 0, y: 0, w: 4, h: 4, type: 'notes' as const, config: { title: 'A', content: '' } },
-            { id: 'b', x: 4, y: 0, w: 4, h: 6, type: 'notes' as const, config: { title: 'B', content: '' } },
+            { id: 'a', x: 0, y: 0, w: 4, h: 0, type: 'notes' as const, config: { title: 'A', content: '' } },
+            { id: 'b', x: 1, y: 0, w: 4, h: 0, type: 'notes' as const, config: { title: 'B', content: '' } },
         ];
         const block = createBlock('notes', [], existing);
-        expect(block?.y).toBe(6);
+        expect(block?.y).toBe(1);
         expect(block?.x).toBe(0);
     });
 

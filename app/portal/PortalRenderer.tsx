@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { groupBlocksByRow } from '@/lib/rowsLayout';
+
 import { fetchMe } from './api';
 import { ActivityTimelineBlock } from './blocks/ActivityTimelineBlock';
 import { ClientDataBlock } from './blocks/ClientDataBlock';
@@ -79,74 +81,73 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
         return <p className="imcrm-portal-block__loading">Cargando tu portal…</p>;
     }
 
-    // Layout grid 12-col cuando los bloques tienen posiciones (Fase 9
-     // grid editor). Si están ausentes (templates pre-grid o sin
-     // configurar), caemos a layout vertical clásico — backward-compat
-     // total con instalaciones existentes.
-    const hasGridLayout = data.template.blocks.some(
-        (b) => typeof b.x === 'number' && typeof b.y === 'number' && typeof b.w === 'number' && typeof b.h === 'number',
+    // 0.57.23 — Layout unificado por filas.
+    //
+    // Agrupo bloques por `y` (índice de fila), dentro de cada fila los
+    // ordeno por `x`. Cada fila se renderea como flex row con cada
+    // bloque ocupando `flex-basis: ${w/12 * 100}%`. La altura de la
+    // fila la define el bloque más alto adentro — los demás se
+    // estiran a su altura via `flex: 1` (definido en CSS).
+    //
+    // Sin pretensión de "huecos" — bloques con x intermedios sin
+    // bloque previo simplemente se posicionan al inicio de su fila.
+    // El editor solo crea x consecutivos (0, 1, 2...) así que esto
+    // no debería ocurrir en templates nuevos. Templates viejos que
+    // tuvieran "x=5 con espacio en x=0..4" pierden el espacio en
+    // blanco — decisión consciente (ver CLAUDE.md / 0.57.23).
+    const rows = groupBlocksByRow(
+        data.template.blocks.map((b, i) => ({ ...b, __idx: i })),
     );
 
-    // Desde 0.57.22 el modelo es "altura siempre auto":
-    //   - Cada bloque toma su altura natural del contenido.
-    //   - El `block.h` persistido se ignora en el render.
-    //   - `block.y` solo determina el ORDEN vertical (no la distancia).
-    //   - `block.x` y `block.w` determinan posición horizontal en el
-    //     grid 12-col.
-    // Por eso pre-ordenamos los bloques por (y, x) y dejamos que el
-    // CSS Grid los apile con auto-flow: cada bloque ocupa su columna
-    // horizontal; cuando una row se llena, los siguientes saltan a la
-    // próxima row implícita.
-    //
-    // Esto elimina los huecos que generaba `grid-row: ... / span h`
-    // cuando el contenido natural era menor que `h * 40px`. También
-    // hace innecesario el cálculo de shifts por dismissed — al sacar
-    // un bloque del HTML, los siguientes se recompactan automáticamente
-    // por el auto-flow.
-    const orderedBlocks = data.template.blocks
-        .map((block, originalIdx) => ({ block, originalIdx }))
-        .sort((a, b) => {
-            const ay = a.block.y ?? 0;
-            const by = b.block.y ?? 0;
-            if (ay !== by) return ay - by;
-            return (a.block.x ?? 0) - (b.block.x ?? 0);
-        });
+    const hasAnyBlock = data.template.blocks.length > 0;
+    if (! hasAnyBlock) return <></>;
 
     return (
-        <div
-            className={hasGridLayout ? 'imcrm-portal-grid' : undefined}
-            style={hasGridLayout ? { '--imcrm-portal-grid-cols': 12 } as React.CSSProperties : undefined}
-        >
-            {orderedBlocks.map(({ block, originalIdx }) => {
-                if (dismissed.has(originalIdx)) return null;
-                const handleDismiss = (): void => {
-                    setDismissed((prev) => {
-                        const next = new Set(prev);
-                        next.add(originalIdx);
-                        return next;
-                    });
-                };
-                const rendered = renderBlock(block, originalIdx, data, boot, handleDismiss);
-                if (rendered === null) return null;
-                if (hasGridLayout) {
-                    const maxH = readMaxHeight(block.config as Record<string, unknown>);
-                    const style: React.CSSProperties = {
-                        gridColumn: `${(block.x ?? 0) + 1} / span ${block.w ?? 12}`,
-                        // grid-row OMITIDO — auto-flow posiciona según
-                        // orden HTML (que pre-ordenamos por `y`).
-                    };
-                    if (maxH !== null) style.maxHeight = `${maxH}px`;
-                    return (
-                        <div
-                            key={originalIdx}
-                            className="imcrm-portal-grid__cell"
-                            style={style}
-                        >
-                            {rendered}
-                        </div>
-                    );
-                }
-                return rendered;
+        <div className="imcrm-rows-layout">
+            {rows.map((row) => {
+                // Filtrar bloques dismissed de esta fila. Si toda la
+                // fila queda vacía, no renderizamos el wrapper para
+                // que no genere gap inútil.
+                const visible = row.blocks.filter((b) => ! dismissed.has(b.__idx));
+                if (visible.length === 0) return null;
+                return (
+                    <div key={`row-${row.index}`} className="imcrm-row">
+                        {visible.map((block) => {
+                            const handleDismiss = (): void => {
+                                setDismissed((prev) => {
+                                    const next = new Set(prev);
+                                    next.add(block.__idx);
+                                    return next;
+                                });
+                            };
+                            const rendered = renderBlock(
+                                block,
+                                block.__idx,
+                                data,
+                                boot,
+                                handleDismiss,
+                            );
+                            if (rendered === null) return null;
+                            const maxH = readMaxHeight(block.config as Record<string, unknown>);
+                            const w = block.w ?? 12;
+                            const basis = `${(w / 12) * 100}%`;
+                            const style: React.CSSProperties = {
+                                flexBasis: basis,
+                                maxWidth: basis,
+                            };
+                            if (maxH !== null) style.maxHeight = `${maxH}px`;
+                            return (
+                                <div
+                                    key={block.__idx}
+                                    className="imcrm-row__cell"
+                                    style={style}
+                                >
+                                    {rendered}
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
             })}
         </div>
     );
