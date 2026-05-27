@@ -4,6 +4,98 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.10] — 2026-05-27
+
+**EL FIX REAL al fin — N+1 fetches de recurrences disparados por
+`DateCellEditor` en cada celda de fecha visible.**
+
+### Lo que reveló el HAR
+
+Después de 5 intentos fallidos (0.57.5-0.57.9), el usuario mandó
+un HAR de DevTools Network. La timeline mostró el bug crudo:
+
+```
+T+2540ms  records/19/recurrences   421ms 200
+T+2540ms  records/20/recurrences   906ms 200
+T+2540ms  records/21/recurrences   845ms 200
+... (15 fetches individuales en paralelo)
+T+2541ms  lists/1/recurrences?ids=33,32,...,19   937ms 200  ← batch
+T+3500ms  todos terminados
+T+3500ms - T+13603ms  10 segundos de inactividad de red
+T+13603ms  records?per_page=500   (cambio de vista)
+```
+
+**16 requests simultáneos al endpoint `/recurrences`** seguidos de
+**10 segundos donde el frontend no hace nada en la red** — eso son
+cascadas de re-renders procesando las 16 responses una por una,
+sin terminar. El user nunca veía la vista cargar; tenía que
+cambiar a otra y volver (lo que desmonta todo y rompe el ciclo).
+
+### Causa raíz
+
+`DateCellEditor` se renderea en **CADA celda de fecha de CADA
+record visible** en `TableView` y `GroupedTableView`. Llamaba a:
+
+```ts
+const recurrences = useRecurrences(listId, recordId);
+```
+
+**`useRecurrences` siempre hace fetch individual**, ignorando
+cualquier context. Solo `useRecurrencesForRecord` lee del
+`RecurrencesBatchProvider`.
+
+El Provider estaba en TableView y disparaba el batch (1 query).
+Pero los 15 `DateCellEditor` internos disparaban además 15
+individuales en paralelo. PHP-FPM con sus 5 workers tenía que
+serializar las 16. El frontend recibía respuestas durante 3
+segundos, cada una invalidando cache de TanStack Query → re-render
+del componente que las usa → más re-renders en cascada.
+
+El loop nunca terminaba porque cada query que llegaba disparaba
+re-renders que tocaban algo del cache compartido, lo que invalidaba
+otras queries derivadas. El thread principal quedaba al 100% CPU
+con cientos de `[Violation] 'setTimeout' handler took N ms`. La
+"Transition was skipped" del 0.57.9 era el reconciler de React
+abandonando renders interrumpidos.
+
+### El fix
+
+**`DateCellEditor.tsx`** — `useRecurrences` → `useRecurrencesForRecord`.
+Lee del context del Provider en lugar de disparar individual.
+
+**`GroupedTableView.tsx`** — agregamos `RecurrencesBatchProvider`
+envolviendo todo el render (antes solo `TableView` lo tenía).
+Recolectamos los IDs de TODOS los records visibles en TODOS los
+buckets expandidos via `useMemo` y los pasamos al Provider.
+
+Resultado: cero queries individuales. Solo el batch (1 query).
+Sin cascadas de re-renders. Sin loop. Sin "Cargando vista..."
+infinito.
+
+### Reflexión
+
+Los fixes 0.57.5-0.57.9 fueron alivios parciales que tocaban
+síntomas, no la causa raíz:
+- 0.57.5: paraleliza chunks lazy con queries. Real beneficio:
+  100-300ms en cold load. No tocaba el N+1.
+- 0.57.6: paraleliza fetches iniciales. Mismo beneficio marginal.
+- 0.57.7: opt-out de Cloudflare Rocket Loader. Necesario en algunos
+  hostings pero no era el bug acá.
+- 0.57.8: cache de promise en `lazyWithReload`. Útil para evitar
+  duplicación pero no para el N+1.
+- 0.57.9: prefetch agresivo + un solo Suspense. Mitigaba el
+  síntoma (Suspense colgado) pero no el loop subyacente.
+
+La lección: con un HAR en mano el bug se diagnostica en minutos.
+Sin él, semanas de adivinanzas.
+
+### Cambios
+
+- `app/admin/records/DateCellEditor.tsx` — usa
+  `useRecurrencesForRecord` en lugar de `useRecurrences`.
+- `app/admin/records/views/GroupedTableView.tsx` — wrappea con
+  `RecurrencesBatchProvider`, recolecta IDs visibles.
+
 ## [0.57.9] — 2026-05-27
 
 **Fix definitivo (esperamos) del Suspense colgado al cambiar entre

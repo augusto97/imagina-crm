@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.9
+Stable tag: 0.57.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,33 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.10 =
+**EL FIX REAL al fin — N+1 fetches de recurrences saturando el thread.**
+
+Mirando el HAR de DevTools que mandó el usuario vimos 16 requests
+simultáneos a `/recurrences` (1 batch + 15 individuales) cada uno
+600-1000ms, seguidos de ~10 segundos de inactividad de red donde
+el frontend procesaba ese tsunami en cascadas de re-renders.
+
+Causa: `DateCellEditor` (que se renderea en CADA celda de fecha de
+CADA record visible) llamaba a `useRecurrences` individual,
+ignorando el `RecurrencesBatchProvider` que ya estaba haciendo la
+query batch. Con 15 records visibles → 15 fetches paralelos que
+saturaban PHP-FPM y disparaban 16 re-renders cuyas cascadas
+nunca terminaban antes de que el usuario cambiara de vista (lo que
+desmontaba todo y rompía el ciclo).
+
+Fix:
+* `DateCellEditor` ahora usa `useRecurrencesForRecord` (lee del
+  context del Provider) en lugar de `useRecurrences` (individual).
+* `GroupedTableView` ahora envuelve sus buckets con
+  `RecurrencesBatchProvider` (antes solo `TableView` lo tenía).
+
+Esto era el bug real detrás de los "Cargando vista..." infinitos,
+los AbortError "Transition was skipped" y los cientos de
+`setTimeout took N ms`. Los fixes 0.57.5-0.57.9 fueron alivios
+parciales que no tocaron la causa raíz.
 
 = 0.57.9 =
 **Fix definitivo (esperamos) del Suspense colgado al cambiar entre

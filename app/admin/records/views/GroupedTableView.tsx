@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Inbox, KeyRound, Loader2, Plus } from 'lucid
 import { EmptyState } from '@/components/ui/empty-state';
 import { useAggregates, type AggregatesResponse } from '@/hooks/useAggregates';
 import { useRecords, useRecordsGroupedBundle } from '@/hooks/useRecords';
+import { RecurrencesBatchProvider } from '@/hooks/useRecurrences';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
@@ -263,7 +264,26 @@ export function GroupedTableView({
         );
     }
 
+    // Recolecta los IDs de TODOS los records visibles en los buckets
+    // expandidos. El `RecurrencesBatchProvider` los usa para hacer
+    // UNA sola query batch de recurrences — el `DateCellEditor` de
+    // cada celda de fecha lee del context en lugar de disparar fetch
+    // individual. Sin esto se disparaban N fetches (uno por record),
+    // saturando PHP-FPM y bloqueando el thread del frontend con
+    // re-renders en cascada hasta que el usuario cambiaba de vista.
+    // Fix en 0.57.10.
+    const allVisibleRecordIds = useMemo(() => {
+        const ids: number[] = [];
+        const exp = bundle.data?.expanded ?? {};
+        for (const key of Object.keys(exp)) {
+            const recs = exp[key]?.records.data ?? [];
+            for (const r of recs) ids.push(r.id);
+        }
+        return ids;
+    }, [bundle.data]);
+
     return (
+        <RecurrencesBatchProvider listId={listId} recordIds={allVisibleRecordIds}>
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
             <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-text-xs imcrm-text-muted-foreground">
                 <span>
@@ -335,6 +355,7 @@ export function GroupedTableView({
                 </div>
             </div>
         </div>
+        </RecurrencesBatchProvider>
     );
 }
 

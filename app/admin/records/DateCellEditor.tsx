@@ -16,7 +16,7 @@ import {
 import { useFields } from '@/hooks/useFields';
 import {
     useDeleteRecurrence,
-    useRecurrences,
+    useRecurrencesForRecord,
     useUpsertRecurrence,
 } from '@/hooks/useRecurrences';
 import { __ } from '@/lib/i18n';
@@ -69,7 +69,17 @@ export function DateCellEditor({
         setPickedTime(parsed.time);
     }, [parsed.date?.getTime(), parsed.time]);
 
-    const recurrences = useRecurrences(listId, recordId);
+    // CRÍTICO — debe ser `useRecurrencesForRecord` (no `useRecurrences`):
+    // este componente se renderea en CADA celda de fecha de CADA record
+    // visible en TableView/GroupedTableView. `useRecurrencesForRecord`
+    // lee del context del `RecurrencesBatchProvider` que ya hace UNA
+    // sola query batch para todos los records visibles. Sin esto se
+    // disparaban N fetches individuales (uno por record), saturando
+    // PHP-FPM y bloqueando el thread principal del frontend con
+    // re-renders en cascada. Síntoma: "Cargando vista..." infinito al
+    // cambiar de vista, porque el thread no llegaba a procesar el
+    // re-render hasta que el componente se desmontaba. Fix en 0.57.10.
+    const recurrences = useRecurrencesForRecord(listId, recordId);
     const existingRecurrence = (recurrences.data ?? []).find(
         (r) => r.date_field_id === field.id,
     );
