@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.16
+Stable tag: 0.57.17
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,23 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.17 =
+**Fix:** regresión introducida en 0.57.16 — el avatar del header y los
+botones Guardar/Eliminar del registro se renderizaban en TODOS los
+bloques del canvas del editor (KPI, archivos, hilo de comentarios,
+relacionados, etc.) en lugar de solo en el bloque `header`.
+
+Causa raíz: el `renderPreview` del `crmRegistry` envolvía cada bloque
+en un `resolveV2({ blocks: [block] })` y tomaba `resolved.blocks[0]`.
+Pero `resolveV2` inyecta un `header` sintético al tope cuando el config
+no lo contiene (backward-compat para plantillas v2 viejas), así que
+para todo bloque distinto a `header` el índice 0 era el header
+sintético — no el bloque que queríamos renderear. Fix: buscar el
+bloque resuelto por ID en vez de por índice.
+
+Sin impacto en la persistencia ni en el render real de las fichas;
+solo afectaba la preview del editor visual.
 
 = 0.57.16 =
 **Editor de plantillas — unificación de los dos editores en uno

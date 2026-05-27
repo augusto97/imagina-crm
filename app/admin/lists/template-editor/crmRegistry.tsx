@@ -300,10 +300,13 @@ export const crmRegistry: BlockRegistry<V2Block> = {
     renderPreview: (block, ctx) => {
         // `BlockRenderer` espera un `ResolvedV2Block` (config con keys
         // camelCase, resuelto desde el shape snake_case persistido).
-        // Llamamos `resolveV2` con un wrapper mínimo y tomamos el
-        // primer bloque del resultado — corresponde al `block` que
-        // pasamos. Si por alguna razón no resolvió (tipo desconocido,
-        // shape inválido), no rendereamos nada.
+        // Llamamos `resolveV2` con un wrapper mínimo y BUSCAMOS por ID
+        // — NO por índice. `resolveV2` inyecta un `header` sintético al
+        // tope si el config no contiene uno (backward-compat para
+        // plantillas v2 viejas), así que `blocks[0]` para un bloque
+        // distinto a `header` sería el header sintético, no el bloque
+        // que queremos renderear (regresión 0.57.16: "33" + botones
+        // Guardar/Eliminar apareciendo en todos los bloques).
         const resolved = resolveV2(
             {
                 v: 2,
@@ -316,7 +319,7 @@ export const crmRegistry: BlockRegistry<V2Block> = {
             },
             ctx.fields,
         );
-        const resolvedBlock = resolved.blocks[0];
+        const resolvedBlock = resolved.blocks.find((b) => b.id === block.id);
         if (! resolvedBlock) return <></>;
 
         const record = ctx.record ?? {
