@@ -1,15 +1,22 @@
-import { Fragment, useRef, useState, type CSSProperties } from 'react';
-import { GripVertical, LayoutGrid } from 'lucide-react';
+import {
+    Fragment,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type ReactNode,
+} from 'react';
+import {
+    ArrowDown,
+    ArrowUp,
+    GripVertical,
+    LayoutGrid,
+    Plus,
+    X,
+} from 'lucide-react';
 
 import { __ } from '@/lib/i18n';
-import {
-    compactRows,
-    groupBlocksByRowsAndColumns,
-    setColumnWidth,
-    WIDTH_PRESETS,
-    type Column,
-    type Row,
-} from '@/lib/rowsLayout';
+import { groupBlocksByRowsAndColumns, WIDTH_PRESETS } from '@/lib/rowsLayout';
 import { cn } from '@/lib/utils';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
@@ -17,7 +24,8 @@ import type { RecordEntity } from '@/types/record';
 import { type PalettePayload, PALETTE_MIME, readDropPayload } from './dragPayload';
 import type { BaseTemplateBlock, BlockRegistry } from './types';
 
-const INTERNAL_BLOCK_MIME = 'application/x-imcrm-block-move';
+/** Posición destino para crear un bloque desde la paleta. */
+export type DropTarget = { x: number; y: number; pos: number };
 
 interface Props<TBlock extends BaseTemplateBlock> {
     listId: number;
@@ -29,40 +37,51 @@ interface Props<TBlock extends BaseTemplateBlock> {
     preview?: boolean;
     onBlocksChange: (next: TBlock[]) => void;
     onSelectBlock: (id: string | null, additive?: boolean) => void;
-    /**
-     * Drop desde la paleta. `position` indica el destino:
-     *   - `kind: 'append-col'` → agregar al final de una columna existente
-     *   - `kind: 'new-col'`    → crear columna nueva en una fila existente
-     *   - `kind: 'new-row'`    → crear fila nueva (shifteamos las posteriores)
-     */
-    onDropFromPalette: (
-        payload: PalettePayload,
-        position: DropTarget,
-    ) => void;
+    onDropFromPalette: (payload: PalettePayload, position: DropTarget) => void;
     onDropOnBlock: (blockId: string, payload: PalettePayload) => boolean;
 }
 
-export type DropTarget =
-    | { kind: 'append-col'; row: number; col: number; pos: number }
-    | { kind: 'new-col'; row: number; col: number }
-    | { kind: 'new-row'; row: number };
-
 /**
- * Canvas del editor — modelo filas → columnas → bloques apilados (0.57.24).
+ * Editor por secciones — modelo simple y explícito (0.57.25).
  *
- * Mismo HTML/CSS que el front (`imcrm-rows-layout` / `imcrm-row` /
- * `imcrm-row__cell`). WYSIWYG real.
+ * Estructura **visible** en pantalla:
+ *
+ *   ┌─ Sección 1 ──────────────────────────────────── × ┐
+ *   │  ┌─ Col 1 · 8/12 ▾ × ┐  ┌─ Col 2 · 4/12 ▾ × ┐    │
+ *   │  │  [Block A]   ↑↓×  │  │  [Block C]   ↑↓×  │    │
+ *   │  │  [Block B]   ↑↓×  │  │  + Bloque         │    │
+ *   │  │  + Bloque         │  └───────────────────┘    │
+ *   │  └───────────────────┘                            │
+ *   │  [+ Columna]                                      │
+ *   └───────────────────────────────────────────────────┘
+ *
+ *   [+ Sección]
  *
  * Interacciones:
- *   - **Click bloque**: selecciona.
- *   - **Drag bloque** (handle ≡ a la izquierda): se puede soltar en
- *     cualquier drop zone: dentro de la misma columna (reorder),
- *     entre columnas (crear/cambiar columna), entre filas (crear fila).
- *   - **Drag desde paleta**: mismas drop zones que el move interno.
- *   - **Ancho de columna**: dropdown en el toolbar de cualquier bloque
- *     de la columna (afecta a toda la columna).
+ *   - **Crear sección**: botón "+ Sección" abajo. Menú de presets de
+ *     columnas (1, 2 mitades, 2/3+1/3, 1/3+2/3, 3 columnas, 4 columnas).
+ *   - **Agregar columna a sección**: botón "+ Columna" dentro de la sección.
+ *   - **Cambiar ancho de columna**: dropdown "X/12" en el header de la col.
+ *   - **Eliminar sección/columna**: botón × en el header.
+ *   - **Agregar bloque**: drag desde paleta a una columna. La columna
+ *     entera se ilumina al hover.
+ *   - **Mover bloque entre columnas**: drag handle ≡ del bloque →
+ *     dropear sobre otra columna.
+ *   - **Reordenar bloque dentro de su columna**: botones ↑/↓ del bloque.
  *
- * Mantiene el nombre del export `GridCanvas` por compat de imports.
+ * Modelo de datos: `blocks: [{ id, type, config, x, y, w, pos, h }]`.
+ *   - `y` = índice de sección
+ *   - `x` = índice de columna en la sección
+ *   - `pos` = posición vertical en la columna
+ *   - `w` = ancho de la columna (consistente para toda la columna)
+ *
+ * Secciones / columnas vacías:
+ *   El editor mantiene un state local con la estructura (incluso
+ *   columnas/secciones sin bloques). Al persistir, las vacías que
+ *   no tienen al menos un bloque se descartan — el JSON guardado
+ *   solo lista los bloques reales. Al recargar el editor, las
+ *   vacías que no se persistieron se pierden; las secciones con
+ *   al menos un bloque vuelven a aparecer con su estructura.
  */
 export function GridCanvas<TBlock extends BaseTemplateBlock>({
     listId,
@@ -77,136 +96,288 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
     onDropFromPalette,
     onDropOnBlock,
 }: Props<TBlock>): JSX.Element {
-    const [dragOverZone, setDragOverZone] = useState<string | null>(null);
-    const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
-    /** Id del bloque siendo arrastrado (internamente). null si es drag desde la paleta o no drag. */
+    type Column = { id: string; width: number; blocks: TBlock[] };
+    type Section = { id: string; columns: Column[] };
+
+    /** Construye la estructura visible a partir de los bloques flat. */
+    const buildFromFlat = (flat: TBlock[]): Section[] => {
+        const rows = groupBlocksByRowsAndColumns(flat);
+        return rows.map((row, sIdx) => ({
+            id: `sec-${sIdx}-${row.index}`,
+            columns: row.columns.map((col, cIdx) => ({
+                id: `col-${sIdx}-${cIdx}-${col.colIdx}`,
+                width: col.width,
+                blocks: col.blocks,
+            })),
+        }));
+    };
+
+    const [sections, setSections] = useState<Section[]>(() => buildFromFlat(blocks));
+    const lastFlatRef = useRef<TBlock[]>(blocks);
+
+    // Sync externo: si los blocks vienen de un cambio externo (undo,
+    // reload, etc.), re-derivamos la estructura. Si vienen de un setSections
+    // → onBlocksChange propio, no re-derivamos.
+    useEffect(() => {
+        if (blocks === lastFlatRef.current) return;
+        setSections(buildFromFlat(blocks));
+        lastFlatRef.current = blocks;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [blocks]);
+
+    /** Persiste sections → flat blocks. Las columnas/secciones vacías se descartan. */
+    const persistSections = (next: Section[]): void => {
+        const flat: TBlock[] = [];
+        let sIdx = 0;
+        for (const section of next) {
+            const nonEmptyCols = section.columns.filter((c) => c.blocks.length > 0);
+            if (nonEmptyCols.length === 0) continue;
+            nonEmptyCols.forEach((col, cIdx) => {
+                col.blocks.forEach((block, pIdx) => {
+                    flat.push({
+                        ...block,
+                        x: cIdx,
+                        y: sIdx,
+                        pos: pIdx,
+                        w: col.width,
+                        h: 0,
+                    });
+                });
+            });
+            sIdx += 1;
+        }
+        lastFlatRef.current = flat;
+        setSections(next);
+        onBlocksChange(flat);
+    };
+
+    /** Set sections (sin persistir — usado para cambios de estructura vacía). */
+    const updateSectionsOnly = (next: Section[]): void => {
+        setSections(next);
+    };
+
+    // — Mutaciones de estructura ────────────────────────────────────
+
+    const addSection = (columnWidths: number[]): void => {
+        const sec: Section = {
+            id: `sec-new-${Date.now()}`,
+            columns: columnWidths.map((w, i) => ({
+                id: `col-new-${Date.now()}-${i}`,
+                width: w,
+                blocks: [],
+            })),
+        };
+        updateSectionsOnly([...sections, sec]);
+    };
+
+    const deleteSection = (sectionId: string): void => {
+        persistSections(sections.filter((s) => s.id !== sectionId));
+    };
+
+    const addColumnToSection = (sectionId: string): void => {
+        const next = sections.map((s) => {
+            if (s.id !== sectionId) return s;
+            // Por defecto, ancho de la columna nueva = lo que sobra para
+            // llegar a 12, mínimo 3.
+            const used = s.columns.reduce((sum, c) => sum + c.width, 0);
+            const remaining = Math.max(3, 12 - used);
+            return {
+                ...s,
+                columns: [
+                    ...s.columns,
+                    {
+                        id: `col-new-${Date.now()}`,
+                        width: Math.min(12, remaining),
+                        blocks: [],
+                    },
+                ],
+            };
+        });
+        const persist = next.some(
+            (s) => s.id === sectionId && s.columns.some((c) => c.blocks.length > 0),
+        );
+        if (persist) persistSections(next);
+        else updateSectionsOnly(next);
+    };
+
+    const deleteColumn = (sectionId: string, columnId: string): void => {
+        const next = sections.map((s) => {
+            if (s.id !== sectionId) return s;
+            return { ...s, columns: s.columns.filter((c) => c.id !== columnId) };
+        });
+        persistSections(next);
+    };
+
+    const setColumnWidth = (sectionId: string, columnId: string, width: number): void => {
+        const next = sections.map((s) => {
+            if (s.id !== sectionId) return s;
+            return {
+                ...s,
+                columns: s.columns.map((c) =>
+                    c.id === columnId ? { ...c, width: clampWidth(width) } : c,
+                ),
+            };
+        });
+        // Persistir solo si la columna tiene bloques (sino es vacía y
+        // no se serializa al flat).
+        const col = next
+            .find((s) => s.id === sectionId)?.columns
+            .find((c) => c.id === columnId);
+        if (col && col.blocks.length > 0) persistSections(next);
+        else updateSectionsOnly(next);
+    };
+
+    // — Mutaciones de bloques ───────────────────────────────────────
+
+    /** Mueve un bloque a otra columna (al final). */
+    const moveBlockToColumn = (blockId: string, targetSection: string, targetColumn: string): void => {
+        let movedBlock: TBlock | null = null;
+        const stripped = sections.map((s) => ({
+            ...s,
+            columns: s.columns.map((c) => ({
+                ...c,
+                blocks: c.blocks.filter((b) => {
+                    if (b.id === blockId) {
+                        movedBlock = b;
+                        return false;
+                    }
+                    return true;
+                }),
+            })),
+        }));
+        if (! movedBlock) return;
+        const next = stripped.map((s) => {
+            if (s.id !== targetSection) return s;
+            return {
+                ...s,
+                columns: s.columns.map((c) =>
+                    c.id === targetColumn
+                        ? { ...c, blocks: [...c.blocks, movedBlock as TBlock] }
+                        : c,
+                ),
+            };
+        });
+        persistSections(next);
+    };
+
+    /** Reordena un bloque dentro de su columna (+1 o -1). */
+    const reorderBlockInColumn = (
+        sectionId: string,
+        columnId: string,
+        blockId: string,
+        direction: -1 | 1,
+    ): void => {
+        const next = sections.map((s) => {
+            if (s.id !== sectionId) return s;
+            return {
+                ...s,
+                columns: s.columns.map((c) => {
+                    if (c.id !== columnId) return c;
+                    const idx = c.blocks.findIndex((b) => b.id === blockId);
+                    if (idx < 0) return c;
+                    const newIdx = idx + direction;
+                    if (newIdx < 0 || newIdx >= c.blocks.length) return c;
+                    const arr = [...c.blocks];
+                    const [removed] = arr.splice(idx, 1);
+                    arr.splice(newIdx, 0, removed!);
+                    return { ...c, blocks: arr };
+                }),
+            };
+        });
+        persistSections(next);
+    };
+
+    const deleteBlock = (sectionId: string, columnId: string, blockId: string): void => {
+        const next = sections.map((s) => {
+            if (s.id !== sectionId) return s;
+            return {
+                ...s,
+                columns: s.columns.map((c) =>
+                    c.id === columnId
+                        ? { ...c, blocks: c.blocks.filter((b) => b.id !== blockId) }
+                        : c,
+                ),
+            };
+        });
+        persistSections(next);
+    };
+
+    // — Drop desde paleta o move externo ────────────────────────────
+
     const draggedBlockId = useRef<string | null>(null);
+    const [dropTargetColId, setDropTargetColId] = useState<string | null>(null);
 
-    const rows = groupBlocksByRowsAndColumns(blocks);
-    const ctx = { listId, fields, record };
-    const isEmpty = blocks.length === 0;
-    const selectedSet = new Set(selectedBlockIds);
+    const handleColumnDragOver = (colId: string) => (e: React.DragEvent): void => {
+        const types = Array.from(e.dataTransfer.types);
+        if (! types.includes(PALETTE_MIME) && draggedBlockId.current === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = draggedBlockId.current ? 'move' : 'copy';
+        setDropTargetColId(colId);
+    };
 
-    // — Helpers de mutación ─────────────────────────────────────────
+    const handleColumnDragLeave = (e: React.DragEvent): void => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setDropTargetColId(null);
+    };
 
-    const performDrop = (payload: PalettePayload | null, target: DropTarget): void => {
-        if (! payload) {
-            // Drop interno (mover bloque). El bloque ya tiene su id en
-            // `draggedBlockId`.
-            const id = draggedBlockId.current;
-            if (! id) return;
-            const block = blocks.find((b) => b.id === id);
-            if (! block) return;
+    const handleColumnDrop = (sectionId: string, colId: string) =>
+        (e: React.DragEvent): void => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDropTargetColId(null);
 
-            // 1. Sacar el bloque del array (sin compactar todavía).
-            let next = blocks.filter((b) => b.id !== id);
-
-            // 2. Hacer espacio en el destino según el tipo de drop.
-            //    Después insertar el bloque movido en las coordenadas finales.
-            let placed: TBlock;
-            if (target.kind === 'new-row') {
-                next = next.map((b) =>
-                    (b.y ?? 0) >= target.row ? { ...b, y: (b.y ?? 0) + 1 } : b,
-                );
-                placed = { ...block, y: target.row, x: 0, pos: 0 };
-            } else if (target.kind === 'new-col') {
-                next = next.map((b) =>
-                    (b.y ?? 0) === target.row && (b.x ?? 0) >= target.col
-                        ? { ...b, x: (b.x ?? 0) + 1 }
-                        : b,
-                );
-                placed = { ...block, y: target.row, x: target.col, pos: 0 };
-            } else {
-                // append-col: apilar dentro de la columna existente.
-                // Shifteamos `pos` de los bloques con pos >= target.pos
-                // en la misma (y, x).
-                next = next.map((b) =>
-                    (b.y ?? 0) === target.row
-                        && (b.x ?? 0) === target.col
-                        && (b.pos ?? 0) >= target.pos
-                        ? { ...b, pos: (b.pos ?? 0) + 1 }
-                        : b,
-                );
-                // El width del bloque movido pasa a coincidir con el
-                // width de la columna destino (consistencia por columna).
-                const colTarget = blocks.find(
-                    (b) =>
-                        b.id !== id
-                        && (b.y ?? 0) === target.row
-                        && (b.x ?? 0) === target.col,
-                );
-                placed = {
-                    ...block,
-                    y: target.row,
-                    x: target.col,
-                    pos: target.pos,
-                    w: colTarget?.w ?? block.w,
-                };
+            // Caso 1: drop interno (mover bloque).
+            const internalId = draggedBlockId.current;
+            if (internalId) {
+                draggedBlockId.current = null;
+                moveBlockToColumn(internalId, sectionId, colId);
+                return;
             }
 
-            next.push(placed);
-            // Compactar para cerrar cualquier hueco (ej. si el bloque
-            // sacado dejó su fila/columna vacía).
-            onBlocksChange(compactRows(next) as TBlock[]);
-            return;
-        }
-        // Drop desde la paleta — el shell crea el bloque.
-        onDropFromPalette(payload, target);
-    };
+            // Caso 2: drop desde la paleta.
+            const payload = readDropPayload(e);
+            if (! payload) return;
 
-    const handleSetWidth = (blockId: string, w: number): void => {
-        const next = setColumnWidth(
-            blocks as unknown as Array<TBlock & { id: string }>,
-            blockId,
-            w,
-        );
-        onBlocksChange(next as TBlock[]);
-    };
+            // Calcular position destino: (y=sIdx, x=cIdx, pos=blocks.length).
+            const sIdx = sections.findIndex((s) => s.id === sectionId);
+            const sec = sections[sIdx];
+            if (! sec) return;
+            const cIdx = sec.columns.findIndex((c) => c.id === colId);
+            const col = sec.columns[cIdx];
+            if (! col) return;
 
-    // — Handlers de drag de bloques internos ────────────────────────
+            // Si la sección destino es la última sin bloques persistidos,
+            // su `y` real al persistir será el índice consecutivo final.
+            // Simplificamos: pasamos el índice físico actual; el shell se
+            // encarga de invocar `createBlock` y nosotros recibimos el
+            // bloque nuevo via `blocks` prop → re-derivamos sections.
+            onDropFromPalette(payload, {
+                x: cIdx,
+                y: sIdx,
+                pos: col.blocks.length,
+            });
+        };
 
     const handleBlockDragStart = (blockId: string) => (e: React.DragEvent): void => {
         draggedBlockId.current = blockId;
-        e.dataTransfer.setData(INTERNAL_BLOCK_MIME, blockId);
         e.dataTransfer.effectAllowed = 'move';
+        // Sin dataTransfer.setData — algunos browsers requieren un valor.
+        e.dataTransfer.setData('text/plain', blockId);
     };
 
     const handleBlockDragEnd = (): void => {
         draggedBlockId.current = null;
-        setDragOverZone(null);
+        setDropTargetColId(null);
     };
 
-    // — Drop zones ──────────────────────────────────────────────────
+    // — Drop sobre un bloque concreto (drop de field sobre properties_group) ─
 
-    const handleZoneDragOver = (zoneId: string) => (e: React.DragEvent): void => {
-        const types = Array.from(e.dataTransfer.types);
-        if (! types.includes(PALETTE_MIME) && ! types.includes(INTERNAL_BLOCK_MIME)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = draggedBlockId.current ? 'move' : 'copy';
-        setDragOverZone(zoneId);
-    };
-
-    const handleZoneDrop = (target: DropTarget, zoneId: string) =>
-        (e: React.DragEvent): void => {
-            e.preventDefault();
-            e.stopPropagation();
-            const payload = readDropPayload(e);
-            setDragOverZone(null);
-            // Si NO hay payload de paleta, es un drag interno (mover).
-            performDrop(payload, target);
-            draggedBlockId.current = null;
-            // Reset zoneId after drop.
-            void zoneId;
-        };
-
-    // — Drop sobre un bloque concreto (drop de field a properties_group) ─
+    const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
 
     const handleBlockDragOver = (blockId: string) => (e: React.DragEvent): void => {
         const types = Array.from(e.dataTransfer.types);
-        // Solo aceptamos PALETA aquí, NO drags internos (mueven entre
-        // drop zones de fila/columna). Si el user pasa por encima de
-        // un bloque con un drag interno, ignoramos.
+        // Solo PALETA — los moves internos van a column-level.
         if (! types.includes(PALETTE_MIME)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -232,76 +403,99 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
 
     // — Render ──────────────────────────────────────────────────────
 
+    const ctx = { listId, fields, record };
+    const selectedSet = new Set(selectedBlockIds);
+    const isEmpty = sections.length === 0;
+
     return (
         <div
             className={cn(
-                'imcrm-relative imcrm-rounded-lg imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/10 imcrm-p-3',
-                isEmpty && 'imcrm-min-h-[420px]',
+                'imcrm-relative imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-lg imcrm-bg-muted/5 imcrm-p-3',
+                isEmpty && 'imcrm-min-h-[280px]',
             )}
             onClick={(e) => {
                 if (e.target === e.currentTarget) onSelectBlock(null);
             }}
         >
-            <div className="imcrm-rows-layout imcrm-template-editor-grid">
-                {! preview && (
-                    <NewRowDropZone
-                        zoneId="new-row-0"
-                        active={dragOverZone === 'new-row-0'}
-                        onDragOver={handleZoneDragOver('new-row-0')}
-                        onDragLeave={() => setDragOverZone(null)}
-                        onDrop={handleZoneDrop({ kind: 'new-row', row: 0 }, 'new-row-0')}
-                        position="between"
-                    />
-                )}
+            {sections.map((section, sIdx) => (
+                <SectionCard
+                    key={section.id}
+                    label={`${__('Sección')} ${sIdx + 1}`}
+                    preview={preview}
+                    onDelete={() => deleteSection(section.id)}
+                >
+                    <div className="imcrm-flex imcrm-flex-row imcrm-flex-wrap imcrm-gap-2">
+                        {section.columns.map((col, cIdx) => (
+                            <ColumnCard
+                                key={col.id}
+                                label={`${__('Col')} ${cIdx + 1}`}
+                                width={col.width}
+                                preview={preview}
+                                onSetWidth={(w) => setColumnWidth(section.id, col.id, w)}
+                                onDelete={() => deleteColumn(section.id, col.id)}
+                                isDropTarget={dropTargetColId === col.id}
+                                onDragOver={handleColumnDragOver(col.id)}
+                                onDragLeave={handleColumnDragLeave}
+                                onDrop={handleColumnDrop(section.id, col.id)}
+                                empty={col.blocks.length === 0}
+                            >
+                                {col.blocks.map((block, pIdx) => (
+                                    <BlockCard
+                                        key={block.id}
+                                        preview={preview}
+                                        selected={! preview && selectedSet.has(block.id)}
+                                        isDropTarget={hoveredBlockId === block.id}
+                                        canMoveUp={pIdx > 0}
+                                        canMoveDown={pIdx < col.blocks.length - 1}
+                                        onSelect={(e) => {
+                                            if (preview) return;
+                                            e.stopPropagation();
+                                            onSelectBlock(block.id, e.shiftKey);
+                                        }}
+                                        onDragStart={handleBlockDragStart(block.id)}
+                                        onDragEnd={handleBlockDragEnd}
+                                        onBlockDragOver={handleBlockDragOver(block.id)}
+                                        onBlockDragLeave={handleBlockDragLeave}
+                                        onBlockDrop={handleBlockDrop(block.id)}
+                                        onMoveUp={() =>
+                                            reorderBlockInColumn(section.id, col.id, block.id, -1)
+                                        }
+                                        onMoveDown={() =>
+                                            reorderBlockInColumn(section.id, col.id, block.id, 1)
+                                        }
+                                        onDelete={() =>
+                                            deleteBlock(section.id, col.id, block.id)
+                                        }
+                                    >
+                                        {registry.renderPreview(block, ctx)}
+                                    </BlockCard>
+                                ))}
+                            </ColumnCard>
+                        ))}
+                    </div>
 
-                {rows.map((row, rowIdx) => (
-                    <Fragment key={`row-frag-${row.index}`}>
-                        <RowRenderer
-                            rowIdx={rowIdx}
-                            row={row}
-                            registry={registry}
-                            ctx={ctx}
-                            preview={preview}
-                            selectedSet={selectedSet}
-                            hoveredBlockId={hoveredBlockId}
-                            dragOverZone={dragOverZone}
-                            onSelect={onSelectBlock}
-                            onSetWidth={handleSetWidth}
-                            onBlockDragStart={handleBlockDragStart}
-                            onBlockDragEnd={handleBlockDragEnd}
-                            onBlockDragOver={handleBlockDragOver}
-                            onBlockDragLeave={handleBlockDragLeave}
-                            onBlockDrop={handleBlockDrop}
-                            onZoneDragOver={handleZoneDragOver}
-                            onZoneDrop={handleZoneDrop}
-                            onZoneLeave={() => setDragOverZone(null)}
-                        />
-                        {! preview && (
-                            <NewRowDropZone
-                                zoneId={`new-row-${rowIdx + 1}`}
-                                active={dragOverZone === `new-row-${rowIdx + 1}`}
-                                onDragOver={handleZoneDragOver(`new-row-${rowIdx + 1}`)}
-                                onDragLeave={() => setDragOverZone(null)}
-                                onDrop={handleZoneDrop(
-                                    { kind: 'new-row', row: rowIdx + 1 },
-                                    `new-row-${rowIdx + 1}`,
-                                )}
-                                position={rowIdx === rows.length - 1 ? 'end' : 'between'}
-                            />
-                        )}
-                    </Fragment>
-                ))}
-            </div>
+                    {! preview && (
+                        <button
+                            type="button"
+                            onClick={() => addColumnToSection(section.id)}
+                            className="imcrm-mt-2 imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-self-start imcrm-rounded imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-text-muted-foreground hover:imcrm-border-primary hover:imcrm-text-primary"
+                        >
+                            <Plus className="imcrm-h-3 imcrm-w-3" />
+                            {__('Columna')}
+                        </button>
+                    )}
+                </SectionCard>
+            ))}
 
-            {isEmpty && (
+            {! preview && <AddSectionMenu onAdd={addSection} />}
+
+            {isEmpty && ! preview && (
                 <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-3 imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-md imcrm-px-6 imcrm-text-center">
                     <div className="imcrm-flex imcrm-h-12 imcrm-w-12 imcrm-items-center imcrm-justify-center imcrm-rounded-full imcrm-bg-muted/50 imcrm-text-muted-foreground">
                         <LayoutGrid className="imcrm-h-5 imcrm-w-5" aria-hidden />
                     </div>
                     <p className="imcrm-max-w-sm imcrm-text-sm imcrm-text-muted-foreground">
-                        {preview
-                            ? __('Sin bloques — la plantilla está vacía.')
-                            : __('Canvas vacío. Arrastrá un bloque desde la paleta de la izquierda.')}
+                        {__('Canvas vacío. Creá una sección abajo y arrastrá bloques desde la paleta.')}
                     </p>
                 </div>
             )}
@@ -313,449 +507,340 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
 // Subcomponentes
 // ───────────────────────────────────────────────────────────────────
 
-interface RowRendererProps<TBlock extends BaseTemplateBlock> {
-    rowIdx: number;
-    row: Row<TBlock>;
-    registry: BlockRegistry<TBlock>;
-    ctx: { listId: number; fields: FieldEntity[]; record: RecordEntity | null };
-    preview: boolean;
-    selectedSet: Set<string>;
-    hoveredBlockId: string | null;
-    dragOverZone: string | null;
-    onSelect: (id: string | null, additive?: boolean) => void;
-    onSetWidth: (id: string, w: number) => void;
-    onBlockDragStart: (id: string) => (e: React.DragEvent) => void;
-    onBlockDragEnd: () => void;
-    onBlockDragOver: (id: string) => (e: React.DragEvent) => void;
-    onBlockDragLeave: (e: React.DragEvent) => void;
-    onBlockDrop: (id: string) => (e: React.DragEvent) => void;
-    onZoneDragOver: (zoneId: string) => (e: React.DragEvent) => void;
-    onZoneDrop: (target: DropTarget, zoneId: string) => (e: React.DragEvent) => void;
-    onZoneLeave: () => void;
-}
-
-function RowRenderer<TBlock extends BaseTemplateBlock>(props: RowRendererProps<TBlock>): JSX.Element {
-    const {
-        rowIdx, row, registry, ctx, preview, selectedSet, hoveredBlockId,
-        dragOverZone, onSelect, onSetWidth, onBlockDragStart, onBlockDragEnd,
-        onBlockDragOver, onBlockDragLeave, onBlockDrop, onZoneDragOver,
-        onZoneDrop, onZoneLeave,
-    } = props;
-
-    return (
-        <div className="imcrm-row">
-            {/* Drop zone para crear una columna nueva al INICIO de la fila. */}
-            {! preview && (
-                <InterColDropZone
-                    zoneId={`new-col-${rowIdx}-0`}
-                    active={dragOverZone === `new-col-${rowIdx}-0`}
-                    onDragOver={onZoneDragOver(`new-col-${rowIdx}-0`)}
-                    onDragLeave={onZoneLeave}
-                    onDrop={onZoneDrop(
-                        { kind: 'new-col', row: rowIdx, col: 0 },
-                        `new-col-${rowIdx}-0`,
-                    )}
-                />
-            )}
-
-            {row.columns.map((col, colIdx) => (
-                <ColumnRenderer
-                    key={`col-${rowIdx}-${col.colIdx}`}
-                    rowIdx={rowIdx}
-                    colIdx={colIdx}
-                    column={col}
-                    registry={registry}
-                    ctx={ctx}
-                    preview={preview}
-                    selectedSet={selectedSet}
-                    hoveredBlockId={hoveredBlockId}
-                    dragOverZone={dragOverZone}
-                    isLastColInRow={colIdx === row.columns.length - 1}
-                    onSelect={onSelect}
-                    onSetWidth={onSetWidth}
-                    onBlockDragStart={onBlockDragStart}
-                    onBlockDragEnd={onBlockDragEnd}
-                    onBlockDragOver={onBlockDragOver}
-                    onBlockDragLeave={onBlockDragLeave}
-                    onBlockDrop={onBlockDrop}
-                    onZoneDragOver={onZoneDragOver}
-                    onZoneDrop={onZoneDrop}
-                    onZoneLeave={onZoneLeave}
-                />
-            ))}
-        </div>
-    );
-}
-
-interface ColumnRendererProps<TBlock extends BaseTemplateBlock> {
-    rowIdx: number;
-    colIdx: number;
-    column: Column<TBlock>;
-    registry: BlockRegistry<TBlock>;
-    ctx: { listId: number; fields: FieldEntity[]; record: RecordEntity | null };
-    preview: boolean;
-    selectedSet: Set<string>;
-    hoveredBlockId: string | null;
-    dragOverZone: string | null;
-    isLastColInRow: boolean;
-    onSelect: (id: string | null, additive?: boolean) => void;
-    onSetWidth: (id: string, w: number) => void;
-    onBlockDragStart: (id: string) => (e: React.DragEvent) => void;
-    onBlockDragEnd: () => void;
-    onBlockDragOver: (id: string) => (e: React.DragEvent) => void;
-    onBlockDragLeave: (e: React.DragEvent) => void;
-    onBlockDrop: (id: string) => (e: React.DragEvent) => void;
-    onZoneDragOver: (zoneId: string) => (e: React.DragEvent) => void;
-    onZoneDrop: (target: DropTarget, zoneId: string) => (e: React.DragEvent) => void;
-    onZoneLeave: () => void;
-}
-
-function ColumnRenderer<TBlock extends BaseTemplateBlock>(
-    props: ColumnRendererProps<TBlock>,
-): JSX.Element {
-    const {
-        rowIdx, colIdx, column, registry, ctx, preview, selectedSet,
-        hoveredBlockId, dragOverZone, isLastColInRow, onSelect, onSetWidth,
-        onBlockDragStart, onBlockDragEnd, onBlockDragOver, onBlockDragLeave,
-        onBlockDrop, onZoneDragOver, onZoneDrop, onZoneLeave,
-    } = props;
-
-    const basis = `${(column.width / 12) * 100}%`;
-    const style: CSSProperties = { flexBasis: basis, maxWidth: basis };
-    const appendZoneId = `append-${rowIdx}-${colIdx}-${column.blocks.length}`;
-
-    return (
-        <>
-            <div className="imcrm-row__cell imcrm-relative" style={style}>
-                {column.blocks.map((block, posIdx) => (
-                    <BlockWithDropZones
-                        key={block.id}
-                        rowIdx={rowIdx}
-                        colIdx={colIdx}
-                        posIdx={posIdx}
-                        block={block}
-                        column={column}
-                        registry={registry}
-                        ctx={ctx}
-                        preview={preview}
-                        selected={! preview && selectedSet.has(block.id)}
-                        hoveredBlockId={hoveredBlockId}
-                        dragOverZone={dragOverZone}
-                        onSelect={onSelect}
-                        onSetWidth={onSetWidth}
-                        onBlockDragStart={onBlockDragStart}
-                        onBlockDragEnd={onBlockDragEnd}
-                        onBlockDragOver={onBlockDragOver}
-                        onBlockDragLeave={onBlockDragLeave}
-                        onBlockDrop={onBlockDrop}
-                        onZoneDragOver={onZoneDragOver}
-                        onZoneDrop={onZoneDrop}
-                        onZoneLeave={onZoneLeave}
-                    />
-                ))}
-                {/* Append zone al final de la columna (apilar otro bloque). */}
-                {! preview && (
-                    <AppendBlockDropZone
-                        zoneId={appendZoneId}
-                        active={dragOverZone === appendZoneId}
-                        onDragOver={onZoneDragOver(appendZoneId)}
-                        onDragLeave={onZoneLeave}
-                        onDrop={onZoneDrop(
-                            { kind: 'append-col', row: rowIdx, col: colIdx, pos: column.blocks.length },
-                            appendZoneId,
-                        )}
-                    />
-                )}
-            </div>
-
-            {/* Drop zone entre columnas — crea una columna nueva en col+1. */}
-            {! preview && (
-                <InterColDropZone
-                    zoneId={`new-col-${rowIdx}-${colIdx + 1}`}
-                    active={dragOverZone === `new-col-${rowIdx}-${colIdx + 1}`}
-                    onDragOver={onZoneDragOver(`new-col-${rowIdx}-${colIdx + 1}`)}
-                    onDragLeave={onZoneLeave}
-                    onDrop={onZoneDrop(
-                        { kind: 'new-col', row: rowIdx, col: colIdx + 1 },
-                        `new-col-${rowIdx}-${colIdx + 1}`,
-                    )}
-                    /* Sólo la última inter-col es visible cuando no hay drag.
-                     * Las intermedias aparecen sólo cuando se está dragueando. */
-                    alwaysVisible={isLastColInRow}
-                />
-            )}
-        </>
-    );
-}
-
-interface BlockWithDropZonesProps<TBlock extends BaseTemplateBlock> {
-    rowIdx: number;
-    colIdx: number;
-    posIdx: number;
-    block: TBlock;
-    column: Column<TBlock>;
-    registry: BlockRegistry<TBlock>;
-    ctx: { listId: number; fields: FieldEntity[]; record: RecordEntity | null };
-    preview: boolean;
-    selected: boolean;
-    hoveredBlockId: string | null;
-    dragOverZone: string | null;
-    onSelect: (id: string | null, additive?: boolean) => void;
-    onSetWidth: (id: string, w: number) => void;
-    onBlockDragStart: (id: string) => (e: React.DragEvent) => void;
-    onBlockDragEnd: () => void;
-    onBlockDragOver: (id: string) => (e: React.DragEvent) => void;
-    onBlockDragLeave: (e: React.DragEvent) => void;
-    onBlockDrop: (id: string) => (e: React.DragEvent) => void;
-    onZoneDragOver: (zoneId: string) => (e: React.DragEvent) => void;
-    onZoneDrop: (target: DropTarget, zoneId: string) => (e: React.DragEvent) => void;
-    onZoneLeave: () => void;
-}
-
-function BlockWithDropZones<TBlock extends BaseTemplateBlock>(
-    props: BlockWithDropZonesProps<TBlock>,
-): JSX.Element {
-    const {
-        rowIdx, colIdx, posIdx, block, column, registry, ctx, preview, selected,
-        hoveredBlockId, dragOverZone, onSelect, onSetWidth, onBlockDragStart,
-        onBlockDragEnd, onBlockDragOver, onBlockDragLeave, onBlockDrop,
-        onZoneDragOver, onZoneDrop, onZoneLeave,
-    } = props;
-
-    const insertZoneId = `insert-${rowIdx}-${colIdx}-${posIdx}`;
-    const isDropTarget = hoveredBlockId === block.id;
-
-    return (
-        <>
-            {! preview && (
-                <InterBlockDropZone
-                    zoneId={insertZoneId}
-                    active={dragOverZone === insertZoneId}
-                    onDragOver={onZoneDragOver(insertZoneId)}
-                    onDragLeave={onZoneLeave}
-                    onDrop={onZoneDrop(
-                        { kind: 'append-col', row: rowIdx, col: colIdx, pos: posIdx },
-                        insertZoneId,
-                    )}
-                />
-            )}
-            <div
-                className={cn(
-                    'imcrm-group imcrm-relative imcrm-overflow-visible imcrm-rounded-lg imcrm-bg-card imcrm-shadow-imcrm-sm imcrm-ring-1 imcrm-transition-all',
-                    isDropTarget
-                        ? 'imcrm-ring-2 imcrm-ring-primary imcrm-ring-offset-2 imcrm-ring-offset-background'
-                        : selected
-                            ? 'imcrm-ring-2 imcrm-ring-primary'
-                            : preview
-                                ? 'imcrm-ring-border'
-                                : 'imcrm-ring-border hover:imcrm-ring-primary/40 imcrm-cursor-pointer',
-                )}
-                onClick={(e) => {
-                    if (preview) return;
-                    e.stopPropagation();
-                    onSelect(block.id, e.shiftKey);
-                }}
-                onDragOver={preview ? undefined : onBlockDragOver(block.id)}
-                onDragLeave={preview ? undefined : onBlockDragLeave}
-                onDrop={preview ? undefined : onBlockDrop(block.id)}
-            >
-                {! preview && (
-                    <DragHandle
-                        onDragStart={onBlockDragStart(block.id)}
-                        onDragEnd={onBlockDragEnd}
-                    />
-                )}
-                <div className="imcrm-overflow-hidden">
-                    {registry.renderPreview(block, ctx)}
-                </div>
-                {selected && (
-                    <BlockToolbar
-                        column={column}
-                        onSetWidth={(w) => onSetWidth(block.id, w)}
-                    />
-                )}
-                {isDropTarget && (
-                    <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-bg-primary/10">
-                        <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">
-                            {__('Soltar para agregar al grupo')}
-                        </p>
-                    </div>
-                )}
-            </div>
-        </>
-    );
-}
-
-function DragHandle({
-    onDragStart,
-    onDragEnd,
+function SectionCard({
+    label,
+    preview,
+    onDelete,
+    children,
 }: {
-    onDragStart: (e: React.DragEvent) => void;
-    onDragEnd: () => void;
+    label: string;
+    preview: boolean;
+    onDelete: () => void;
+    children: ReactNode;
 }): JSX.Element {
     return (
-        <div
-            draggable
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            onClick={(e) => e.stopPropagation()}
-            title={__('Arrastrar bloque')}
-            className="imcrm-absolute imcrm-left-1 imcrm-top-1 imcrm-z-20 imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-cursor-grab imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-bg-card imcrm-text-muted-foreground imcrm-opacity-0 imcrm-shadow-imcrm-sm imcrm-transition group-hover:imcrm-opacity-100 active:imcrm-cursor-grabbing hover:imcrm-text-foreground"
-        >
-            <GripVertical className="imcrm-h-3.5 imcrm-w-3.5" />
+        <div className="imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3 imcrm-shadow-imcrm-xs">
+            {! preview && (
+                <div className="imcrm-mb-2 imcrm-flex imcrm-items-center imcrm-justify-between">
+                    <span className="imcrm-text-[11px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                        {label}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onDelete}
+                        title={__('Eliminar sección')}
+                        className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                    >
+                        <X className="imcrm-h-3.5 imcrm-w-3.5" />
+                    </button>
+                </div>
+            )}
+            {children}
         </div>
     );
 }
 
-interface BlockToolbarProps<TBlock extends BaseTemplateBlock> {
-    column: Column<TBlock>;
+interface ColumnCardProps {
+    label: string;
+    width: number;
+    preview: boolean;
     onSetWidth: (w: number) => void;
-}
-
-function BlockToolbar<TBlock extends BaseTemplateBlock>({
-    column,
-    onSetWidth,
-}: BlockToolbarProps<TBlock>): JSX.Element {
-    return (
-        <div
-            className="imcrm-absolute imcrm-right-1 imcrm-top-1 imcrm-z-20 imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-1.5 imcrm-py-1 imcrm-shadow-imcrm-sm"
-            onClick={(e) => e.stopPropagation()}
-        >
-            <span className="imcrm-text-[10px] imcrm-text-muted-foreground">
-                {__('Col')}
-            </span>
-            <select
-                value={column.width}
-                onChange={(e) => onSetWidth(Number(e.target.value))}
-                className="imcrm-h-6 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-1 imcrm-text-[11px] imcrm-text-foreground focus:imcrm-outline-none focus:imcrm-ring-1 focus:imcrm-ring-primary"
-                aria-label={__('Ancho de columna')}
-            >
-                {WIDTH_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                        {p.label}
-                    </option>
-                ))}
-            </select>
-        </div>
-    );
-}
-
-// — Drop zones ──────────────────────────────────────────────────────
-
-interface BaseZoneProps {
-    zoneId: string;
-    active: boolean;
+    onDelete: () => void;
+    isDropTarget: boolean;
     onDragOver: (e: React.DragEvent) => void;
-    onDragLeave: () => void;
+    onDragLeave: (e: React.DragEvent) => void;
     onDrop: (e: React.DragEvent) => void;
+    empty: boolean;
+    children: ReactNode;
 }
 
-function NewRowDropZone({
-    active,
+function ColumnCard({
+    label,
+    width,
+    preview,
+    onSetWidth,
+    onDelete,
+    isDropTarget,
     onDragOver,
     onDragLeave,
     onDrop,
-    position,
-}: BaseZoneProps & { position: 'between' | 'end' }): JSX.Element {
+    empty,
+    children,
+}: ColumnCardProps): JSX.Element {
+    const basis = `${(width / 12) * 100}%`;
+    // En mobile (canvas estrecho) las columnas pasan a 100%.
+    const style: CSSProperties = {
+        flexBasis: `calc(${basis} - 0.5rem)`,
+        maxWidth: `calc(${basis} - 0.5rem)`,
+        minWidth: 0,
+    };
+
     return (
         <div
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
+            style={style}
+            onDragOver={preview ? undefined : onDragOver}
+            onDragLeave={preview ? undefined : onDragLeave}
+            onDrop={preview ? undefined : onDrop}
             className={cn(
-                'imcrm-relative imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-transition-all',
-                active
-                    ? 'imcrm-h-10 imcrm-border-2 imcrm-border-dashed imcrm-border-primary imcrm-bg-primary/10'
-                    : position === 'end'
-                        ? 'imcrm-h-3 hover:imcrm-h-6 hover:imcrm-border hover:imcrm-border-dashed hover:imcrm-border-border'
-                        : 'imcrm-h-2 hover:imcrm-h-5 hover:imcrm-bg-muted/30',
+                'imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-p-2 imcrm-transition-all',
+                isDropTarget
+                    ? 'imcrm-border-primary imcrm-bg-primary/5'
+                    : 'imcrm-border-border imcrm-bg-muted/10',
+                empty && 'imcrm-min-h-[72px]',
             )}
         >
-            {active && (
-                <span className="imcrm-pointer-events-none imcrm-text-[11px] imcrm-font-medium imcrm-text-primary">
-                    {__('Soltar para crear fila nueva')}
-                </span>
+            {! preview && (
+                <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-1">
+                    <span className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                        {label}
+                    </span>
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                        <select
+                            value={width}
+                            onChange={(e) => onSetWidth(Number(e.target.value))}
+                            className="imcrm-h-5 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-1 imcrm-text-[10px] focus:imcrm-outline-none focus:imcrm-ring-1 focus:imcrm-ring-primary"
+                            title={__('Ancho de columna')}
+                        >
+                            {WIDTH_PRESETS.map((p) => (
+                                <option key={p.value} value={p.value}>
+                                    {p.label}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            onClick={onDelete}
+                            title={__('Eliminar columna')}
+                            className="imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                        >
+                            <X className="imcrm-h-3 imcrm-w-3" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {empty && ! preview && (
+                <div className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center imcrm-text-center imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Soltá un bloque acá')}
+                </div>
+            )}
+
+            {children}
+        </div>
+    );
+}
+
+interface BlockCardProps {
+    preview: boolean;
+    selected: boolean;
+    isDropTarget: boolean;
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    onSelect: (e: React.MouseEvent) => void;
+    onDragStart: (e: React.DragEvent) => void;
+    onDragEnd: () => void;
+    onBlockDragOver: (e: React.DragEvent) => void;
+    onBlockDragLeave: (e: React.DragEvent) => void;
+    onBlockDrop: (e: React.DragEvent) => void;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+    onDelete: () => void;
+    children: ReactNode;
+}
+
+function BlockCard({
+    preview,
+    selected,
+    isDropTarget,
+    canMoveUp,
+    canMoveDown,
+    onSelect,
+    onDragStart,
+    onDragEnd,
+    onBlockDragOver,
+    onBlockDragLeave,
+    onBlockDrop,
+    onMoveUp,
+    onMoveDown,
+    onDelete,
+    children,
+}: BlockCardProps): JSX.Element {
+    return (
+        <div
+            onClick={onSelect}
+            onDragOver={preview ? undefined : onBlockDragOver}
+            onDragLeave={preview ? undefined : onBlockDragLeave}
+            onDrop={preview ? undefined : onBlockDrop}
+            className={cn(
+                'imcrm-group imcrm-relative imcrm-overflow-hidden imcrm-rounded imcrm-bg-card imcrm-ring-1 imcrm-transition-all',
+                isDropTarget
+                    ? 'imcrm-ring-2 imcrm-ring-primary imcrm-ring-offset-1'
+                    : selected
+                        ? 'imcrm-ring-2 imcrm-ring-primary'
+                        : 'imcrm-ring-border hover:imcrm-ring-primary/40',
+                preview ? 'imcrm-cursor-default' : 'imcrm-cursor-pointer',
+            )}
+        >
+            {/* Toolbar arriba con drag handle + reorder + delete. */}
+            {! preview && (
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-right-1 imcrm-top-1 imcrm-z-20 imcrm-flex imcrm-items-center imcrm-gap-0.5 imcrm-rounded imcrm-bg-card/95 imcrm-px-1 imcrm-py-0.5 imcrm-opacity-0 imcrm-shadow-imcrm-sm imcrm-transition group-hover:imcrm-opacity-100">
+                    <button
+                        type="button"
+                        draggable
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        title={__('Arrastrar a otra columna')}
+                        onClick={(e) => e.stopPropagation()}
+                        className="imcrm-pointer-events-auto imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-cursor-grab imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-muted hover:imcrm-text-foreground active:imcrm-cursor-grabbing"
+                    >
+                        <GripVertical className="imcrm-h-3.5 imcrm-w-3.5" />
+                    </button>
+                    <BlockToolbarBtn
+                        onClick={onMoveUp}
+                        disabled={! canMoveUp}
+                        title={__('Subir')}
+                    >
+                        <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                    </BlockToolbarBtn>
+                    <BlockToolbarBtn
+                        onClick={onMoveDown}
+                        disabled={! canMoveDown}
+                        title={__('Bajar')}
+                    >
+                        <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                    </BlockToolbarBtn>
+                    <BlockToolbarBtn
+                        onClick={onDelete}
+                        title={__('Eliminar bloque')}
+                        destructive
+                    >
+                        <X className="imcrm-h-3 imcrm-w-3" />
+                    </BlockToolbarBtn>
+                </div>
+            )}
+            <div className="imcrm-overflow-x-auto">{children}</div>
+            {isDropTarget && (
+                <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-bg-primary/10">
+                    <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground">
+                        {__('Soltar para agregar al grupo')}
+                    </p>
+                </div>
             )}
         </div>
     );
 }
 
-function InterColDropZone({
-    active,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-    alwaysVisible,
-}: BaseZoneProps & { alwaysVisible?: boolean }): JSX.Element {
+function BlockToolbarBtn({
+    onClick,
+    disabled,
+    title,
+    destructive,
+    children,
+}: {
+    onClick: () => void;
+    disabled?: boolean;
+    title: string;
+    destructive?: boolean;
+    children: ReactNode;
+}): JSX.Element {
     return (
-        <div
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation();
+                if (! disabled) onClick();
+            }}
+            disabled={disabled}
+            title={title}
             className={cn(
-                'imcrm-self-stretch imcrm-rounded imcrm-transition-all',
-                active
-                    ? 'imcrm-w-8 imcrm-border-2 imcrm-border-dashed imcrm-border-primary imcrm-bg-primary/10'
-                    : alwaysVisible
-                        ? 'imcrm-w-1 hover:imcrm-w-4 hover:imcrm-bg-muted/30'
-                        : 'imcrm-w-1 hover:imcrm-w-4 hover:imcrm-bg-muted/30',
+                'imcrm-pointer-events-auto imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded',
+                disabled
+                    ? 'imcrm-text-muted-foreground/30'
+                    : destructive
+                        ? 'imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive'
+                        : 'imcrm-text-muted-foreground hover:imcrm-bg-muted hover:imcrm-text-foreground',
             )}
-            title={__('Soltar acá para crear columna nueva')}
-        />
+        >
+            {children}
+        </button>
     );
 }
 
-function AppendBlockDropZone({
-    active,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-}: BaseZoneProps): JSX.Element {
+// — "+ Sección" con menú de presets ─────────────────────────────────
+
+const SECTION_PRESETS: Array<{ label: string; columns: number[] }> = [
+    { label: '1 col · full',     columns: [12] },
+    { label: '2 cols · 1/2 + 1/2', columns: [6, 6] },
+    { label: '2 cols · 2/3 + 1/3', columns: [8, 4] },
+    { label: '2 cols · 1/3 + 2/3', columns: [4, 8] },
+    { label: '3 cols · 1/3 c/u',  columns: [4, 4, 4] },
+    { label: '4 cols · 1/4 c/u',  columns: [3, 3, 3, 3] },
+];
+
+function AddSectionMenu({
+    onAdd,
+}: {
+    onAdd: (columnWidths: number[]) => void;
+}): JSX.Element {
+    const [open, setOpen] = useState(false);
     return (
-        <div
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            className={cn(
-                'imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-transition-all',
-                active
-                    ? 'imcrm-min-h-[40px] imcrm-border-2 imcrm-border-dashed imcrm-border-primary imcrm-bg-primary/10'
-                    : 'imcrm-min-h-[8px] hover:imcrm-min-h-[24px] hover:imcrm-bg-muted/30',
-            )}
-        >
-            {active && (
-                <span className="imcrm-pointer-events-none imcrm-text-[11px] imcrm-font-medium imcrm-text-primary">
-                    {__('Apilar en esta columna')}
-                </span>
+        <div className="imcrm-relative">
+            <button
+                type="button"
+                onClick={() => setOpen(! open)}
+                className="imcrm-inline-flex imcrm-w-full imcrm-items-center imcrm-justify-center imcrm-gap-1.5 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2.5 imcrm-text-sm imcrm-font-medium imcrm-text-muted-foreground imcrm-transition hover:imcrm-border-primary hover:imcrm-text-primary"
+            >
+                <Plus className="imcrm-h-4 imcrm-w-4" />
+                {__('Nueva sección')}
+            </button>
+            {open && (
+                <>
+                    <div
+                        className="imcrm-fixed imcrm-inset-0 imcrm-z-30"
+                        onClick={() => setOpen(false)}
+                    />
+                    <div className="imcrm-absolute imcrm-left-1/2 imcrm-top-full imcrm-z-40 imcrm-mt-1 imcrm-w-72 imcrm--translate-x-1/2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-1.5 imcrm-shadow-imcrm-md">
+                        <p className="imcrm-px-2 imcrm-py-1 imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                            {__('Elegí la estructura')}
+                        </p>
+                        {SECTION_PRESETS.map((preset) => (
+                            <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => {
+                                    onAdd(preset.columns);
+                                    setOpen(false);
+                                }}
+                                className="imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-2 imcrm-py-1.5 imcrm-text-left imcrm-text-[12px] imcrm-text-foreground hover:imcrm-bg-muted"
+                            >
+                                <PresetGlyph columns={preset.columns} />
+                                <span>{preset.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </>
             )}
         </div>
     );
 }
 
-function InterBlockDropZone({
-    active,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-}: BaseZoneProps): JSX.Element {
+function PresetGlyph({ columns }: { columns: number[] }): JSX.Element {
     return (
-        <div
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            className={cn(
-                'imcrm-rounded imcrm-transition-all',
-                active
-                    ? 'imcrm-h-8 imcrm-border-2 imcrm-border-dashed imcrm-border-primary imcrm-bg-primary/10'
-                    : 'imcrm-h-1 hover:imcrm-h-4 hover:imcrm-bg-muted/30',
-            )}
-        />
+        <span className="imcrm-flex imcrm-h-4 imcrm-w-12 imcrm-overflow-hidden imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-muted/30">
+            {columns.map((w, i) => (
+                <Fragment key={i}>
+                    {i > 0 && <span className="imcrm-w-px imcrm-bg-border" />}
+                    <span
+                        className="imcrm-bg-muted-foreground/20"
+                        style={{ flexBasis: `${(w / 12) * 100}%` }}
+                    />
+                </Fragment>
+            ))}
+        </span>
     );
 }
 
-// Re-export para no romper TemplateEditorShell que importa GridCanvas.
-// El shell ahora también necesita conocer DropTarget para el callback.
-export type { Column, Row } from '@/lib/rowsLayout';
-
-// Helper inert para evitar warning de "unused" en interfaces utilitarias.
-void INTERNAL_BLOCK_MIME;
+function clampWidth(w: number): number {
+    if (! Number.isFinite(w)) return 12;
+    return Math.max(1, Math.min(12, Math.round(w)));
+}

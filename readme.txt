@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.24
+Stable tag: 0.57.25
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,48 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.25 =
+**Editor por secciones visibles + Tree View + fix margin del preview.**
+
+Respuesta al feedback: el sistema de drop zones invisibles era
+impredecible. Refactor a un modelo donde la estructura (secciones y
+columnas) es **visible como cajas explícitas** en el canvas.
+
+**Editor nuevo:**
+
+* Cada **Sección** es un card visible con borde, header "Sección N" y
+  botón × para eliminarla.
+* Cada **Columna** adentro es un card con borde dashed, header
+  "Col N · X/12 ▾" (dropdown para cambiar el ancho), botón × para
+  eliminarla.
+* **Crear sección**: botón "+ Nueva sección" abajo con menú de
+  presets (1 col full, 2 cols 1/2+1/2, 2/3+1/3, 1/3+2/3, 3 cols,
+  4 cols).
+* **Agregar columna**: botón "+ Columna" dentro de cada sección.
+* **Agregar bloque**: drag desde paleta a una columna → la columna
+  entera se ilumina al hover, drop se agrega al final de la columna.
+* **Mover bloque entre columnas**: hover sobre el bloque → handle ≡
+  arriba a la derecha + botones ↑/↓ para reordenar dentro de la
+  columna + × para eliminar.
+* **Reordenar dentro de columna**: botones ↑/↓ (predecible, sin DnD).
+* **Mover entre columnas**: drag handle ≡ → drop sobre otra columna.
+
+**Tree View (nuevo panel "Estructura" arriba del Inspector):**
+
+* Vista jerárquica del template: Sección → Columna → Bloque.
+* Click en un bloque → lo selecciona en el canvas (sincronizado).
+* Drag un bloque del árbol → drop sobre otra columna del árbol para
+  moverlo. Útil cuando los bloques son grandes y mover en el canvas
+  es molesto.
+* Cada sección y columna se puede plegar/desplegar con la flecha.
+* Badge en cada columna muestra el ancho actual ("8/12").
+
+**Fixes:**
+
+* Margin 1.5rem que aparecía en el preview del bloque del portal
+  dentro del editor (heredado de `.imcrm-portal-root` del frontend).
+  Ahora `.imcrm-portal-preview-root` lo overridea con `margin: 0`.
 
 = 0.57.24 =
 **Drag-and-drop real + columnas con bloques apilados (estilo Notion).**

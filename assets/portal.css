@@ -1494,6 +1494,10 @@
     display: flex;
     flex-direction: column;
     background: transparent;
+    /* 0.57.25 — el preview vive dentro del card del editor con su
+     * propio padding. NO debe agregar el `margin: 1.5rem 0` que
+     * `.imcrm-portal-root` aplica para el render final del portal. */
+    margin: 0 !important;
 }
 .imcrm-portal-preview-root > .imcrm-portal-block {
     margin-bottom: 0;

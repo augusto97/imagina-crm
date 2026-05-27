@@ -33,6 +33,7 @@ import {
 import { GridCanvas, type DropTarget } from './GridCanvas';
 import { InspectorPanel } from './InspectorPanel';
 import { PalettePanel } from './PalettePanel';
+import { TemplateTreeView } from './TemplateTreeView';
 import { useTemplateHistory } from './hooks/useTemplateHistory';
 import { type PalettePayload } from './dragPayload';
 import type { BaseTemplateBlock, BlockRegistry } from './types';
@@ -191,44 +192,24 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
     };
 
     /**
-     * Drop desde la paleta — resuelve el `DropTarget` a:
-     *  - `base` blocks: array de bloques de partida (puede tener shifts
-     *    aplicados para "intercalar fila/columna").
-     *  - `position`: coordenadas físicas (x, y, pos) del nuevo bloque.
+     * Drop desde la paleta. `target = { x, y, pos }` indica las
+     * coordenadas físicas finales del nuevo bloque. Los bloques
+     * existentes con `pos >= target.pos` en la misma columna se
+     * shiftean +1 para hacerle espacio.
      */
     const handleDropFromPalette = (
         payload: PalettePayload,
         target: DropTarget,
     ): void => {
-        let base: TBlock[];
-        let position: { x: number; y: number; pos: number };
+        const base = blocks.map((b) =>
+            (b.y ?? 0) === target.y
+                && (b.x ?? 0) === target.x
+                && (b.pos ?? 0) >= target.pos
+                ? { ...b, pos: (b.pos ?? 0) + 1 }
+                : b,
+        ) as TBlock[];
 
-        if (target.kind === 'new-row') {
-            // Shift de y para bloques en row >= target.row.
-            base = blocks.map((b) =>
-                (b.y ?? 0) >= target.row ? { ...b, y: (b.y ?? 0) + 1 } : b,
-            ) as TBlock[];
-            position = { x: 0, y: target.row, pos: 0 };
-        } else if (target.kind === 'new-col') {
-            // Shift de x para columnas en row=target.row con x >= target.col.
-            base = blocks.map((b) =>
-                (b.y ?? 0) === target.row && (b.x ?? 0) >= target.col
-                    ? { ...b, x: (b.x ?? 0) + 1 }
-                    : b,
-            ) as TBlock[];
-            position = { x: target.col, y: target.row, pos: 0 };
-        } else {
-            // append-col: shift de `pos` para bloques en la misma columna
-            // con pos >= target.pos.
-            base = blocks.map((b) =>
-                (b.y ?? 0) === target.row
-                    && (b.x ?? 0) === target.col
-                    && (b.pos ?? 0) >= target.pos
-                    ? { ...b, pos: (b.pos ?? 0) + 1 }
-                    : b,
-            ) as TBlock[];
-            position = { x: target.col, y: target.row, pos: target.pos };
-        }
+        const position = { x: target.x, y: target.y, pos: target.pos };
 
         if (payload.kind === 'block-type') {
             handleAddBlock(payload.type, position, base);
@@ -601,6 +582,41 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                                 label={__('Ocultar opciones')}
                                 onClick={() => setInspectorCollapsed(true)}
                             />
+                            <div className="imcrm-mb-3">
+                                <p className="imcrm-mb-1 imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                                    {__('Estructura')}
+                                </p>
+                                <TemplateTreeView
+                                    blocks={blocks}
+                                    selectedBlockIds={selectedBlockIds}
+                                    registry={registry}
+                                    onSelectBlock={(id) =>
+                                        setSelectedBlockIds(id !== null ? [id] : [])
+                                    }
+                                    onMoveBlockToColumn={(blockId, targetY, targetX) => {
+                                        // Mueve un bloque a la columna (y, x) destino, al
+                                        // FINAL (pos = bloques actuales en esa columna).
+                                        const blockToMove = blocks.find((b) => b.id === blockId);
+                                        if (! blockToMove) return;
+                                        const targetColBlocks = blocks.filter(
+                                            (b) =>
+                                                b.id !== blockId
+                                                && (b.y ?? 0) === targetY
+                                                && (b.x ?? 0) === targetX,
+                                        );
+                                        const targetCol = targetColBlocks[0];
+                                        const newPos = targetColBlocks.length;
+                                        const newW = targetCol?.w ?? blockToMove.w;
+                                        const next = blocks.map((b) =>
+                                            b.id === blockId
+                                                ? { ...b, y: targetY, x: targetX, pos: newPos, w: newW }
+                                                : b,
+                                        ) as TBlock[];
+                                        setBlocks(next);
+                                    }}
+                                />
+                            </div>
+
                             {selectedBlockIds.length > 1 ? (
                                 <BulkActionsPanel
                                     count={selectedBlockIds.length}
