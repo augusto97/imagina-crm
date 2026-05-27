@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.17
+Stable tag: 0.57.18
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.18 =
+**Fix:** los botones de colapsar de los paneles del editor (paleta a
+la izquierda, inspector a la derecha) se superponían sobre el contenido
+de los headers de cada panel.
+
+Causa: los botones se posicionan `absolute top-2` en la esquina interna
+de cada panel, pero los headers de `InspectorPanel`, `BulkActionsPanel`
+y `PalettePanel` usaban padding horizontal simétrico (`px-3` o `px-4`),
+sin reservar espacio para el botón. Resultado: el label "BLOQUE" del
+inspector se veía cortado como "QUE" porque el botón tapaba "BLO".
+
+Fix: padding asimétrico en los headers de los tres paneles
+(`pl-12 pr-4` para los del inspector, `pl-3 pr-12` para el de paleta).
 
 = 0.57.17 =
 **Fix:** regresión introducida en 0.57.16 — el avatar del header y los

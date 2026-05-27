@@ -44,7 +44,7 @@ export function InspectorPanel<TBlock extends BaseTemplateBlock>({
 
     return (
         <div className="imcrm-flex imcrm-h-full imcrm-flex-col">
-            <header className="imcrm-flex imcrm-flex-col imcrm-gap-0.5 imcrm-border-b imcrm-border-border imcrm-px-4 imcrm-py-3">
+            <header className="imcrm-flex imcrm-flex-col imcrm-gap-0.5 imcrm-border-b imcrm-border-border imcrm-py-3 imcrm-pl-12 imcrm-pr-4">
                 <p className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wider imcrm-text-muted-foreground">
                     {__('Bloque')}
                 </p>
