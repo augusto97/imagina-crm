@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     ArrowLeft,
-    ChevronLeft,
-    ChevronRight,
     Eye,
     Loader2,
     Maximize2,
@@ -27,6 +25,11 @@ import type { RecordEntity } from '@/types/record';
 import { RecordSelector } from '@/admin/lists/template-editor/RecordSelector';
 
 import { BulkActionsPanel } from './BulkActionsPanel';
+import {
+    CollapsedPanelHandle,
+    CollapsePanelButton,
+    useCollapsablePanel,
+} from './CollapsablePanels';
 import { GridCanvas } from './GridCanvas';
 import { InspectorPanel } from './InspectorPanel';
 import { PalettePanel } from './PalettePanel';
@@ -109,40 +112,15 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
 
     // Estado collapsed de los paneles laterales. Persistido en
     // localStorage para que el editor recuerde la preferencia entre
-    // sesiones — lo que da más espacio al canvas se siente como una
-    // mejora permanente, no algo que hay que reconfigurar cada vez.
-    const [paletteCollapsed, setPaletteCollapsed] = useState<boolean>(() => {
-        try {
-            return window.localStorage.getItem('imcrm:editor:palette-collapsed') === '1';
-        } catch {
-            return false;
-        }
-    });
-    const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
-        try {
-            return window.localStorage.getItem('imcrm:editor:inspector-collapsed') === '1';
-        } catch {
-            return false;
-        }
-    });
-
-    useEffect(() => {
-        try {
-            window.localStorage.setItem(
-                'imcrm:editor:palette-collapsed',
-                paletteCollapsed ? '1' : '0',
-            );
-        } catch { /* localStorage bloqueado: sin daño */ }
-    }, [paletteCollapsed]);
-
-    useEffect(() => {
-        try {
-            window.localStorage.setItem(
-                'imcrm:editor:inspector-collapsed',
-                inspectorCollapsed ? '1' : '0',
-            );
-        } catch { /* localStorage bloqueado: sin daño */ }
-    }, [inspectorCollapsed]);
+    // sesiones. Las storage keys son compartidas con el editor de
+    // CRM (TemplateEditorPage) — al usuario le importa una sola
+    // preferencia de layout, no una por editor.
+    const [paletteCollapsed, setPaletteCollapsed] = useCollapsablePanel(
+        'imcrm:editor:palette-collapsed',
+    );
+    const [inspectorCollapsed, setInspectorCollapsed] = useCollapsablePanel(
+        'imcrm:editor:inspector-collapsed',
+    );
     const [preview, setPreview] = useState(false);
     const [fullScreen, setFullScreen] = useState(false);
     const [previewRecord, setPreviewRecord] = useState<RecordEntity | null>(null);
@@ -522,7 +500,7 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                         />
                     ) : (
                         <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                            <CollapseButton
+                            <CollapsePanelButton
                                 side="left"
                                 label={__('Ocultar paleta')}
                                 onClick={() => setPaletteCollapsed(true)}
@@ -568,7 +546,7 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                         />
                     ) : (
                         <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                            <CollapseButton
+                            <CollapsePanelButton
                                 side="right"
                                 label={__('Ocultar opciones')}
                                 onClick={() => setInspectorCollapsed(true)}
@@ -606,66 +584,6 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                 )}
             </div>
         </div>
-    );
-}
-
-/**
- * Tira angosta (28px) que reemplaza al panel cuando está colapsado.
- * Click la re-expande. El icono apunta hacia donde va a abrirse el
- * panel (→ para left, ← para right) para sugerir la dirección del
- * gesto. Aria-label completo para lectores de pantalla.
- */
-function CollapsedPanelHandle({
-    side,
-    label,
-    onClick,
-}: {
-    side: 'left' | 'right';
-    label: string;
-    onClick: () => void;
-}): JSX.Element {
-    const Icon = side === 'left' ? ChevronRight : ChevronLeft;
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-label={label}
-            title={label}
-            className="imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground imcrm-transition-colors"
-        >
-            <Icon className="imcrm-h-4 imcrm-w-4" aria-hidden />
-        </button>
-    );
-}
-
-/**
- * Botón pequeño en la esquina superior del panel para colapsarlo.
- * Posicionado absolute sobre el borde interno; el panel debe ser
- * `position: relative` para que el botón se ancle correctamente.
- */
-function CollapseButton({
-    side,
-    label,
-    onClick,
-}: {
-    side: 'left' | 'right';
-    label: string;
-    onClick: () => void;
-}): JSX.Element {
-    const Icon = side === 'left' ? ChevronLeft : ChevronRight;
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-label={label}
-            title={label}
-            className={cn(
-                'imcrm-absolute imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-accent hover:imcrm-text-foreground imcrm-transition-colors',
-                side === 'left' ? 'imcrm-right-2' : 'imcrm-left-2',
-            )}
-        >
-            <Icon className="imcrm-h-3.5 imcrm-w-3.5" aria-hidden />
-        </button>
     );
 }
 

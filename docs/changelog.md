@@ -4,6 +4,81 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.15] — 2026-05-27
+
+**Editor de plantillas — paneles colapsables ahora en ambos
+editores (CRM + portal), no solo en el portal. Botón de colapsar
+del inspector más visible.**
+
+### Lo que se rompió en 0.57.14
+
+El cambio del 0.57.14 modificaba `TemplateEditorShell.tsx` con la
+suposición errónea de que era un shell compartido por ambos
+editores. En realidad:
+
+- **`TemplateEditorShell`** (en `app/admin/template-editor-core/`) —
+  shell genérico. Lo usa solo el editor del **portal del cliente**.
+- **`TemplateEditorPage`** (en `app/admin/lists/template-editor/`) —
+  editor del **CRM** legacy. Usa `GridEditor` directamente con su
+  propia estructura de 3 columnas duplicada inline.
+
+Resultado del 0.57.14: paneles colapsables solo en el portal del
+cliente. El editor del CRM quedó sin la funcionalidad.
+
+### El fix de esta versión
+
+**1. Helpers extraídos a archivo compartido.** Movimos la lógica de
+collapse a `app/admin/template-editor-core/CollapsablePanels.tsx`
+con tres exports:
+
+```ts
+export function useCollapsablePanel(storageKey, defaultValue?)
+export function CollapsedPanelHandle({ side, label, onClick })
+export function CollapsePanelButton({ side, label, onClick })
+```
+
+Cualquier editor que quiera la feature importa estos y los aplica
+en su layout.
+
+**2. Aplicados en ambos editores.** Tanto `TemplateEditorShell`
+(portal) como `TemplateEditorPage` (CRM) usan los mismos hooks y
+componentes. La preferencia del usuario se sincroniza entre
+ambos (mismas storage keys
+`imcrm:editor:palette-collapsed` y
+`imcrm:editor:inspector-collapsed`).
+
+**3. Botón de colapsar más visible.** El reporte del usuario:
+> "el botón de colapsar del panel de la derecha desaparece si
+> tengo seleccionado un bloque y casi no se puede ver"
+
+Causa: el `<header>` del InspectorPanel ocupa la parte superior
+del panel con background opaco (border-bottom + padding). El
+botón estaba con `text-muted-foreground` sin fondo propio — se
+mimetizaba con el header.
+
+Fix: el `<CollapsePanelButton>` ahora tiene:
+- `bg-background` + `border-border` → claramente distinto del
+  header de cualquier panel.
+- `shadow-imcrm-sm` → sutil elevación visual.
+- `z-30` (subió de z-10) → arriba de headers sticky comunes.
+- Tamaño 7×7 (era 6×6) → fácil de targetear.
+
+### Pendiente
+
+Los dos editores siguen siendo código duplicado. La migración del
+editor del CRM al `TemplateEditorShell` genérico es un refactor
+aparte. Hablado con el usuario; queda como decisión suya si lo
+encara.
+
+### Cambios
+
+- `app/admin/template-editor-core/CollapsablePanels.tsx` (nuevo) —
+  hook + 2 componentes reusables.
+- `app/admin/template-editor-core/TemplateEditorShell.tsx` —
+  reemplaza definiciones locales por imports del nuevo archivo.
+- `app/admin/lists/template-editor/TemplateEditorPage.tsx` —
+  agrega estado collapsed, handles y auto-open en select.
+
 ## [0.57.14] — 2026-05-27
 
 **Editor de plantillas — paneles laterales colapsables.**

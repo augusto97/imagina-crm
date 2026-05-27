@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.14
+Stable tag: 0.57.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.15 =
+**Editor de plantillas — paneles colapsables ahora también en CRM, no
+solo en el portal del cliente. Botón de colapsar más visible.**
+
+El cambio del 0.57.14 quedó solo en el editor del portal del cliente
+porque el editor del CRM (legacy, en `TemplateEditorPage.tsx`) tiene
+su propio shell de 3 columnas — no comparte código con el shell
+genérico que estaba modificando. Ahora ambos editores usan los
+mismos helpers (`CollapsablePanels.tsx`) y la preferencia de layout
+del usuario se respeta en ambos lados con las mismas storage keys.
+
+También se arregló un bug visual del botón de colapsar del inspector:
+cuando había un bloque seleccionado, el header del InspectorPanel
+(con su background opaco) tapaba parcialmente el botón. Ahora el
+botón tiene fondo propio (`bg-background`), border sutil, sombra
+suave y `z-30` — siempre visible y clickeable sobre cualquier
+contenido del panel.
 
 = 0.57.14 =
 **Editor de plantillas — paleta izquierda y panel de opciones

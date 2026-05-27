@@ -22,6 +22,12 @@ import { __ } from '@/lib/i18n';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
+import {
+    CollapsedPanelHandle,
+    CollapsePanelButton,
+    useCollapsablePanel,
+} from '@/admin/template-editor-core/CollapsablePanels';
+
 import { EditorCommandPalette } from './EditorCommandPalette';
 import { GridEditor } from './GridEditor';
 import { RecordSelector } from './RecordSelector';
@@ -246,10 +252,26 @@ export function TemplateEditorPage(): JSX.Element {
         [selectedBlockIds, config.blocks],
     );
 
+    // Estado collapsed de los paneles laterales. Storage keys
+     // compartidas con el editor del portal del cliente: el usuario
+     // configura el layout una vez y ambos editores lo respetan.
+    const [paletteCollapsed, setPaletteCollapsed] = useCollapsablePanel(
+        'imcrm:editor:palette-collapsed',
+    );
+    const [inspectorCollapsed, setInspectorCollapsed] = useCollapsablePanel(
+        'imcrm:editor:inspector-collapsed',
+    );
+
     const handleSelectBlock = (id: string | null, additive = false): void => {
         if (id === null) {
             setSelectedBlockIds([]);
             return;
+        }
+        // Auto-abrir el inspector cuando se selecciona un bloque —
+        // si estaba colapsado para ganar espacio, igual queremos
+        // mostrar las opciones del bloque recién seleccionado.
+        if (inspectorCollapsed) {
+            setInspectorCollapsed(false);
         }
         setSelectedBlockIds((prev) => {
             if (! additive) return [id];
@@ -546,18 +568,39 @@ export function TemplateEditorPage(): JSX.Element {
                     'imcrm-grid imcrm-flex-1 imcrm-gap-3 imcrm-overflow-hidden',
                     preview
                         ? 'imcrm-grid-cols-1'
-                        : 'imcrm-grid-cols-[260px_1fr_320px]',
+                        : 'imcrm-grid-cols-[var(--imcrm-palette-w)_1fr_var(--imcrm-inspector-w)]',
                 )}
+                style={
+                    preview
+                        ? undefined
+                        : ({
+                            '--imcrm-palette-w': paletteCollapsed ? '28px' : '260px',
+                            '--imcrm-inspector-w': inspectorCollapsed ? '28px' : '320px',
+                        } as React.CSSProperties)
+                }
             >
                 {! preview && (
-                    <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                        <BlockPalettePanel
-                            config={config}
-                            fields={fields.data}
-                            onAddBlock={(type) => handleAddBlock(type)}
-                            onAddFieldAsGroup={(slug) => handleAddFieldAsGroup(slug)}
+                    paletteCollapsed ? (
+                        <CollapsedPanelHandle
+                            side="left"
+                            label={__('Mostrar paleta')}
+                            onClick={() => setPaletteCollapsed(false)}
                         />
-                    </aside>
+                    ) : (
+                        <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                            <CollapsePanelButton
+                                side="left"
+                                label={__('Ocultar paleta')}
+                                onClick={() => setPaletteCollapsed(true)}
+                            />
+                            <BlockPalettePanel
+                                config={config}
+                                fields={fields.data}
+                                onAddBlock={(type) => handleAddBlock(type)}
+                                onAddFieldAsGroup={(slug) => handleAddFieldAsGroup(slug)}
+                            />
+                        </aside>
+                    )
                 )}
 
                 <main
@@ -581,40 +624,53 @@ export function TemplateEditorPage(): JSX.Element {
                 </main>
 
                 {! preview && (
-                    <aside className="imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
-                        {selectedBlockIds.length > 1 ? (
-                            <BulkActionsPanel
-                                count={selectedBlockIds.length}
-                                onDuplicate={() => handleDuplicateBlocks(selectedBlockIds)}
-                                onDelete={() => {
-                                    void confirm({
-                                        title: __('Eliminar bloques'),
-                                        description: __('Se eliminarán %d bloques.').replace('%d', String(selectedBlockIds.length)),
-                                        destructive: true,
-                                        confirmLabel: __('Eliminar'),
-                                    }).then((ok) => {
-                                        if (ok) handleDeleteBlocks(selectedBlockIds);
-                                    });
-                                }}
-                                onDeselect={() => setSelectedBlockIds([])}
+                    inspectorCollapsed ? (
+                        <CollapsedPanelHandle
+                            side="right"
+                            label={__('Mostrar opciones')}
+                            onClick={() => setInspectorCollapsed(false)}
+                        />
+                    ) : (
+                        <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                            <CollapsePanelButton
+                                side="right"
+                                label={__('Ocultar opciones')}
+                                onClick={() => setInspectorCollapsed(true)}
                             />
-                        ) : selectedBlock ? (
-                            <BlockInspectorPanel
-                                block={selectedBlock}
-                                fields={fields.data}
-                                onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
-                                onDelete={() => handleDeleteBlocks([selectedBlock.id])}
-                                onDuplicate={() => handleDuplicateBlocks([selectedBlock.id])}
-                            />
-                        ) : (
-                            <TemplateSettingsPanel
-                                fields={fields.data}
-                                config={config}
-                                onChange={setConfig}
-                                onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
-                            />
-                        )}
-                    </aside>
+                            {selectedBlockIds.length > 1 ? (
+                                <BulkActionsPanel
+                                    count={selectedBlockIds.length}
+                                    onDuplicate={() => handleDuplicateBlocks(selectedBlockIds)}
+                                    onDelete={() => {
+                                        void confirm({
+                                            title: __('Eliminar bloques'),
+                                            description: __('Se eliminarán %d bloques.').replace('%d', String(selectedBlockIds.length)),
+                                            destructive: true,
+                                            confirmLabel: __('Eliminar'),
+                                        }).then((ok) => {
+                                            if (ok) handleDeleteBlocks(selectedBlockIds);
+                                        });
+                                    }}
+                                    onDeselect={() => setSelectedBlockIds([])}
+                                />
+                            ) : selectedBlock ? (
+                                <BlockInspectorPanel
+                                    block={selectedBlock}
+                                    fields={fields.data}
+                                    onUpdate={(patch) => handleUpdateBlock(selectedBlock.id, patch)}
+                                    onDelete={() => handleDeleteBlocks([selectedBlock.id])}
+                                    onDuplicate={() => handleDuplicateBlocks([selectedBlock.id])}
+                                />
+                            ) : (
+                                <TemplateSettingsPanel
+                                    fields={fields.data}
+                                    config={config}
+                                    onChange={setConfig}
+                                    onResetFromBuiltin={(id) => void handleResetFromBuiltin(id)}
+                                />
+                            )}
+                        </aside>
+                    )
                 )}
             </div>
 
