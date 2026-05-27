@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 interface Props {
     config: {
         title?: string;
@@ -9,6 +7,16 @@ interface Props {
         cta_href?: string;
         dismissible?: boolean;
     };
+    /**
+     * Callback que el padre (`PortalRenderer`) inyecta para sacar este
+     * bloque del grid cuando el cliente clickea el botón de cerrar.
+     * El state vive en el padre, no acá: si lo manejábamos local con
+     * `useState`, el componente retornaba null pero el `<div className=
+     * "imcrm-portal-grid__cell">` que lo wrappea seguía ocupando su
+     * slot del grid, dejando un hueco vacío en lugar de dejar que los
+     * bloques de abajo se desplazaran hacia arriba.
+     */
+    onDismiss?: () => void;
 }
 
 /**
@@ -18,14 +26,11 @@ interface Props {
  * colores semánticos son fijos para que info/warning/error sean
  * universalmente reconocibles.
  *
- * `dismissible`: si true, el cliente puede ocultarlo (state local,
- * no persiste entre recargas — sería un cambio de scope).
+ * `dismissible`: si true, el cliente puede ocultarlo. El cierre
+ * notifica al padre via `onDismiss`; no persiste entre recargas.
  */
-export function NoticeBlock({ config }: Props): JSX.Element | null {
+export function NoticeBlock({ config, onDismiss }: Props): JSX.Element {
     const variant = config.variant ?? 'info';
-    const [hidden, setHidden] = useState(false);
-    if (hidden) return null;
-
     const body = config.body ?? '';
     const title = config.title ?? '';
     const ctaLabel = config.cta_label ?? '';
@@ -57,10 +62,10 @@ export function NoticeBlock({ config }: Props): JSX.Element | null {
                     </a>
                 )}
             </div>
-            {config.dismissible === true && (
+            {config.dismissible === true && onDismiss !== undefined && (
                 <button
                     type="button"
-                    onClick={() => setHidden(true)}
+                    onClick={onDismiss}
                     className="imcrm-portal-notice__close"
                     aria-label="Cerrar"
                 >

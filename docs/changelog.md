@@ -4,6 +4,66 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.13] — 2026-05-27
+
+**Fix — al cerrar un bloque "Aviso/Alerta" dismissible, los bloques
+de abajo ahora se desplazan hacia arriba para cerrar el hueco.**
+
+### El bug
+
+El `NoticeBlock` manejaba el cierre con un `useState` local
+(`hidden`). Cuando se ocultaba retornaba `null`. Pero el wrapper
+del grid (`<div className="imcrm-portal-grid__cell">` en
+`PortalRenderer`) seguía renderizándose con su `style={gridRow: N
+/ span M}` apuntando a una posición fija. Resultado: el slot del
+grid quedaba como un rectángulo vacío del tamaño del notice
+original, y los bloques de abajo no se movían porque tenían sus
+propias posiciones absolutas (`gridRow`) fijas.
+
+### El fix
+
+Dos partes:
+
+**1. Levantar el estado `dismissed` al `PortalRenderer`.**
+
+```tsx
+const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+```
+
+Cuando un Notice se cierra, agregamos su índice al set. El `.map`
+del render skipea esos índices completamente — incluido el wrapper
+del grid cell.
+
+**2. Recalcular `y` de los bloques siguientes (`computeRowShifts`).**
+
+CSS Grid con `gridRow: N / span M` posiciona cada cell de forma
+absoluta. Sacar uno no mueve los otros. Implementamos un helper
+que mira los bloques `dismissed` y calcula cuántas filas debe
+subir cada bloque visible:
+
+```ts
+function computeRowShifts(blocks, dismissed): Map<idx, shift> {
+    // Para cada dismissed con w=12 (full-width), recolecta su rango
+    // [y, y+h) — esas filas quedaron 100% libres.
+    // Para cada bloque visible, cuenta cuántas filas de rangos
+    // liberados están ESTRICTAMENTE arriba de su y. Eso es su shift.
+}
+```
+
+Restricción intencional: solo los dismissed `w=12` contribuyen al
+shift. Los notice con `w<12` que comparten fila con otros bloques
+dejan el hueco como está — moverlos podría hacer que los siguientes
+se solapen con vecinos laterales en la misma fila. Es un trade-off
+conservador para no romper el layout.
+
+### Cambios
+
+- `app/portal/blocks/NoticeBlock.tsx` — recibe `onDismiss` prop en
+  lugar de manejar state interno.
+- `app/portal/PortalRenderer.tsx` — `useState<Set<number>>` para
+  dismissed, helper `computeRowShifts`, aplica `effectiveY` al
+  style del cell.
+
 ## [0.57.12] — 2026-05-27
 
 **Fix visual — outline azul del browser aparecía al presionar Shift

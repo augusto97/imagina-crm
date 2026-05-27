@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.12
+Stable tag: 0.57.13
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,24 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.13 =
+**Fix — al cerrar un bloque "Aviso/Alerta" dismissible, los bloques
+de abajo ahora se desplazan hacia arriba para cerrar el hueco.**
+
+El `NoticeBlock` manejaba el cierre con un `useState` local: cuando
+se ocultaba retornaba null, pero el `<div imcrm-portal-grid__cell>`
+que lo wrappea seguía ocupando su slot del grid (posición absoluta
+con `gridRow` específico). Resultado: hueco visible en el portal
+del cliente.
+
+Fix:
+* El estado "dismissed" se levanta al `PortalRenderer`, que filtra
+  el bloque entero del map.
+* Si el bloque era full-width (`w=12`), recalculamos el `y` de los
+  bloques siguientes para subirlos. Los huecos parciales (notice
+  con `w<12` compartiendo fila con otros bloques) quedan como
+  están — moverlos podría chocar con vecinos laterales.
 
 = 0.57.12 =
 **Fix visual — outline azul aparecía al presionar Shift dentro del admin.**
