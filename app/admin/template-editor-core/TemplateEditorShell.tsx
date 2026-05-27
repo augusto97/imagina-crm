@@ -125,6 +125,8 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
     const [preview, setPreview] = useState(false);
     const [fullScreen, setFullScreen] = useState(false);
     const [previewRecord, setPreviewRecord] = useState<RecordEntity | null>(null);
+    /** Tab activo del panel izquierdo: paleta de bloques o tree view de la estructura. */
+    const [leftPanelTab, setLeftPanelTab] = useState<'palette' | 'structure'>('palette');
 
     // Sample real para preview cuando se elige "Datos reales".
     const sample = useRecords(listId, { per_page: 1, page: 1 });
@@ -530,19 +532,68 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                             onClick={() => setPaletteCollapsed(false)}
                         />
                     ) : (
-                        <aside className="imcrm-relative imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
+                        <aside className="imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card">
                             <CollapsePanelButton
                                 side="left"
                                 label={__('Ocultar paleta')}
                                 onClick={() => setPaletteCollapsed(true)}
                             />
-                            <PalettePanel
-                                registry={registry}
-                                existingBlocks={blocks}
-                                fields={fields}
-                                onAddBlock={(type) => handleAddBlock(type, appendPosition(), blocks)}
-                                onAddField={(slug) => handleAddField(slug, appendPosition(), blocks)}
-                            />
+                            {/* Tabs del panel izquierdo: Paleta vs Estructura. */}
+                            <div className="imcrm-flex imcrm-shrink-0 imcrm-border-b imcrm-border-border imcrm-bg-muted/30">
+                                <LeftPanelTabBtn
+                                    active={leftPanelTab === 'palette'}
+                                    onClick={() => setLeftPanelTab('palette')}
+                                >
+                                    {__('Paleta')}
+                                </LeftPanelTabBtn>
+                                <LeftPanelTabBtn
+                                    active={leftPanelTab === 'structure'}
+                                    onClick={() => setLeftPanelTab('structure')}
+                                >
+                                    {__('Estructura')}
+                                </LeftPanelTabBtn>
+                            </div>
+                            <div className="imcrm-flex-1 imcrm-overflow-y-auto">
+                                {leftPanelTab === 'palette' ? (
+                                    <PalettePanel
+                                        registry={registry}
+                                        existingBlocks={blocks}
+                                        fields={fields}
+                                        onAddBlock={(type) => handleAddBlock(type, appendPosition(), blocks)}
+                                        onAddField={(slug) => handleAddField(slug, appendPosition(), blocks)}
+                                    />
+                                ) : (
+                                    <div className="imcrm-p-2">
+                                        <TemplateTreeView
+                                            blocks={blocks}
+                                            selectedBlockIds={selectedBlockIds}
+                                            registry={registry}
+                                            onSelectBlock={(id) =>
+                                                setSelectedBlockIds(id !== null ? [id] : [])
+                                            }
+                                            onMoveBlockToColumn={(blockId, targetY, targetX) => {
+                                                const blockToMove = blocks.find((b) => b.id === blockId);
+                                                if (! blockToMove) return;
+                                                const targetColBlocks = blocks.filter(
+                                                    (b) =>
+                                                        b.id !== blockId
+                                                        && (b.y ?? 0) === targetY
+                                                        && (b.x ?? 0) === targetX,
+                                                );
+                                                const targetCol = targetColBlocks[0];
+                                                const newPos = targetColBlocks.length;
+                                                const newW = targetCol?.w ?? blockToMove.w;
+                                                const next = blocks.map((b) =>
+                                                    b.id === blockId
+                                                        ? { ...b, y: targetY, x: targetX, pos: newPos, w: newW }
+                                                        : b,
+                                                ) as TBlock[];
+                                                setBlocks(next);
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </aside>
                     )
                 )}
@@ -582,41 +633,6 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
                                 label={__('Ocultar opciones')}
                                 onClick={() => setInspectorCollapsed(true)}
                             />
-                            <div className="imcrm-mb-3">
-                                <p className="imcrm-mb-1 imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
-                                    {__('Estructura')}
-                                </p>
-                                <TemplateTreeView
-                                    blocks={blocks}
-                                    selectedBlockIds={selectedBlockIds}
-                                    registry={registry}
-                                    onSelectBlock={(id) =>
-                                        setSelectedBlockIds(id !== null ? [id] : [])
-                                    }
-                                    onMoveBlockToColumn={(blockId, targetY, targetX) => {
-                                        // Mueve un bloque a la columna (y, x) destino, al
-                                        // FINAL (pos = bloques actuales en esa columna).
-                                        const blockToMove = blocks.find((b) => b.id === blockId);
-                                        if (! blockToMove) return;
-                                        const targetColBlocks = blocks.filter(
-                                            (b) =>
-                                                b.id !== blockId
-                                                && (b.y ?? 0) === targetY
-                                                && (b.x ?? 0) === targetX,
-                                        );
-                                        const targetCol = targetColBlocks[0];
-                                        const newPos = targetColBlocks.length;
-                                        const newW = targetCol?.w ?? blockToMove.w;
-                                        const next = blocks.map((b) =>
-                                            b.id === blockId
-                                                ? { ...b, y: targetY, x: targetX, pos: newPos, w: newW }
-                                                : b,
-                                        ) as TBlock[];
-                                        setBlocks(next);
-                                    }}
-                                />
-                            </div>
-
                             {selectedBlockIds.length > 1 ? (
                                 <BulkActionsPanel
                                     count={selectedBlockIds.length}
@@ -664,5 +680,30 @@ function DefaultEmptyPanel({ listSlug }: { listSlug: string }): JSX.Element {
                 {__('Click en un bloque del canvas para editar sus opciones, o arrastrá uno desde la paleta.')}
             </p>
         </div>
+    );
+}
+
+function LeftPanelTabBtn({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+}): JSX.Element {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                'imcrm-flex-1 imcrm-border-b-2 imcrm-px-3 imcrm-py-2 imcrm-text-[11px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-transition',
+                active
+                    ? 'imcrm-border-primary imcrm-bg-card imcrm-text-foreground'
+                    : 'imcrm-border-transparent imcrm-text-muted-foreground hover:imcrm-text-foreground',
+            )}
+        >
+            {children}
+        </button>
     );
 }

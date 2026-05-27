@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.25
+Stable tag: 0.57.26
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.26 =
+**Tree View movido al panel izquierdo como tab.**
+
+El panel "Estructura" ahora es una **pestaña del panel izquierdo**
+junto con "Paleta" — se alterna con un click en los tabs de arriba.
+El panel derecho queda limpio para el Inspector del bloque
+seleccionado.
 
 = 0.57.25 =
 **Editor por secciones visibles + Tree View + fix margin del preview.**
