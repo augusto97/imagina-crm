@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.18
+Stable tag: 0.57.19
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,16 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.19 =
+**Fix:** continuación del fix de 0.57.18 — quedaba un panel sin
+cubrir: el `TemplateSettingsPanel` del CRM, que es el que aparece
+cuando no hay ningún bloque seleccionado ("Ajustes de la plantilla").
+El botón de colapsar seguía tapando la "P" de "PLANTILLA",
+dejando visible solo "LANTILLA".
+
+Fix: mismo padding asimétrico `pl-12 pr-4` en el header del panel
+de ajustes globales.
 
 = 0.57.18 =
 **Fix:** los botones de colapsar de los paneles del editor (paleta a
