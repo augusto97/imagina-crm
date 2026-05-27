@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.8
+Stable tag: 0.57.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,31 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.9 =
+**Fix definitivo (esperamos) del Suspense colgado al cambiar entre
+vistas Kanban / Cards / Calendar.**
+
+El indicio nuevo fue `Uncaught (in promise) AbortError: Transition
+was skipped` en consola. Eso es React abortando una transition
+concurrent — no es Rocket Loader ni el factory loop. Dos cambios:
+
+1. **Prefetch agresivo de los 4 chunks al mount** de RecordsPage
+   (~30KB total en paralelo). Cuando el user cambia a una vista,
+   React.lazy ya tiene el módulo en cache y resuelve sin pasar por
+   Suspense pending — no hay transition que abortar.
+
+2. **Un único `<Suspense>` envolviendo todas las vistas** (en vez
+   de uno por branch del ternario). Cuando cambiabas de Kanban a
+   Cards, el Suspense de Kanban se desmontaba justo cuando su
+   transition estaba pendiente, abortándola. Con un solo Suspense
+   que persiste, solo cambia su child — sin desmonte intermedio.
+
+Trade-off: ~30KB extra de descarga al cold load (era 0.57.5-0.57.8
+solo descargaba el chunk de la vista activa). En sites con saved
+views Kanban/Cards/Calendar, es 100% net-win porque ese 30KB se
+amortiza inmediatamente al primer cambio de vista que ya no se
+cuelga.
 
 = 0.57.8 =
 **FIX REAL del bug "Cargando vista..." infinito al cambiar entre

@@ -4,6 +4,111 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.9] — 2026-05-27
+
+**Fix definitivo (esperamos) del Suspense colgado al cambiar entre
+vistas Kanban / Cards / Calendar.**
+
+### El indicio nuevo
+
+Después de aplicar 0.57.8 (cache de promise en `lazyWithReload`),
+el usuario reportó que el bug persiste exactamente igual. Pero
+agregó una pista crítica:
+
+```
+imagina-crm/:1 Uncaught (in promise) AbortError: Transition was skipped
+content.js:146 [motherboard] [content-script] Initialized successfully
+vendor-react-BMdECP4y.js:40 [Violation] 'setTimeout' handler took 50-165ms
+(cientos de veces)
+```
+
+`AbortError: Transition was skipped` es un error específico del
+reconciler de React Concurrent. Lo emite cuando React aborta una
+transition pendiente — típicamente porque el árbol que esperaba a
+una promise se desmontó antes de que la promise resolviera.
+
+### Causa raíz — Suspense desmontándose mid-transition
+
+El ternario en RecordsPage renderizaba:
+
+```jsx
+{isKanban && groupByField ? (
+    <Suspense fallback={...}>
+        <KanbanView ... />
+    </Suspense>
+) : isCards ? (
+    <Suspense fallback={...}>
+        <CardsView ... />
+    </Suspense>
+) : ...}
+```
+
+Cuando el user cambiaba de Kanban a Cards:
+1. React procesaba el cambio como una transition concurrent.
+2. El árbol `<Suspense><KanbanView /></Suspense>` se desmontaba.
+3. El árbol `<Suspense><CardsView /></Suspense>` se montaba.
+4. `<CardsView />` (lazy) lanzaba su promise → React inicia
+   transition pendiente.
+5. Por algún detalle interno del reconciler, **la transition se
+   abortaba** mid-flight (probablemente porque el unmount del
+   Suspense anterior interfería).
+6. La promise quedaba rejected con `AbortError: Transition was
+   skipped`.
+7. Pero React.lazy ya tenía esa promise referenciada y
+   nunca se "destrababa" hasta que el árbol se desmontara
+   completamente.
+
+Por qué al cambiar a otra vista y volver funcionaba: el segundo
+mount de Cards generaba una nueva transition desde cero, sin la
+herencia del estado abortado.
+
+### El fix
+
+Dos cambios complementarios:
+
+**1. Prefetch AGRESIVO de los 4 chunks al mount de RecordsPage.**
+
+```ts
+useEffect(() => {
+    void KanbanView.preload();
+    void CalendarView.preload();
+    void CardsView.preload();
+    void GroupedTableView.preload();
+}, []);
+```
+
+Cuando el user cambia a una vista, React.lazy ya tiene su cache
+resuelto. `<Suspense>` **NUNCA entra en estado pending bloqueante**
+— resuelve sincrónicamente al renderizar. Sin pending, no hay
+transition. Sin transition, no hay nada que abortar.
+
+Trade-off: ~30KB extra al cold load (los 4 chunks descargados en
+paralelo). En sites con saved views no-Table es 100% net-win porque
+ese 30KB se amortiza al primer cambio de vista que ya no se cuelga.
+
+**2. UN SOLO `<Suspense>` envolviendo todo el switch.**
+
+```jsx
+<Suspense fallback={<ViewLoadingFallback />}>
+    {isKanban && groupByField ? (
+        <KanbanView ... />
+    ) : isCalendar && dateField ? (
+        <CalendarView ... />
+    ) : isCards ? (
+        <CardsView ... />
+    ) : ...}
+</Suspense>
+```
+
+El Suspense no se desmonta al cambiar de vista — solo cambia su
+child. Sin desmonte intermedio, no hay transition abortada.
+
+### Cambios
+
+- `app/admin/records/RecordsPage.tsx` — prefetch agresivo en
+  `useEffect([])`, un único Suspense para todas las vistas,
+  removido el prefetch reactivo redundante.
+
 ## [0.57.8] — 2026-05-27
 
 **FIX REAL del bug "Cargando vista..." infinito al cambiar entre

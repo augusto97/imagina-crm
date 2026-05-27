@@ -208,6 +208,27 @@ export function RecordsPage(): JSX.Element {
         initialViewAppliedRef.current = null;
     }, [list.data?.id]);
 
+    // Prefetch AGRESIVO de los 4 chunks lazy al montar RecordsPage.
+    //
+    // Razón: con prefetch reactivo (solo el chunk de la vista activa)
+    // descubrimos un bug donde cambiar entre vistas lazy dejaba el
+    // Suspense colgado infinito por interacción rara entre React.lazy
+    // + transition concurrent + promise rejection "Transition was
+    // skipped" (síntoma reportado en 0.57.5-0.57.8).
+    //
+    // Cargar los 4 chunks al mount (~30KB total en paralelo) hace
+    // que React.lazy tenga su cache resuelto antes del primer cambio
+    // de vista — el Suspense NUNCA entra en estado pending
+    // bloqueante, así que no hay transition que abortar. Trade-off:
+    // ~30KB extra al cold load pero cero cuelgues al cambiar de
+    // vista. En sites con saved views es 100% net-win.
+    useEffect(() => {
+        void KanbanView.preload();
+        void CalendarView.preload();
+        void CardsView.preload();
+        void GroupedTableView.preload();
+    }, []);
+
     const applyView = (view: SavedViewEntity | null): void => {
         if (view === null) {
             setActiveViewId(null);
@@ -231,41 +252,6 @@ export function RecordsPage(): JSX.Element {
             applyView(def);
         }
     }, [views.data, list.data?.id]);
-
-    // Prefetch del chunk JS de la vista activa en paralelo con el
-    // fetch de records. Sin esto, el browser esperaba a que records
-    // resolviera para empezar a descargar el chunk — un waterfall
-    // serial que sumaba 200-500ms al primer load de Kanban/Cards/
-    // Calendar. Con este prefetch, la descarga del chunk arranca
-    // apenas se sabe qué vista usar, y suele terminar antes que el
-    // query con per_page=500.
-    //
-    // `void` porque solo queremos disparar el side effect del import
-    // (poblar el module cache de Vite); el módulo en sí lo consume
-    // el `lazyWithReload` cuando React monta el componente.
-    //
-    // GroupedTableView se prefetchea cuando `state.groupByFieldId`
-    // se setea (camino "Todos" + Group by), independiente del tipo
-    // de saved view.
-    useEffect(() => {
-        if (! views.data) return;
-        const activeView = activeViewId !== null
-            ? views.data.find((v) => v.id === activeViewId)
-            : null;
-        const type = activeView?.type ?? views.data.find((v) => v.is_default)?.type;
-        switch (type) {
-            case 'kanban':   void KanbanView.preload(); break;
-            case 'calendar': void CalendarView.preload(); break;
-            case 'cards':    void CardsView.preload(); break;
-            default:         break;
-        }
-    }, [activeViewId, views.data]);
-
-    useEffect(() => {
-        if (state.groupByFieldId !== null) {
-            void GroupedTableView.preload();
-        }
-    }, [state.groupByFieldId]);
 
     const setFilterTree = (filterTree: import('@/types/record').FilterTree): void => {
         setState((s) => ({ ...s, filterTree, page: 1 }));
@@ -540,101 +526,109 @@ export function RecordsPage(): JSX.Element {
                                 (records.error as Error).message,
                             )}
                         </p>
-                    ) : isKanban && groupByField ? (
-                        <Suspense fallback={<ViewLoadingFallback />}>
-                            <KanbanView
-                                listId={list.data.id}
-                                fields={fields.data}
-                                records={records.data?.data ?? []}
-                                groupByField={groupByField}
-                                onCardClick={(record) => setDrawerRecordId(record.id)}
-                                titleFieldId={activeView?.config.kanban_title_field_id ?? null}
-                                metaFieldIds={activeView?.config.kanban_meta_field_ids ?? null}
-                            />
-                        </Suspense>
-                    ) : isCalendar && dateField ? (
-                        <Suspense fallback={<ViewLoadingFallback />}>
-                            <CalendarView
-                                fields={fields.data}
-                                records={records.data?.data ?? []}
-                                dateField={dateField}
-                                onCardClick={(record) => setDrawerRecordId(record.id)}
-                            />
-                        </Suspense>
-                    ) : isCards ? (
-                        <Suspense fallback={<ViewLoadingFallback />}>
-                            <CardsView
-                                fields={fields.data}
-                                records={records.data?.data ?? []}
-                                extraFields={cardsExtraFields}
-                                coverField={cardsCoverField}
-                                size={activeView?.config.card_size ?? 'comfortable'}
-                                onCardClick={(record) => setDrawerRecordId(record.id)}
-                            />
-                        </Suspense>
-                    ) : isTableGrouped && tableGroupByField ? (
-                        <Suspense fallback={<ViewLoadingFallback />}>
-                        <GroupedTableView
-                            listId={list.data.id}
-                            listSlug={list.data.slug}
-                            fields={fields.data}
-                            groupByField={tableGroupByField}
-                            filterTree={state.filterTree}
-                            search={debouncedSearch}
-                            selectedIds={selectedIds}
-                            onSelectionChange={setSelectedIds}
-                            onRowClick={(record) => setDrawerRecordId(record.id)}
-                            columnVisibility={state.columnVisibility}
-                            columnSizing={state.columnSizing}
-                            columnOrder={state.columnOrder}
-                            collapsedGroups={state.collapsedGroups}
-                            onCollapsedGroupsChange={(next) =>
-                                setState((s) => ({ ...s, collapsedGroups: next }))
-                            }
-                            onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
-                            // El bucket value llega al callback pero por
-                            // ahora abrimos el create dialog plain — el
-                            // pre-fill por bucket value queda como
-                            // siguiente iteración.
-                            onAddRecord={() => setCreateOpen(true)}
-                            footerAggregates={state.footerAggregates}
-                            onFooterAggregatesChange={(next) =>
-                                setState((s) => ({ ...s, footerAggregates: next }))
-                            }
-                        />
-                        </Suspense>
                     ) : (
-                        <TableView
-                            listId={list.data.id}
-                            listSlug={list.data.slug}
-                            fields={fields.data}
-                            records={records.data?.data ?? []}
-                            sort={state.sort}
-                            onSortChange={handleSortChange}
-                            selectedIds={selectedIds}
-                            onSelectionChange={setSelectedIds}
-                            onRowClick={(record) => setDrawerRecordId(record.id)}
-                            columnVisibility={state.columnVisibility}
-                            onColumnVisibilityChange={(next) =>
-                                setState((s) => ({ ...s, columnVisibility: next }))
-                            }
-                            columnSizing={state.columnSizing}
-                            onColumnSizingChange={(next) =>
-                                setState((s) => ({ ...s, columnSizing: next }))
-                            }
-                            columnOrder={state.columnOrder}
-                            onColumnOrderChange={(next) =>
-                                setState((s) => ({ ...s, columnOrder: next }))
-                            }
-                            filterTree={state.filterTree}
-                            onAddRecord={() => setCreateOpen(true)}
-                            onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
-                            footerAggregates={state.footerAggregates}
-                            onFooterAggregatesChange={(next) =>
-                                setState((s) => ({ ...s, footerAggregates: next }))
-                            }
-                            totalCount={records.data?.meta.total ?? 0}
-                        />
+                        // ÚNICO Suspense para todas las vistas — los
+                        // 4 chunks lazy se prefetchean al mount via
+                        // `useEffect` arriba, así que cuando el usuario
+                        // cambia de vista, React.lazy ya tiene el
+                        // módulo en cache y resuelve sincrónicamente
+                        // sin pasar por Suspense pending.
+                        //
+                        // Mantener UN SOLO Suspense (en vez de uno por
+                        // branch del ternario) evita el bug donde
+                        // cambiar entre vistas lazy abortaba la
+                        // transition del Suspense anterior antes de
+                        // que su promise resolviera ("Transition was
+                        // skipped" en consola). Síntoma: "Cargando
+                        // vista..." colgado infinito al cambiar entre
+                        // vistas, hasta volver y regresar. Fix en
+                        // 0.57.9.
+                        <Suspense fallback={<ViewLoadingFallback />}>
+                            {isKanban && groupByField ? (
+                                <KanbanView
+                                    listId={list.data.id}
+                                    fields={fields.data}
+                                    records={records.data?.data ?? []}
+                                    groupByField={groupByField}
+                                    onCardClick={(record) => setDrawerRecordId(record.id)}
+                                    titleFieldId={activeView?.config.kanban_title_field_id ?? null}
+                                    metaFieldIds={activeView?.config.kanban_meta_field_ids ?? null}
+                                />
+                            ) : isCalendar && dateField ? (
+                                <CalendarView
+                                    fields={fields.data}
+                                    records={records.data?.data ?? []}
+                                    dateField={dateField}
+                                    onCardClick={(record) => setDrawerRecordId(record.id)}
+                                />
+                            ) : isCards ? (
+                                <CardsView
+                                    fields={fields.data}
+                                    records={records.data?.data ?? []}
+                                    extraFields={cardsExtraFields}
+                                    coverField={cardsCoverField}
+                                    size={activeView?.config.card_size ?? 'comfortable'}
+                                    onCardClick={(record) => setDrawerRecordId(record.id)}
+                                />
+                            ) : isTableGrouped && tableGroupByField ? (
+                                <GroupedTableView
+                                    listId={list.data.id}
+                                    listSlug={list.data.slug}
+                                    fields={fields.data}
+                                    groupByField={tableGroupByField}
+                                    filterTree={state.filterTree}
+                                    search={debouncedSearch}
+                                    selectedIds={selectedIds}
+                                    onSelectionChange={setSelectedIds}
+                                    onRowClick={(record) => setDrawerRecordId(record.id)}
+                                    columnVisibility={state.columnVisibility}
+                                    columnSizing={state.columnSizing}
+                                    columnOrder={state.columnOrder}
+                                    collapsedGroups={state.collapsedGroups}
+                                    onCollapsedGroupsChange={(next) =>
+                                        setState((s) => ({ ...s, collapsedGroups: next }))
+                                    }
+                                    onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
+                                    onAddRecord={() => setCreateOpen(true)}
+                                    footerAggregates={state.footerAggregates}
+                                    onFooterAggregatesChange={(next) =>
+                                        setState((s) => ({ ...s, footerAggregates: next }))
+                                    }
+                                />
+                            ) : (
+                                <TableView
+                                    listId={list.data.id}
+                                    listSlug={list.data.slug}
+                                    fields={fields.data}
+                                    records={records.data?.data ?? []}
+                                    sort={state.sort}
+                                    onSortChange={handleSortChange}
+                                    selectedIds={selectedIds}
+                                    onSelectionChange={setSelectedIds}
+                                    onRowClick={(record) => setDrawerRecordId(record.id)}
+                                    columnVisibility={state.columnVisibility}
+                                    onColumnVisibilityChange={(next) =>
+                                        setState((s) => ({ ...s, columnVisibility: next }))
+                                    }
+                                    columnSizing={state.columnSizing}
+                                    onColumnSizingChange={(next) =>
+                                        setState((s) => ({ ...s, columnSizing: next }))
+                                    }
+                                    columnOrder={state.columnOrder}
+                                    onColumnOrderChange={(next) =>
+                                        setState((s) => ({ ...s, columnOrder: next }))
+                                    }
+                                    filterTree={state.filterTree}
+                                    onAddRecord={() => setCreateOpen(true)}
+                                    onAddColumn={() => navigate(`/lists/${list.data!.slug}/edit?focus=fields`)}
+                                    footerAggregates={state.footerAggregates}
+                                    onFooterAggregatesChange={(next) =>
+                                        setState((s) => ({ ...s, footerAggregates: next }))
+                                    }
+                                    totalCount={records.data?.meta.total ?? 0}
+                                />
+                            )}
+                        </Suspense>
                     )}
 
                     {meta && !isAlternativeView && !isTableGrouped && (
