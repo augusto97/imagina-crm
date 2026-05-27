@@ -1,6 +1,7 @@
 import {
     Activity,
     AlertCircle,
+    Columns as ColumnsIcon,
     Download,
     ExternalLink as ExternalLinkIcon,
     FileText,
@@ -75,6 +76,13 @@ const TYPES: BlockTypeDef[] = [
         label: __('Aviso / Alerta'),
         description: __('Banner info/success/warning/error con icono y CTA opcional.'),
         icon: AlertCircle,
+        category: 'layout',
+    },
+    {
+        type: 'nested_section',
+        label: __('Sub-sección con columnas'),
+        description: __('Contenedor con N columnas anidadas adentro de otra columna.'),
+        icon: ColumnsIcon,
         category: 'layout',
     },
     // Datos
@@ -193,6 +201,7 @@ const LABEL_BY_TYPE: Record<PortalBlockType, string> = {
     divider:                __('Divisor'),
     faq:                    __('Preguntas frecuentes'),
     contact_card:           __('Tarjeta de contacto'),
+    nested_section:         __('Sub-sección con columnas'),
 };
 
 const DESC_BY_TYPE: Record<PortalBlockType, string> = {
@@ -213,6 +222,7 @@ const DESC_BY_TYPE: Record<PortalBlockType, string> = {
     divider:                __('Línea horizontal con label opcional centrado.'),
     faq:                    __('Acordeón Q&A — preguntas frecuentes colapsables.'),
     contact_card:           __('Tarjeta del asesor con avatar, nombre y datos de contacto.'),
+    nested_section:         __('Contenedor con N columnas anidadas dentro de otra columna. Permite layouts de columnas dentro de columnas.'),
 };
 
 function makeId(type: string): string {

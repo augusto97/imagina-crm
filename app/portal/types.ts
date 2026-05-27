@@ -248,6 +248,24 @@ export type PortalBlock = PortalBlockGridPosition & (
               whatsapp?: string;
           };
       }
+    | {
+          /**
+           * Sub-sección con N columnas anidadas. Cada columna contiene
+           * un array de sub-bloques apilados verticalmente. Soporta
+           * 1 nivel de anidamiento (los sub-bloques NO pueden ser
+           * a su vez `nested_section`).
+           */
+          type: 'nested_section';
+          config: {
+              columns: Array<{
+                  id: string;
+                  /** Ancho en cols de 12 (1-12). */
+                  width: number;
+                  /** Sub-bloques apilados verticalmente. */
+                  blocks: PortalBlock[];
+              }>;
+          };
+      }
 );
 
 /**

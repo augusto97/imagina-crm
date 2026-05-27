@@ -80,6 +80,8 @@ final class PortalTemplate
         'divider',
         'faq',
         'contact_card',
+        // 0.57.27 — sub-sección con N columnas anidadas (1 nivel)
+        'nested_section',
     ];
 
     /**

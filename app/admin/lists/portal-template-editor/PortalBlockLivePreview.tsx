@@ -220,6 +220,59 @@ function renderBlock(
                     config={block.config as Parameters<typeof ContactCardBlock>[0]['config']}
                 />
             );
+        case 'nested_section': {
+            // Renderea las sub-columnas con sus sub-bloques recursivamente.
+            // El preview usa el mismo mock que el padre.
+            const cfg = block.config as {
+                columns: Array<{
+                    id?: string;
+                    width: number;
+                    blocks: Array<{ type: string; config: Record<string, unknown> }>;
+                }>;
+            };
+            return (
+                <div className="imcrm-rows-layout">
+                    <div className="imcrm-row">
+                        {cfg.columns.map((col, cIdx) => {
+                            const basis = `${(col.width / 12) * 100}%`;
+                            return (
+                                <div
+                                    key={col.id ?? cIdx}
+                                    className="imcrm-row__cell"
+                                    style={{ flexBasis: basis, maxWidth: basis }}
+                                >
+                                    {col.blocks.length === 0 ? (
+                                        <p className="imcrm-portal-block__loading">
+                                            (col vacía — agregar sub-bloques desde el panel de opciones)
+                                        </p>
+                                    ) : (
+                                        col.blocks.map((subBlock, subIdx) => (
+                                            <div key={subIdx}>
+                                                {renderBlock(
+                                                    {
+                                                        // ResolvedPortalBlock shape minimo
+                                                        id: `${block.id}-sub-${cIdx}-${subIdx}`,
+                                                        type: subBlock.type as never,
+                                                        config: subBlock.config as never,
+                                                        x: 0,
+                                                        y: 0,
+                                                        w: 12,
+                                                        h: 4,
+                                                    } as never,
+                                                    mockRecord,
+                                                    mockBoot,
+                                                    mockFields,
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
     }
 }
 

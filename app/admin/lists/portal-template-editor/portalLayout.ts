@@ -192,6 +192,14 @@ export function defaultConfigFor(type: PortalBlockType): Record<string, unknown>
                 phone: '',
                 whatsapp: '',
             };
+        case 'nested_section':
+            // 0.57.27 — sub-sección con 2 columnas 6+6 vacías por default.
+            return {
+                columns: [
+                    { id: `nc-${Date.now()}-1`, width: 6, blocks: [] },
+                    { id: `nc-${Date.now()}-2`, width: 6, blocks: [] },
+                ],
+            };
     }
 }
 

@@ -33,7 +33,9 @@ export type PortalBlockType =
     | 'notice'
     | 'divider'
     | 'faq'
-    | 'contact_card';
+    | 'contact_card'
+    // 0.57.27 — anidamiento de columnas (1 nivel)
+    | 'nested_section';
 
 export const PORTAL_BLOCK_TYPES: Array<{ value: PortalBlockType; label: string }> = [
     { value: 'heading', label: 'Título de sección' },
@@ -53,6 +55,7 @@ export const PORTAL_BLOCK_TYPES: Array<{ value: PortalBlockType; label: string }
     { value: 'comments_thread', label: 'Hilo de comentarios' },
     { value: 'faq', label: 'Preguntas frecuentes' },
     { value: 'contact_card', label: 'Tarjeta de contacto' },
+    { value: 'nested_section', label: 'Sub-sección con columnas' },
 ];
 
 export interface PortalTemplateBlock {

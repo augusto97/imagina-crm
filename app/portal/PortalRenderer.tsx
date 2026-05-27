@@ -233,6 +233,41 @@ function renderBlock(
             return <FaqBlock key={idx} config={block.config} />;
         case 'contact_card':
             return <ContactCardBlock key={idx} config={block.config} />;
+        case 'nested_section':
+            return (
+                <div key={idx} className="imcrm-rows-layout">
+                    <div className="imcrm-row">
+                        {block.config.columns.map((col, cIdx) => {
+                            const basis = `${(col.width / 12) * 100}%`;
+                            return (
+                                <div
+                                    key={col.id ?? cIdx}
+                                    className="imcrm-row__cell"
+                                    style={{ flexBasis: basis, maxWidth: basis }}
+                                >
+                                    {col.blocks.map((subBlock, subIdx) =>
+                                        // Recursivo — los sub-bloques son del mismo tipo
+                                        // que los top-level (excepto nested_section, que
+                                        // se filtra a 1 nivel desde el editor).
+                                        renderBlock(
+                                            subBlock,
+                                            // Key compuesta para evitar colisiones con
+                                            // los keys del nivel superior.
+                                            (idx * 1000) + (cIdx * 100) + subIdx,
+                                            data,
+                                            boot,
+                                            // Los sub-bloques no soportan dismiss (los
+                                            // notice dismissibles solo tienen sentido a
+                                            // nivel top-level del template).
+                                            () => undefined,
+                                        ),
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
         default:
             return null;
     }

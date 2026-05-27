@@ -73,6 +73,16 @@ export function PortalBlockPreview({ block, fields }: Props): JSX.Element {
             return <FaqPreview block={block} />;
         case 'contact_card':
             return <ContactCardPreview block={block} />;
+        case 'nested_section':
+            // El preview de nested_section delega al LivePreview que
+            // ya sabe rendear las sub-columnas con sub-bloques.
+            // Acá renderizamos un placeholder simple para evitar
+            // recursividad pesada en el preview minimalista.
+            return (
+                <div className="imcrm-rounded imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3 imcrm-text-center imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Sub-sección con columnas (editá las opciones para configurar)')}
+                </div>
+            );
     }
 }
 

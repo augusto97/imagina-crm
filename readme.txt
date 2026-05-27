@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.26
+Stable tag: 0.57.27
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,37 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.27 =
+**Columnas dentro de columnas (portal): nuevo bloque `nested_section`.**
+
+Permite anidar columnas dentro de una columna (1 nivel de profundidad).
+Caso de uso típico: en una columna ancha tener 2 mini-columnas con
+contenido distinto.
+
+**Cómo usarlo:**
+
+1. En el editor del portal, arrastrar el bloque "Sub-sección con
+   columnas" desde la paleta a cualquier columna.
+2. Por default crea 2 sub-columnas de 6/12 cada una.
+3. En el Inspector del bloque (panel derecho), gestionar las
+   sub-columnas:
+   - Agregar / eliminar columnas
+   - Ajustar el ancho de cada una (3, 4, 6, 8, 9, 12)
+   - Agregar sub-bloques a cada columna (texto, título, divisor, KPI,
+     enlace, datos del cliente, aviso)
+   - Reordenar sub-bloques con ↑/↓
+   - Mover sub-bloques entre sub-columnas
+
+**Limitaciones:**
+
+* Solo 1 nivel de anidamiento: las sub-columnas NO pueden contener
+  otro `nested_section`. Esto evita recursión infinita y complejidad
+  excesiva del editor.
+* Los sub-bloques se gestionan desde el Inspector (no por drag-and-drop
+  al canvas).
+* Por ahora solo en el editor del **portal**. El CRM se extenderá en
+  una próxima iteración.
 
 = 0.57.26 =
 **Tree View movido al panel izquierdo como tab.**

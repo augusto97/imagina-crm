@@ -67,6 +67,8 @@ export function PortalBlockForm({ block, fields, onConfigChange }: FormProps): J
                 return <FaqForm config={block.config} onChange={onConfigChange} />;
             case 'contact_card':
                 return <ContactCardForm config={block.config} onChange={onConfigChange} />;
+            case 'nested_section':
+                return <NestedSectionForm config={block.config} onChange={onConfigChange} />;
         }
     })();
     return (
@@ -1682,5 +1684,244 @@ function FieldSlugMultiPicker({
                 ))}
             </select>
         </Field>
+    );
+}
+
+// ─── nested_section ────────────────────────────────────────────────
+
+interface NestedSectionConfig {
+    columns: Array<{
+        id: string;
+        width: number;
+        blocks: Array<{ type: string; config: Record<string, unknown> }>;
+    }>;
+}
+
+/**
+ * Tipos de sub-bloque permitidos dentro de un `nested_section`. NO se
+ * incluye `nested_section` para evitar recursión infinita (1 nivel de
+ * profundidad máximo).
+ */
+const NESTED_SUB_BLOCK_TYPES: Array<{ value: string; label: string }> = [
+    { value: 'static_text',  label: __('Texto / HTML') },
+    { value: 'heading',      label: __('Título') },
+    { value: 'divider',      label: __('Divisor') },
+    { value: 'kpi_widget',   label: __('KPI / métrica') },
+    { value: 'external_link',label: __('Enlace externo') },
+    { value: 'client_data',  label: __('Datos del cliente') },
+    { value: 'notice',       label: __('Aviso / Alerta') },
+];
+
+function defaultSubBlockConfig(type: string): Record<string, unknown> {
+    switch (type) {
+        case 'static_text':   return { html: '', variant: 'card' };
+        case 'heading':       return { text: 'Título', level: 2, align: 'left' };
+        case 'divider':       return { label: '', style: 'solid' };
+        case 'kpi_widget':    return { label: 'Métrica', value: '0', variant: 'card' };
+        case 'external_link': return { label: 'Ver más', url: '#', variant: 'button' };
+        case 'client_data':   return { fields: [], variant: 'list' };
+        case 'notice':        return { variant: 'info', text: 'Aviso' };
+        default:              return {};
+    }
+}
+
+function NestedSectionForm({
+    config,
+    onChange,
+}: {
+    config: Record<string, unknown>;
+    onChange: (next: Record<string, unknown>) => void;
+}): JSX.Element {
+    const cfg = config as unknown as NestedSectionConfig;
+    const columns = Array.isArray(cfg.columns) ? cfg.columns : [];
+
+    const updateColumns = (next: NestedSectionConfig['columns']): void => {
+        onChange({ ...config, columns: next });
+    };
+
+    const addColumn = (): void => {
+        const used = columns.reduce((sum, c) => sum + (c.width ?? 0), 0);
+        const remaining = Math.max(3, 12 - used);
+        updateColumns([
+            ...columns,
+            {
+                id: `nc-${Date.now()}-${columns.length}`,
+                width: Math.min(12, remaining),
+                blocks: [],
+            },
+        ]);
+    };
+
+    const removeColumn = (colIdx: number): void => {
+        updateColumns(columns.filter((_, i) => i !== colIdx));
+    };
+
+    const setColumnWidth = (colIdx: number, width: number): void => {
+        updateColumns(columns.map((c, i) =>
+            i === colIdx ? { ...c, width: Math.max(1, Math.min(12, Math.round(width))) } : c,
+        ));
+    };
+
+    const addSubBlock = (colIdx: number, type: string): void => {
+        updateColumns(columns.map((c, i) =>
+            i === colIdx
+                ? { ...c, blocks: [...c.blocks, { type, config: defaultSubBlockConfig(type) }] }
+                : c,
+        ));
+    };
+
+    const removeSubBlock = (colIdx: number, subIdx: number): void => {
+        updateColumns(columns.map((c, i) =>
+            i === colIdx ? { ...c, blocks: c.blocks.filter((_, j) => j !== subIdx) } : c,
+        ));
+    };
+
+    const moveSubBlock = (colIdx: number, subIdx: number, dir: -1 | 1): void => {
+        updateColumns(columns.map((c, i) => {
+            if (i !== colIdx) return c;
+            const arr = [...c.blocks];
+            const newIdx = subIdx + dir;
+            if (newIdx < 0 || newIdx >= arr.length) return c;
+            const [removed] = arr.splice(subIdx, 1);
+            arr.splice(newIdx, 0, removed!);
+            return { ...c, blocks: arr };
+        }));
+    };
+
+    const moveSubBlockBetweenCols = (fromCol: number, subIdx: number, toCol: number): void => {
+        const sub = columns[fromCol]?.blocks[subIdx];
+        if (! sub) return;
+        const next = columns.map((c, i) => {
+            if (i === fromCol) return { ...c, blocks: c.blocks.filter((_, j) => j !== subIdx) };
+            if (i === toCol)   return { ...c, blocks: [...c.blocks, sub] };
+            return c;
+        });
+        updateColumns(next);
+    };
+
+    return (
+        <div className="imcrm-flex imcrm-flex-col imcrm-gap-3">
+            <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                {__('Configurá las columnas anidadas y los sub-bloques que viven adentro.')}
+            </p>
+
+            {columns.map((col, colIdx) => (
+                <div
+                    key={col.id ?? colIdx}
+                    className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-muted/20 imcrm-p-2"
+                >
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                        <span className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                            {__('Col')} {colIdx + 1}
+                        </span>
+                        <select
+                            value={col.width}
+                            onChange={(e) => setColumnWidth(colIdx, Number(e.target.value))}
+                            className="imcrm-h-6 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-1 imcrm-text-[11px]"
+                            title={__('Ancho')}
+                        >
+                            {[3, 4, 6, 8, 9, 12].map((w) => (
+                                <option key={w} value={w}>{w}/12</option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            onClick={() => removeColumn(colIdx)}
+                            disabled={columns.length <= 1}
+                            title={__('Eliminar columna')}
+                            className="imcrm-ml-auto imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive disabled:imcrm-opacity-30 disabled:hover:imcrm-bg-transparent disabled:hover:imcrm-text-muted-foreground"
+                        >
+                            <X className="imcrm-h-3.5 imcrm-w-3.5" />
+                        </button>
+                    </div>
+
+                    {col.blocks.length > 0 && (
+                        <div className="imcrm-flex imcrm-flex-col imcrm-gap-1">
+                            {col.blocks.map((b, subIdx) => (
+                                <div
+                                    key={subIdx}
+                                    className="imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-card imcrm-px-2 imcrm-py-1 imcrm-text-[11px]"
+                                >
+                                    <span className="imcrm-flex-1 imcrm-truncate imcrm-text-foreground">
+                                        {NESTED_SUB_BLOCK_TYPES.find((t) => t.value === b.type)?.label ?? b.type}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => moveSubBlock(colIdx, subIdx, -1)}
+                                        disabled={subIdx === 0}
+                                        className="imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                        title={__('Subir')}
+                                    >
+                                        <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => moveSubBlock(colIdx, subIdx, 1)}
+                                        disabled={subIdx === col.blocks.length - 1}
+                                        className="imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                        title={__('Bajar')}
+                                    >
+                                        <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                                    </button>
+                                    {columns.length > 1 && (
+                                        <select
+                                            value=""
+                                            onChange={(e) => {
+                                                const to = Number(e.target.value);
+                                                if (! Number.isNaN(to) && to !== colIdx) {
+                                                    moveSubBlockBetweenCols(colIdx, subIdx, to);
+                                                }
+                                            }}
+                                            className="imcrm-h-5 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-0.5 imcrm-text-[10px]"
+                                            title={__('Mover a otra col')}
+                                        >
+                                            <option value="">↔</option>
+                                            {columns.map((_, i) =>
+                                                i !== colIdx && (
+                                                    <option key={i} value={i}>
+                                                        → Col {i + 1}
+                                                    </option>
+                                                ),
+                                            )}
+                                        </select>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => removeSubBlock(colIdx, subIdx)}
+                                        className="imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                                        title={__('Eliminar')}
+                                    >
+                                        <X className="imcrm-h-3 imcrm-w-3" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <select
+                        value=""
+                        onChange={(e) => {
+                            const type = e.target.value;
+                            if (type) addSubBlock(colIdx, type);
+                            e.currentTarget.value = '';
+                        }}
+                        className="imcrm-h-7 imcrm-rounded imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-background imcrm-px-1 imcrm-text-[11px] imcrm-text-muted-foreground"
+                    >
+                        <option value="">{__('+ Agregar sub-bloque…')}</option>
+                        {NESTED_SUB_BLOCK_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                    </select>
+                </div>
+            ))}
+
+            <button
+                type="button"
+                onClick={addColumn}
+                className="imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-card imcrm-px-3 imcrm-py-2 imcrm-text-[11px] imcrm-text-muted-foreground hover:imcrm-border-primary hover:imcrm-text-primary"
+            >
+                + {__('Agregar columna')}
+            </button>
+        </div>
     );
 }
