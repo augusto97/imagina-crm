@@ -4,6 +4,86 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.7] — 2026-05-27
+
+**Fix crítico — vistas Kanban / Cards / Calendar nunca cargaban en
+sites con Cloudflare Rocket Loader activo.**
+
+### El bug real (no era waterfall, no era backend)
+
+Después de aplicar los waterfalls de 0.57.5 y 0.57.6, el usuario
+seguía viendo "Cargando vista..." infinito al primer acceso. 10
+segundos sin respuesta. Pero al cambiar a otra vista (Calendar) y
+volver a Kanban, cargaba instantáneamente.
+
+El DevTools del usuario reveló el culpable:
+
+```
+rocket-loader.min.js:1 A preload for '...main-B9DR6ww4.js' is
+found, but is not used because the request credentials mode does
+not match. Consider taking a look at crossorigin attribute.
+```
+
+**Cloudflare Rocket Loader** estaba activo. Esta "optimización"
+intercepta los `<script>` y los re-ejecuta de forma asíncrona
+desde su propio runtime — pero rompe los ES modules y los
+`import()` dinámicos:
+
+1. Al cargar la página, Rocket Loader intercepta `main.js` y lo
+   re-ejecuta. El bundle eventualmente monta el SPA.
+2. Al entrar a Kanban, el bundle hace `import('./views/KanbanView')`
+   (dynamic import). Esa request, por algún motivo relacionado a
+   cómo Rocket Loader manipula el contexto de ejecución, nunca
+   resuelve la promesa.
+3. `<Suspense>` queda esperando = "Cargando vista..." infinito.
+4. Al cambiar de vista, el chunk JS ya quedó descargado por el
+   browser (HTTP cache). El segundo `import()` resuelve desde
+   cache sin pasar por la red ni por Rocket Loader = funciona.
+
+### El fix
+
+`AdminAssets::addModuleTypeAttribute` ahora agrega
+`data-cfasync="false"` al tag del bundle:
+
+```html
+<script type="module" data-cfasync="false" src=".../main-xxx.js">
+```
+
+`data-cfasync="false"` es el opt-out documentado de Rocket Loader.
+Le dice "no toques este script, dejalo cargar nativo". Con eso,
+el bundle se ejecuta como ES module nativo y los dynamic imports
+funcionan normalmente.
+
+También se agrega un filter `style_loader_tag` paralelo para los
+CSS del plugin — defensivo, Rocket Loader normalmente no toca CSS
+pero algunas configuraciones agresivas sí.
+
+### Recomendación al usuario
+
+Si el problema persiste (Rocket Loader puede tener configuraciones
+que ignoran `data-cfasync`), la solución 100% confiable es
+**desactivar Rocket Loader en Cloudflare**:
+
+1. Dashboard de Cloudflare → tu dominio.
+2. Speed → Optimization → Content Optimization.
+3. Toggle "Rocket Loader" en OFF.
+
+O alternativamente, crear una Page Rule:
+
+1. Rules → Page Rules → Create Page Rule.
+2. URL pattern: `*tudominio.com/wp-admin/*`.
+3. Setting: "Rocket Loader" → OFF.
+
+Rocket Loader es notorio por romper bundlers modernos (Vite,
+webpack 5+, esbuild) y agentes JS que dependen del orden de
+ejecución. Para sites de admin no aporta beneficio observable.
+
+### Cambios
+
+- `src/Admin/AdminAssets.php` — `data-cfasync="false"` en
+  `<script>` (`addModuleTypeAttribute`) y `<link>`
+  (`addStyleCfasyncAttribute`).
+
 ## [0.57.6] — 2026-05-27
 
 **Cold load del `RecordsPage` paraleliza los 3 fetches iniciales —

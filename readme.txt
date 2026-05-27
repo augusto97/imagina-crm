@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.6
+Stable tag: 0.57.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,25 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.7 =
+**Fix crítico — vistas Kanban/Cards/Calendar nunca cargaban en sites
+con Cloudflare Rocket Loader.**
+
+Cloudflare Rocket Loader intercepta los `<script>` y los re-ejecuta
+de manera asíncrona desde su propio runtime, lo que rompe los ES
+modules y los `import()` dinámicos de Vite. Síntoma: el chunk lazy
+nunca resuelve la primera vez (queda en "Cargando vista..." infinito)
+pero funciona al segundo intento porque ya está en cache.
+
+Fix: el plugin ahora agrega `data-cfasync="false"` a los `<script>`
+y `<link>` que enqueua. Ese atributo es el opt-out estándar de
+Rocket Loader. Sin afecto para usuarios sin Rocket Loader activo.
+
+**Recomendación adicional**: si seguís viendo problemas, desactivá
+Rocket Loader en el panel de Cloudflare (Speed → Optimization)
+o creá una Page Rule excluyendo `/wp-admin/*`. Rocket Loader es
+conocido por romper bundlers modernos (Vite, webpack 5, esbuild).
 
 = 0.57.6 =
 **Cold load del RecordsPage paraleliza los 3 fetches iniciales.**

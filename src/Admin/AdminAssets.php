@@ -30,6 +30,9 @@ final class AdminAssets
         // nuestro handle, sin esto el browser falla con "Cannot use
         // import statement outside a module" y el SPA no monta.
         add_filter('script_loader_tag', [$this, 'addModuleTypeAttribute'], 10, 3);
+        // Mismo opt-out de Cloudflare Rocket Loader para los styles
+        // del admin — sin esto los CSS chunks pueden demorar.
+        add_filter('style_loader_tag', [$this, 'addStyleCfasyncAttribute'], 10, 2);
     }
 
     public function maybeEnqueue(string $hookSuffix): void
@@ -96,9 +99,21 @@ final class AdminAssets
 
     /**
      * Filtra el `<script>` tag de nuestro handle para agregar
-     * `type="module"`. WordPress no expone esto via API estable; el
-     * filtro `script_loader_tag` es el camino correcto. Defensivo:
-     * si ya tiene un `type=` (otro plugin lo añadió), no lo duplicamos.
+     * `type="module"` y `data-cfasync="false"`. WordPress no expone
+     * estos atributos via API estable; el filtro `script_loader_tag`
+     * es el camino correcto. Defensivo: si ya tiene un `type=` (otro
+     * plugin lo añadió), no lo duplicamos.
+     *
+     * **`data-cfasync="false"`** — opt-out de **Cloudflare Rocket
+     * Loader**. Rocket Loader intercepta los `<script>` y los
+     * re-ejecuta de forma asíncrona desde su propio runtime, lo que
+     * rompe los ES modules y los `import()` dinámicos que usa Vite.
+     * Síntoma típico: chunks lazy (Kanban/Cards/Calendar) que se
+     * quedan en "Cargando..." infinito al primer acceso porque el
+     * dynamic import nunca resuelve, pero funciona al segundo intento
+     * porque el chunk ya está en cache del browser. Más en
+     * https://developers.cloudflare.com/fundamentals/speed/rocket-loader/
+     * El atributo no afecta a usuarios sin Rocket Loader activo.
      */
     public function addModuleTypeAttribute(string $tag, string $handle, string $src): string
     {
@@ -109,7 +124,34 @@ final class AdminAssets
         if (str_contains($tag, ' type=')) {
             return $tag;
         }
-        return preg_replace('/<script\s/i', '<script type="module" ', $tag, 1) ?? $tag;
+        return preg_replace(
+            '/<script\s/i',
+            '<script type="module" data-cfasync="false" ',
+            $tag,
+            1
+        ) ?? $tag;
+    }
+
+    /**
+     * Filtra el `<link>` de los stylesheets enqueued por nosotros
+     * para agregar `data-cfasync="false"` — mismo motivo que el
+     * script: Rocket Loader puede demorar la carga de CSS si lo
+     * trata como recurso third-party.
+     */
+    public function addStyleCfasyncAttribute(string $tag, string $handle): string
+    {
+        if (! str_starts_with($handle, self::HANDLE)) {
+            return $tag;
+        }
+        if (str_contains($tag, 'data-cfasync=')) {
+            return $tag;
+        }
+        return preg_replace(
+            '/<link\s/i',
+            '<link data-cfasync="false" ',
+            $tag,
+            1
+        ) ?? $tag;
     }
 
     public function renderBuildMissingNotice(): void
