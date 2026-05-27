@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.7
+Stable tag: 0.57.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.8 =
+**FIX REAL del bug "Cargando vista..." infinito al cambiar entre
+vistas Kanban / Cards / Calendar.**
+
+Este era el bug real, no Rocket Loader (aunque el opt-out de 0.57.7
+sigue activo como defensa adicional). `lazyWithReload` (el wrapper
+de React.lazy del plugin) tenía un anti-pattern conocido: generaba
+una NUEVA Promise en cada llamada de React. React.lazy llama a su
+factory múltiples veces durante un concurrent render — y cuando
+cambiabas de Kanban a Cards, una de esas promises quedaba huérfana
+en estado pending, dejando el Suspense colgado para siempre.
+
+Por qué al volver a la misma vista funcionaba: el segundo intento
+encontraba el chunk ya en cache del browser, así que la nueva
+promise resolvía instantáneamente y el Suspense se desenredaba.
+
+Fix:
+* `lazyWithReload` ahora cachea la promise resultante. La factory
+  devuelve siempre la misma promise hasta que falle.
+* Retry transiente (500ms, 1500ms) para network glitches.
+* Expone `.preload()` para que el prefetch del chunk use el mismo
+  cache (cero duplicación de fetches).
 
 = 0.57.7 =
 **Fix crítico — vistas Kanban/Cards/Calendar nunca cargaban en sites

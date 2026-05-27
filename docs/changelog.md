@@ -4,6 +4,104 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.8] — 2026-05-27
+
+**FIX REAL del bug "Cargando vista..." infinito al cambiar entre
+vistas Kanban / Cards / Calendar.**
+
+### El bug (segundo intento)
+
+En 0.57.7 culpé a Cloudflare Rocket Loader. El usuario aplicó el
+fix de `data-cfasync="false"` y el bug PERSISTIÓ. Reporte exacto:
+
+> "Cargo la página principal de la lista y carga normal y rápido,
+> voy a vista kanban y se demora 2 segundos en cargar pero carga,
+> y entonces voy a vista card y se queda cargando y nunca carga,
+> pero si voy a alguna otra vista otra vez y luego regreso a la
+> vista anterior ahí sí carga."
+
+Y en consola, cientos de líneas:
+```
+[Violation] 'setTimeout' handler took 60-115ms
+vendor-react-BMdECP4y.js:40
+vendor-query-4IQfzxGp.js:1
+```
+
+Eso son síntomas de un **React Scheduler atascado procesando work
+que no termina**.
+
+### Causa raíz — anti-pattern en `React.lazy`
+
+El wrapper `lazyWithReload` estaba escrito así:
+
+```ts
+return lazy(() =>
+    factory().catch((err) => { ... }),
+);
+```
+
+`React.lazy` llama a su factory **múltiples veces** durante un
+concurrent render (cuando el árbol cambia de un lazy a otro,
+React puede tantear varios estados antes de commitear). Cada
+llamada a `factory().catch(...)` creaba una **nueva Promise**.
+
+Cuando el usuario cambiaba de Kanban a Cards rápido:
+1. React renderea el ternario con `isCards = true`.
+2. `<CardsView />` (lazy) se monta. React.lazy llama a su factory
+   → promise P1.
+3. React decide abandonar ese render (otra interrupción).
+4. React empieza otro render. React.lazy llama a su factory →
+   promise P2.
+5. React commitea el render con P2. Suspense espera P2.
+6. P2 nunca resuelve porque el module system cacheó el resultado
+   pero la promise P2 quedó en un estado intermedio sin que
+   React.lazy se entere de la resolución.
+7. **Suspense colgado → "Cargando vista..." infinito.**
+
+Por qué funcionaba al volver: el segundo mount de `<CardsView />`
+generaba una nueva promise P3, pero ahora el `import()` del module
+system ya estaba resuelto (cached). P3 resolvía instantáneamente
+y React.lazy lo veía como resolved → Suspense se desenredaba.
+
+Las cientos de `setTimeout took Nms` venían del scheduler de React
+intentando reconciliar el estado pendiente.
+
+### El fix
+
+`lazyWithReload` ahora **cachea la promise resultante en una
+closure**. La factory de `React.lazy` siempre devuelve la misma
+promise hasta que falle:
+
+```ts
+let cached: Promise<{ default: T }> | null = null;
+const preload = () => {
+    if (cached === null) {
+        cached = loadWithRetries();
+    }
+    return cached;
+};
+return lazy(preload);
+```
+
+Múltiples llamadas de React.lazy a la factory devuelven la
+**misma promise** → React.lazy puede gestionar su estado interno
+correctamente.
+
+### Bonus
+
+1. **Retry transiente con backoff** (500ms, 1500ms). Si el chunk
+   falla por un network glitch (no por chunk stale), reintenta dos
+   veces antes de tirar la toalla.
+
+2. **`.preload()` expuesto**. El prefetch que hacía
+   `void kanbanViewFactory()` ahora hace `void KanbanView.preload()`,
+   usando el mismo cache. Cero duplicación de fetches.
+
+### Cambios
+
+- `app/lib/lazyWithReload.ts` — cache de promise, retry, preload.
+- `app/admin/records/RecordsPage.tsx` — prefetch usa `.preload()`.
+
 ## [0.57.7] — 2026-05-27
 
 **Fix crítico — vistas Kanban / Cards / Calendar nunca cargaban en

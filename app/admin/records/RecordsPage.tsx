@@ -35,21 +35,20 @@ import {
 // Cards/GroupedTable solo se cargan cuando una saved view de ese
 // tipo está activa. TableView sigue eager porque es la vista default.
 //
-// Para 0.57.5 — los `factory()` están extraídos para poder
-// llamarlos en `useEffect` y prefetch el chunk JS en paralelo con
-// el query de records. Sin el prefetch, el waterfall era:
+// Para 0.57.5 — los lazy exponen `.preload()` para gatillar la
+// descarga del chunk antes de que React monte el componente.
+// Sin el prefetch, el waterfall era:
 //   list → views → records → DESPUÉS chunk JS → render
 // Con prefetch:
 //   list → views → records ‖ chunk JS → render
-const calendarViewFactory = () => import('./views/CalendarView').then((m) => ({ default: m.CalendarView }));
-const cardsViewFactory = () => import('./views/CardsView').then((m) => ({ default: m.CardsView }));
-const kanbanViewFactory = () => import('./views/KanbanView').then((m) => ({ default: m.KanbanView }));
-const groupedTableViewFactory = () => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView }));
-
-const CalendarView = lazyWithReload(calendarViewFactory);
-const CardsView = lazyWithReload(cardsViewFactory);
-const KanbanView = lazyWithReload(kanbanViewFactory);
-const GroupedTableView = lazyWithReload(groupedTableViewFactory);
+//
+// `.preload()` usa el mismo cache que el lazy interno (gracias al
+// fix de cached-promise del 0.57.8), así que NO duplica fetches —
+// el import() del module cache se ejecuta una sola vez.
+const CalendarView = lazyWithReload(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
+const CardsView = lazyWithReload(() => import('./views/CardsView').then((m) => ({ default: m.CardsView })));
+const KanbanView = lazyWithReload(() => import('./views/KanbanView').then((m) => ({ default: m.KanbanView })));
+const GroupedTableView = lazyWithReload(() => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView })));
 
 import { ColumnsMenu } from './views/ColumnsMenu';
 import { GroupSelector } from './views/GroupSelector';
@@ -255,16 +254,16 @@ export function RecordsPage(): JSX.Element {
             : null;
         const type = activeView?.type ?? views.data.find((v) => v.is_default)?.type;
         switch (type) {
-            case 'kanban':   void kanbanViewFactory(); break;
-            case 'calendar': void calendarViewFactory(); break;
-            case 'cards':    void cardsViewFactory(); break;
+            case 'kanban':   void KanbanView.preload(); break;
+            case 'calendar': void CalendarView.preload(); break;
+            case 'cards':    void CardsView.preload(); break;
             default:         break;
         }
     }, [activeViewId, views.data]);
 
     useEffect(() => {
         if (state.groupByFieldId !== null) {
-            void groupedTableViewFactory();
+            void GroupedTableView.preload();
         }
     }, [state.groupByFieldId]);
 
