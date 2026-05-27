@@ -34,10 +34,22 @@ import {
 // el bundle del Records page bajó ~80 KB raw porque Kanban/Calendar/
 // Cards/GroupedTable solo se cargan cuando una saved view de ese
 // tipo está activa. TableView sigue eager porque es la vista default.
-const CalendarView = lazyWithReload(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
-const CardsView = lazyWithReload(() => import('./views/CardsView').then((m) => ({ default: m.CardsView })));
-const KanbanView = lazyWithReload(() => import('./views/KanbanView').then((m) => ({ default: m.KanbanView })));
-const GroupedTableView = lazyWithReload(() => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView })));
+//
+// Para 0.57.5 — los `factory()` están extraídos para poder
+// llamarlos en `useEffect` y prefetch el chunk JS en paralelo con
+// el query de records. Sin el prefetch, el waterfall era:
+//   list → views → records → DESPUÉS chunk JS → render
+// Con prefetch:
+//   list → views → records ‖ chunk JS → render
+const calendarViewFactory = () => import('./views/CalendarView').then((m) => ({ default: m.CalendarView }));
+const cardsViewFactory = () => import('./views/CardsView').then((m) => ({ default: m.CardsView }));
+const kanbanViewFactory = () => import('./views/KanbanView').then((m) => ({ default: m.KanbanView }));
+const groupedTableViewFactory = () => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView }));
+
+const CalendarView = lazyWithReload(calendarViewFactory);
+const CardsView = lazyWithReload(cardsViewFactory);
+const KanbanView = lazyWithReload(kanbanViewFactory);
+const GroupedTableView = lazyWithReload(groupedTableViewFactory);
 
 import { ColumnsMenu } from './views/ColumnsMenu';
 import { GroupSelector } from './views/GroupSelector';
@@ -99,7 +111,19 @@ export function RecordsPage(): JSX.Element {
         return base;
     }, [state, activeViewId, views.data]);
 
-    const baseRecords = useRecords(list.data?.id, baseQuery);
+    // Esperamos a `views.data` antes de lanzar el primer query de
+    // records. Razón: si la saved view default es Kanban/Cards/
+    // Calendar, el `baseQuery` necesita `per_page=500`. Sin esta
+    // condición disparamos un primer query con `per_page=50` (el
+    // default), después `applyView` setea el activeViewId, y eso
+    // dispara un SEGUNDO query con `per_page=500` — desperdiciando
+    // un round-trip al backend. Con esta condición esperamos los
+    // ~50ms del fetch de views y disparamos el query correcto de
+    // entrada.
+    const baseRecords = useRecords(
+        views.data !== undefined ? list.data?.id : undefined,
+        baseQuery,
+    );
 
     const isSmallList = baseRecords.data
         ? baseRecords.data.meta.total <= baseRecords.data.meta.per_page
@@ -190,6 +214,41 @@ export function RecordsPage(): JSX.Element {
             applyView(def);
         }
     }, [views.data, list.data?.id]);
+
+    // Prefetch del chunk JS de la vista activa en paralelo con el
+    // fetch de records. Sin esto, el browser esperaba a que records
+    // resolviera para empezar a descargar el chunk — un waterfall
+    // serial que sumaba 200-500ms al primer load de Kanban/Cards/
+    // Calendar. Con este prefetch, la descarga del chunk arranca
+    // apenas se sabe qué vista usar, y suele terminar antes que el
+    // query con per_page=500.
+    //
+    // `void` porque solo queremos disparar el side effect del import
+    // (poblar el module cache de Vite); el módulo en sí lo consume
+    // el `lazyWithReload` cuando React monta el componente.
+    //
+    // GroupedTableView se prefetchea cuando `state.groupByFieldId`
+    // se setea (camino "Todos" + Group by), independiente del tipo
+    // de saved view.
+    useEffect(() => {
+        if (! views.data) return;
+        const activeView = activeViewId !== null
+            ? views.data.find((v) => v.id === activeViewId)
+            : null;
+        const type = activeView?.type ?? views.data.find((v) => v.is_default)?.type;
+        switch (type) {
+            case 'kanban':   void kanbanViewFactory(); break;
+            case 'calendar': void calendarViewFactory(); break;
+            case 'cards':    void cardsViewFactory(); break;
+            default:         break;
+        }
+    }, [activeViewId, views.data]);
+
+    useEffect(() => {
+        if (state.groupByFieldId !== null) {
+            void groupedTableViewFactory();
+        }
+    }, [state.groupByFieldId]);
 
     const setFilterTree = (filterTree: import('@/types/record').FilterTree): void => {
         setState((s) => ({ ...s, filterTree, page: 1 }));

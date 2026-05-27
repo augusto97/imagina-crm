@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.4
+Stable tag: 0.57.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,27 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.5 =
+**Fix de perf — vistas Kanban / Cards / Calendar cargaban lento al
+primer acceso.**
+
+Dos waterfalls eliminados:
+
+1. **Doble fetch de records** al entrar a una lista con saved view
+   default tipo Kanban/Cards/Calendar. Antes: primer query con
+   `per_page=50`, después `applyView` cambiaba el activeViewId y
+   disparaba un SEGUNDO query con `per_page=500`. Ahora: el primer
+   query espera a que `useSavedViews` resuelva (~50ms) y dispara
+   directamente con el `per_page` correcto.
+2. **Chunk JS lazy en serie con records**. Antes el browser
+   esperaba a que el query de records terminara antes de empezar
+   a descargar el bundle JS de la vista. Ahora se prefetchean en
+   paralelo apenas se sabe qué vista mostrar — el chunk suele
+   estar listo antes que el query con 500 records.
+
+Beneficio: 300-800ms menos en el primer load de cualquier vista
+distinta a Table.
 
 = 0.57.4 =
 **Bloque "Datos del cliente" con labels reales + formato por tipo.**

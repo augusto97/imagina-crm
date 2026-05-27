@@ -4,6 +4,110 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.5] — 2026-05-27
+
+**Fix de perf — vistas Kanban / Cards / Calendar cargaban lento al
+primer acceso, requerían 2-3 recargas para verse.**
+
+### El bug
+
+Reporte del usuario: cada vez que abre una sesión y va a una lista
+con saved view default tipo Kanban / Cards / Calendar, la vista
+tarda mucho en procesar y a veces toca recargar la página varias
+veces hasta que finalmente aparece. La vista Table siempre carga
+rápido.
+
+### Causa raíz — dos waterfalls serializados
+
+**Waterfall A — doble fetch de records.**
+
+Al entrar a una lista con saved view default tipo no-Table:
+
+1. `useList` resuelve → `list.data` disponible.
+2. `useRecords(list.data?.id, baseQuery)` dispara **Query #1** con
+   `per_page=50` (default) porque `activeViewId === null`.
+3. `useSavedViews` resuelve → `views.data` disponible.
+4. El `useEffect` de auto-apply de default view setea
+   `activeViewId = def.id`.
+5. `baseQuery` se rebuilds porque `views.data` y `activeViewId`
+   cambiaron. Si la default view es Kanban/Cards/Calendar,
+   `per_page` pasa a 500.
+6. `useRecords` dispara **Query #2** con `per_page=500`.
+7. El backend ejecuta una query SQL con LIMIT 500 sobre la tabla
+   dinámica — significativamente más lenta que LIMIT 50.
+
+Total: 2 round-trips secuenciales, el segundo lento.
+
+**Waterfall B — chunk JS lazy en serie con records.**
+
+`Kanban/Cards/Calendar` están lazy-loaded con `lazyWithReload`.
+Pero el `<Suspense>` que los monta sólo se renderiza después de
+`records.isLoading === false`. Eso significa:
+
+1. Records query corre.
+2. Records resuelve.
+3. React monta el `<Suspense>`.
+4. Dynamic `import()` del chunk arranca.
+5. Chunk descarga (200-500ms más, depende de red).
+6. Chunk evalúa.
+7. Componente renderiza.
+
+El chunk podría haber empezado a descargarse en paso 1, pero no
+había nada que disparara su carga.
+
+### El fix
+
+**A. Deferir el primer fetch de records hasta que `views.data`
+resuelva.** Cambio en `useRecords` call:
+
+```tsx
+const baseRecords = useRecords(
+    views.data !== undefined ? list.data?.id : undefined,
+    baseQuery,
+);
+```
+
+Esto agrega ~50ms de latencia al primer query pero garantiza
+que dispare directamente con el `per_page` correcto. Net: ahorro
+de un round-trip completo (200-1000ms según tamaño de lista).
+
+**B. Prefetch del chunk JS en paralelo con el query.** Los
+`factory()` del `lazyWithReload` se extraen como constantes y se
+llaman con `void` en un `useEffect` que reacciona a `activeViewId`
+y `views.data`:
+
+```tsx
+useEffect(() => {
+    if (! views.data) return;
+    const type = activeView?.type ?? defaultView?.type;
+    switch (type) {
+        case 'kanban':   void kanbanViewFactory(); break;
+        case 'calendar': void calendarViewFactory(); break;
+        case 'cards':    void cardsViewFactory(); break;
+    }
+}, [activeViewId, views.data]);
+```
+
+Esto puebla el module cache de Vite. Cuando React monta el
+componente, el chunk ya está descargado (o casi) y el
+`lazyWithReload` resuelve inmediatamente.
+
+`GroupedTableView` recibe el mismo tratamiento pero se prefetchea
+cuando `state.groupByFieldId !== null` (camino "Todos" + Group by,
+independiente del tipo de saved view).
+
+### Beneficio observable
+
+- Primer load de Kanban / Cards / Calendar: **300-800ms más
+  rápido** según tamaño de lista y velocidad de red.
+- Cambios entre vistas dentro de la misma sesión: tiempo similar
+  al actual (ambos waterfalls solo afectan el cold start).
+
+### Cambios
+
+- `app/admin/records/RecordsPage.tsx` — defer del query, prefetch
+  de los chunks lazy en paralelo.
+
 ## [0.57.4] — 2026-05-27
 
 **Bloque `client_data` con labels reales + formato por tipo, más
