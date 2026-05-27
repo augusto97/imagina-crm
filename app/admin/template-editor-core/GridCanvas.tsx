@@ -1,7 +1,7 @@
-import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
-import { ArrowDown, LayoutGrid } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -59,6 +59,40 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
     const selectedSet = useMemo(() => new Set(selectedBlockIds), [selectedBlockIds]);
 
+    // Auto-height: rows necesarias medidas del contenido natural de cada
+    // bloque. Cuando el contenido excede el `block.h` configurado, el
+    // bloque se expande visualmente al alto necesario sin modificar el
+    // `block.h` persistido. Replicamos así el `minmax(40px, max-content)`
+    // que usa el grid CSS del front del portal (0.57.2).
+    //
+    // El `block.h` persistido actúa como **alto mínimo**:
+    //   effectiveH = max(block.h, autoRows[id] ?? 0)
+    // Solo el resize manual del user cambia `block.h`. Esto permite que
+    // un user pueda hacer el bloque MÁS grande que su contenido (espacio
+    // vacío) pero NO más chico (el contenido siempre se respeta).
+    const [autoRows, setAutoRows] = useState<Record<string, number>>({});
+
+    const reportMeasure = useCallback((blockId: string, rows: number): void => {
+        setAutoRows((prev) => {
+            if (prev[blockId] === rows) return prev;
+            return { ...prev, [blockId]: rows };
+        });
+    }, []);
+
+    // Cleanup de entries huérfanas cuando un bloque se elimina.
+    useEffect(() => {
+        setAutoRows((prev) => {
+            const live = new Set(blocks.map((b) => b.id));
+            let dirty = false;
+            const next: Record<string, number> = {};
+            for (const [id, h] of Object.entries(prev)) {
+                if (live.has(id)) next[id] = h;
+                else dirty = true;
+            }
+            return dirty ? next : prev;
+        });
+    }, [blocks]);
+
     const gridLayout: LayoutItem[] = useMemo(
         () =>
             blocks.map((b) => ({
@@ -66,14 +100,19 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                 x: b.x,
                 y: b.y,
                 w: b.w,
-                h: b.h,
+                h: Math.max(b.h, autoRows[b.id] ?? 0),
                 minW: 2,
                 minH: 2,
             })),
-        [blocks],
+        [blocks, autoRows],
     );
 
     const handleLayoutStop = (next: Layout): void => {
+        // El `h` reportado por react-grid-layout puede venir del
+        // auto-fit (no del user). Si coincide con el `effectiveH` que
+        // le pasamos (max de configurado + auto), el user NO hizo
+        // resize manual de altura → mantenemos `b.h` persistido. Si
+        // difiere, sí fue resize explícito → persistimos `l.h`.
         const byId = new Map(
             next.filter((l) => l.i !== DROPPING_ITEM_ID).map((l) => [l.i, l]),
         );
@@ -81,8 +120,10 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
             .map((b) => {
                 const l = byId.get(b.id);
                 if (! l) return null;
-                if (l.x === b.x && l.y === b.y && l.w === b.w && l.h === b.h) return b;
-                return { ...b, x: l.x, y: l.y, w: l.w, h: l.h };
+                const effectiveH = Math.max(b.h, autoRows[b.id] ?? 0);
+                const persistedH = l.h === effectiveH ? b.h : l.h;
+                if (l.x === b.x && l.y === b.y && l.w === b.w && persistedH === b.h) return b;
+                return { ...b, x: l.x, y: l.y, w: l.w, h: persistedH };
             })
             .filter((b): b is TBlock => b !== null);
         const changed = updated.some((b, i) => b !== blocks[i]);
@@ -164,8 +205,6 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                         <BlockSlot
                             key={b.id}
                             blockId={b.id}
-                            blockW={b.w}
-                            blockH={b.h}
                             preview={preview}
                             isSelected={isSelected}
                             isDropTarget={isDropTarget}
@@ -173,6 +212,7 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                             onDragOver={handleBlockDragOver}
                             onDragLeave={handleBlockDragLeave}
                             onDrop={handleBlockDrop}
+                            onMeasure={reportMeasure}
                             renderPreview={() => registry.renderPreview(b, ctx)}
                         />
                     );
@@ -197,8 +237,6 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
 
 interface BlockSlotProps {
     blockId: string;
-    blockW: number;
-    blockH: number;
     preview: boolean;
     isSelected: boolean;
     isDropTarget: boolean;
@@ -206,11 +244,26 @@ interface BlockSlotProps {
     onDragOver: (id: string, e: React.DragEvent) => void;
     onDragLeave: (e: React.DragEvent) => void;
     onDrop: (id: string, e: React.DragEvent) => void;
+    onMeasure: (id: string, rows: number) => void;
     renderPreview: () => ReactNode;
     /** Props inyectadas por react-grid-layout via cloneElement. */
     style?: CSSProperties;
     className?: string;
     children?: ReactNode;
+}
+
+// Mismos valores que el `SizedGrid`: rowHeight=40, margin[1]=12. Cada
+// row ocupa `40 + 12` excepto la última (sin margin bottom). Si
+// `naturalPx` es el alto natural del contenido, el número de rows
+// requeridas es `ceil((naturalPx + 12) / 52)`.
+const ROW_HEIGHT_PX = 40;
+const ROW_MARGIN_PX = 12;
+const MIN_ROWS = 2; // mismo `minH` del library
+const MAX_AUTO_ROWS = 24; // cap defensivo para bloques con contenido enorme (timeline con muchos items, etc.)
+
+function pxToRows(naturalPx: number): number {
+    const rows = Math.ceil((naturalPx + ROW_MARGIN_PX) / (ROW_HEIGHT_PX + ROW_MARGIN_PX));
+    return Math.max(MIN_ROWS, Math.min(MAX_AUTO_ROWS, rows));
 }
 
 /**
@@ -228,17 +281,14 @@ interface BlockSlotProps {
  *    vienen como children del clone) y los aplica al outer div.
  *  - Compone su propio className con el del library en vez de pisarlo.
  *
- * Encapsula además:
- *  - Selección / drop / hover.
- *  - Detección de **overflow vertical**: si el contenido renderizado
- *    es más alto que el slot configurado, muestra un badge ámbar
- *    abajo-derecha sugiriendo resize.
+ * **Auto-height**: mide el `scrollHeight` del contenido renderizado
+ * y lo reporta al padre via `onMeasure(rows)`. El padre expande
+ * efectivamente el slot al alto necesario para que el contenido
+ * nunca se vea recortado.
  */
 const BlockSlot = forwardRef<HTMLDivElement, BlockSlotProps>(function BlockSlot(
     {
         blockId,
-        blockW,
-        blockH,
         preview,
         isSelected,
         isDropTarget,
@@ -246,6 +296,7 @@ const BlockSlot = forwardRef<HTMLDivElement, BlockSlotProps>(function BlockSlot(
         onDragOver,
         onDragLeave,
         onDrop,
+        onMeasure,
         renderPreview,
         style,
         className,
@@ -255,19 +306,18 @@ const BlockSlot = forwardRef<HTMLDivElement, BlockSlotProps>(function BlockSlot(
     ref,
 ) {
     const innerRef = useRef<HTMLDivElement | null>(null);
-    const [overflows, setOverflows] = useState(false);
 
     useEffect(() => {
         const el = innerRef.current;
         if (! el) return;
-        const check = (): void => {
-            setOverflows(el.scrollHeight - 1 > el.clientHeight);
+        const measure = (): void => {
+            onMeasure(blockId, pxToRows(el.scrollHeight));
         };
-        check();
-        const ro = new ResizeObserver(check);
+        measure();
+        const ro = new ResizeObserver(measure);
         ro.observe(el);
         return () => ro.disconnect();
-    }, [blockW, blockH]);
+    }, [blockId, onMeasure]);
 
     return (
         <div
@@ -300,15 +350,6 @@ const BlockSlot = forwardRef<HTMLDivElement, BlockSlotProps>(function BlockSlot(
             >
                 {renderPreview()}
             </div>
-            {overflows && ! isDropTarget && (
-                <div
-                    className="imcrm-pointer-events-none imcrm-absolute imcrm-bottom-1.5 imcrm-right-1.5 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-amber-500/95 imcrm-px-2 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-medium imcrm-text-white imcrm-shadow-imcrm-sm"
-                    title={__('El contenido excede la altura del bloque. En el front se mostrará completo pero el bloque tendrá altura mayor. Hacé resize para evitar desfase.')}
-                >
-                    <ArrowDown className="imcrm-h-2.5 imcrm-w-2.5" aria-hidden />
-                    {__('contenido excede')}
-                </div>
-            )}
             {isDropTarget && (
                 <div className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-0 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-justify-center imcrm-bg-primary/10">
                     <p className="imcrm-rounded imcrm-bg-primary imcrm-px-2 imcrm-py-1 imcrm-text-[11px] imcrm-font-medium imcrm-text-primary-foreground imcrm-shadow-imcrm-sm">

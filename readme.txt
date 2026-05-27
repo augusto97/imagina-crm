@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.19
+Stable tag: 0.57.20
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,28 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.20 =
+**Auto-height en el editor visual** — los bloques crecen automáticamente
+al alto de su contenido natural, sin recortar y sin scrollbars internos.
+
+Equivalente al `minmax(40px, max-content)` que el front del portal del
+cliente ya hacía (0.57.2), adaptado a react-grid-layout. El `h`
+configurado por bloque ahora funciona como **alto mínimo**, no como
+alto fijo:
+
+* `effectiveH = max(block.h_configurado, rows_necesarias_por_contenido)`
+* Si el contenido naturalmente necesita más rows que el `h` configurado,
+  el bloque se expande hacia abajo (otros bloques se recompactan
+  verticalmente). El `block.h` persistido NO se modifica.
+* Solo el resize manual del user (drag de la esquina inferior derecha)
+  cambia el `block.h` persistido.
+* Cap defensivo de 24 rows (~960px) para bloques con contenido enorme
+  (timeline con muchos items en preview).
+
+Eliminado el badge ámbar "contenido excede": ya no aplica, el contenido
+nunca se recorta. Aplica a ambos editores (CRM y portal) porque el
+cambio vive en el shell genérico `GridCanvas`.
 
 = 0.57.19 =
 **Fix:** continuación del fix de 0.57.18 — quedaba un panel sin
