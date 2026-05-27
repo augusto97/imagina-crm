@@ -4,6 +4,38 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.12] — 2026-05-27
+
+**Fix visual — outline azul del browser aparecía al presionar Shift
+(o cualquier tecla) dentro del área del admin.**
+
+### Causa
+
+El `<main>` del AdminShell tiene `tabIndex={-1}` desde antes — es
+el target del `<SkipLink>` (componente de accesibilidad que permite
+saltar el sidebar/topbar con Tab). El `tabIndex={-1}` hace al main
+focusable programáticamente.
+
+Cuando el usuario hacía click dentro del main y luego presionaba
+cualquier tecla (Shift, Ctrl, Cmd…), Chrome activaba la pseudo-clase
+`:focus-visible` sobre el main y pintaba su outline azul default
+encerrando toda el área principal. El comportamiento es
+intencional del browser (avisar al usuario que ese elemento tiene
+focus), pero estéticamente molesto cuando el main es solo un
+contenedor lógico.
+
+### Fix
+
+Agregamos `focus:outline-none focus-visible:outline-none` al
+className del main. Eliminan el outline del browser cuando el main
+recibe focus, sin afectar el funcionamiento del SkipLink (que tiene
+su propio feedback visual cuando es el elemento focuseado).
+
+### Cambios
+
+- `app/admin/layout/AdminShell.tsx` — `focus:outline-none
+  focus-visible:outline-none` en el `<main>`.
+
 ## [0.57.11] — 2026-05-27
 
 **Solución radical — eliminar React.lazy + Suspense para las

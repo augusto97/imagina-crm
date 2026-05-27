@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.11
+Stable tag: 0.57.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,18 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.12 =
+**Fix visual — outline azul aparecía al presionar Shift dentro del admin.**
+
+El `<main>` del AdminShell tiene `tabIndex={-1}` para que el SkipLink
+de accesibilidad pueda navegar ahí. Cuando el usuario clickeaba
+dentro del main y después presionaba cualquier tecla (Shift, Ctrl,
+etc.), Chrome activaba `:focus-visible` y pintaba su outline azul
+default sobre todo el área principal. Visual molesto, sin función.
+
+Fix: `focus:outline-none focus-visible:outline-none` en el main.
+El SkipLink mantiene su propio feedback visual cuando recibe focus.
 
 = 0.57.11 =
 **Solución radical — vistas Kanban/Cards/Calendar ahora se importan

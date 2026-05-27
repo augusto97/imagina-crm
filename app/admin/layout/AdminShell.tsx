@@ -48,7 +48,7 @@ export function AdminShell(): JSX.Element {
                 <main
                     id="imcrm-main"
                     aria-label={__('Contenido principal')}
-                    className="imcrm-flex-1 imcrm-overflow-auto imcrm-p-6"
+                    className="imcrm-flex-1 imcrm-overflow-auto imcrm-p-6 focus:imcrm-outline-none focus-visible:imcrm-outline-none"
                     tabIndex={-1}
                 >
                     <div className="imcrm-mx-auto imcrm-w-full imcrm-max-w-screen-2xl">
