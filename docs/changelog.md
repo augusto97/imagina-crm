@@ -4,6 +4,94 @@ Todos los cambios notables de este proyecto se documentan aquí. Sigue [Keep a C
 
 ## [Unreleased]
 
+## [0.57.11] — 2026-05-27
+
+**Solución radical — eliminar React.lazy + Suspense para las
+vistas alternativas. El bug "Cargando vista..." infinito al tercer
+cambio persistió en 0.57.10 a pesar de eliminar el N+1 de
+recurrences.**
+
+### Lo que reveló el segundo HAR
+
+El usuario reportó que el bug seguía: clickear primera y segunda
+vista cargaban OK, la tercera se quedaba en "Cargando vista..."
+hasta que cambiaba a otra y volvía. Mandó un HAR nuevo.
+
+Timeline relevante:
+```
+T+8161ms    records?per_page=500   476ms 200   ← cambio a vista N
+T+8637ms    response recibida
+T+8637ms → T+122609ms  ▓▓▓ 114 segundos sin red ▓▓▓
+T+122609ms  el usuario cambió a otra vista frustrado
+```
+
+Confirmado: el backend respondió rápido (476ms). El frontend
+quedaba 114 segundos sin tocar la red después de recibir la
+respuesta. Algo en el código del cliente nunca llegaba a montar
+la vista.
+
+### Por qué los 6 fixes anteriores no alcanzaron
+
+- 0.57.5: paraleliza chunks lazy con queries. Mitigaba waterfall.
+- 0.57.6: paraleliza fetches list/fields/views. Más paralelismo.
+- 0.57.7: opt-out de Cloudflare Rocket Loader. Necesario en hostings
+  con Rocket Loader activo pero no era el bug acá.
+- 0.57.8: cache de promesa en `lazyWithReload`. Evitaba múltiples
+  factories pero no resolvía la interacción raíz.
+- 0.57.9: prefetch agresivo + un solo Suspense. Reducía pero no
+  eliminaba el problema.
+- 0.57.10: elimina N+1 de recurrences. Quitaba un agravante real
+  pero no la causa última.
+
+El problema estaba en alguna interacción profunda entre
+`React.lazy` + `Suspense` + concurrent rendering + transitions
+implícitas + cambios rápidos entre lazy chunks. Imposible de
+resolver con confianza sin reescribir react-reconciler.
+
+### La solución pragmática
+
+Eliminar la abstracción completa. Las 4 vistas no necesitan ser
+lazy:
+
+```ts
+// Antes (lazy con todo el entorno de Suspense):
+const KanbanView = lazyWithReload(() => import('./views/KanbanView').then(...));
+// ...
+<Suspense fallback={...}>
+    <KanbanView ... />
+</Suspense>
+
+// Después (import normal, sin Suspense):
+import { KanbanView } from './views/KanbanView';
+// ...
+<KanbanView ... />
+```
+
+Cambios:
+* `RecordsPage.tsx` — imports eager de `KanbanView`, `CardsView`,
+  `CalendarView`, `GroupedTableView`. Eliminado `<Suspense>`
+  wrapper, `useEffect` de prefetch, import de `lazyWithReload`,
+  función `ViewLoadingFallback`.
+
+### Trade-off
+
+main.js: 688KB → 728KB raw (+40KB raw, +7KB gzip).
+
+Net: el prefetch agresivo del 0.57.9 ya descargaba los 4 chunks en
+paralelo durante el cold load. El total descargado es el mismo;
+solo cambia que ahora vienen en un solo archivo. Beneficio:
+elimina toda una familia de bugs de Suspense/lazy/transitions y
+hace el código más simple y predecible.
+
+### Lección
+
+Lazy loading es una optimización con costos ocultos. Cuando el
+diff entre lazy y eager es <50KB y los componentes se usan
+intensivamente (cambiar de vista es la acción principal de la
+página), la complejidad agregada no se justifica.
+
+
+
 ## [0.57.10] — 2026-05-27
 
 **EL FIX REAL al fin — N+1 fetches de recurrences disparados por

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FileUp, Loader2, Plus, Search, Settings, Zap } from 'lucide-react';
 
@@ -11,7 +11,6 @@ import { useRecord, useRecords } from '@/hooks/useRecords';
 import { useSavedViews } from '@/hooks/useSavedViews';
 import { clientSideSearch } from '@/lib/clientSearch';
 import { __, sprintf } from '@/lib/i18n';
-import { lazyWithReload } from '@/lib/lazyWithReload';
 import { CAP, useCan } from '@/lib/permissions';
 import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
@@ -30,25 +29,31 @@ import {
     toggleSort,
     type RecordsState,
 } from './recordsState';
-// Vistas alternativas lazy-loaded (Fase 16.D — fix bug perf #5):
-// el bundle del Records page bajó ~80 KB raw porque Kanban/Calendar/
-// Cards/GroupedTable solo se cargan cuando una saved view de ese
-// tipo está activa. TableView sigue eager porque es la vista default.
+// Vistas alternativas — importadas EAGERLY (no lazy) desde 0.57.11.
 //
-// Para 0.57.5 — los lazy exponen `.preload()` para gatillar la
-// descarga del chunk antes de que React monte el componente.
-// Sin el prefetch, el waterfall era:
-//   list → views → records → DESPUÉS chunk JS → render
-// Con prefetch:
-//   list → views → records ‖ chunk JS → render
+// Historia: 0.57.5-0.57.10 intentaron arreglar varios síntomas del
+// bug "Cargando vista..." infinito al cambiar de vista. Después de
+// 5 fixes parciales (paralelización, Cloudflare Rocket Loader opt-out,
+// cache de promesa, prefetch agresivo, single Suspense, N+1 de
+// recurrences) el bug seguía apareciendo al tercer cambio de vista
+// — el frontend quedaba 100+ segundos sin tocar la red, atascado en
+// algún estado del Suspense + lazy + transition concurrent.
 //
-// `.preload()` usa el mismo cache que el lazy interno (gracias al
-// fix de cached-promise del 0.57.8), así que NO duplica fetches —
-// el import() del module cache se ejecuta una sola vez.
-const CalendarView = lazyWithReload(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
-const CardsView = lazyWithReload(() => import('./views/CardsView').then((m) => ({ default: m.CardsView })));
-const KanbanView = lazyWithReload(() => import('./views/KanbanView').then((m) => ({ default: m.KanbanView })));
-const GroupedTableView = lazyWithReload(() => import('./views/GroupedTableView').then((m) => ({ default: m.GroupedTableView })));
+// La solución radical y simple: NO usar React.lazy para estas
+// vistas. Las 4 vistas suman ~30KB raw — eran un trade-off cuando
+// el main bundle pesaba menos. Hoy el main ya tiene 700KB y esos
+// 30KB no mueven la aguja. Importarlas eager:
+//  - Cero `<Suspense>` boundaries → cero transitions implícitas →
+//    cero "Transition was skipped".
+//  - Cero React.lazy → cero cache interno de promesas que pueda
+//    desincronizarse del cache externo.
+//  - Cero prefetch necesario → cero `.preload()`.
+//  - El cold load no cambia: el bundle ya descargaba los 4 chunks
+//    en paralelo gracias al prefetch agresivo del 0.57.9.
+import { CalendarView } from './views/CalendarView';
+import { CardsView } from './views/CardsView';
+import { KanbanView } from './views/KanbanView';
+import { GroupedTableView } from './views/GroupedTableView';
 
 import { ColumnsMenu } from './views/ColumnsMenu';
 import { GroupSelector } from './views/GroupSelector';
@@ -208,28 +213,7 @@ export function RecordsPage(): JSX.Element {
         initialViewAppliedRef.current = null;
     }, [list.data?.id]);
 
-    // Prefetch AGRESIVO de los 4 chunks lazy al montar RecordsPage.
-    //
-    // Razón: con prefetch reactivo (solo el chunk de la vista activa)
-    // descubrimos un bug donde cambiar entre vistas lazy dejaba el
-    // Suspense colgado infinito por interacción rara entre React.lazy
-    // + transition concurrent + promise rejection "Transition was
-    // skipped" (síntoma reportado en 0.57.5-0.57.8).
-    //
-    // Cargar los 4 chunks al mount (~30KB total en paralelo) hace
-    // que React.lazy tenga su cache resuelto antes del primer cambio
-    // de vista — el Suspense NUNCA entra en estado pending
-    // bloqueante, así que no hay transition que abortar. Trade-off:
-    // ~30KB extra al cold load pero cero cuelgues al cambiar de
-    // vista. En sites con saved views es 100% net-win.
-    useEffect(() => {
-        void KanbanView.preload();
-        void CalendarView.preload();
-        void CardsView.preload();
-        void GroupedTableView.preload();
-    }, []);
-
-    const applyView = (view: SavedViewEntity | null): void => {
+const applyView = (view: SavedViewEntity | null): void => {
         if (view === null) {
             setActiveViewId(null);
             setState(INITIAL_STATE);
@@ -527,23 +511,14 @@ export function RecordsPage(): JSX.Element {
                             )}
                         </p>
                     ) : (
-                        // ÚNICO Suspense para todas las vistas — los
-                        // 4 chunks lazy se prefetchean al mount via
-                        // `useEffect` arriba, así que cuando el usuario
-                        // cambia de vista, React.lazy ya tiene el
-                        // módulo en cache y resuelve sincrónicamente
-                        // sin pasar por Suspense pending.
-                        //
-                        // Mantener UN SOLO Suspense (en vez de uno por
-                        // branch del ternario) evita el bug donde
-                        // cambiar entre vistas lazy abortaba la
-                        // transition del Suspense anterior antes de
-                        // que su promise resolviera ("Transition was
-                        // skipped" en consola). Síntoma: "Cargando
-                        // vista..." colgado infinito al cambiar entre
-                        // vistas, hasta volver y regresar. Fix en
-                        // 0.57.9.
-                        <Suspense fallback={<ViewLoadingFallback />}>
+                        // Vistas importadas eagerly desde 0.57.11 — sin
+                        // <Suspense> ni React.lazy. La complejidad de
+                        // transitions concurrent + chunk caching causaba
+                        // que cambiar de vista quedara colgado en
+                        // "Cargando vista..." infinito al tercer
+                        // cambio. Eliminar la abstracción lazy elimina
+                        // toda esa familia de bugs.
+                        <>
                             {isKanban && groupByField ? (
                                 <KanbanView
                                     listId={list.data.id}
@@ -628,7 +603,7 @@ export function RecordsPage(): JSX.Element {
                                     totalCount={records.data?.meta.total ?? 0}
                                 />
                             )}
-                        </Suspense>
+                        </>
                     )}
 
                     {meta && !isAlternativeView && !isTableGrouped && (
@@ -675,22 +650,6 @@ export function RecordsPage(): JSX.Element {
                     />
                 </>
             )}
-        </div>
-    );
-}
-
-
-/**
- * Spinner shown while a lazy-loaded view (Kanban / Calendar / Cards
- * / GroupedTable) is being fetched. Brief flash — chunks are
- * 10-30 KB cada uno y typical SPA users tienen el cache caliente
- * después de la primera visita. Fase 16.D.
- */
-function ViewLoadingFallback(): JSX.Element {
-    return (
-        <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-12 imcrm-text-sm imcrm-text-muted-foreground">
-            <Loader2 className="imcrm-h-4 imcrm-w-4 imcrm-animate-spin" />
-            {__('Cargando vista…')}
         </div>
     );
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.10
+Stable tag: 0.57.11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,26 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.11 =
+**Solución radical — vistas Kanban/Cards/Calendar ahora se importan
+eagerly, sin React.lazy ni Suspense.**
+
+Después de 6 fixes parciales (0.57.5-0.57.10) el bug "Cargando
+vista..." infinito al tercer cambio de vista persistía. El HAR
+mostraba 100+ segundos donde el frontend no tocaba la red, atascado
+en algún estado interno del Suspense + lazy + transition concurrent.
+
+En lugar de seguir cazando bugs en esa interacción, eliminamos la
+abstracción: las 4 vistas (Kanban, Cards, Calendar, GroupedTable)
+ahora son imports normales del main bundle. Cero `<Suspense>`,
+cero `React.lazy`, cero `lazyWithReload`, cero transitions
+implícitas.
+
+Trade-off: main.js sube de 688KB a 728KB raw (+40KB raw, +7KB gzip).
+Pero el prefetch agresivo del 0.57.9 ya descargaba esos chunks en
+paralelo al cold load, así que el net total descargado es el mismo.
+Lo que cambia es que ahora vienen en un solo archivo.
 
 = 0.57.10 =
 **EL FIX REAL al fin — N+1 fetches de recurrences saturando el thread.**
