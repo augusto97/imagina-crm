@@ -125,7 +125,7 @@ export function RecordHeader({
 
     if (style.variant === 'compact') {
         return (
-            <header className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
+            <header className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-3">
                     {style.showAvatar && (
                         <div
@@ -156,7 +156,7 @@ export function RecordHeader({
 
     if (style.variant === 'minimal') {
         return (
-            <header className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-justify-center imcrm-gap-2 imcrm-rounded-lg imcrm-p-4">
+            <header className="imcrm-flex imcrm-flex-col imcrm-justify-center imcrm-gap-2 imcrm-rounded-lg imcrm-p-4">
                 <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-3">
                     <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-1">
                         <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
@@ -180,7 +180,7 @@ export function RecordHeader({
         return (
             <header
                 className={cn(
-                    'imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
+                    'imcrm-relative imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
                 )}
                 style={{
                     background: `linear-gradient(135deg, ${avatarColor}14 0%, ${avatarColor}05 100%)`,
@@ -226,12 +226,12 @@ export function RecordHeader({
     return (
         <header
             className={cn(
-                'imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
+                'imcrm-relative imcrm-flex imcrm-flex-col imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
             )}
         >
             <div
                 aria-hidden
-                className="imcrm-h-1.5 imcrm-w-full"
+                className="imcrm-h-1.5 imcrm-w-full imcrm-rounded-t-xl"
                 style={{
                     background: `linear-gradient(90deg, ${avatarColor} 0%, ${avatarColor}80 100%)`,
                 }}

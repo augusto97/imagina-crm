@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.32
+Stable tag: 0.57.33
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,31 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.33 =
+**Fix: bloque "Encabezado" (hero) en el editor + altura cortada en
+front.**
+
+Dos bugs del bloque header del CRM:
+
+1. **Botones Guardar/Eliminar visibles en el preview del editor.**
+   El preview pasaba `block.config.showActions: true` directo al
+   RecordHeader, así que se rendeaban los botones aunque sean no-op
+   (sin callbacks reales). Ahora el preview fuerza `show_actions:
+   false` para el tipo `header` — las acciones solo aparecen en el
+   render del registro real.
+
+2. **Altura del header en el front cortaba contenido (botones
+   Guardar/Eliminar a la mitad encima del bloque siguiente).** Las
+   variantes `hero`, `compact`, `minimal` y `banner` tenían
+   `imcrm-h-full` + `imcrm-overflow-hidden` heredados del modelo
+   pre-0.57.22 cuando el grid tenía altura fija. En el modelo de
+   flex rows actual, esto causaba que el header tomara altura del
+   stretch del flex y recortara su contenido por el overflow-hidden.
+
+   Fix: quitamos `h-full` (la altura natural alcanza con flex column
+   normal) y `overflow-hidden` (el rounded ya no necesita clipping —
+   movimos `rounded-t-xl` a la barra de gradiente decorativa).
 
 = 0.57.32 =
 **Fix: pantalla en blanco al agrupar registros (React error #310).**
