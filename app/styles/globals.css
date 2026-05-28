@@ -442,5 +442,16 @@ body.imcrm-template-editor-fullscreen .imcrm-template-editor-root {
     gap: 12px;
 }
 .imcrm-row__cell > * {
-    min-height: 0;
+    /* 0.57.37 — `min-height: auto` (default de la spec Flexbox).
+     * El valor `0` que estaba acá permitía que los hijos del cell
+     * shrinkaran por debajo de su contenido natural, lo que causaba
+     * que cards (header, notes, etc.) colapsaran a alturas menores
+     * que sus children intrínsecos cuando el row aplicaba
+     * `align-items: stretch`. Resultado: contenido del card se
+     * desbordaba visualmente sobre el bloque siguiente.
+     *
+     * Con `auto`, cada hijo respeta su min-content y el card siempre
+     * abarca al menos su contenido natural — no hay desbordes ni
+     * recortes raros. */
+    min-height: auto;
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.36
+Stable tag: 0.57.37
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,21 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.37 =
+**Fix definitivo de cards que se desbordaban: `min-height: auto`
+en hijos de `.imcrm-row__cell` (encontrado por el user).**
+
+La regla `.imcrm-row__cell > * { min-height: 0; }` que yo había
+puesto en globals.css forzaba a los hijos del cell a poder shrinkar
+por debajo de su contenido natural. En contextos donde el row
+aplica `align-items: stretch`, los cards (header, notes, etc.)
+podían colapsar a altura menor que sus children intrínsecos, y el
+contenido se desbordaba visualmente sobre el bloque siguiente.
+
+`min-height: auto` es la default de la spec de Flexbox y respeta el
+min-content de cada hijo. Con esto, cada card siempre abarca al
+menos su contenido natural.
 
 = 0.57.36 =
 **Bloque "Encabezado" del CRM: solo presentación. Acciones movidas
