@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.30
+Stable tag: 0.57.31
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,45 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.31 =
+**Fix: el cache no se invalidaba después de mutaciones (Kanban DnD,
+config de Cards view, edición de fields/automations).**
+
+Bug introducido en 0.57.5 cuando `useRecords` empezó a recibir el
+`slug` de la lista en vez del `id` numérico (para evitar el doble
+fetch del cold load). Los hooks de mutación (`useUpdateRecord`,
+`useUpdateSavedView`, etc.) siguen recibiendo el `id` numérico, así
+que sus `invalidateQueries({queryKey: keys.forList(id)})` apuntaban
+a `['records', '123']` mientras las queries activas estaban
+registradas con `['records', 'foo-slug', ...]`. Las keys no
+matcheaban → ni el optimistic update ni el invalidate tocaban el
+cache → la UI mostraba el state previo hasta recargar la página.
+
+**Síntomas reportados:**
+
+- **Kanban DnD**: arrastrar un card a otra columna funcionaba en el
+  servidor pero visualmente seguía en la columna vieja hasta recargar.
+- **Cards view config**: cambiar el tamaño de las cards en el dialog
+  de edición no se reflejaba hasta recargar.
+- (Probablemente también afectaba al edit de fields, creación/edición
+  de automations, saved filters — todas las mutaciones que invalidan
+  por listId numérico.)
+
+**Fix:**
+
+Los hooks de mutación ahora invalidan con `keys.all` como prefix
+(matchea TODAS las queries del namespace sin filtrar por listId).
+El optimistic update de `useUpdateRecord` ahora filtra por `predicate
+hasRecord` para evitar tocar caches de otras listas que tengan ids
+colisionantes.
+
+Hooks afectados:
+- `useUpdateRecord`, `useCreateRecord`, `useDeleteRecord`, `useBulkRecords`
+- `useUpdateSavedView`, `useCreateSavedView`, `useDeleteSavedView`
+- `useCreateField`, `useUpdateField`, `useDeleteField` (y reorder)
+- `useCreateAutomation`, `useUpdateAutomation`, `useDeleteAutomation`
+- `useUpsertSavedFilter`, `useDeleteSavedFilter`
 
 = 0.57.30 =
 **Fix: sub-bloques del `nested_section` ahora se rendean en el CRM

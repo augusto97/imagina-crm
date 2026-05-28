@@ -233,7 +233,13 @@ export function useCreateRecord(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de records — no podemos
+            // filtrar por listId porque las queries activas pueden
+            // estar registradas con el `slug` mientras este hook recibe
+            // el `id` numérico (0.57.31). Con `recordsKeys.all` como
+            // predicate matcheamos todas; el invalidate solo refetchea
+            // las que están active, así que es seguro.
+            void qc.invalidateQueries({ queryKey: recordsKeys.all });
         },
     });
 }
@@ -263,15 +269,25 @@ export function useUpdateRecord(listId: string | number) {
             return res.data;
         },
         onMutate: async ({ id, values }) => {
-            await qc.cancelQueries({ queryKey: recordsKeys.forList(listId) });
+            // Cancelamos refetches en TODAS las queries de records.
+            // No filtramos por listId porque las queries activas
+            // pueden usar el `slug` aunque este hook reciba el `id`
+            // numérico (rompió la coincidencia de keys en 0.57.5,
+            // arreglado en 0.57.31).
+            await qc.cancelQueries({ queryKey: recordsKeys.all });
 
             const queries = qc.getQueriesData<RecordListResponse>({
-                queryKey: recordsKeys.forList(listId),
+                queryKey: recordsKeys.all,
             });
             const snapshots: Array<[readonly unknown[], unknown]> = [];
 
             for (const [key, data] of queries) {
-                if (!data || !Array.isArray(data.data)) continue;
+                if (! data || ! Array.isArray(data.data)) continue;
+                // Solo touch queries que CONTIENEN el record. Evita
+                // mutar caches de otras listas que tengan ids colisionantes
+                // (raro pero posible).
+                const hasRecord = data.data.some((r) => r.id === id);
+                if (! hasRecord) continue;
                 snapshots.push([key, data]);
 
                 const next: RecordListResponse = {
@@ -288,13 +304,13 @@ export function useUpdateRecord(listId: string | number) {
             return { snapshots };
         },
         onError: (_err, _vars, ctx) => {
-            if (!ctx) return;
+            if (! ctx) return;
             for (const [key, snap] of ctx.snapshots) {
                 qc.setQueryData(key, snap);
             }
         },
         onSettled: () => {
-            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
+            void qc.invalidateQueries({ queryKey: recordsKeys.all });
         },
     });
 }
@@ -308,7 +324,8 @@ export function useDeleteRecord(listId: string | number) {
             });
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
+            // Ver nota en `useUpdateRecord` (0.57.31).
+            void qc.invalidateQueries({ queryKey: recordsKeys.all });
         },
     });
 }
@@ -336,7 +353,8 @@ export function useBulkRecords(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: recordsKeys.forList(listId) });
+            // Ver nota en `useUpdateRecord` (0.57.31).
+            void qc.invalidateQueries({ queryKey: recordsKeys.all });
         },
     });
 }

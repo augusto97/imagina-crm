@@ -43,7 +43,9 @@ export function useCreateAutomation(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: automationsKeys.forList(listId) });
+            // Ver nota en useUpdateRecord (0.57.31): listId puede ser
+            // numérico aquí pero las queries activas usan slug.
+            void qc.invalidateQueries({ queryKey: automationsKeys.all });
         },
     });
 }
@@ -59,7 +61,9 @@ export function useUpdateAutomation(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: automationsKeys.forList(listId) });
+            // Ver nota en useUpdateRecord (0.57.31): listId puede ser
+            // numérico aquí pero las queries activas usan slug.
+            void qc.invalidateQueries({ queryKey: automationsKeys.all });
         },
     });
 }
@@ -71,7 +75,9 @@ export function useDeleteAutomation(listId: string | number) {
             await api.delete(`/lists/${listId}/automations/${id}`);
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: automationsKeys.forList(listId) });
+            // Ver nota en useUpdateRecord (0.57.31): listId puede ser
+            // numérico aquí pero las queries activas usan slug.
+            void qc.invalidateQueries({ queryKey: automationsKeys.all });
         },
     });
 }

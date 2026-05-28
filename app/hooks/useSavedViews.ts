@@ -36,7 +36,11 @@ export function useCreateSavedView(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: viewsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de views — no podemos filtrar
+            // por listId porque las queries activas usan `slug` y este
+            // hook recibe `id` numérico (mismo bug que useUpdateRecord,
+            // arreglado en 0.57.31).
+            void qc.invalidateQueries({ queryKey: viewsKeys.all });
         },
     });
 }
@@ -56,7 +60,11 @@ export function useUpdateSavedView(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: viewsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de views — no podemos filtrar
+            // por listId porque las queries activas usan `slug` y este
+            // hook recibe `id` numérico (mismo bug que useUpdateRecord,
+            // arreglado en 0.57.31).
+            void qc.invalidateQueries({ queryKey: viewsKeys.all });
         },
     });
 }
@@ -68,7 +76,11 @@ export function useDeleteSavedView(listId: string | number) {
             await api.delete(`/lists/${listId}/views/${id}`);
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: viewsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de views — no podemos filtrar
+            // por listId porque las queries activas usan `slug` y este
+            // hook recibe `id` numérico (mismo bug que useUpdateRecord,
+            // arreglado en 0.57.31).
+            void qc.invalidateQueries({ queryKey: viewsKeys.all });
         },
     });
 }

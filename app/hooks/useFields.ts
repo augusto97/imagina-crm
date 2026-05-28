@@ -73,7 +73,10 @@ export function useCreateField(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de fields — las queries
+            // activas pueden usar `slug` mientras este hook recibe `id`
+            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
+            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
         },
     });
 }
@@ -86,7 +89,10 @@ export function useUpdateField(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de fields — las queries
+            // activas pueden usar `slug` mientras este hook recibe `id`
+            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
+            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
         },
     });
 }
@@ -100,7 +106,10 @@ export function useDeleteField(listId: string | number) {
             });
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de fields — las queries
+            // activas pueden usar `slug` mientras este hook recibe `id`
+            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
+            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
         },
     });
 }
@@ -112,7 +121,10 @@ export function useReorderFields(listId: string | number) {
             await api.post(`/lists/${listId}/fields/reorder`, { order });
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de fields — las queries
+            // activas pueden usar `slug` mientras este hook recibe `id`
+            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
+            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
         },
     });
 }
@@ -143,7 +155,10 @@ export function useAppendFieldOption(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: fieldsKeys.forList(listId) });
+            // Invalidamos TODAS las queries de fields — las queries
+            // activas pueden usar `slug` mientras este hook recibe `id`
+            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
+            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
         },
     });
 }

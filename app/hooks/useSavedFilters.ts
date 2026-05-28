@@ -14,6 +14,7 @@ export interface SavedFilter {
 }
 
 const keys = {
+    all: ['saved-filters'] as const,
     forList: (listId: number) => ['saved-filters', listId] as const,
 };
 
@@ -42,7 +43,8 @@ export function useSaveFilter(listId: number) {
             return res.data;
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: keys.forList(listId) });
+            // Ver nota en useUpdateRecord (0.57.31): slug vs id.
+            void qc.invalidateQueries({ queryKey: keys.all });
         },
     });
 }
@@ -54,7 +56,8 @@ export function useDeleteSavedFilter(listId: number) {
             await api.delete(`/lists/${listId}/saved-filters/${id}`);
         },
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: keys.forList(listId) });
+            // Ver nota en useUpdateRecord (0.57.31): slug vs id.
+            void qc.invalidateQueries({ queryKey: keys.all });
         },
     });
 }
