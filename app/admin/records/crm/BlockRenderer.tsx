@@ -168,6 +168,49 @@ export function BlockRenderer({
             />
         );
     }
+    if (block.type === 'nested_section') {
+        // Renderea las sub-columnas como mini-fila con sub-bloques
+        // recursivamente. Misma estructura HTML/CSS que el layout
+        // top-level (.imcrm-row / .imcrm-row__cell) para consistencia
+        // visual con el editor.
+        const wrapperStyle: React.CSSProperties = {};
+        if (block.config.padding) wrapperStyle.padding = block.config.padding;
+        if (block.config.margin) wrapperStyle.margin = block.config.margin;
+        return (
+            <div className="imcrm-rows-layout" style={wrapperStyle}>
+                <div className="imcrm-row">
+                    {block.config.columns.map((col) => {
+                        const basis = `${(col.width / 12) * 100}%`;
+                        const colStyle: React.CSSProperties = {
+                            flexBasis: basis,
+                            maxWidth: basis,
+                        };
+                        if (col.padding) colStyle.padding = col.padding;
+                        if (col.margin) colStyle.margin = col.margin;
+                        return (
+                            <div key={col.id} className="imcrm-row__cell" style={colStyle}>
+                                {col.blocks.map((subBlock) => (
+                                    <BlockRenderer
+                                        key={subBlock.id}
+                                        block={subBlock}
+                                        listId={listId}
+                                        recordId={recordId}
+                                        currentUserId={currentUserId}
+                                        isAdmin={isAdmin}
+                                        values={values}
+                                        onChange={onChange}
+                                        fieldErrors={fieldErrors}
+                                        record={record}
+                                        headerData={headerData}
+                                    />
+                                ))}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
     return null;
 }
 

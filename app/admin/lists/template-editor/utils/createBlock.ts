@@ -111,6 +111,21 @@ export function createBlock(
     if (type === 'comments_thread') {
         return { ...base, w: 8, h: 10, type, config: {} };
     }
+    if (type === 'nested_section') {
+        // Default: 2 sub-columnas 6+6 vacías. Width del block top-level: 12 (full).
+        return {
+            ...base,
+            w: 12,
+            h: 0,
+            type,
+            config: {
+                columns: [
+                    { id: `nc-${Date.now()}-1`, width: 6, blocks: [] },
+                    { id: `nc-${Date.now()}-2`, width: 6, blocks: [] },
+                ],
+            },
+        };
+    }
     return null;
 }
 

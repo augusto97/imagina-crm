@@ -108,14 +108,29 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
 
                 if (visibleColumns.length === 0) return null;
 
+                // 0.57.29 — spacing de la sección leído del primer bloque
+                // (consistente entre bloques hermanos).
+                const firstBlockOfSec = visibleColumns[0]?.blocks[0];
+                const sectionStyle: React.CSSProperties = {};
+                if (firstBlockOfSec?.secPadding) sectionStyle.padding = firstBlockOfSec.secPadding;
+                if (firstBlockOfSec?.secMargin) sectionStyle.margin = firstBlockOfSec.secMargin;
+
                 return (
-                    <div key={`row-${row.index}`} className="imcrm-row">
+                    <div
+                        key={`row-${row.index}`}
+                        className="imcrm-row"
+                        style={sectionStyle}
+                    >
                         {visibleColumns.map((col) => {
                             const basis = `${(col.width / 12) * 100}%`;
                             const cellStyle: React.CSSProperties = {
                                 flexBasis: basis,
                                 maxWidth: basis,
                             };
+                            // 0.57.29 — spacing de la columna leído del primer bloque.
+                            const firstBlockOfCol = col.blocks[0];
+                            if (firstBlockOfCol?.colPadding) cellStyle.padding = firstBlockOfCol.colPadding;
+                            if (firstBlockOfCol?.colMargin) cellStyle.margin = firstBlockOfCol.colMargin;
                             return (
                                 <div
                                     key={`col-${row.index}-${col.colIdx}`}

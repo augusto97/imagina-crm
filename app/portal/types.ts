@@ -42,6 +42,12 @@ export interface PortalBlockGridPosition {
     y?: number;
     w?: number;
     h?: number;
+    pos?: number;
+    /** Spacing CSS de la sección/columna (consistente entre bloques hermanos). */
+    secPadding?: string;
+    secMargin?: string;
+    colPadding?: string;
+    colMargin?: string;
 }
 
 export type PortalBlock = PortalBlockGridPosition & (

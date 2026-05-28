@@ -141,6 +141,14 @@ final class PortalTemplate
             if (isset($block['pos']) && is_int($block['pos'])) {
                 $entry['pos'] = $block['pos'];
             }
+            // 0.57.29 — spacing CSS de la sección/columna que contiene
+            // este bloque (consistente entre bloques hermanos). Strings
+            // CSS válidos pasados al style del wrapper en el front.
+            foreach (['secPadding', 'secMargin', 'colPadding', 'colMargin'] as $spacingKey) {
+                if (isset($block[$spacingKey]) && is_string($block[$spacingKey])) {
+                    $entry[$spacingKey] = $block[$spacingKey];
+                }
+            }
             $blocks[] = $entry;
         }
 

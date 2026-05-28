@@ -1,6 +1,7 @@
 import {
     Activity,
     BarChart3,
+    Columns as ColumnsIcon,
     FileText,
     Hash,
     Heading as HeadingIcon,
@@ -184,6 +185,14 @@ const TYPES: BlockTypeDef[] = [
         icon: MousePointerClick,
         category: 'actions',
     },
+    // Estructura
+    {
+        type: 'nested_section',
+        label: __('Sub-sección con columnas'),
+        description: __('Contenedor con N sub-columnas adentro de la columna actual. Permite armar columnas dentro de columnas.'),
+        icon: ColumnsIcon,
+        category: 'content',
+    },
 ];
 
 const LABEL_BY_TYPE: Record<V2BlockType, string> = {
@@ -202,6 +211,7 @@ const LABEL_BY_TYPE: Record<V2BlockType, string> = {
     divider:          __('Divisor'),
     heading:          __('Título de sección'),
     comments_thread:  __('Hilo de comentarios'),
+    nested_section:   __('Sub-sección con columnas'),
 };
 
 const DESC_BY_TYPE: Record<V2BlockType, string> = {
@@ -220,6 +230,7 @@ const DESC_BY_TYPE: Record<V2BlockType, string> = {
     divider:          __('Línea horizontal con label opcional.'),
     heading:          __('Título de sección con nivel jerárquico.'),
     comments_thread:  __('Hilo de comentarios del record.'),
+    nested_section:   __('Contenedor con N sub-columnas anidadas adentro de otra columna.'),
 };
 
 /**
@@ -273,6 +284,16 @@ function renderInspectorForBlock(
             return <HeadingForm block={block} onUpdate={update} />;
         case 'comments_thread':
             return <CommentsThreadForm block={block} onUpdate={update} />;
+        case 'nested_section':
+            // Las sub-columnas y sub-bloques se gestionan EN EL CANVAS
+            // (drag desde paleta, ↑/↓/× en cada sub-bloque, dropdown
+            // de ancho en cada sub-columna). Acá solo mostramos
+            // instrucciones.
+            return (
+                <p className="imcrm-text-[11px] imcrm-text-muted-foreground">
+                    {__('Gestioná las sub-columnas y los sub-bloques directamente en el canvas: arrastrá bloques de la paleta a las sub-columnas, click en un sub-bloque para editar sus opciones, y usá los botones ↑/↓/× del sub-bloque para reordenar o eliminar.')}
+                </p>
+            );
     }
 }
 

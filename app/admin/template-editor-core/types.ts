@@ -24,6 +24,20 @@ export interface BaseTemplateBlock {
     h: number;
     /** Posición vertical dentro de la columna (0, 1, 2...). Default 0. */
     pos?: number;
+    /**
+     * Spacing CSS aplicado al wrapper de la SECCIÓN que contiene este
+     * bloque. Consistente entre todos los bloques de la misma fila
+     * (todos los que comparten `y`). Opcional, default '' (sin estilo).
+     */
+    secPadding?: string;
+    secMargin?: string;
+    /**
+     * Spacing CSS aplicado al wrapper de la COLUMNA que contiene este
+     * bloque. Consistente entre todos los bloques de la misma columna
+     * (todos los que comparten `y` y `x`). Opcional, default '' (sin estilo).
+     */
+    colPadding?: string;
+    colMargin?: string;
 }
 
 export interface BaseTemplateConfig<TBlock extends BaseTemplateBlock> {

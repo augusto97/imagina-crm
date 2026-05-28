@@ -1541,7 +1541,9 @@ export type V2BlockType =
     | 'markdown'
     | 'divider'
     | 'heading'
-    | 'comments_thread';
+    | 'comments_thread'
+    // 0.57.29 — sub-sección con N columnas anidadas (1 nivel)
+    | 'nested_section';
 
 interface V2BlockBase {
     id: string;
@@ -1558,6 +1560,14 @@ interface V2BlockBase {
      * apilar varios bloques en la misma columna. Default 0.
      */
     pos?: number;
+    /**
+     * Spacing CSS de la sección/columna que contiene este bloque.
+     * Consistente entre bloques que comparten sección o columna.
+     */
+    secPadding?: string;
+    secMargin?: string;
+    colPadding?: string;
+    colMargin?: string;
 }
 
 /**
@@ -1818,6 +1828,31 @@ export interface V2CommentsThreadBlock extends V2BlockBase {
     };
 }
 
+/**
+ * Sub-sección con N columnas anidadas (1 nivel de profundidad).
+ * Cada sub-columna contiene sub-bloques apilados verticalmente. Los
+ * sub-bloques son `V2Block` normales — el editor restringe a NO
+ * permitir `nested_section` adentro de otro `nested_section`.
+ */
+export interface V2NestedSectionBlock extends V2BlockBase {
+    type: 'nested_section';
+    config: {
+        columns: Array<{
+            id: string;
+            width: number;
+            blocks: V2Block[];
+            /** CSS padding aplicado a la sub-columna. */
+            padding?: string;
+            /** CSS margin aplicado a la sub-columna. */
+            margin?: string;
+        }>;
+        /** CSS padding aplicado al wrapper del nested_section. */
+        padding?: string;
+        /** CSS margin aplicado al wrapper del nested_section. */
+        margin?: string;
+    };
+}
+
 export type V2Block =
     | V2HeaderBlock
     | V2PropertiesGroupBlock
@@ -1833,7 +1868,8 @@ export type V2Block =
     | V2MarkdownBlock
     | V2DividerBlock
     | V2HeadingBlock
-    | V2CommentsThreadBlock;
+    | V2CommentsThreadBlock
+    | V2NestedSectionBlock;
 
 export interface CustomTemplateConfigV2 {
     v: 2;
@@ -2043,6 +2079,11 @@ interface ResolvedBase {
     y: number;
     w: number;
     h: number;
+    pos?: number;
+    secPadding?: string;
+    secMargin?: string;
+    colPadding?: string;
+    colMargin?: string;
 }
 
 export type ResolvedV2Block =
@@ -2125,7 +2166,61 @@ export type ResolvedV2Block =
         } })
     | (ResolvedBase & { type: 'divider'; config: { label?: string } })
     | (ResolvedBase & { type: 'heading'; config: { text: string; level: 2 | 3 | 4 } })
-    | (ResolvedBase & { type: 'comments_thread'; config: { title?: string } });
+    | (ResolvedBase & { type: 'comments_thread'; config: { title?: string } })
+    | (ResolvedBase & {
+        type: 'nested_section';
+        config: {
+            columns: Array<{
+                id: string;
+                width: number;
+                blocks: ResolvedV2Block[];
+                padding?: string;
+                margin?: string;
+            }>;
+            padding?: string;
+            margin?: string;
+        };
+    });
+
+/**
+ * Resuelve los sub-bloques de un `nested_section` — versión mínima.
+ *
+ * Solo soportamos como sub-bloques los tipos cuyo shape resuelto NO
+ * requiere lookups complejos de fields ni transformaciones de
+ * `field_slug → FieldEntity`. Esto mantiene el resolver simple y
+ * predecible; los tipos avanzados (kpi, chart, properties_group,
+ * files, related, stats, header, timeline) siguen siendo top-level.
+ *
+ * Tipos permitidos como sub-bloques:
+ *   - divider
+ *   - heading
+ *   - comments_thread
+ *
+ * El editor restringe los drops desde paleta a estos tipos (ver
+ * `NESTED_ALLOWED_TYPES` en `nestedHelpers`). Cualquier otro tipo
+ * que aparezca en el config se omite silenciosamente al renderear.
+ *
+ * Los sub-bloques NO pueden ser otro `nested_section` (1 nivel).
+ */
+function resolveNestedSubBlocks(
+    subBlocks: V2Block[],
+    _fields: FieldEntity[],
+): ResolvedV2Block[] {
+    const resolved: ResolvedV2Block[] = [];
+    for (const b of subBlocks) {
+        if (b.type === 'nested_section') continue;
+        const base = { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h };
+        if (b.type === 'divider') {
+            resolved.push({ ...base, type: 'divider', config: { label: b.config.label } });
+        } else if (b.type === 'heading') {
+            resolved.push({ ...base, type: 'heading', config: { text: b.config.text, level: b.config.level } });
+        } else if (b.type === 'comments_thread') {
+            resolved.push({ ...base, type: 'comments_thread', config: { title: b.config.title } });
+        }
+        // Otros tipos se omiten silenciosamente.
+    }
+    return resolved;
+}
 
 export function resolveV2(
     config: CustomTemplateConfigV2,
@@ -2140,7 +2235,12 @@ export function resolveV2(
     const blocks: ResolvedV2Block[] = [];
     let hasHeader = false;
     for (const b of config.blocks) {
-        const base = { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h };
+        const base = {
+            id: b.id, x: b.x, y: b.y, w: b.w, h: b.h,
+            pos: b.pos,
+            secPadding: b.secPadding, secMargin: b.secMargin,
+            colPadding: b.colPadding, colMargin: b.colMargin,
+        };
         if (b.type === 'header') {
             hasHeader = true;
             blocks.push({
@@ -2294,6 +2394,28 @@ export function resolveV2(
                 ...base,
                 type: 'comments_thread',
                 config: { title: b.config.title },
+            });
+        } else if (b.type === 'nested_section') {
+            // Resolver recursivo: cada sub-bloque pasa por el mismo
+            // pipeline (resolveV2 mini) usando los mismos `fields` y
+            // helpers de inflación. Los sub-bloques NO pueden ser
+            // otro `nested_section` (1 nivel), así que invocamos un
+            // mini-resolver inline que respeta esa restricción.
+            const resolvedColumns = b.config.columns.map((col) => ({
+                id: col.id,
+                width: col.width,
+                padding: col.padding,
+                margin: col.margin,
+                blocks: resolveNestedSubBlocks(col.blocks, fields),
+            }));
+            blocks.push({
+                ...base,
+                type: 'nested_section',
+                config: {
+                    columns: resolvedColumns,
+                    padding: b.config.padding,
+                    margin: b.config.margin,
+                },
             });
         }
     }

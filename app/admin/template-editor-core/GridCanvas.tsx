@@ -12,6 +12,7 @@ import {
     GripVertical,
     LayoutGrid,
     Plus,
+    Settings2,
     X,
 } from 'lucide-react';
 
@@ -111,20 +112,43 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
     onDropFromPalette,
     onDropOnBlock,
 }: Props<TBlock>): JSX.Element {
-    type Column = { id: string; width: number; blocks: TBlock[] };
-    type Section = { id: string; columns: Column[] };
+    type Column = {
+        id: string;
+        width: number;
+        padding?: string;
+        margin?: string;
+        blocks: TBlock[];
+    };
+    type Section = {
+        id: string;
+        padding?: string;
+        margin?: string;
+        columns: Column[];
+    };
 
-    /** Construye la estructura visible a partir de los bloques flat. */
+    /** Construye la estructura visible a partir de los bloques flat.
+     * El spacing (padding/margin) se LEE del primer bloque de cada
+     * sección/columna (consistente entre bloques hermanos). */
     const buildFromFlat = (flat: TBlock[]): Section[] => {
         const rows = groupBlocksByRowsAndColumns(flat);
-        return rows.map((row, sIdx) => ({
-            id: `sec-${sIdx}-${row.index}`,
-            columns: row.columns.map((col, cIdx) => ({
-                id: `col-${sIdx}-${cIdx}-${col.colIdx}`,
-                width: col.width,
-                blocks: col.blocks,
-            })),
-        }));
+        return rows.map((row, sIdx) => {
+            const firstBlockOfSection = row.columns[0]?.blocks[0];
+            return {
+                id: `sec-${sIdx}-${row.index}`,
+                padding: firstBlockOfSection?.secPadding,
+                margin: firstBlockOfSection?.secMargin,
+                columns: row.columns.map((col, cIdx) => {
+                    const firstBlockOfCol = col.blocks[0];
+                    return {
+                        id: `col-${sIdx}-${cIdx}-${col.colIdx}`,
+                        width: col.width,
+                        padding: firstBlockOfCol?.colPadding,
+                        margin: firstBlockOfCol?.colMargin,
+                        blocks: col.blocks,
+                    };
+                }),
+            };
+        });
     };
 
     const [sections, setSections] = useState<Section[]>(() => buildFromFlat(blocks));
@@ -140,7 +164,9 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [blocks]);
 
-    /** Persiste sections → flat blocks. Las columnas/secciones vacías se descartan. */
+    /** Persiste sections → flat blocks. Las columnas/secciones vacías se descartan.
+     * El spacing (padding/margin) de cada sec/col se INYECTA en cada
+     * bloque hijo para que se preserve aunque no haya un "anchor". */
     const persistSections = (next: Section[]): void => {
         const flat: TBlock[] = [];
         let sIdx = 0;
@@ -156,6 +182,10 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                         pos: pIdx,
                         w: col.width,
                         h: 0,
+                        secPadding: section.padding,
+                        secMargin: section.margin,
+                        colPadding: col.padding,
+                        colMargin: col.margin,
                     });
                 });
             });
@@ -464,6 +494,20 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                     key={section.id}
                     label={`${__('Sección')} ${sIdx + 1}`}
                     preview={preview}
+                    padding={section.padding}
+                    margin={section.margin}
+                    onSetPadding={(v) => {
+                        const next = sections.map((s) => s.id === section.id ? { ...s, padding: v } : s);
+                        const hasBlocks = section.columns.some((c) => c.blocks.length > 0);
+                        if (hasBlocks) persistSections(next);
+                        else updateSectionsOnly(next);
+                    }}
+                    onSetMargin={(v) => {
+                        const next = sections.map((s) => s.id === section.id ? { ...s, margin: v } : s);
+                        const hasBlocks = section.columns.some((c) => c.blocks.length > 0);
+                        if (hasBlocks) persistSections(next);
+                        else updateSectionsOnly(next);
+                    }}
                     onDelete={() => deleteSection(section.id)}
                 >
                     <div className="imcrm-flex imcrm-flex-row imcrm-flex-wrap imcrm-gap-2">
@@ -473,6 +517,24 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                                 label={`${__('Col')} ${cIdx + 1}`}
                                 width={col.width}
                                 preview={preview}
+                                padding={col.padding}
+                                margin={col.margin}
+                                onSetPadding={(v) => {
+                                    const next = sections.map((s) => s.id === section.id ? {
+                                        ...s,
+                                        columns: s.columns.map((c) => c.id === col.id ? { ...c, padding: v } : c),
+                                    } : s);
+                                    if (col.blocks.length > 0) persistSections(next);
+                                    else updateSectionsOnly(next);
+                                }}
+                                onSetMargin={(v) => {
+                                    const next = sections.map((s) => s.id === section.id ? {
+                                        ...s,
+                                        columns: s.columns.map((c) => c.id === col.id ? { ...c, margin: v } : c),
+                                    } : s);
+                                    if (col.blocks.length > 0) persistSections(next);
+                                    else updateSectionsOnly(next);
+                                }}
                                 onSetWidth={(w) => setColumnWidth(section.id, col.id, w)}
                                 onDelete={() => deleteColumn(section.id, col.id)}
                                 isDropTarget={dropTargetColId === col.id}
@@ -569,29 +631,56 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
 function SectionCard({
     label,
     preview,
+    padding,
+    margin,
+    onSetPadding,
+    onSetMargin,
     onDelete,
     children,
 }: {
     label: string;
     preview: boolean;
+    padding?: string;
+    margin?: string;
+    onSetPadding: (v: string) => void;
+    onSetMargin: (v: string) => void;
     onDelete: () => void;
     children: ReactNode;
 }): JSX.Element {
+    // El style se aplica solo en preview mode para que el editor
+    // refleje el resultado final. En modo edición, NO aplicamos el
+    // padding/margin al card (sino se mueve el cursor y el drag se
+    // siente raro). Solo lo previsualizamos como tooltip.
+    const previewStyle: CSSProperties = preview
+        ? { padding, margin }
+        : {};
     return (
-        <div className="imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3 imcrm-shadow-imcrm-xs">
+        <div
+            className="imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3 imcrm-shadow-imcrm-xs"
+            style={previewStyle}
+        >
             {! preview && (
                 <div className="imcrm-mb-2 imcrm-flex imcrm-items-center imcrm-justify-between">
                     <span className="imcrm-text-[11px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
                         {label}
                     </span>
-                    <button
-                        type="button"
-                        onClick={onDelete}
-                        title={__('Eliminar sección')}
-                        className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
-                    >
-                        <X className="imcrm-h-3.5 imcrm-w-3.5" />
-                    </button>
+                    <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                        <SpacingPopover
+                            padding={padding}
+                            margin={margin}
+                            onSetPadding={onSetPadding}
+                            onSetMargin={onSetMargin}
+                            title={__('Espaciado de la sección')}
+                        />
+                        <button
+                            type="button"
+                            onClick={onDelete}
+                            title={__('Eliminar sección')}
+                            className="imcrm-flex imcrm-h-6 imcrm-w-6 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                        >
+                            <X className="imcrm-h-3.5 imcrm-w-3.5" />
+                        </button>
+                    </div>
                 </div>
             )}
             {children}
@@ -603,7 +692,11 @@ interface ColumnCardProps {
     label: string;
     width: number;
     preview: boolean;
+    padding?: string;
+    margin?: string;
     onSetWidth: (w: number) => void;
+    onSetPadding: (v: string) => void;
+    onSetMargin: (v: string) => void;
     onDelete: () => void;
     isDropTarget: boolean;
     onDragOver: (e: React.DragEvent) => void;
@@ -617,7 +710,11 @@ function ColumnCard({
     label,
     width,
     preview,
+    padding,
+    margin,
     onSetWidth,
+    onSetPadding,
+    onSetMargin,
     onDelete,
     isDropTarget,
     onDragOver,
@@ -666,6 +763,14 @@ function ColumnCard({
                                 </option>
                             ))}
                         </select>
+                        <SpacingPopover
+                            padding={padding}
+                            margin={margin}
+                            onSetPadding={onSetPadding}
+                            onSetMargin={onSetMargin}
+                            title={__('Espaciado de la columna')}
+                            compact
+                        />
                         <button
                             type="button"
                             onClick={onDelete}
@@ -1199,6 +1304,83 @@ function NestedSectionInline<TBlock extends BaseTemplateBlock>({
                     );
                 })}
             </div>
+        </div>
+    );
+}
+
+// ───────────────────────────────────────────────────────────────────
+// SpacingPopover — input compacto para padding/margin de sec/col
+// ───────────────────────────────────────────────────────────────────
+
+function SpacingPopover({
+    padding,
+    margin,
+    onSetPadding,
+    onSetMargin,
+    title,
+    compact,
+}: {
+    padding?: string;
+    margin?: string;
+    onSetPadding: (v: string) => void;
+    onSetMargin: (v: string) => void;
+    title: string;
+    compact?: boolean;
+}): JSX.Element {
+    const [open, setOpen] = useState(false);
+    const hasSpacing = (padding && padding.trim() !== '') || (margin && margin.trim() !== '');
+    return (
+        <div className="imcrm-relative">
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(! open);
+                }}
+                title={title}
+                className={cn(
+                    compact ? 'imcrm-h-5 imcrm-w-5' : 'imcrm-h-6 imcrm-w-6',
+                    'imcrm-flex imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-transition',
+                    hasSpacing
+                        ? 'imcrm-text-primary hover:imcrm-bg-primary/10'
+                        : 'imcrm-text-muted-foreground hover:imcrm-bg-muted hover:imcrm-text-foreground',
+                )}
+            >
+                <Settings2 className={compact ? 'imcrm-h-3 imcrm-w-3' : 'imcrm-h-3.5 imcrm-w-3.5'} />
+            </button>
+            {open && (
+                <>
+                    <div className="imcrm-fixed imcrm-inset-0 imcrm-z-30" onClick={() => setOpen(false)} />
+                    <div className="imcrm-absolute imcrm-right-0 imcrm-top-full imcrm-z-40 imcrm-mt-1 imcrm-w-56 imcrm-rounded-md imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-2 imcrm-shadow-imcrm-md">
+                        <p className="imcrm-mb-1.5 imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                            {title}
+                        </p>
+                        <label className="imcrm-mb-1.5 imcrm-block imcrm-text-[10px] imcrm-text-muted-foreground">
+                            {__('Padding')}
+                            <input
+                                type="text"
+                                value={padding ?? ''}
+                                onChange={(e) => onSetPadding(e.target.value)}
+                                placeholder="1rem · 8px 16px · 0"
+                                className="imcrm-mt-0.5 imcrm-block imcrm-w-full imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-1.5 imcrm-py-1 imcrm-text-[11px] imcrm-text-foreground focus:imcrm-outline-none focus:imcrm-ring-1 focus:imcrm-ring-primary"
+                            />
+                        </label>
+                        <label className="imcrm-block imcrm-text-[10px] imcrm-text-muted-foreground">
+                            {__('Margin')}
+                            <input
+                                type="text"
+                                value={margin ?? ''}
+                                onChange={(e) => onSetMargin(e.target.value)}
+                                placeholder="0 · 1rem auto · 8px 0"
+                                className="imcrm-mt-0.5 imcrm-block imcrm-w-full imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-1.5 imcrm-py-1 imcrm-text-[11px] imcrm-text-foreground focus:imcrm-outline-none focus:imcrm-ring-1 focus:imcrm-ring-primary"
+                            />
+                        </label>
+                        <p className="imcrm-mt-1.5 imcrm-text-[10px] imcrm-text-muted-foreground">
+                            {__('Acepta cualquier valor CSS válido. Vacío = sin estilo.')}
+                        </p>
+                    </div>
+                </>
+            )}
         </div>
     );
 }

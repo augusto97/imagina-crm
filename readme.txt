@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.28
+Stable tag: 0.57.29
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,38 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.29 =
+**`nested_section` también en el editor del CRM + spacing en sec/cols.**
+
+* **CRM**: el bloque "Sub-sección con columnas" ahora también existe
+  para el editor de plantillas del CRM (record detail). Mismo
+  comportamiento que el portal: las sub-columnas se gestionan en el
+  canvas con DnD real, los sub-bloques se editan en el inspector,
+  etc.
+
+  Limitación en el CRM: los sub-bloques permitidos son los **simples**
+  (divider, heading, comments_thread). Los tipos avanzados que
+  requieren resolución de fields (properties_group, kpi, chart, files,
+  related, stats, header, timeline) NO funcionan como sub-bloques
+  porque su resolver es complejo y los lookups de fields harían el
+  shape inconsistente. Esos tipos siguen funcionando perfectamente
+  como bloques top-level.
+
+* **Spacing en secciones y columnas**: cada Sección y cada Columna
+  (top-level) tiene un ícono ⚙ en su header que abre un popover con
+  dos inputs:
+  - **Padding** — ej. `1rem`, `8px 16px`, `0`.
+  - **Margin** — ej. `0`, `1rem auto`, `8px 0`.
+
+  Acepta cualquier valor CSS válido. Se aplica al wrapper de la
+  sección/columna en el render final del front. El editor visual
+  conserva el padding/margin solo en modo Preview (para no
+  interferir con el drag-and-drop durante la edición).
+
+  El valor se guarda en TODOS los bloques de esa sec/col bajo
+  `secPadding`, `secMargin`, `colPadding`, `colMargin` — consistente
+  entre bloques hermanos.
 
 = 0.57.28 =
 **`nested_section` interactivo en el canvas (no más Inspector form).**

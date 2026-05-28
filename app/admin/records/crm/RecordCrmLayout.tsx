@@ -117,15 +117,32 @@ export function RecordCrmLayout({
                 </p>
             ) : (
                 <div className="imcrm-rows-layout">
-                    {rows.map((row) => (
-                        <div key={`row-${row.index}`} className="imcrm-row">
+                    {rows.map((row) => {
+                        // 0.57.29 — spacing leído del primer bloque (consistente).
+                        const firstBlockOfSec = row.columns[0]?.blocks[0];
+                        const sectionStyle: React.CSSProperties = {};
+                        if (firstBlockOfSec?.secPadding) sectionStyle.padding = firstBlockOfSec.secPadding;
+                        if (firstBlockOfSec?.secMargin) sectionStyle.margin = firstBlockOfSec.secMargin;
+                        return (
+                        <div
+                            key={`row-${row.index}`}
+                            className="imcrm-row"
+                            style={sectionStyle}
+                        >
                             {row.columns.map((col) => {
                                 const basis = `${(col.width / 12) * 100}%`;
+                                const firstBlockOfCol = col.blocks[0];
+                                const colStyle: React.CSSProperties = {
+                                    flexBasis: basis,
+                                    maxWidth: basis,
+                                };
+                                if (firstBlockOfCol?.colPadding) colStyle.padding = firstBlockOfCol.colPadding;
+                                if (firstBlockOfCol?.colMargin) colStyle.margin = firstBlockOfCol.colMargin;
                                 return (
                                     <div
                                         key={`col-${row.index}-${col.colIdx}`}
                                         className="imcrm-row__cell"
-                                        style={{ flexBasis: basis, maxWidth: basis }}
+                                        style={colStyle}
                                     >
                                         {col.blocks.map((b) => (
                                             <BlockRenderer
@@ -151,7 +168,8 @@ export function RecordCrmLayout({
                                 );
                             })}
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
