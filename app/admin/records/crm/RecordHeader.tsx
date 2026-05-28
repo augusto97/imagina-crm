@@ -125,7 +125,7 @@ export function RecordHeader({
 
     if (style.variant === 'compact') {
         return (
-            <header className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-lg imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-3">
                 <div className="imcrm-flex imcrm-items-center imcrm-gap-3">
                     {style.showAvatar && (
                         <div
@@ -150,13 +150,13 @@ export function RecordHeader({
                     {actions}
                 </div>
                 {statusStrip}
-            </header>
+            </div>
         );
     }
 
     if (style.variant === 'minimal') {
         return (
-            <header className="imcrm-flex imcrm-flex-col imcrm-justify-center imcrm-gap-2 imcrm-rounded-lg imcrm-p-4">
+            <div className="imcrm-flex imcrm-flex-col imcrm-justify-center imcrm-gap-2 imcrm-rounded-lg imcrm-p-4">
                 <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-3">
                     <div className="imcrm-flex imcrm-min-w-0 imcrm-flex-col imcrm-gap-1">
                         <h1 className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-2 imcrm-text-2xl imcrm-font-semibold imcrm-tracking-tight">
@@ -172,13 +172,13 @@ export function RecordHeader({
                     {actions}
                 </div>
                 {statusStrip}
-            </header>
+            </div>
         );
     }
 
     if (style.variant === 'banner') {
         return (
-            <header
+            <div
                 className={cn(
                     'imcrm-relative imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
                 )}
@@ -218,13 +218,13 @@ export function RecordHeader({
                 </div>
                 {statusStrip}
                 {actions && <div className="imcrm-pt-1">{actions}</div>}
-            </header>
+            </div>
         );
     }
 
     // variant === 'hero' (default)
     return (
-        <header
+        <div
             className={cn(
                 'imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
             )}
@@ -278,7 +278,7 @@ export function RecordHeader({
                 </div>
                 {statusStrip}
             </div>
-        </header>
+        </div>
     );
 }
 

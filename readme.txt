@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.34
+Stable tag: 0.57.35
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,29 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.35 =
+**Fix definitivo: cambio el tag `<header>` HTML del RecordHeader por
+`<div>`.**
+
+Era el bug raíz que no había visto en las 4 versiones previas (.30 a
+.34). El componente `<RecordHeader>` (el bloque "Encabezado" del CRM)
+usaba `<header>` como su tag HTML root, pero el AdminShell ya envuelve
+toda la página en un `<header>` (Topbar) — y nidos múltiples de
+`<header>` HTML generan tree de outline inválido + comportamiento
+inconsistente entre browsers (algunos aplican rules implícitas de
+margin/display, otros reset agresivo de Tailwind/preflight).
+
+Resultado: el card del header se renderizaba con altura inconsistente
+y los hijos (botones, statusStrip) "saltaban" visualmente al sibling
+siguiente.
+
+Cambié las 4 variantes (`hero`, `compact`, `minimal`, `banner`) de
+`<header>` a `<div>`. Sin cambios de clases ni de comportamiento
+visual esperado.
+
+Los fixes previos (overflow, h-full, flex-1, defaults) se mantienen
+— eran necesarios independientemente de este bug raíz.
 
 = 0.57.34 =
 **Fix definitivo del bloque "Encabezado" (header) del CRM.**
