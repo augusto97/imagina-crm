@@ -32,6 +32,11 @@ import {
 } from './CollapsablePanels';
 import { GridCanvas, type DropTarget } from './GridCanvas';
 import { InspectorPanel } from './InspectorPanel';
+import {
+    deleteBlockById,
+    findBlockById,
+    updateBlockById,
+} from './nestedHelpers';
 import { PalettePanel } from './PalettePanel';
 import { TemplateTreeView } from './TemplateTreeView';
 import { useTemplateHistory } from './hooks/useTemplateHistory';
@@ -194,32 +199,70 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
     };
 
     /**
-     * Drop desde la paleta. `target = { x, y, pos }` indica las
-     * coordenadas físicas finales del nuevo bloque. Los bloques
-     * existentes con `pos >= target.pos` en la misma columna se
-     * shiftean +1 para hacerle espacio.
+     * Drop desde la paleta. `target` puede ser top-level
+     * (`{kind:'top', x, y, pos}`) o una sub-columna de un
+     * `nested_section` (`{kind:'sub', parentId, colIdx, subIdx}`).
      */
     const handleDropFromPalette = (
         payload: PalettePayload,
         target: DropTarget,
     ): void => {
-        const base = blocks.map((b) =>
-            (b.y ?? 0) === target.y
-                && (b.x ?? 0) === target.x
-                && (b.pos ?? 0) >= target.pos
-                ? { ...b, pos: (b.pos ?? 0) + 1 }
-                : b,
-        ) as TBlock[];
-
-        const position = { x: target.x, y: target.y, pos: target.pos };
-
-        if (payload.kind === 'block-type') {
-            handleAddBlock(payload.type, position, base);
+        if (target.kind === 'top') {
+            const base = blocks.map((b) =>
+                (b.y ?? 0) === target.y
+                    && (b.x ?? 0) === target.x
+                    && (b.pos ?? 0) >= target.pos
+                    ? { ...b, pos: (b.pos ?? 0) + 1 }
+                    : b,
+            ) as TBlock[];
+            const position = { x: target.x, y: target.y, pos: target.pos };
+            if (payload.kind === 'block-type') {
+                handleAddBlock(payload.type, position, base);
+                return;
+            }
+            if (payload.kind === 'field') {
+                handleAddField(payload.slug, position, base);
+            }
             return;
         }
-        if (payload.kind === 'field') {
-            handleAddField(payload.slug, position, base);
-        }
+
+        // target.kind === 'sub' — crear sub-bloque dentro de la columna
+        // del nested_section indicado.
+        const created = (() => {
+            if (payload.kind === 'block-type') {
+                return registry.createBlock(
+                    payload.type,
+                    [],
+                    { fields },
+                    { x: 0, y: 0, pos: 0 },
+                );
+            }
+            if (payload.kind === 'field' && registry.fieldAsBlock) {
+                const field = fields.find((f) => f.slug === payload.slug);
+                if (! field) return null;
+                return registry.fieldAsBlock.createBlock(field, [], { x: 0, y: 0, pos: 0 });
+            }
+            return null;
+        })();
+        if (! created) return;
+        // Limpiar campos de posicionamiento — el sub-bloque vive
+        // dentro del config del parent, no en el plano flat.
+        const subBlock = { ...created, y: 0, x: 0, pos: 0, h: 0 } as TBlock;
+        const next = blocks.map((b) => {
+            if (b.id !== target.parentId) return b;
+            const cfg = b.config as { columns?: Array<{ id: string; width: number; blocks: TBlock[] }> };
+            if (! cfg.columns) return b;
+            const newColumns = cfg.columns.map((col, cIdx) => {
+                if (cIdx !== target.colIdx) return col;
+                const insertAt = Math.max(0, Math.min(target.subIdx, col.blocks.length));
+                const arr = [...col.blocks];
+                arr.splice(insertAt, 0, subBlock);
+                return { ...col, blocks: arr };
+            });
+            return { ...b, config: { ...(b.config as object), columns: newColumns } } as TBlock;
+        });
+        setBlocks(next);
+        setSelectedBlockIds([subBlock.id]);
     };
 
     const handleDropOnBlock = (blockId: string, payload: PalettePayload): boolean => {
@@ -239,12 +282,18 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
     };
 
     const handleUpdateBlock = (id: string, patch: Partial<TBlock>): void => {
-        setBlocks(blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as TBlock) : b)));
+        // Usa el helper recursivo para soportar también sub-bloques
+        // dentro de un `nested_section`.
+        setBlocks(updateBlockById(blocks, id, patch));
     };
 
     const handleDeleteBlocks = (ids: string[]): void => {
+        let next = blocks;
+        for (const id of ids) {
+            next = deleteBlockById(next, id);
+        }
+        setBlocks(next);
         const idSet = new Set(ids);
-        setBlocks(blocks.filter((b) => ! idSet.has(b.id)));
         setSelectedBlockIds((prev) => prev.filter((id) => ! idSet.has(id)));
     };
 
@@ -252,15 +301,17 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
         const idSet = new Set(ids);
         const toDup = blocks.filter((b) => idSet.has(b.id));
         if (toDup.length === 0) return;
-        const fallbackY = blocks.reduce((m, b) => Math.max(m, b.y + b.h), 0);
-        let offset = 0;
+        const maxY = blocks.reduce((m, b) => Math.max(m, b.y ?? 0), -1);
+        let offset = 1;
         const newBlocks = toDup.map((b) => {
             const out: TBlock = {
                 ...b,
                 id: `${b.type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                y: fallbackY + offset,
+                y: maxY + offset,
+                x: 0,
+                pos: 0,
             };
-            offset += b.h;
+            offset += 1;
             return out;
         });
         setBlocks([...blocks, ...newBlocks]);
@@ -374,10 +425,14 @@ export function TemplateEditorShell<TBlock extends BaseTemplateBlock>({
     // ─── Selected block resolution ────────────────────────────────────
 
     const selectedBlock = useMemo<TBlock | null>(
-        () =>
-            selectedBlockIds.length === 1
-                ? blocks.find((b) => b.id === selectedBlockIds[0]) ?? null
-                : null,
+        () => {
+            if (selectedBlockIds.length !== 1) return null;
+            const id = selectedBlockIds[0];
+            if (! id) return null;
+            // findBlockById busca recursivamente — soporta sub-bloques
+            // adentro de `nested_section`.
+            return (findBlockById(blocks, id)?.block as TBlock | undefined) ?? null;
+        },
         [selectedBlockIds, blocks],
     );
 

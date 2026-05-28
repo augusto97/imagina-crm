@@ -22,10 +22,25 @@ import type { FieldEntity } from '@/types/field';
 import type { RecordEntity } from '@/types/record';
 
 import { type PalettePayload, PALETTE_MIME, readDropPayload } from './dragPayload';
+import {
+    addSubColumn,
+    deleteBlockById,
+    deleteSubColumn,
+    findBlockById,
+    moveBlock as moveBlockNested,
+    moveSubBlockWithinColumn,
+    setSubColumnWidth,
+    type DropTarget as NestedDropTarget,
+} from './nestedHelpers';
 import type { BaseTemplateBlock, BlockRegistry } from './types';
 
-/** Posición destino para crear un bloque desde la paleta. */
-export type DropTarget = { x: number; y: number; pos: number };
+/**
+ * Posición destino para crear un bloque desde la paleta.
+ * Puede ser top-level (columna de una sección) o sub-columna de un
+ * `nested_section`. El shell convierte esto a un `position` y crea
+ * el bloque adentro.
+ */
+export type DropTarget = NestedDropTarget;
 
 interface Props<TBlock extends BaseTemplateBlock> {
     listId: number;
@@ -327,11 +342,37 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
             e.stopPropagation();
             setDropTargetColId(null);
 
-            // Caso 1: drop interno (mover bloque).
+            // Caso 1: drop interno (mover bloque). El source puede ser
+            // un block top-level o un sub-bloque adentro de un
+            // nested_section — distinguimos con findBlockById.
             const internalId = draggedBlockId.current;
             if (internalId) {
                 draggedBlockId.current = null;
-                moveBlockToColumn(internalId, sectionId, colId);
+                const found = findBlockById(blocks, internalId);
+                if (! found) return;
+                if (found.path.kind === 'top') {
+                    // Mover entre columnas top-level — usa el state local.
+                    moveBlockToColumn(internalId, sectionId, colId);
+                    return;
+                }
+                // Sub → Top: extraer del nested_section e insertar en
+                // la columna top-level destino. Calculamos las coords
+                // físicas a partir del index de la sección/columna
+                // visible (que coincide con y/x persistidos al
+                // re-derivar).
+                const sIdx = sections.findIndex((s) => s.id === sectionId);
+                const sec = sections[sIdx];
+                if (! sec) return;
+                const cIdx = sec.columns.findIndex((c) => c.id === colId);
+                const col = sec.columns[cIdx];
+                if (! col || cIdx < 0) return;
+                const next = moveBlockNested<TBlock>(blocks, internalId, {
+                    kind: 'top',
+                    y: sIdx,
+                    x: cIdx,
+                    pos: col.blocks.length,
+                });
+                if (next) onBlocksChange(next);
                 return;
             }
 
@@ -353,6 +394,7 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
             // encarga de invocar `createBlock` y nosotros recibimos el
             // bloque nuevo via `blocks` prop → re-derivamos sections.
             onDropFromPalette(payload, {
+                kind: 'top',
                 x: cIdx,
                 y: sIdx,
                 pos: col.blocks.length,
@@ -467,7 +509,24 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                                             deleteBlock(section.id, col.id, block.id)
                                         }
                                     >
-                                        {registry.renderPreview(block, ctx)}
+                                        {block.type === 'nested_section' ? (
+                                            <NestedSectionInline
+                                                parent={block}
+                                                blocks={blocks}
+                                                registry={registry}
+                                                ctx={ctx}
+                                                preview={preview}
+                                                selectedSet={selectedSet}
+                                                dropTargetColId={dropTargetColId}
+                                                draggedBlockId={draggedBlockId}
+                                                onBlocksChange={onBlocksChange}
+                                                onSelectBlock={onSelectBlock}
+                                                onDropFromPalette={onDropFromPalette}
+                                                onSetDropTarget={setDropTargetColId}
+                                            />
+                                        ) : (
+                                            registry.renderPreview(block, ctx)
+                                        )}
                                     </BlockCard>
                                 ))}
                             </ColumnCard>
@@ -843,4 +902,303 @@ function PresetGlyph({ columns }: { columns: number[] }): JSX.Element {
 function clampWidth(w: number): number {
     if (! Number.isFinite(w)) return 12;
     return Math.max(1, Math.min(12, Math.round(w)));
+}
+
+// ───────────────────────────────────────────────────────────────────
+// NestedSectionInline — mini-editor de un nested_section dentro del canvas
+// ───────────────────────────────────────────────────────────────────
+
+interface NestedSectionInlineProps<TBlock extends BaseTemplateBlock> {
+    parent: TBlock;
+    blocks: TBlock[];
+    registry: BlockRegistry<TBlock>;
+    ctx: { listId: number; fields: FieldEntity[]; record: RecordEntity | null };
+    preview: boolean;
+    selectedSet: Set<string>;
+    dropTargetColId: string | null;
+    draggedBlockId: React.MutableRefObject<string | null>;
+    onBlocksChange: (next: TBlock[]) => void;
+    onSelectBlock: (id: string | null, additive?: boolean) => void;
+    onDropFromPalette: (payload: PalettePayload, target: DropTarget) => void;
+    onSetDropTarget: (id: string | null) => void;
+}
+
+function NestedSectionInline<TBlock extends BaseTemplateBlock>({
+    parent,
+    blocks,
+    registry,
+    ctx,
+    preview,
+    selectedSet,
+    dropTargetColId,
+    draggedBlockId,
+    onBlocksChange,
+    onSelectBlock,
+    onDropFromPalette,
+    onSetDropTarget,
+}: NestedSectionInlineProps<TBlock>): JSX.Element {
+    const cfg = parent.config as unknown as {
+        columns: Array<{ id: string; width: number; blocks: TBlock[] }>;
+    };
+    const columns = Array.isArray(cfg.columns) ? cfg.columns : [];
+
+    /** ID prefijado por parent para evitar colisiones con drop zones top-level. */
+    const zId = (subColIdx: number): string => `sub:${parent.id}:${subColIdx}`;
+
+    const handleSubColDragOver = (subColIdx: number) => (e: React.DragEvent): void => {
+        const types = Array.from(e.dataTransfer.types);
+        if (! types.includes(PALETTE_MIME) && draggedBlockId.current === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = draggedBlockId.current ? 'move' : 'copy';
+        onSetDropTarget(zId(subColIdx));
+    };
+
+    const handleSubColDragLeave = (e: React.DragEvent): void => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        onSetDropTarget(null);
+    };
+
+    const handleSubColDrop = (subColIdx: number) => (e: React.DragEvent): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSetDropTarget(null);
+
+        const internalId = draggedBlockId.current;
+        if (internalId) {
+            // Drop interno: mover el bloque (top o sub) a esta sub-columna.
+            draggedBlockId.current = null;
+            const targetCol = columns[subColIdx];
+            if (! targetCol) return;
+            // Restricción: no permitir nested_section dentro de nested_section.
+            const src = findBlockById(blocks, internalId);
+            if (! src) return;
+            if (src.block.type === 'nested_section') return;
+            const next = moveBlockNested<TBlock>(blocks, internalId, {
+                kind: 'sub',
+                parentId: parent.id,
+                colIdx: subColIdx,
+                subIdx: targetCol.blocks.length,
+            });
+            if (next) onBlocksChange(next);
+            return;
+        }
+
+        // Drop desde paleta: crear sub-bloque nuevo en esta sub-columna.
+        const payload = readDropPayload(e);
+        if (! payload) return;
+        const targetCol = columns[subColIdx];
+        if (! targetCol) return;
+        onDropFromPalette(payload, {
+            kind: 'sub',
+            parentId: parent.id,
+            colIdx: subColIdx,
+            subIdx: targetCol.blocks.length,
+        });
+    };
+
+    const handleSubBlockDragStart = (subId: string) => (e: React.DragEvent): void => {
+        draggedBlockId.current = subId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', subId);
+        // Detener propagación para que el drag NO se interprete como
+        // drag del bloque parent (nested_section) — sino se rompe el
+        // mover sub-bloques.
+        e.stopPropagation();
+    };
+
+    const handleSubBlockDragEnd = (): void => {
+        draggedBlockId.current = null;
+        onSetDropTarget(null);
+    };
+
+    const handleAddSubColumn = (): void => {
+        onBlocksChange(addSubColumn(blocks, parent.id));
+    };
+
+    const handleDeleteSubColumn = (subColIdx: number): void => {
+        if (columns.length <= 1) return;
+        onBlocksChange(deleteSubColumn(blocks, parent.id, subColIdx));
+    };
+
+    const handleSetSubColWidth = (subColIdx: number, width: number): void => {
+        onBlocksChange(setSubColumnWidth(blocks, parent.id, subColIdx, width));
+    };
+
+    const handleMoveSubBlock = (
+        subColIdx: number,
+        subIdx: number,
+        direction: -1 | 1,
+    ): void => {
+        onBlocksChange(
+            moveSubBlockWithinColumn(blocks, parent.id, subColIdx, subIdx, direction),
+        );
+    };
+
+    const handleDeleteSubBlock = (subId: string): void => {
+        onBlocksChange(deleteBlockById(blocks, subId));
+    };
+
+    return (
+        <div
+            className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded imcrm-bg-muted/5 imcrm-p-2"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="imcrm-flex imcrm-items-center imcrm-justify-between">
+                <span className="imcrm-text-[10px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                    {__('Sub-sección')}
+                </span>
+                {! preview && (
+                    <button
+                        type="button"
+                        onClick={handleAddSubColumn}
+                        className="imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-border imcrm-border-dashed imcrm-border-border imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-text-muted-foreground hover:imcrm-border-primary hover:imcrm-text-primary"
+                    >
+                        <Plus className="imcrm-h-2.5 imcrm-w-2.5" />
+                        {__('Sub-columna')}
+                    </button>
+                )}
+            </div>
+
+            <div className="imcrm-flex imcrm-flex-row imcrm-flex-wrap imcrm-gap-2">
+                {columns.map((col, subColIdx) => {
+                    const basis = `${(col.width / 12) * 100}%`;
+                    const cellStyle: CSSProperties = {
+                        flexBasis: `calc(${basis} - 0.5rem)`,
+                        maxWidth: `calc(${basis} - 0.5rem)`,
+                        minWidth: 0,
+                    };
+                    const isDropTarget = dropTargetColId === zId(subColIdx);
+                    return (
+                        <div
+                            key={col.id}
+                            style={cellStyle}
+                            onDragOver={preview ? undefined : handleSubColDragOver(subColIdx)}
+                            onDragLeave={preview ? undefined : handleSubColDragLeave}
+                            onDrop={preview ? undefined : handleSubColDrop(subColIdx)}
+                            className={cn(
+                                'imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded imcrm-border imcrm-border-dashed imcrm-p-1.5 imcrm-transition-all',
+                                isDropTarget
+                                    ? 'imcrm-border-primary imcrm-bg-primary/5'
+                                    : 'imcrm-border-border imcrm-bg-card/60',
+                                col.blocks.length === 0 && 'imcrm-min-h-[64px]',
+                            )}
+                        >
+                            {! preview && (
+                                <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-1">
+                                    <span className="imcrm-text-[9px] imcrm-font-medium imcrm-uppercase imcrm-tracking-wide imcrm-text-muted-foreground">
+                                        {__('Sub-col')} {subColIdx + 1}
+                                    </span>
+                                    <div className="imcrm-flex imcrm-items-center imcrm-gap-1">
+                                        <select
+                                            value={col.width}
+                                            onChange={(e) =>
+                                                handleSetSubColWidth(subColIdx, Number(e.target.value))
+                                            }
+                                            className="imcrm-h-5 imcrm-rounded imcrm-border imcrm-border-border imcrm-bg-background imcrm-px-1 imcrm-text-[9px]"
+                                            title={__('Ancho')}
+                                        >
+                                            {[3, 4, 6, 8, 9, 12].map((w) => (
+                                                <option key={w} value={w}>{w}/12</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteSubColumn(subColIdx)}
+                                            disabled={columns.length <= 1}
+                                            title={__('Eliminar sub-columna')}
+                                            className="imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive disabled:imcrm-opacity-30"
+                                        >
+                                            <X className="imcrm-h-2.5 imcrm-w-2.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {col.blocks.length === 0 && ! preview && (
+                                <div className="imcrm-flex imcrm-flex-1 imcrm-items-center imcrm-justify-center imcrm-text-center imcrm-text-[10px] imcrm-text-muted-foreground">
+                                    {__('Soltá un bloque acá')}
+                                </div>
+                            )}
+
+                            {col.blocks.map((subBlock, subIdx) => {
+                                const isSelected = ! preview && selectedSet.has(subBlock.id);
+                                return (
+                                    <div
+                                        key={subBlock.id}
+                                        onClick={(e) => {
+                                            if (preview) return;
+                                            e.stopPropagation();
+                                            onSelectBlock(subBlock.id, e.shiftKey);
+                                        }}
+                                        className={cn(
+                                            'imcrm-group imcrm-relative imcrm-overflow-hidden imcrm-rounded imcrm-bg-card imcrm-ring-1 imcrm-transition-all',
+                                            isSelected
+                                                ? 'imcrm-ring-2 imcrm-ring-primary'
+                                                : 'imcrm-ring-border hover:imcrm-ring-primary/40',
+                                            preview ? 'imcrm-cursor-default' : 'imcrm-cursor-pointer',
+                                        )}
+                                    >
+                                        {! preview && (
+                                            <div className="imcrm-pointer-events-none imcrm-absolute imcrm-right-0.5 imcrm-top-0.5 imcrm-z-20 imcrm-flex imcrm-items-center imcrm-gap-0.5 imcrm-rounded imcrm-bg-card/95 imcrm-px-0.5 imcrm-py-0.5 imcrm-opacity-0 imcrm-shadow-imcrm-sm imcrm-transition group-hover:imcrm-opacity-100">
+                                                <button
+                                                    type="button"
+                                                    draggable
+                                                    onDragStart={handleSubBlockDragStart(subBlock.id)}
+                                                    onDragEnd={handleSubBlockDragEnd}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title={__('Arrastrar')}
+                                                    className="imcrm-pointer-events-auto imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-cursor-grab imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-muted active:imcrm-cursor-grabbing"
+                                                >
+                                                    <GripVertical className="imcrm-h-3 imcrm-w-3" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (subIdx > 0) handleMoveSubBlock(subColIdx, subIdx, -1);
+                                                    }}
+                                                    disabled={subIdx === 0}
+                                                    title={__('Subir')}
+                                                    className="imcrm-pointer-events-auto imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                                >
+                                                    <ArrowUp className="imcrm-h-3 imcrm-w-3" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (subIdx < col.blocks.length - 1) handleMoveSubBlock(subColIdx, subIdx, 1);
+                                                    }}
+                                                    disabled={subIdx === col.blocks.length - 1}
+                                                    title={__('Bajar')}
+                                                    className="imcrm-pointer-events-auto imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-muted disabled:imcrm-opacity-30"
+                                                >
+                                                    <ArrowDown className="imcrm-h-3 imcrm-w-3" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteSubBlock(subBlock.id);
+                                                    }}
+                                                    title={__('Eliminar')}
+                                                    className="imcrm-pointer-events-auto imcrm-flex imcrm-h-5 imcrm-w-5 imcrm-items-center imcrm-justify-center imcrm-rounded imcrm-text-muted-foreground hover:imcrm-bg-destructive/10 hover:imcrm-text-destructive"
+                                                >
+                                                    <X className="imcrm-h-3 imcrm-w-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="imcrm-overflow-x-auto">
+                                            {registry.renderPreview(subBlock, ctx)}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.27
+Stable tag: 0.57.28
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,51 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.28 =
+**`nested_section` interactivo en el canvas (no más Inspector form).**
+
+El bloque `nested_section` ahora se gestiona DIRECTAMENTE en el canvas
+visual, igual que cualquier otra columna. El form gigante del Inspector
+desapareció.
+
+**Lo que ahora funciona en el canvas del editor:**
+
+* **Drag desde paleta a una sub-columna**: cualquier tipo de bloque
+  (excepto otro `nested_section` — 1 nivel de profundidad). La
+  sub-columna se ilumina al hover, drop crea el sub-bloque ahí.
+* **Drag handle ≡ de un sub-bloque → drop sobre otra sub-columna**:
+  mueve entre sub-columnas del mismo `nested_section`.
+* **Drag handle ≡ de un sub-bloque → drop sobre una columna top-level**:
+  saca el sub-bloque del `nested_section` y lo convierte en bloque
+  top-level normal.
+* **Drag handle ≡ de un bloque top-level → drop sobre una sub-columna**:
+  mete el bloque adentro del `nested_section` (siempre que no sea
+  otro nested_section).
+* **Click en sub-bloque**: lo selecciona y el Inspector del panel
+  derecho muestra sus opciones normalmente (igual que cualquier
+  bloque top-level).
+* **Botones ↑ / ↓ / × del sub-bloque**: reordenar arriba/abajo dentro
+  de la sub-columna, o eliminar.
+* **Dropdown de ancho en cada sub-columna**: cambia el `width` (3, 4,
+  6, 8, 9, 12).
+* **Botones "+ Sub-columna" y × del sub-columna**: agregar/eliminar
+  sub-columnas.
+
+**Inspector form del nested_section:** ahora solo muestra un mensaje
+instructivo. Toda la edición pasa por el canvas.
+
+**Internamente:**
+
+* Nuevo módulo `nestedHelpers.ts` con funciones recursivas
+  (`findBlockById`, `updateBlockById`, `deleteBlockById`, `moveBlock`)
+  que operan sobre top-level y sub-bloques de manera uniforme.
+* El shell usa estos helpers para `selectedBlock`, `handleUpdateBlock`,
+  `handleDeleteBlocks` → permite que el Inspector edite sub-bloques
+  igual que top-level.
+* El canvas reconoce el tipo `nested_section` y lo renderea como
+  mini-editor inline (NestedSectionInline) en vez de delegar a
+  `registry.renderPreview`.
 
 = 0.57.27 =
 **Columnas dentro de columnas (portal): nuevo bloque `nested_section`.**
