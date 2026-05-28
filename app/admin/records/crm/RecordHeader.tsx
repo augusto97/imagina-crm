@@ -1,7 +1,6 @@
-import { ExternalLink, Mail, Phone, Save, Trash2 } from 'lucide-react';
+import { ExternalLink, Mail, Phone } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { __, sprintf } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { colorFromString, initialsFromValue } from '@/lib/recordCategorize';
@@ -22,7 +21,14 @@ export interface RecordHeaderStyle {
     showSubtitle: boolean;
     showCreatedAt: boolean;
     showStatusStrip: boolean;
-    showActions: boolean;
+    /**
+     * 0.57.36 — DEPRECATED. Los botones Guardar/Eliminar ya no se
+     * rendean adentro del bloque header bajo ninguna circunstancia.
+     * Esas acciones viven en la toolbar del registro (RecordCrmLayout)
+     * o en el drawer. La prop se conserva en el shape para no romper
+     * el JSON persistido, pero el componente la ignora.
+     */
+    showActions?: boolean;
     accentColor: string | null;
 }
 
@@ -30,34 +36,26 @@ interface RecordHeaderProps {
     record: RecordEntity;
     data: RecordHeaderData;
     style: RecordHeaderStyle;
-    onSave: () => void;
-    onDelete: () => void;
-    canSave: boolean;
-    saving: boolean;
-    deleting: boolean;
 }
 
 /**
- * Header del registro CRM. Antes era un componente fijo arriba del
- * grid; desde 0.49.0 se rendea como bloque `header` dentro del grid
- * para que el usuario pueda redimensionarlo, moverlo y configurarlo.
+ * Header del registro CRM — bloque de presentación, solo lectura.
+ * Muestra avatar, título, ID badge, subtítulo, fecha de creación y
+ * pills/quick actions del record. NO renderea botones de acción —
+ * esos viven en la toolbar del registro (fuera del template) y en
+ * el drawer.
  *
  * Cuatro variantes visuales — switchean layout interno pero todas
  * comparten los mismos elementos (cuando están activados):
  *  - `hero`    (default) avatar 16×16 + banda decorativa + layout horizontal
  *  - `compact` una sola fila densa con avatar 10×10 + título inline
- *  - `minimal` sin avatar, solo título grande + acciones
+ *  - `minimal` sin avatar, solo título grande
  *  - `banner`  avatar y título centrados (estilo página de perfil)
  */
 export function RecordHeader({
     record,
     data,
     style,
-    onSave,
-    onDelete,
-    canSave,
-    saving,
-    deleting,
 }: RecordHeaderProps): JSX.Element {
     const titleField = data.titleField;
     const titleValue =
@@ -80,30 +78,6 @@ export function RecordHeader({
         <Badge variant="outline" className="imcrm-font-mono imcrm-text-[10px] imcrm-font-medium">
             #{record.id}
         </Badge>
-    ) : null;
-
-    const actions = style.showActions ? (
-        <div className="imcrm-flex imcrm-shrink-0 imcrm-gap-2">
-            <Button
-                variant="ghost"
-                size="sm"
-                className="imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
-                onClick={onDelete}
-                disabled={deleting}
-            >
-                <Trash2 className="imcrm-h-4 imcrm-w-4" />
-                {__('Eliminar')}
-            </Button>
-            <Button
-                onClick={onSave}
-                disabled={!canSave || saving}
-                size="sm"
-                className="imcrm-gap-2 imcrm-shadow-imcrm-sm"
-            >
-                <Save className="imcrm-h-4 imcrm-w-4" />
-                {saving ? __('Guardando…') : __('Guardar')}
-            </Button>
-        </div>
     ) : null;
 
     const statusStrip = style.showStatusStrip
@@ -147,7 +121,6 @@ export function RecordHeader({
                             </p>
                         )}
                     </div>
-                    {actions}
                 </div>
                 {statusStrip}
             </div>
@@ -169,7 +142,6 @@ export function RecordHeader({
                             </p>
                         )}
                     </div>
-                    {actions}
                 </div>
                 {statusStrip}
             </div>
@@ -180,7 +152,7 @@ export function RecordHeader({
         return (
             <div
                 className={cn(
-                    'imcrm-relative imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
+                    'imcrm-relative imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
                 )}
                 style={{
                     background: `linear-gradient(135deg, ${avatarColor}14 0%, ${avatarColor}05 100%)`,
@@ -217,7 +189,6 @@ export function RecordHeader({
                     )}
                 </div>
                 {statusStrip}
-                {actions && <div className="imcrm-pt-1">{actions}</div>}
             </div>
         );
     }
@@ -226,12 +197,12 @@ export function RecordHeader({
     return (
         <div
             className={cn(
-                'imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
+                'imcrm-relative imcrm-flex imcrm-flex-col imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
             )}
         >
             <div
                 aria-hidden
-                className="imcrm-h-1.5 imcrm-w-full"
+                className="imcrm-h-1.5 imcrm-w-full imcrm-rounded-t-xl"
                 style={{
                     background: `linear-gradient(90deg, ${avatarColor} 0%, ${avatarColor}80 100%)`,
                 }}
@@ -274,7 +245,6 @@ export function RecordHeader({
                             )}
                         </div>
                     </div>
-                    {actions}
                 </div>
                 {statusStrip}
             </div>

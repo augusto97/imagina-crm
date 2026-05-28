@@ -38,13 +38,6 @@ export interface BlockRendererProps {
      * usa; los demás bloques los ignoran.
      */
     headerData?: RecordHeaderData;
-    /** Callback para guardar — solo el bloque `header` lo invoca. */
-    onSave?: () => void;
-    /** Callback para eliminar — solo el bloque `header` lo invoca. */
-    onDelete?: () => void;
-    canSave?: boolean;
-    saving?: boolean;
-    deleting?: boolean;
 }
 
 /**
@@ -63,26 +56,16 @@ export function BlockRenderer({
     fieldErrors,
     record,
     headerData,
-    onSave,
-    onDelete,
-    canSave,
-    saving,
-    deleting,
 }: BlockRendererProps): JSX.Element | null {
     if (block.type === 'header') {
-        // El header solo tiene sentido si tenemos los datos del template
-        // y los callbacks. Si los falta (ej. preview del editor),
-        // renderea con un fallback no-op.
+        // 0.57.36 — bloque de presentación, solo lectura. Las acciones
+        // Guardar/Eliminar viven en la toolbar del registro (fuera del
+        // template) y en el drawer.
         return (
             <RecordHeader
                 record={record}
                 data={headerData ?? { titleField: null, subtitleFields: [], statusFields: [], quickActions: [] }}
                 style={block.config}
-                onSave={onSave ?? (() => {})}
-                onDelete={onDelete ?? (() => {})}
-                canSave={canSave ?? false}
-                saving={saving ?? false}
-                deleting={deleting ?? false}
             />
         );
     }

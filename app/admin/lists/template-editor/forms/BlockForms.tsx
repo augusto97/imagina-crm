@@ -82,12 +82,10 @@ export function HeaderForm({
                         checked={block.config.show_status_strip}
                         onChange={(v) => updateConfig({ show_status_strip: v })}
                     />
-                    <Toggle
-                        label={__('Botones acción')}
-                        checked={block.config.show_actions}
-                        onChange={(v) => updateConfig({ show_actions: v })}
-                    />
                 </div>
+                {/* 0.57.36 — quitamos el toggle "Botones acción". Las
+                 * acciones Guardar/Eliminar viven en la toolbar del
+                 * registro (fuera del template), no en este bloque. */}
             </div>
 
             <Field label={__('Color de acento (opcional)')}>

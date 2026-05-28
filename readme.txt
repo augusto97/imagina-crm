@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.35
+Stable tag: 0.57.36
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,28 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.36 =
+**Bloque "Encabezado" del CRM: solo presentación. Acciones movidas
+a la toolbar del registro.**
+
+* **Botones Guardar/Eliminar eliminados del bloque header**. Ningún
+  bloque del template debería tener controles de acciones del
+  registro — el bloque era de presentación, no debería estar
+  acoplado al ciclo de vida del registro. Las acciones ahora viven
+  en la **toolbar superior del registro** (RecordCrmLayout), arriba
+  del template, junto al botón "← Volver".
+* **`imcrm-overflow-hidden` eliminado** de las variantes hero/banner.
+  Para preservar el clip del rounded en la barra decorativa del
+  hero, le movemos `imcrm-rounded-t-xl` directo a la barra.
+* **Props `onSave`/`onDelete`/`canSave`/`saving`/`deleting`
+  eliminadas** de `RecordHeader` y `BlockRenderer`. El componente
+  ahora solo recibe `record`, `data`, `style`.
+* **Toggle "Botones acción"** removido del inspector del bloque
+  header — ya no aplica.
+* **`showActions` queda en el shape del style** como prop opcional
+  deprecated (para no romper JSON persistido), pero el componente
+  la ignora.
 
 = 0.57.35 =
 **Fix definitivo: cambio el tag `<header>` HTML del RecordHeader por

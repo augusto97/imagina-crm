@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -102,12 +102,39 @@ export function RecordCrmLayout({
 
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-4">
-            <Button asChild variant="ghost" size="sm" className="imcrm-gap-2 imcrm-self-start imcrm-text-muted-foreground">
-                <Link to={`/lists/${list.slug}/records`}>
-                    <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
-                    {list.name}
-                </Link>
-            </Button>
+            {/* Toolbar superior: navegación + acciones del registro.
+             * Los botones Guardar/Eliminar viven acá, FUERA del template,
+             * para no acoplar la UI de acciones del registro con el bloque
+             * `header` (que es solo presentación). */}
+            <div className="imcrm-flex imcrm-items-center imcrm-justify-between imcrm-gap-3">
+                <Button asChild variant="ghost" size="sm" className="imcrm-gap-2 imcrm-text-muted-foreground">
+                    <Link to={`/lists/${list.slug}/records`}>
+                        <ArrowLeft className="imcrm-h-4 imcrm-w-4" />
+                        {list.name}
+                    </Link>
+                </Button>
+                <div className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="imcrm-gap-2 imcrm-text-destructive hover:imcrm-text-destructive"
+                        onClick={onDelete}
+                        disabled={deleting}
+                    >
+                        <Trash2 className="imcrm-h-4 imcrm-w-4" />
+                        {__('Eliminar')}
+                    </Button>
+                    <Button
+                        size="sm"
+                        className="imcrm-gap-2"
+                        onClick={() => void handleSave()}
+                        disabled={! dirty || update.isPending}
+                    >
+                        <Save className="imcrm-h-4 imcrm-w-4" />
+                        {update.isPending ? __('Guardando…') : __('Guardar')}
+                    </Button>
+                </div>
+            </div>
 
             <PortalAccessButton list={list} record={record} />
 
@@ -157,11 +184,6 @@ export function RecordCrmLayout({
                                                 fieldErrors={fieldErrors}
                                                 record={record}
                                                 headerData={resolved.header}
-                                                onSave={() => void handleSave()}
-                                                onDelete={onDelete}
-                                                canSave={dirty}
-                                                saving={update.isPending}
-                                                deleting={deleting}
                                             />
                                         ))}
                                     </div>

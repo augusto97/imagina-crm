@@ -326,16 +326,7 @@ export const crmRegistry: BlockRegistry<V2Block> = {
         // tope si el config no contiene uno (backward-compat para
         // plantillas v2 viejas), así que `blocks[0]` para un bloque
         // distinto a `header` sería el header sintético, no el bloque
-        // que queremos renderear (regresión 0.57.16: "33" + botones
-        // Guardar/Eliminar apareciendo en todos los bloques).
-        //
-        // 0.57.33: en el preview del editor forzamos `showActions:false`
-        // para el bloque `header` — las acciones Guardar/Eliminar son
-        // del record REAL y no tienen sentido en el preview. El user
-        // que está editando la plantilla no necesita verlas.
-        const blockForPreview = block.type === 'header'
-            ? { ...block, config: { ...block.config, show_actions: false } }
-            : block;
+        // que queremos renderear.
         const resolved = resolveV2(
             {
                 v: 2,
@@ -344,7 +335,7 @@ export const crmRegistry: BlockRegistry<V2Block> = {
                     status_field_slugs: [],
                     quick_action_field_slugs: [],
                 },
-                blocks: [blockForPreview],
+                blocks: [block],
             },
             ctx.fields,
         );
