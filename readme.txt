@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.29
+Stable tag: 0.57.30
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,22 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.30 =
+**Fix: sub-bloques del `nested_section` ahora se rendean en el CRM
+para todos los tipos.**
+
+El resolver `resolveNestedSubBlocks` de 0.57.29 solo soportaba 3
+tipos básicos (divider, heading, comments_thread) y omitía
+silenciosamente todo lo demás. Si el user agregaba `stats`, `kpi`,
+`properties_group`, `timeline`, etc. como sub-bloque, no aparecía
+en el front aunque sí en el editor.
+
+Ahora soporta TODOS los tipos V2 (excepto `nested_section` que sigue
+siendo 1 nivel max): header, properties_group, timeline, stats,
+related, notes, kpi, chart, files, embed, action_button, markdown,
+divider, heading, comments_thread. Cada uno con la misma lógica de
+inflación de fields (lookups vía `bySlug`) que el resolver principal.
 
 = 0.57.29 =
 **`nested_section` también en el editor del CRM + spacing en sec/cols.**

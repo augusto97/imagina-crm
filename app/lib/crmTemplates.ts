@@ -2183,41 +2183,128 @@ export type ResolvedV2Block =
     });
 
 /**
- * Resuelve los sub-bloques de un `nested_section` — versión mínima.
- *
- * Solo soportamos como sub-bloques los tipos cuyo shape resuelto NO
- * requiere lookups complejos de fields ni transformaciones de
- * `field_slug → FieldEntity`. Esto mantiene el resolver simple y
- * predecible; los tipos avanzados (kpi, chart, properties_group,
- * files, related, stats, header, timeline) siguen siendo top-level.
- *
- * Tipos permitidos como sub-bloques:
- *   - divider
- *   - heading
- *   - comments_thread
- *
- * El editor restringe los drops desde paleta a estos tipos (ver
- * `NESTED_ALLOWED_TYPES` en `nestedHelpers`). Cualquier otro tipo
- * que aparezca en el config se omite silenciosamente al renderear.
- *
- * Los sub-bloques NO pueden ser otro `nested_section` (1 nivel).
+ * Resuelve los sub-bloques de un `nested_section`. Soporta TODOS los
+ * tipos de bloque (excepto `nested_section` que es 1 nivel max).
+ * Mismas reglas de inflación de fields que el resolver principal.
  */
 function resolveNestedSubBlocks(
     subBlocks: V2Block[],
-    _fields: FieldEntity[],
+    fields: FieldEntity[],
 ): ResolvedV2Block[] {
+    const bySlug = new Map(fields.map((f) => [f.slug, f]));
+    const lookupMany = (slugs: string[]): FieldEntity[] =>
+        slugs.map((s) => bySlug.get(s)).filter((f): f is FieldEntity => f !== undefined);
+
     const resolved: ResolvedV2Block[] = [];
     for (const b of subBlocks) {
         if (b.type === 'nested_section') continue;
-        const base = { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h };
-        if (b.type === 'divider') {
+        const base = {
+            id: b.id, x: b.x, y: b.y, w: b.w, h: b.h,
+            pos: b.pos,
+            secPadding: b.secPadding, secMargin: b.secMargin,
+            colPadding: b.colPadding, colMargin: b.colMargin,
+        };
+
+        if (b.type === 'header') {
+            resolved.push({ ...base, type: 'header', config: {
+                variant: b.config.variant,
+                showAvatar: b.config.show_avatar,
+                showIdBadge: b.config.show_id_badge,
+                showSubtitle: b.config.show_subtitle,
+                showCreatedAt: b.config.show_created_at,
+                showStatusStrip: b.config.show_status_strip,
+                showActions: b.config.show_actions,
+                accentColor: b.config.accent_color,
+            } });
+        } else if (b.type === 'properties_group') {
+            resolved.push({ ...base, type: 'properties_group', config: {
+                label: b.config.label,
+                icon: iconForKey(b.config.icon_key),
+                fields: lookupMany(b.config.field_slugs),
+                collapsedByDefault: b.config.collapsed_by_default,
+                density: b.config.density ?? 'compact',
+                variant: b.config.variant ?? 'card',
+            } });
+        } else if (b.type === 'timeline') {
+            resolved.push({ ...base, type: 'timeline' });
+        } else if (b.type === 'stats') {
+            const mode = b.config.mode ?? 'auto';
+            const items = (b.config.items ?? []).map((it) => {
+                if (it.kind === 'field') {
+                    const f = bySlug.get(it.field_slug);
+                    if (! f) return null;
+                    return { kind: 'field' as const, field: f, label: it.label };
+                }
+                return it;
+            }).filter((x): x is NonNullable<typeof x> => x !== null);
+            resolved.push({ ...base, type: 'stats', config: { mode, items } });
+        } else if (b.type === 'related') {
+            const f = bySlug.get(b.config.field_slug);
+            if (f && f.type === 'relation') {
+                resolved.push({ ...base, type: 'related', config: { field: f } });
+            }
+        } else if (b.type === 'notes') {
+            resolved.push({ ...base, type: 'notes', config: {
+                title: b.config.title,
+                source: b.config.source ?? 'literal',
+                content: b.config.content,
+                field: b.config.field_slug ? bySlug.get(b.config.field_slug) ?? null : null,
+            } });
+        } else if (b.type === 'kpi') {
+            resolved.push({ ...base, type: 'kpi', config: {
+                field: bySlug.get(b.config.field_slug) ?? null,
+                label: b.config.label,
+                format: b.config.format,
+                prefix: b.config.prefix,
+                suffix: b.config.suffix,
+                goalValue: b.config.goal_value,
+            } });
+        } else if (b.type === 'chart') {
+            const rel = bySlug.get(b.config.relation_field_slug);
+            resolved.push({ ...base, type: 'chart', config: {
+                relationField: rel && rel.type === 'relation' ? rel : null,
+                groupByFieldSlug: b.config.group_by_field_slug,
+                title: b.config.title,
+            } });
+        } else if (b.type === 'files') {
+            const fileFields = b.config.file_field_slugs.length > 0
+                ? lookupMany(b.config.file_field_slugs).filter((f) => f.type === 'file')
+                : fields.filter((f) => f.type === 'file');
+            resolved.push({ ...base, type: 'files', config: {
+                fileFields, title: b.config.title,
+            } });
+        } else if (b.type === 'embed') {
+            resolved.push({ ...base, type: 'embed', config: {
+                source: b.config.source,
+                url: b.config.url,
+                fieldSlug: b.config.field_slug,
+                title: b.config.title,
+            } });
+        } else if (b.type === 'action_button') {
+            resolved.push({ ...base, type: 'action_button', config: {
+                label: b.config.label,
+                actionType: b.config.action_type,
+                targetSource: b.config.target_source ?? 'literal',
+                target: b.config.target,
+                targetField: b.config.target_field_slug
+                    ? bySlug.get(b.config.target_field_slug) ?? null
+                    : null,
+                variant: b.config.variant,
+            } });
+        } else if (b.type === 'markdown') {
+            resolved.push({ ...base, type: 'markdown', config: {
+                title: b.config.title,
+                source: b.config.source ?? 'literal',
+                content: b.config.content,
+                field: b.config.field_slug ? bySlug.get(b.config.field_slug) ?? null : null,
+            } });
+        } else if (b.type === 'divider') {
             resolved.push({ ...base, type: 'divider', config: { label: b.config.label } });
         } else if (b.type === 'heading') {
             resolved.push({ ...base, type: 'heading', config: { text: b.config.text, level: b.config.level } });
         } else if (b.type === 'comments_thread') {
             resolved.push({ ...base, type: 'comments_thread', config: { title: b.config.title } });
         }
-        // Otros tipos se omiten silenciosamente.
     }
     return resolved;
 }
