@@ -2567,7 +2567,8 @@ export function defaultHeaderResolvedConfig(): {
         showSubtitle: true,
         showCreatedAt: true,
         showStatusStrip: true,
-        showActions: true,
+        // 0.57.34 — mismo razonamiento que `defaultHeaderBlockConfig`.
+        showActions: false,
         accentColor: null,
     };
 }
@@ -2584,7 +2585,14 @@ export function defaultHeaderBlockConfig(): V2HeaderBlock['config'] {
         show_subtitle: true,
         show_created_at: true,
         show_status_strip: true,
-        show_actions: true,
+        // 0.57.34 — `show_actions` default `false`. Los botones
+        // Guardar/Eliminar duplicaban funcionalidad disponible en
+        // otros lados (drawer, página standalone) y rompían el
+        // layout cuando el header convivía con bloques de altura
+        // limitada. Si el user los quiere, los activa desde el
+        // inspector. Para templates EXISTENTES con `true` explícito
+        // (persisted), se respeta el valor — solo aplica a nuevos.
+        show_actions: false,
         accent_color: null,
     };
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.33
+Stable tag: 0.57.34
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,32 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.34 =
+**Fix definitivo del bloque "Encabezado" (header) del CRM.**
+
+El intento previo (0.57.33) dejó el card sin `overflow-hidden` y sin
+`h-full`, lo que causó que los botones Eliminar/Guardar del header
+se vieran flotando fuera del card (sobre el bloque siguiente) y que
+el fondo del card no abarcara todo el contenido.
+
+**Fixes:**
+
+1. **Restaurado `imcrm-overflow-hidden` en variantes `hero` y `banner`**
+   — clip correcto del border-radius. Como ya NO está `h-full`, el
+   card crece naturalmente al contenido (no recorta nada).
+
+2. **Quitado `imcrm-flex-1` del body interior del hero** — sin h-full
+   en el padre, `flex: 1 1 0%` se comportaba raro y podía colapsar
+   el body a 0 altura. Ahora el body toma altura natural exacta.
+
+3. **`show_actions` default `false`** (para NUEVOS headers). Los
+   botones Guardar/Eliminar siguen disponibles desde el drawer del
+   registro y la página standalone — duplicarlos en el header
+   confundía y rompía el layout. El user puede reactivarlos en el
+   inspector del bloque si los quiere. Templates EXISTENTES con
+   `show_actions: true` persistido siguen mostrando los botones
+   (no se sobreescribe nada al cargar).
 
 = 0.57.33 =
 **Fix: bloque "Encabezado" (hero) en el editor + altura cortada en

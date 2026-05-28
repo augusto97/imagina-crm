@@ -180,7 +180,7 @@ export function RecordHeader({
         return (
             <header
                 className={cn(
-                    'imcrm-relative imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
+                    'imcrm-relative imcrm-flex imcrm-flex-col imcrm-items-center imcrm-justify-center imcrm-gap-3 imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-p-5 imcrm-shadow-imcrm-sm',
                 )}
                 style={{
                     background: `linear-gradient(135deg, ${avatarColor}14 0%, ${avatarColor}05 100%)`,
@@ -226,17 +226,17 @@ export function RecordHeader({
     return (
         <header
             className={cn(
-                'imcrm-relative imcrm-flex imcrm-flex-col imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
+                'imcrm-relative imcrm-flex imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-shadow-imcrm-sm',
             )}
         >
             <div
                 aria-hidden
-                className="imcrm-h-1.5 imcrm-w-full imcrm-rounded-t-xl"
+                className="imcrm-h-1.5 imcrm-w-full"
                 style={{
                     background: `linear-gradient(90deg, ${avatarColor} 0%, ${avatarColor}80 100%)`,
                 }}
             />
-            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-gap-3 imcrm-p-5">
+            <div className="imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-p-5">
                 <div className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-4">
                     <div className="imcrm-flex imcrm-min-w-0 imcrm-items-start imcrm-gap-4">
                         {style.showAvatar && (
