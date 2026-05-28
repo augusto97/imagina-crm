@@ -234,6 +234,22 @@ export function GroupedTableView({
         return total;
     }, [visibleColumns, columnSizing, onAddColumn]);
 
+    // OJO: este `useMemo` TIENE que estar ANTES de los early returns de
+    // loading/error/empty (fix 0.57.32). Antes vivía después y violaba
+    // las reglas de hooks: cuando bundle pasaba de loading a ready,
+    // React renderea N+1 hooks (en vez de N) → "more hooks rendered
+    // than during the previous render" (#310) → pantalla en blanco al
+    // agrupar.
+    const allVisibleRecordIds = useMemo(() => {
+        const ids: number[] = [];
+        const exp = bundle.data?.expanded ?? {};
+        for (const key of Object.keys(exp)) {
+            const recs = exp[key]?.records.data ?? [];
+            for (const r of recs) ids.push(r.id);
+        }
+        return ids;
+    }, [bundle.data]);
+
     if (bundle.isLoading) {
         return (
             <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-py-6 imcrm-text-sm imcrm-text-muted-foreground">
@@ -264,23 +280,8 @@ export function GroupedTableView({
         );
     }
 
-    // Recolecta los IDs de TODOS los records visibles en los buckets
-    // expandidos. El `RecurrencesBatchProvider` los usa para hacer
-    // UNA sola query batch de recurrences — el `DateCellEditor` de
-    // cada celda de fecha lee del context en lugar de disparar fetch
-    // individual. Sin esto se disparaban N fetches (uno por record),
-    // saturando PHP-FPM y bloqueando el thread del frontend con
-    // re-renders en cascada hasta que el usuario cambiaba de vista.
-    // Fix en 0.57.10.
-    const allVisibleRecordIds = useMemo(() => {
-        const ids: number[] = [];
-        const exp = bundle.data?.expanded ?? {};
-        for (const key of Object.keys(exp)) {
-            const recs = exp[key]?.records.data ?? [];
-            for (const r of recs) ids.push(r.id);
-        }
-        return ids;
-    }, [bundle.data]);
+    // `allVisibleRecordIds` se computa arriba (antes de los early
+    // returns) por la regla de hooks. Acá solo lo usamos.
 
     return (
         <RecurrencesBatchProvider listId={listId} recordIds={allVisibleRecordIds}>

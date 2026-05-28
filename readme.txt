@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.31
+Stable tag: 0.57.32
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,20 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.32 =
+**Fix: pantalla en blanco al agrupar registros (React error #310).**
+
+`GroupedTableView` tenía un `useMemo` (`allVisibleRecordIds`) DESPUÉS
+de los early returns de loading/error/empty. Cuando el bundle pasaba
+de `isLoading=true` (donde el componente retornaba temprano sin
+ejecutar el useMemo) a `isLoading=false` (donde sí lo ejecutaba),
+React detectaba "more hooks rendered than during the previous render"
+y crasheaba con el error minified #310 → pantalla en blanco.
+
+Fix: el useMemo se movió ANTES de los early returns para que siempre
+se ejecute en el mismo orden, independientemente del estado del
+bundle.
 
 = 0.57.31 =
 **Fix: el cache no se invalidaba después de mutaciones (Kanban DnD,
