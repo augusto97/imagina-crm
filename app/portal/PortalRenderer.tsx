@@ -122,10 +122,9 @@ export function PortalRenderer({ boot }: Props): JSX.Element {
                         style={sectionStyle}
                     >
                         {visibleColumns.map((col) => {
-                            const basis = `${(col.width / 12) * 100}%`;
+                            // 0.57.38 — `flex: w w 0` (ver nota en globals.css).
                             const cellStyle: React.CSSProperties = {
-                                flexBasis: basis,
-                                maxWidth: basis,
+                                flex: `${col.width} ${col.width} 0`,
                             };
                             // 0.57.29 — spacing de la columna leído del primer bloque.
                             const firstBlockOfCol = col.blocks[0];
@@ -253,12 +252,11 @@ function renderBlock(
                 <div key={idx} className="imcrm-rows-layout">
                     <div className="imcrm-row">
                         {block.config.columns.map((col, cIdx) => {
-                            const basis = `${(col.width / 12) * 100}%`;
                             return (
                                 <div
                                     key={col.id ?? cIdx}
                                     className="imcrm-row__cell"
-                                    style={{ flexBasis: basis, maxWidth: basis }}
+                                    style={{ flex: `${col.width} ${col.width} 0` }}
                                 >
                                     {col.blocks.map((subBlock, subIdx) =>
                                         // Recursivo — los sub-bloques son del mismo tipo

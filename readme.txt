@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.37
+Stable tag: 0.57.38
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,36 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.38 =
+**Pulido WYSIWYG del editor de plantillas (CRM + portal): modelo de
+columnas unificado y gaps idénticos editor↔front.**
+
+Auditoría de espaciado entre el editor y el render real. Se
+encontraron y corrigieron las divergencias que hacían que los
+espacios se vieran distintos:
+
+* **Modelo de ancho de columna `flex: w w 0`** en los 3 renderers
+  (front CRM, front portal, editor). Antes el front usaba
+  `flex-basis: %` + `flex-shrink: 0`, que con multi-columna +
+  `gap: 12px` causaba overflow (dos columnas de 50% + gap = 100%+12px,
+  sin poder encoger). Y el editor lo parchaba con `calc(% - 0.5rem)`
+  usando 8px (ni siquiera coincidía). Ahora el navegador reparte el
+  ancho disponible (tras restar gaps) proporcional al width — exacto
+  con cualquier N de columnas, sin overflow, sin `calc()`, idéntico
+  en editor y front.
+
+* **Gaps unificados a 12px** en el editor: entre columnas (era 8px),
+  entre bloques apilados (era 8px), y entre sub-bloques del
+  nested_section (era 6px). Ahora coinciden con los 12px del front.
+
+* **Preview del portal en el editor**: altura natural (sin estirarse
+  al alto del card), sin el `margin-bottom` fantasma del bloque y sin
+  el `padding: 0.75rem` legacy de react-grid-layout (regla muerta
+  eliminada).
+
+* **Mobile del portal** ajustado al nuevo modelo flex (`flex: 0 0 auto`
+  por cell al colapsar a columna vertical).
 
 = 0.57.37 =
 **Fix definitivo de cards que se desbordaban: `min-height: auto`

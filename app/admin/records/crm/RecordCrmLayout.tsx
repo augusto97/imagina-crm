@@ -157,11 +157,12 @@ export function RecordCrmLayout({
                             style={sectionStyle}
                         >
                             {row.columns.map((col) => {
-                                const basis = `${(col.width / 12) * 100}%`;
+                                // 0.57.38 — `flex: w w 0`: reparte el ancho
+                                // disponible (tras restar gaps) proporcional
+                                // al width. Sin overflow ni calc().
                                 const firstBlockOfCol = col.blocks[0];
                                 const colStyle: React.CSSProperties = {
-                                    flexBasis: basis,
-                                    maxWidth: basis,
+                                    flex: `${col.width} ${col.width} 0`,
                                 };
                                 if (firstBlockOfCol?.colPadding) colStyle.padding = firstBlockOfCol.colPadding;
                                 if (firstBlockOfCol?.colMargin) colStyle.margin = firstBlockOfCol.colMargin;

@@ -510,7 +510,7 @@ export function GridCanvas<TBlock extends BaseTemplateBlock>({
                     }}
                     onDelete={() => deleteSection(section.id)}
                 >
-                    <div className="imcrm-flex imcrm-flex-row imcrm-flex-wrap imcrm-gap-2">
+                    <div className="imcrm-flex imcrm-flex-row imcrm-gap-3">
                         {section.columns.map((col, cIdx) => (
                             <ColumnCard
                                 key={col.id}
@@ -723,11 +723,11 @@ function ColumnCard({
     empty,
     children,
 }: ColumnCardProps): JSX.Element {
-    const basis = `${(width / 12) * 100}%`;
-    // En mobile (canvas estrecho) las columnas pasan a 100%.
+    // 0.57.38 — mismo modelo que el front: `flex: w w 0`. El gap entre
+    // columnas lo da el row (12px); el navegador reparte el ancho
+    // disponible proporcional al width sin overflow ni calc().
     const style: CSSProperties = {
-        flexBasis: `calc(${basis} - 0.5rem)`,
-        maxWidth: `calc(${basis} - 0.5rem)`,
+        flex: `${width} ${width} 0`,
         minWidth: 0,
     };
 
@@ -738,7 +738,7 @@ function ColumnCard({
             onDragLeave={preview ? undefined : onDragLeave}
             onDrop={preview ? undefined : onDrop}
             className={cn(
-                'imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-p-2 imcrm-transition-all',
+                'imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-p-2 imcrm-transition-all',
                 isDropTarget
                     ? 'imcrm-border-primary imcrm-bg-primary/5'
                     : 'imcrm-border-border imcrm-bg-muted/10',
@@ -1165,12 +1165,11 @@ function NestedSectionInline<TBlock extends BaseTemplateBlock>({
                 )}
             </div>
 
-            <div className="imcrm-flex imcrm-flex-row imcrm-flex-wrap imcrm-gap-2">
+            <div className="imcrm-flex imcrm-flex-row imcrm-gap-3">
                 {columns.map((col, subColIdx) => {
-                    const basis = `${(col.width / 12) * 100}%`;
+                    // 0.57.38 — mismo modelo `flex: w w 0` que el front.
                     const cellStyle: CSSProperties = {
-                        flexBasis: `calc(${basis} - 0.5rem)`,
-                        maxWidth: `calc(${basis} - 0.5rem)`,
+                        flex: `${col.width} ${col.width} 0`,
                         minWidth: 0,
                     };
                     const isDropTarget = dropTargetColId === zId(subColIdx);
@@ -1182,7 +1181,7 @@ function NestedSectionInline<TBlock extends BaseTemplateBlock>({
                             onDragLeave={preview ? undefined : handleSubColDragLeave}
                             onDrop={preview ? undefined : handleSubColDrop(subColIdx)}
                             className={cn(
-                                'imcrm-flex imcrm-flex-col imcrm-gap-1.5 imcrm-rounded imcrm-border imcrm-border-dashed imcrm-p-1.5 imcrm-transition-all',
+                                'imcrm-flex imcrm-flex-col imcrm-gap-3 imcrm-rounded imcrm-border imcrm-border-dashed imcrm-p-1.5 imcrm-transition-all',
                                 isDropTarget
                                     ? 'imcrm-border-primary imcrm-bg-primary/5'
                                     : 'imcrm-border-border imcrm-bg-card/60',
