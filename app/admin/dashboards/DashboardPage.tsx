@@ -1,13 +1,15 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, CalendarRange, Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react';
 
 import { BarChartWidget } from '@/admin/dashboards/widgets/BarChartWidget';
+import { FunnelWidget } from '@/admin/dashboards/widgets/FunnelWidget';
 import { KpiWidget } from '@/admin/dashboards/widgets/KpiWidget';
 import { LineChartWidget } from '@/admin/dashboards/widgets/LineChartWidget';
 import { PieChartWidget } from '@/admin/dashboards/widgets/PieChartWidget';
 import { StatDeltaWidget } from '@/admin/dashboards/widgets/StatDeltaWidget';
 import { TableWidget } from '@/admin/dashboards/widgets/TableWidget';
+import { DATE_RANGE_PRESETS } from '@/admin/records/dateRangePresets';
 
 // react-grid-layout es ~50KB gzipped — solo lo necesitamos en la
 // vista de un dashboard concreto. Lazy-load para no inflar el main
@@ -262,6 +264,7 @@ export function DashboardPage(): JSX.Element {
                                     'hover:imcrm-shadow-imcrm-md hover:imcrm-border-primary/25',
                                 )}
                             >
+                                <PeriodBadge widget={widget} />
                                 <div className="imcrm-no-drag imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-gap-1 imcrm-opacity-0 imcrm-transition-opacity group-hover:imcrm-opacity-100">
                                     <button
                                         type="button"
@@ -319,10 +322,29 @@ function WidgetRenderer({
             return <StatDeltaWidget dashboardId={dashboardId} widget={widget} />;
         case 'table':
             return <TableWidget dashboardId={dashboardId} widget={widget} />;
+        case 'funnel':
+            return <FunnelWidget dashboardId={dashboardId} widget={widget} />;
         case 'chart_line':
         default:
             return <LineChartWidget dashboardId={dashboardId} widget={widget} />;
     }
+}
+
+/**
+ * Badge con el período relativo del widget (si lo configuró). Visible
+ * en reposo en la esquina del card; al hover se desvanece para dejar
+ * lugar a los botones de editar/eliminar.
+ */
+function PeriodBadge({ widget }: { widget: WidgetSpec }): JSX.Element | null {
+    const preset = widget.config.period?.preset;
+    if (! preset) return null;
+    const label = DATE_RANGE_PRESETS.find((p) => p.id === preset)?.label ?? preset;
+    return (
+        <span className="imcrm-pointer-events-none imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-bg-muted/60 imcrm-px-1.5 imcrm-py-0.5 imcrm-text-[10px] imcrm-font-medium imcrm-text-muted-foreground imcrm-transition-opacity group-hover:imcrm-opacity-0">
+            <CalendarRange className="imcrm-h-3 imcrm-w-3" />
+            {label}
+        </span>
+    );
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }): JSX.Element {

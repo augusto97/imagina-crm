@@ -116,7 +116,7 @@ final class WidgetEvaluator
 
         $result = match ($type) {
             'kpi'        => $this->evaluateKpi($list->tableSuffix, $list->id, $config, $filterCtx),
-            'chart_bar', 'chart_pie'
+            'chart_bar', 'chart_pie', 'funnel'
                          => $this->evaluateChartBar($list->tableSuffix, $list->id, $config, $filterCtx),
             'chart_line', 'chart_area'
                          => $this->evaluateChartLine($list->tableSuffix, $list->id, $config, $filterCtx),

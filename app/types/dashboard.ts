@@ -5,7 +5,9 @@ export type WidgetType =
     | 'chart_line'
     | 'chart_area'
     | 'stat_delta'
-    | 'table';
+    | 'table'
+    /** Embudo de etapas — mismo evaluador que chart_bar, render funnel. */
+    | 'funnel';
 
 /**
  * Agregaciones soportadas para widgets de dashboard. Mismo set que

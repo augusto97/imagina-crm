@@ -220,7 +220,7 @@ export function WidgetFormDialog({
         if (type === 'kpi') {
             return metricNeedsField;
         }
-        if (type === 'chart_bar' || type === 'chart_pie') {
+        if (type === 'chart_bar' || type === 'chart_pie' || type === 'funnel') {
             if (groupByFieldId <= 0) return false;
             return metricNeedsField;
         }
@@ -286,6 +286,7 @@ export function WidgetFormDialog({
                                     <option value="stat_delta">{__('KPI · Delta vs período')}</option>
                                     <option value="chart_bar">{__('Gráfico de barras')}</option>
                                     <option value="chart_pie">{__('Gráfico de torta')}</option>
+                                    <option value="funnel">{__('Embudo (etapas de pipeline)')}</option>
                                     <option value="chart_line">{__('Línea (tendencia mensual)')}</option>
                                     <option value="chart_area">{__('Area (tendencia mensual)')}</option>
                                     <option value="table">{__('Tabla · Top N')}</option>
@@ -332,7 +333,7 @@ export function WidgetFormDialog({
                             />
                         )}
 
-                        {(type === 'chart_bar' || type === 'chart_pie') && (
+                        {(type === 'chart_bar' || type === 'chart_pie' || type === 'funnel') && (
                             <>
                                 <ChartMetricConfig
                                     metric={metric}
@@ -380,7 +381,7 @@ export function WidgetFormDialog({
                             </>
                         )}
 
-                        {(type === 'chart_bar' || type === 'chart_pie'
+                        {(type === 'chart_bar' || type === 'chart_pie' || type === 'funnel'
                             || type === 'chart_line' || type === 'chart_area') && (
                             <PresentationToggles
                                 type={type}
@@ -981,8 +982,8 @@ function PresentationToggles({
 }: PresentationTogglesProps): JSX.Element {
     // La línea de promedio sólo aplica a charts numéricos con eje
     // ordenado (bar/line/area). En pie no hay un "eje Y" donde
-    // pintar una línea.
-    const supportsAverage = type !== 'chart_pie';
+    // pintar una línea, y en el embudo no tiene lectura útil.
+    const supportsAverage = type !== 'chart_pie' && type !== 'funnel';
     return (
         <div className="imcrm-flex imcrm-flex-col imcrm-gap-2 imcrm-rounded-md imcrm-border imcrm-border-dashed imcrm-border-border imcrm-bg-muted/20 imcrm-p-3">
             <Label className="imcrm-text-xs imcrm-text-muted-foreground">
@@ -1121,7 +1122,7 @@ function buildConfig(
         }
         return c;
     }
-    if (type === 'chart_bar' || type === 'chart_pie') {
+    if (type === 'chart_bar' || type === 'chart_pie' || type === 'funnel') {
         const c: WidgetSpec['config'] = {
             ...base(),
             group_by_field_id: state.groupByFieldId,

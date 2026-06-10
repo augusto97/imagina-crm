@@ -39,7 +39,10 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
                 </h3>
             </header>
 
-            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-min-h-0 imcrm-overflow-y-auto">
+            {/* Sin justify-center en el scroll container: con muchas filas
+              * + overflow, centraría recortando las primeras (inaccesibles).
+              * El centrado vertical lo hace el my-auto del contenido. */}
+            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-min-h-0 imcrm-overflow-y-auto [&>*]:imcrm-my-auto">
                 {data.isLoading ? (
                     <div className="imcrm-flex imcrm-items-center imcrm-justify-center">
                         <Loader2 className="imcrm-h-5 imcrm-w-5 imcrm-animate-spin imcrm-text-muted-foreground" />

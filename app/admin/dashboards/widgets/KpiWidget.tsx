@@ -46,9 +46,9 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
                         <span
                             className="imcrm-font-bold imcrm-tabular-nums imcrm-leading-none imcrm-text-foreground"
                             // Tamaño fluido: escala con el alto del widget para que
-                            // el número no se corte en tiles chicos ni se vea
-                            // perdido en tiles grandes.
-                            style={{ fontSize: 'clamp(1.5rem, 22cqh, 3.25rem)' }}
+                            // el número no se corte en tiles chicos ni abra
+                            // desproporcionado en tiles grandes (cap 2.5rem).
+                            style={{ fontSize: 'clamp(1.375rem, 16cqh, 2.5rem)' }}
                         >
                             {formatValue(data.data.value, data.data.metric)}
                         </span>

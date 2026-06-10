@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Loader2, TriangleAlert } from 'lucide-react';
 
 import { useWidgetData } from '@/hooks/useDashboards';
 import { __ } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 import type { WidgetSpec } from '@/types/dashboard';
 
 import { categoryColor, useGroupColorMap } from './useChartColors';
@@ -73,21 +75,39 @@ interface DonutProps {
 }
 
 function Donut({ rows, showLabels, showLegend, colorMap }: DonutProps): JSX.Element {
-    const total = rows.reduce((acc, r) => acc + r.value, 0) || 1;
-    // Viewbox amplio cuando mostramos labels alrededor para que las
-    // etiquetas no se corten contra el borde del SVG.
-    const viewSize = showLabels ? 220 : 100;
+    // 0.57.40 — leyenda clicable: el usuario puede ocultar/mostrar
+    // categorías. El donut y el total se recalculan con las visibles.
+    const [hidden, setHidden] = useState<Set<string>>(new Set());
+    const toggleLabel = (label: string): void => {
+        setHidden((prev) => {
+            const next = new Set(prev);
+            if (next.has(label)) next.delete(label);
+            else next.add(label);
+            // No permitir ocultar TODAS las categorías.
+            if (next.size >= rows.length) return prev;
+            return next;
+        });
+    };
+    const visible = rows.filter((r) => ! hidden.has(r.label));
+
+    const total = visible.reduce((acc, r) => acc + r.value, 0) || 1;
+    // 0.57.40 — proporciones ajustadas: el aro ocupa más del viewBox
+    // (antes radius 40 de 220 → más de la mitad del SVG era espacio
+    // en blanco reservado para labels que rara vez lo necesitaban).
+    const viewSize = showLabels ? 190 : 100;
     const cx = viewSize / 2;
     const cy = viewSize / 2;
-    const radius = showLabels ? 40 : 42;
-    const stroke = 14;
+    const radius = showLabels ? 48 : 40;
+    const stroke = showLabels ? 16 : 13;
     const circumference = 2 * Math.PI * radius;
 
     let offset = 0;
     let cumulative = 0;
     return (
-        <div className="imcrm-flex imcrm-h-full imcrm-w-full imcrm-items-center imcrm-gap-4 imcrm-min-h-0">
-            <div className="imcrm-relative imcrm-flex imcrm-aspect-square imcrm-h-full imcrm-shrink-0 imcrm-items-center imcrm-justify-center">
+        <div className="imcrm-flex imcrm-h-full imcrm-w-full imcrm-items-center imcrm-justify-center imcrm-gap-4 imcrm-min-h-0">
+            {/* max-h evita que el donut crezca desproporcionado en
+              * widgets anchos — queda centrado con aire equilibrado. */}
+            <div className="imcrm-relative imcrm-flex imcrm-aspect-square imcrm-h-full imcrm-max-h-[230px] imcrm-shrink-0 imcrm-items-center imcrm-justify-center">
                 <svg
                     viewBox={`0 0 ${viewSize} ${viewSize}`}
                     className="imcrm-h-full imcrm-w-full"
@@ -101,11 +121,13 @@ function Donut({ rows, showLabels, showLegend, colorMap }: DonutProps): JSX.Elem
                         strokeWidth={stroke}
                         className="imcrm-stroke-muted"
                     />
-                    {rows.map((row, i) => {
+                    {visible.map((row) => {
                         const pct = row.value / total;
                         const len = pct * circumference;
                         const dasharray = `${len} ${circumference - len}`;
-                        const color = categoryColor(colorMap, row.label, i);
+                        // Índice ORIGINAL — el color de cada categoría no
+                        // cambia al ocultar otras desde la leyenda.
+                        const color = categoryColor(colorMap, row.label, rows.findIndex((r) => r.label === row.label));
                         const seg = (
                             <circle
                                 key={`seg-${row.label}`}
@@ -126,12 +148,13 @@ function Donut({ rows, showLabels, showLegend, colorMap }: DonutProps): JSX.Elem
                         return seg;
                     })}
 
-                    {showLabels && rows.map((row, i) => {
+                    {showLabels && visible.map((row) => {
                         const pct = row.value / total;
                         if (pct < 0.03) {
                             cumulative += pct;
                             return null;
                         }
+                        const i = rows.findIndex((r) => r.label === row.label);
                         const angleDeg = -90 + 360 * (cumulative + pct / 2);
                         const angle = (angleDeg * Math.PI) / 180;
                         cumulative += pct;
@@ -194,30 +217,48 @@ function Donut({ rows, showLabels, showLegend, colorMap }: DonutProps): JSX.Elem
             </div>
 
             {showLegend && (
-                <ul className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-text-xs">
+                <ul className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-0.5 imcrm-overflow-y-auto imcrm-text-xs">
                     {rows.slice(0, 8).map((row, i) => {
-                        const pct = (row.value / total) * 100;
+                        const isHidden = hidden.has(row.label);
+                        const pct = isHidden ? 0 : (row.value / total) * 100;
                         return (
-                            <li key={row.label} className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                                <span
-                                    className="imcrm-h-2.5 imcrm-w-2.5 imcrm-shrink-0 imcrm-rounded-sm"
-                                    style={{ backgroundColor: categoryColor(colorMap, row.label, i) }}
-                                    aria-hidden
-                                />
-                                <span className="imcrm-min-w-0 imcrm-flex-1 imcrm-truncate imcrm-text-muted-foreground" title={row.label}>
-                                    {row.label}
-                                </span>
-                                <span className="imcrm-shrink-0 imcrm-tabular-nums imcrm-font-semibold imcrm-text-foreground">
-                                    {row.value.toLocaleString()}
-                                </span>
-                                <span className="imcrm-w-9 imcrm-shrink-0 imcrm-text-right imcrm-tabular-nums imcrm-text-[10px] imcrm-text-muted-foreground/80">
-                                    {pct.toFixed(0)}%
-                                </span>
+                            <li key={row.label}>
+                                {/* Leyenda clicable — togglea la visibilidad de la
+                                  * categoría en el donut (estado local de sesión). */}
+                                <button
+                                    type="button"
+                                    onClick={() => toggleLabel(row.label)}
+                                    title={isHidden ? __('Mostrar categoría') : __('Ocultar categoría')}
+                                    className={cn(
+                                        'imcrm-flex imcrm-w-full imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-px-1 imcrm-py-0.5 imcrm-text-left imcrm-transition-colors hover:imcrm-bg-accent/50',
+                                        isHidden && 'imcrm-opacity-45',
+                                    )}
+                                >
+                                    <span
+                                        className="imcrm-h-2.5 imcrm-w-2.5 imcrm-shrink-0 imcrm-rounded-sm"
+                                        style={{ backgroundColor: categoryColor(colorMap, row.label, i) }}
+                                        aria-hidden
+                                    />
+                                    <span
+                                        className={cn(
+                                            'imcrm-min-w-0 imcrm-flex-1 imcrm-truncate imcrm-text-muted-foreground',
+                                            isHidden && 'imcrm-line-through',
+                                        )}
+                                    >
+                                        {row.label}
+                                    </span>
+                                    <span className="imcrm-shrink-0 imcrm-tabular-nums imcrm-font-semibold imcrm-text-foreground">
+                                        {row.value.toLocaleString()}
+                                    </span>
+                                    <span className="imcrm-w-9 imcrm-shrink-0 imcrm-text-right imcrm-tabular-nums imcrm-text-[10px] imcrm-text-muted-foreground/80">
+                                        {isHidden ? '—' : `${pct.toFixed(0)}%`}
+                                    </span>
+                                </button>
                             </li>
                         );
                     })}
                     {rows.length > 8 && (
-                        <li className="imcrm-text-[10px] imcrm-text-muted-foreground/70">
+                        <li className="imcrm-px-1 imcrm-text-[10px] imcrm-text-muted-foreground/70">
                             +{rows.length - 8} {__('más')}
                         </li>
                     )}

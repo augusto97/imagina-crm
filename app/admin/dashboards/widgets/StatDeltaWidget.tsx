@@ -27,7 +27,10 @@ export function StatDeltaWidget({ dashboardId, widget }: StatDeltaWidgetProps): 
                 </h3>
             </header>
 
-            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-end imcrm-gap-1.5">
+            <div
+                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-gap-1.5 imcrm-min-h-0"
+                style={{ containerType: 'size' }}
+            >
                 {data.isLoading ? (
                     <Loader2 className="imcrm-h-6 imcrm-w-6 imcrm-animate-spin imcrm-text-muted-foreground" />
                 ) : data.isError ? (
@@ -65,7 +68,12 @@ function Body({
 
     return (
         <>
-            <span className="imcrm-text-4xl imcrm-font-bold imcrm-leading-none imcrm-tabular-nums imcrm-text-foreground">
+            <span
+                className="imcrm-font-bold imcrm-leading-none imcrm-tabular-nums imcrm-text-foreground"
+                // Mismo tamaño fluido que el KPI — no se corta en tiles
+                // chicos ni abre desproporcionado en grandes.
+                style={{ fontSize: 'clamp(1.375rem, 16cqh, 2.5rem)' }}
+            >
                 {format(value)}
             </span>
 

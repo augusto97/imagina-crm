@@ -71,3 +71,37 @@ export function categoryColor(
 ): string {
     return map.get(label) ?? paletteColor(index);
 }
+
+/**
+ * Orden de las opciones del select agrupado: label → índice.
+ *
+ * El funnel lo usa para ordenar las etapas según el orden que el
+ * usuario definió en las opciones del campo (el orden del pipeline),
+ * no por valor. Si el campo no es select devuelve un Map vacío y el
+ * consumidor cae a orden por valor descendente.
+ */
+export function useGroupOptionOrder(
+    listId: number | undefined,
+    groupByFieldId: number | undefined,
+): Map<string, number> {
+    const fields = useFields(listId && listId > 0 ? listId : undefined);
+
+    return useMemo(() => {
+        const map = new Map<string, number>();
+        if (! groupByFieldId || ! fields.data) return map;
+        const field = fields.data.find((f) => f.id === groupByFieldId);
+        if (! field) return map;
+        if (field.type !== 'select' && field.type !== 'multi_select') return map;
+        const options = (field.config as { options?: unknown }).options;
+        if (! Array.isArray(options)) return map;
+        options.forEach((opt, i) => {
+            if (typeof opt !== 'object' || opt === null) return;
+            const o = opt as { label?: unknown; value?: unknown };
+            const label = typeof o.label === 'string' && o.label !== ''
+                ? o.label
+                : typeof o.value === 'string' ? o.value : '';
+            if (label !== '') map.set(label, i);
+        });
+        return map;
+    }, [fields.data, groupByFieldId]);
+}

@@ -34,8 +34,23 @@ final class DashboardService
         'chart_line', 'chart_area',
         'stat_delta',
         'table',
+        // 0.57.40 — embudo de etapas (mismo evaluador que chart_bar;
+        // el frontend lo renderiza como funnel ordenado por las
+        // options del select).
+        'funnel',
     ];
-    public const ALLOWED_KPI_METRICS  = ['count', 'sum', 'avg'];
+    /**
+     * Métricas válidas para KPI / charts. Sincronizado con el set que
+     * `WidgetEvaluator::resolveMetric` acepta — antes este const solo
+     * tenía count/sum/avg y rechazaba al GUARDAR widgets con
+     * count_unique/min/max/etc. que el evaluador y el frontend ya
+     * soportaban desde 0.36.9.
+     */
+    public const ALLOWED_KPI_METRICS  = [
+        'count', 'count_unique', 'count_empty',
+        'sum', 'avg', 'min', 'max',
+        'count_true', 'count_false',
+    ];
     public const NUMERIC_FIELD_TYPES  = ['number', 'currency'];
     public const DATE_FIELD_TYPES     = ['date', 'datetime'];
 
@@ -301,7 +316,7 @@ final class DashboardService
         if ($type === 'kpi') {
             $metric = isset($config['metric']) ? (string) $config['metric'] : '';
             if (! in_array($metric, self::ALLOWED_KPI_METRICS, true)) {
-                return __('La métrica del KPI debe ser count, sum o avg.', 'imagina-crm');
+                return __('Métrica de KPI no soportada.', 'imagina-crm');
             }
             if (in_array($metric, ['sum', 'avg'], true)) {
                 $fieldId = isset($config['metric_field_id']) ? (int) $config['metric_field_id'] : 0;
@@ -317,7 +332,7 @@ final class DashboardService
             }
         }
 
-        if ($type === 'chart_bar' || $type === 'chart_pie') {
+        if ($type === 'chart_bar' || $type === 'chart_pie' || $type === 'funnel') {
             $fieldId = isset($config['group_by_field_id']) ? (int) $config['group_by_field_id'] : 0;
             if ($fieldId <= 0) {
                 return __('El gráfico requiere un campo de agrupación.', 'imagina-crm');
@@ -350,7 +365,7 @@ final class DashboardService
         if ($type === 'stat_delta') {
             $metric = (string) ($config['metric'] ?? 'count');
             if (! in_array($metric, self::ALLOWED_KPI_METRICS, true)) {
-                return __('La métrica debe ser count, sum o avg.', 'imagina-crm');
+                return __('Métrica no soportada.', 'imagina-crm');
             }
             if (in_array($metric, ['sum', 'avg'], true)) {
                 $mfId = (int) ($config['metric_field_id'] ?? 0);

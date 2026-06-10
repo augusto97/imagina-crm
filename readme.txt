@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.39
+Stable tag: 0.57.40
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,40 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.40 =
+**Dashboards: widget Embudo + leyenda clicable + pulido de tamaños.**
+
+* **Nuevo widget "Embudo (etapas de pipeline)"**: barras horizontales
+  centradas que se estrechan etapa por etapa, ordenadas por el orden
+  de las opciones del select (el orden de tu pipeline, no por valor).
+  Muestra el valor de cada etapa y la conversión % respecto de la
+  primera. Cada etapa con el color real de su opción. Ideal para
+  pipelines de ventas: cuántos leads → propuestas → ganados.
+
+* **Leyenda clicable en el gráfico de torta**: click en una categoría
+  de la leyenda para ocultarla/mostrarla — el donut y el total se
+  recalculan con las visibles. Las ocultas quedan tachadas y
+  atenuadas. (Estado de sesión, no se persiste.)
+
+* **Badge de período en el widget**: si el widget tiene un período
+  relativo configurado ("Este mes", "Últimos 30 días"...), se muestra
+  como badge discreto en la esquina — al hover se desvanece para
+  dejar lugar a los botones de editar/eliminar.
+
+* **Pulido de tamaños y espacios** (feedback directo):
+  - KPI y Delta: el número ya no abre desproporcionado — tamaño
+    fluido con tope en 2.5rem (antes 3.25rem o fijo 4xl).
+  - Donut: el aro ocupa más del espacio disponible (antes más de la
+    mitad del SVG era margen en blanco reservado para labels) y tiene
+    un máximo de 230px para no inflarse en widgets anchos.
+  - Bar y Embudo: el scroll interno ya no recorta las primeras filas
+    cuando hay muchas categorías (bug de justify-center + overflow).
+
+* **Fix backend**: guardar un KPI con métricas count_unique, min,
+  max, count_empty, count_true o count_false fallaba en la
+  validación del servidor (la whitelist quedó desactualizada desde
+  0.36.9 cuando el evaluador y el frontend ya las soportaban).
 
 = 0.57.39 =
 **Dashboards: charts con colores reales de las opciones + fixes de
