@@ -258,8 +258,8 @@ export function DashboardPage(): JSX.Element {
                         {(widget) => (
                             <article
                                 className={cn(
-                                    'imcrm-group imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-gradient-to-br imcrm-from-card imcrm-to-card/95 imcrm-p-5 imcrm-shadow-imcrm-sm imcrm-transition-shadow imcrm-duration-200',
-                                    'hover:imcrm-shadow-imcrm-md hover:imcrm-border-primary/20',
+                                    'imcrm-group imcrm-relative imcrm-flex imcrm-h-full imcrm-flex-col imcrm-overflow-hidden imcrm-rounded-xl imcrm-border imcrm-border-border imcrm-bg-card imcrm-p-4 imcrm-shadow-imcrm-sm imcrm-transition-shadow imcrm-duration-200',
+                                    'hover:imcrm-shadow-imcrm-md hover:imcrm-border-primary/25',
                                 )}
                             >
                                 <div className="imcrm-no-drag imcrm-absolute imcrm-right-2 imcrm-top-2 imcrm-z-10 imcrm-flex imcrm-gap-1 imcrm-opacity-0 imcrm-transition-opacity group-hover:imcrm-opacity-100">

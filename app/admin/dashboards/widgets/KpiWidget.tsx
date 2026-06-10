@@ -24,7 +24,13 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
                 </h3>
             </header>
 
-            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-end imcrm-gap-1">
+            <div
+                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-gap-1 imcrm-min-h-0"
+                // Container query: permite que el valor use `cqh` (altura del
+                // widget) para escalar tipografía. El alto es definido por la
+                // grilla (rowHeight fijo), así que `size` es seguro acá.
+                style={{ containerType: 'size' }}
+            >
                 {data.isLoading ? (
                     <Loader2 className="imcrm-h-6 imcrm-w-6 imcrm-animate-spin imcrm-text-muted-foreground" />
                 ) : data.isError ? (
@@ -37,7 +43,13 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
                     </span>
                 ) : data.data && 'value' in data.data ? (
                     <>
-                        <span className="imcrm-text-4xl imcrm-font-bold imcrm-tabular-nums imcrm-leading-none imcrm-text-foreground">
+                        <span
+                            className="imcrm-font-bold imcrm-tabular-nums imcrm-leading-none imcrm-text-foreground"
+                            // Tamaño fluido: escala con el alto del widget para que
+                            // el número no se corte en tiles chicos ni se vea
+                            // perdido en tiles grandes.
+                            style={{ fontSize: 'clamp(1.5rem, 22cqh, 3.25rem)' }}
+                        >
                             {formatValue(data.data.value, data.data.metric)}
                         </span>
                         {widget.config.metric && (

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.38
+Stable tag: 0.57.39
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,44 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.39 =
+**Dashboards: charts con colores reales de las opciones + fixes de
+render.**
+
+Auditoría de los widgets de dashboard. Mejoras de información y
+estilo:
+
+* **Colores reales de las opciones del select en Bar y Pie.** Si
+  agrupás por un campo select, cada barra/sector usa el color que el
+  usuario definió para esa opción — los mismos colores que se ven en
+  el Kanban y los chips de la tabla. Antes el Bar pintaba todo del
+  color primario y el Pie usaba una paleta aleatoria sin relación con
+  la app. Fallback a paleta rotativa para categorías sin color
+  (buckets de fecha, campos de texto).
+
+* **Bar chart**: muestra el % del total junto a cada valor, barras un
+  poco más altas con hover, labels más anchos.
+
+* **Pie/Donut**: leyenda con porcentaje por categoría; centro del
+  donut con el total + sublabel "Total".
+
+* **Line/Area chart**: los puntos ya no se deforman a elipses al
+  agrandar el widget (el SVG ahora usa las dimensiones reales del
+  contenedor en vez de estirar un viewBox fijo). Grid lines
+  horizontales sutiles con el valor máximo como referencia. Fix:
+  dos area charts en el mismo dashboard colisionaban en el id del
+  gradiente (`#imcrm-area-grad`) — ahora es único por widget.
+
+* **KPI**: el número escala con el tamaño del widget (container
+  queries) — no se corta en tiles chicos ni se pierde en grandes.
+  Centrado verticalmente.
+
+* **Tabla**: chips de select y multi_select con los colores reales de
+  las opciones (igual que la tabla de records).
+
+* **Chrome del widget**: fondo plano (se quitó un gradiente
+  imperceptible), padding más equilibrado.
 
 = 0.57.38 =
 **Pulido WYSIWYG del editor de plantillas (CRM + portal): modelo de

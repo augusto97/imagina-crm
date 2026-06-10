@@ -4,6 +4,8 @@ import { useWidgetData } from '@/hooks/useDashboards';
 import { __ } from '@/lib/i18n';
 import type { WidgetSpec } from '@/types/dashboard';
 
+import { categoryColor, useGroupColorMap } from './useChartColors';
+
 interface PieChartWidgetProps {
     dashboardId: number;
     widget: WidgetSpec;
@@ -15,8 +17,9 @@ interface PieChartWidgetProps {
  * línea que conecta. Los segmentos chicos (<3%) caen sólo en la
  * leyenda lateral para no saturar.
  *
- * El SVG usa `aspect-square` y `h-full` — antes era 160×160 fijo y
- * se veía minúsculo cuando el widget se agrandaba en la grilla.
+ * 0.57.39 — cada sector usa el color REAL de la opción del select
+ * agrupado (coherente con Kanban/chips); leyenda muestra valor + %;
+ * centro del donut con total + sublabel.
  *
  * Toggles del widget:
  *  - `show_data_labels` → labels alrededor del aro (default: on)
@@ -26,6 +29,7 @@ export function PieChartWidget({ dashboardId, widget }: PieChartWidgetProps): JS
     const data = useWidgetData(dashboardId, widget.id);
     const showLabels = widget.config.show_data_labels !== false;
     const showLegend = widget.config.show_legend !== false;
+    const colorMap = useGroupColorMap(widget.list_id, widget.config.group_by_field_id);
 
     return (
         <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-2 imcrm-min-h-0">
@@ -51,6 +55,7 @@ export function PieChartWidget({ dashboardId, widget }: PieChartWidgetProps): JS
                         rows={data.data.data.map((r) => ({ label: r.label, value: typeof r.value === 'number' ? r.value : Date.parse(r.value) || 0 }))}
                         showLabels={showLabels}
                         showLegend={showLegend}
+                        colorMap={colorMap}
                     />
                 ) : (
                     <p className="imcrm-text-xs imcrm-text-muted-foreground">{__('Sin datos.')}</p>
@@ -60,26 +65,20 @@ export function PieChartWidget({ dashboardId, widget }: PieChartWidgetProps): JS
     );
 }
 
-const PALETTE = [
-    'cyan', 'violet', 'green', 'amber', 'rose', 'blue',
-    'teal', 'pink', 'orange', 'lime', 'yellow', 'gray',
-];
-
 interface DonutProps {
     rows: Array<{ label: string; value: number }>;
     showLabels: boolean;
     showLegend: boolean;
+    colorMap: Map<string, string>;
 }
 
-function Donut({ rows, showLabels, showLegend }: DonutProps): JSX.Element {
+function Donut({ rows, showLabels, showLegend, colorMap }: DonutProps): JSX.Element {
     const total = rows.reduce((acc, r) => acc + r.value, 0) || 1;
     // Viewbox amplio cuando mostramos labels alrededor para que las
     // etiquetas no se corten contra el borde del SVG.
     const viewSize = showLabels ? 220 : 100;
     const cx = viewSize / 2;
     const cy = viewSize / 2;
-    // Donut delgado-medio. Stroke 14 es perfecto para vista pequeña;
-    // a vista grande el aro se ve un toque delgado pero proporcionado.
     const radius = showLabels ? 40 : 42;
     const stroke = 14;
     const circumference = 2 * Math.PI * radius;
@@ -106,7 +105,7 @@ function Donut({ rows, showLabels, showLegend }: DonutProps): JSX.Element {
                         const pct = row.value / total;
                         const len = pct * circumference;
                         const dasharray = `${len} ${circumference - len}`;
-                        const colorVar = `hsl(var(--imcrm-opt-${PALETTE[i % PALETTE.length]}))`;
+                        const color = categoryColor(colorMap, row.label, i);
                         const seg = (
                             <circle
                                 key={`seg-${row.label}`}
@@ -115,7 +114,7 @@ function Donut({ rows, showLabels, showLegend }: DonutProps): JSX.Element {
                                 r={radius}
                                 fill="none"
                                 strokeWidth={stroke}
-                                stroke={colorVar}
+                                stroke={color}
                                 strokeDasharray={dasharray}
                                 strokeDashoffset={-offset}
                                 transform={`rotate(-90 ${cx} ${cy})`}
@@ -149,13 +148,13 @@ function Donut({ rows, showLabels, showLegend }: DonutProps): JSX.Element {
                         const x3 = onRight ? x2 + 10 : x2 - 10;
                         const xText = cx + Math.cos(angle) * labelR + (onRight ? 6 : -6);
 
-                        const colorVar = `hsl(var(--imcrm-opt-${PALETTE[i % PALETTE.length]}))`;
+                        const color = categoryColor(colorMap, row.label, i);
                         return (
                             <g key={`lbl-${row.label}`}>
                                 <polyline
                                     points={`${x1.toFixed(1)},${y1.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)} ${x3.toFixed(1)},${y2.toFixed(1)}`}
                                     fill="none"
-                                    stroke={colorVar}
+                                    stroke={color}
                                     strokeWidth="0.8"
                                 />
                                 <text
@@ -173,34 +172,50 @@ function Donut({ rows, showLabels, showLegend }: DonutProps): JSX.Element {
 
                     <text
                         x={cx}
-                        y={cy}
+                        y={cy - (showLabels ? 3 : 4)}
                         textAnchor="middle"
                         dominantBaseline="central"
                         className="imcrm-fill-foreground"
-                        style={{ fontSize: showLabels ? 12 : 14, fontWeight: 600 }}
+                        style={{ fontSize: showLabels ? 13 : 15, fontWeight: 700 }}
                     >
                         {total.toLocaleString()}
+                    </text>
+                    <text
+                        x={cx}
+                        y={cy + (showLabels ? 8 : 9)}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        className="imcrm-fill-muted-foreground"
+                        style={{ fontSize: showLabels ? 6 : 7, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}
+                    >
+                        {__('Total')}
                     </text>
                 </svg>
             </div>
 
             {showLegend && (
                 <ul className="imcrm-flex imcrm-min-w-0 imcrm-flex-1 imcrm-flex-col imcrm-gap-1 imcrm-overflow-y-auto imcrm-text-xs">
-                    {rows.slice(0, 8).map((row, i) => (
-                        <li key={row.label} className="imcrm-flex imcrm-items-center imcrm-gap-2">
-                            <span
-                                className="imcrm-h-2.5 imcrm-w-2.5 imcrm-shrink-0 imcrm-rounded-sm"
-                                style={{ backgroundColor: `hsl(var(--imcrm-opt-${PALETTE[i % PALETTE.length]}))` }}
-                                aria-hidden
-                            />
-                            <span className="imcrm-min-w-0 imcrm-flex-1 imcrm-truncate imcrm-text-muted-foreground" title={row.label}>
-                                {row.label}
-                            </span>
-                            <span className="imcrm-shrink-0 imcrm-tabular-nums imcrm-font-semibold imcrm-text-foreground">
-                                {row.value.toLocaleString()}
-                            </span>
-                        </li>
-                    ))}
+                    {rows.slice(0, 8).map((row, i) => {
+                        const pct = (row.value / total) * 100;
+                        return (
+                            <li key={row.label} className="imcrm-flex imcrm-items-center imcrm-gap-2">
+                                <span
+                                    className="imcrm-h-2.5 imcrm-w-2.5 imcrm-shrink-0 imcrm-rounded-sm"
+                                    style={{ backgroundColor: categoryColor(colorMap, row.label, i) }}
+                                    aria-hidden
+                                />
+                                <span className="imcrm-min-w-0 imcrm-flex-1 imcrm-truncate imcrm-text-muted-foreground" title={row.label}>
+                                    {row.label}
+                                </span>
+                                <span className="imcrm-shrink-0 imcrm-tabular-nums imcrm-font-semibold imcrm-text-foreground">
+                                    {row.value.toLocaleString()}
+                                </span>
+                                <span className="imcrm-w-9 imcrm-shrink-0 imcrm-text-right imcrm-tabular-nums imcrm-text-[10px] imcrm-text-muted-foreground/80">
+                                    {pct.toFixed(0)}%
+                                </span>
+                            </li>
+                        );
+                    })}
                     {rows.length > 8 && (
                         <li className="imcrm-text-[10px] imcrm-text-muted-foreground/70">
                             +{rows.length - 8} {__('más')}

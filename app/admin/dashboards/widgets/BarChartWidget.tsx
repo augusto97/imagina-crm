@@ -4,6 +4,8 @@ import { useWidgetData } from '@/hooks/useDashboards';
 import { __ } from '@/lib/i18n';
 import type { WidgetSpec } from '@/types/dashboard';
 
+import { categoryColor, useGroupColorMap } from './useChartColors';
+
 interface BarChartWidgetProps {
     dashboardId: number;
     widget: WidgetSpec;
@@ -14,15 +16,20 @@ interface BarChartWidgetProps {
  * Cada barra es una row con label, fill proporcional al máximo y conteo
  * a la derecha.
  *
+ * 0.57.39 — cada barra usa el color REAL de la opción del select
+ * agrupado (mismos colores que Kanban/chips); fallback a paleta
+ * rotativa para categorías sin color. Se muestra el % del total
+ * junto al valor.
+ *
  * Toggles del widget config:
  *  - `show_average_line` → línea vertical punteada en el promedio
  *  - `show_data_labels`  → siempre mostramos el valor numérico, ya
  *                          es parte del layout base (no aplica acá)
- *  - `show_legend`       → bar chart no tiene multi-serie todavía
  */
 export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JSX.Element {
     const data = useWidgetData(dashboardId, widget.id);
     const showAvg = Boolean(widget.config.show_average_line);
+    const colorMap = useGroupColorMap(widget.list_id, widget.config.group_by_field_id);
 
     return (
         <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
@@ -32,7 +39,7 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
                 </h3>
             </header>
 
-            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center">
+            <div className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-min-h-0 imcrm-overflow-y-auto">
                 {data.isLoading ? (
                     <div className="imcrm-flex imcrm-items-center imcrm-justify-center">
                         <Loader2 className="imcrm-h-5 imcrm-w-5 imcrm-animate-spin imcrm-text-muted-foreground" />
@@ -46,7 +53,11 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
                         {__('Error')}
                     </div>
                 ) : data.data && 'data' in data.data && data.data.data.length > 0 ? (
-                    <BarRows rows={data.data.data.map((r) => ({ label: r.label, value: toNumber(r.value) }))} showAvg={showAvg} />
+                    <BarRows
+                        rows={data.data.data.map((r) => ({ label: r.label, value: toNumber(r.value) }))}
+                        showAvg={showAvg}
+                        colorMap={colorMap}
+                    />
                 ) : (
                     <p className="imcrm-text-center imcrm-text-xs imcrm-text-muted-foreground">
                         {__('Sin datos.')}
@@ -61,8 +72,7 @@ export function BarChartWidget({ dashboardId, widget }: BarChartWidgetProps): JS
  * 0.36.9: las nuevas métricas min/max de fecha devuelven string ISO en
  * lugar de número. Las charts no las pueden representar como barra
  * proporcional, así que parseamos a timestamp; si no es fecha válida
- * cae a 0. En la práctica el usuario no debería elegir min/max de
- * fecha para un bar chart, pero evita crashes de TS.
+ * cae a 0.
  */
 function toNumber(v: number | string): number {
     if (typeof v === 'number') return v;
@@ -73,12 +83,15 @@ function toNumber(v: number | string): number {
 function BarRows({
     rows,
     showAvg,
+    colorMap,
 }: {
     rows: Array<{ label: string; value: number }>;
     showAvg: boolean;
+    colorMap: Map<string, string>;
 }): JSX.Element {
     const max = Math.max(...rows.map((r) => r.value), 1);
-    const avg = rows.reduce((sum, r) => sum + r.value, 0) / rows.length;
+    const total = rows.reduce((sum, r) => sum + r.value, 0) || 1;
+    const avg = total / rows.length;
     const avgPct = (avg / max) * 100;
 
     return (
@@ -89,34 +102,40 @@ function BarRows({
                 </div>
             )}
             <ul className="imcrm-flex imcrm-flex-col imcrm-gap-1.5">
-                {rows.map((row) => {
+                {rows.map((row, i) => {
                     const pct = (row.value / max) * 100;
+                    const sharePct = (row.value / total) * 100;
+                    const color = categoryColor(colorMap, row.label, i);
                     return (
                         <li
                             key={row.label}
-                            className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs"
-                            title={`${row.label}: ${row.value.toLocaleString()}`}
+                            className="imcrm-group/bar imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-rounded imcrm-text-xs"
+                            title={`${row.label}: ${row.value.toLocaleString()} (${sharePct.toFixed(1)}%)`}
                         >
-                            <span className="imcrm-w-24 imcrm-shrink-0 imcrm-truncate imcrm-text-muted-foreground">
+                            <span className="imcrm-w-28 imcrm-shrink-0 imcrm-truncate imcrm-text-muted-foreground">
                                 {row.label}
                             </span>
-                            <div className="imcrm-relative imcrm-h-4 imcrm-flex-1 imcrm-rounded imcrm-bg-muted/50">
+                            <div className="imcrm-relative imcrm-h-5 imcrm-flex-1 imcrm-overflow-hidden imcrm-rounded imcrm-bg-muted/40">
                                 <div
-                                    className="imcrm-absolute imcrm-inset-y-0 imcrm-left-0 imcrm-rounded imcrm-bg-primary"
-                                    style={{ width: `${pct}%` }}
+                                    className="imcrm-absolute imcrm-inset-y-0 imcrm-left-0 imcrm-rounded imcrm-opacity-80 imcrm-transition-opacity group-hover/bar:imcrm-opacity-100"
+                                    style={{ width: `${pct}%`, backgroundColor: color }}
                                     aria-hidden
                                 />
                                 {showAvg && (
-                                    // Marca punteada vertical en la posición del promedio.
                                     <div
-                                        className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-y-[-2px] imcrm-w-px imcrm-border-l imcrm-border-dashed imcrm-border-destructive"
+                                        className="imcrm-pointer-events-none imcrm-absolute imcrm-inset-y-0 imcrm-w-px imcrm-border-l imcrm-border-dashed imcrm-border-destructive"
                                         style={{ left: `${avgPct}%` }}
                                         aria-hidden
                                     />
                                 )}
                             </div>
-                            <span className="imcrm-w-10 imcrm-shrink-0 imcrm-text-right imcrm-tabular-nums imcrm-font-medium imcrm-text-foreground">
-                                {row.value.toLocaleString()}
+                            <span className="imcrm-w-16 imcrm-shrink-0 imcrm-text-right imcrm-tabular-nums">
+                                <span className="imcrm-font-semibold imcrm-text-foreground">
+                                    {row.value.toLocaleString()}
+                                </span>
+                                <span className="imcrm-ml-1 imcrm-text-[10px] imcrm-text-muted-foreground/80">
+                                    {sharePct.toFixed(0)}%
+                                </span>
                             </span>
                         </li>
                     );
