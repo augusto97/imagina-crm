@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { invalidateForList } from '@/hooks/useRecords';
 import type {
     ActionMeta,
     AutomationEntity,
@@ -43,9 +44,8 @@ export function useCreateAutomation(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Ver nota en useUpdateRecord (0.57.31): listId puede ser
-            // numérico aquí pero las queries activas usan slug.
-            void qc.invalidateQueries({ queryKey: automationsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista.
+            invalidateForList(qc, automationsKeys.all, listId);
         },
     });
 }
@@ -61,9 +61,8 @@ export function useUpdateAutomation(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Ver nota en useUpdateRecord (0.57.31): listId puede ser
-            // numérico aquí pero las queries activas usan slug.
-            void qc.invalidateQueries({ queryKey: automationsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista.
+            invalidateForList(qc, automationsKeys.all, listId);
         },
     });
 }
@@ -75,9 +74,8 @@ export function useDeleteAutomation(listId: string | number) {
             await api.delete(`/lists/${listId}/automations/${id}`);
         },
         onSuccess: () => {
-            // Ver nota en useUpdateRecord (0.57.31): listId puede ser
-            // numérico aquí pero las queries activas usan slug.
-            void qc.invalidateQueries({ queryKey: automationsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista.
+            invalidateForList(qc, automationsKeys.all, listId);
         },
     });
 }

@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.40
+Stable tag: 0.57.41
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,31 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.41 =
+**Perf: arregla las dos regresiones de lentitud al cargar listas y
+vistas.**
+
+Causa 1 — **doble fetch en el cold load**: al entrar a una lista,
+el primer query de records salía con `state=INITIAL_STATE` apenas
+las vistas guardadas resolvían, y un instante después salía un
+SEGUNDO query con el `state` de la vista default (filtros, sort y
+sobre todo `per_page=500` en Kanban/Cards). Fix: deferimos
+`useRecords` hasta que la vista default haya sido aplicada — un
+solo round-trip. Ya no se siente como "la primera carga tarda el
+doble". (Regresión latente desde 0.57.5.)
+
+Causa 2 — **invalidación demasiado amplia**: desde 0.57.31 los
+hooks de mutación invalidaban con `keys.all`, marcando stale TODAS
+las queries de records/views/fields/automations de TODAS las listas
+para no perder coincidencia entre id numérico y slug. Una mutación
+en la lista A disparaba refetches en cascada de todo el cache de la
+lista B al volver a entrar. Fix: nuevo helper `invalidateForList`
+que resuelve id↔slug consultando el cache de `useLists()` y
+construye un predicate que matchea SÓLO las queries de la lista
+indicada — todas sus formas. Hooks afectados: useRecords (update/
+create/delete/bulk con su optimistic update), useSavedViews,
+useFields, useAutomations.
 
 = 0.57.40 =
 **Dashboards: widget Embudo + leyenda clicable + pulido de tamaños.**

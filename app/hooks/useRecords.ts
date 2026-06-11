@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
 import type { AggregatesResponse } from '@/hooks/useAggregates';
+import { listsKeys } from '@/hooks/useLists';
+import type { ListSummary } from '@/types/list';
 import type {
     RecordEntity,
     RecordGroupBucket,
@@ -10,6 +12,62 @@ import type {
     RecordListResponse,
     RecordsQuery,
 } from '@/types/record';
+
+/**
+ * 0.57.41 — set de identificadores (id numérico + slug) que pueden
+ * estar en uso como segundo segmento de las queryKeys de records,
+ * fields o views para UNA misma lista.
+ *
+ * Las queries se registran con el `listKey` que les pasó el caller —
+ * algunas usan el id numérico (mutaciones, dialogs viejos), otras
+ * usan el slug (RecordsPage desde 0.57.5). Para invalidar de forma
+ * precisa miramos el cache de `useLists()` y mapeamos `idOrSlug` a
+ * sus dos formas.
+ *
+ * Si no hay cache (raro: primer load sin lista cargada), devolvemos
+ * sólo el identificador conocido — el peor caso es no invalidar una
+ * key alternativa, pero la mutación ya aplicó su optimistic update.
+ */
+export function listIdentifiersFor(
+    qc: QueryClient,
+    idOrSlug: string | number,
+): Set<string> {
+    const out = new Set<string>([String(idOrSlug)]);
+    const all = qc.getQueryData<ListSummary[]>(listsKeys.list());
+    if (! Array.isArray(all)) return out;
+    const asStr = String(idOrSlug);
+    const match = all.find((l) => l.slug === asStr || String(l.id) === asStr);
+    if (match) {
+        out.add(String(match.id));
+        out.add(match.slug);
+    }
+    return out;
+}
+
+/**
+ * Predicate para invalidar SÓLO las queries de records/fields/views
+ * de la lista indicada. Antes invalidábamos `keys.all` por miedo a
+ * no matchear el slug — ahora mapeamos id↔slug vía el cache de lists.
+ *
+ * Resultado: una mutación en la lista A no marca stale las queries
+ * cacheadas de la lista B, eliminando los refetches en cascada
+ * cuando el usuario navega entre listas.
+ */
+export function invalidateForList(
+    qc: QueryClient,
+    namespace: readonly unknown[],
+    listKey: string | number,
+): void {
+    const ids = listIdentifiersFor(qc, listKey);
+    void qc.invalidateQueries({
+        predicate: (q) => {
+            const k = q.queryKey;
+            if (! Array.isArray(k) || k.length < 2) return false;
+            if (k[0] !== namespace[0]) return false;
+            return typeof k[1] === 'string' && ids.has(k[1]);
+        },
+    });
+}
 
 interface GroupsKeyParams {
     groupBy: number;
@@ -233,13 +291,12 @@ export function useCreateRecord(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de records — no podemos
-            // filtrar por listId porque las queries activas pueden
-            // estar registradas con el `slug` mientras este hook recibe
-            // el `id` numérico (0.57.31). Con `recordsKeys.all` como
-            // predicate matcheamos todas; el invalidate solo refetchea
-            // las que están active, así que es seguro.
-            void qc.invalidateQueries({ queryKey: recordsKeys.all });
+            // 0.57.41 — invalidamos sólo las queries de la lista
+            // actual (id Y slug se resuelven vía el cache de
+            // `useLists()`), no `recordsKeys.all`. Antes una mutación
+            // en la lista A marcaba stale el cache de TODAS las listas,
+            // disparando refetches en cascada al volver a la lista B.
+            invalidateForList(qc, recordsKeys.all, listId);
         },
     });
 }
@@ -269,15 +326,19 @@ export function useUpdateRecord(listId: string | number) {
             return res.data;
         },
         onMutate: async ({ id, values }) => {
-            // Cancelamos refetches en TODAS las queries de records.
-            // No filtramos por listId porque las queries activas
-            // pueden usar el `slug` aunque este hook reciba el `id`
-            // numérico (rompió la coincidencia de keys en 0.57.5,
-            // arreglado en 0.57.31).
-            await qc.cancelQueries({ queryKey: recordsKeys.all });
+            // 0.57.41 — scope al id+slug de la lista actual (vía el
+            // cache de useLists) en vez de `recordsKeys.all`. Sigue
+            // soportando que las queries activas usen el slug aunque
+            // este hook reciba el id numérico, sin tocar otras listas.
+            const ids = listIdentifiersFor(qc, listId);
+            const matchesList = (k: readonly unknown[]): boolean =>
+                Array.isArray(k) && k.length >= 2 && k[0] === 'records'
+                && typeof k[1] === 'string' && ids.has(k[1]);
+
+            await qc.cancelQueries({ predicate: (q) => matchesList(q.queryKey) });
 
             const queries = qc.getQueriesData<RecordListResponse>({
-                queryKey: recordsKeys.all,
+                predicate: (q) => matchesList(q.queryKey),
             });
             const snapshots: Array<[readonly unknown[], unknown]> = [];
 
@@ -310,7 +371,7 @@ export function useUpdateRecord(listId: string | number) {
             }
         },
         onSettled: () => {
-            void qc.invalidateQueries({ queryKey: recordsKeys.all });
+            invalidateForList(qc, recordsKeys.all, listId);
         },
     });
 }
@@ -324,8 +385,7 @@ export function useDeleteRecord(listId: string | number) {
             });
         },
         onSuccess: () => {
-            // Ver nota en `useUpdateRecord` (0.57.31).
-            void qc.invalidateQueries({ queryKey: recordsKeys.all });
+            invalidateForList(qc, recordsKeys.all, listId);
         },
     });
 }
@@ -353,8 +413,7 @@ export function useBulkRecords(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Ver nota en `useUpdateRecord` (0.57.31).
-            void qc.invalidateQueries({ queryKey: recordsKeys.all });
+            invalidateForList(qc, recordsKeys.all, listId);
         },
     });
 }

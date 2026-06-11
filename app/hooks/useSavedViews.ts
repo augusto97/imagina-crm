@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { invalidateForList } from '@/hooks/useRecords';
 import type { SavedViewConfig, SavedViewEntity, SavedViewType } from '@/types/view';
 
 export const viewsKeys = {
@@ -36,11 +37,9 @@ export function useCreateSavedView(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de views — no podemos filtrar
-            // por listId porque las queries activas usan `slug` y este
-            // hook recibe `id` numérico (mismo bug que useUpdateRecord,
-            // arreglado en 0.57.31).
-            void qc.invalidateQueries({ queryKey: viewsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual (ver
+            // `invalidateForList` en useRecords.ts).
+            invalidateForList(qc, viewsKeys.all, listId);
         },
     });
 }
@@ -60,11 +59,9 @@ export function useUpdateSavedView(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de views — no podemos filtrar
-            // por listId porque las queries activas usan `slug` y este
-            // hook recibe `id` numérico (mismo bug que useUpdateRecord,
-            // arreglado en 0.57.31).
-            void qc.invalidateQueries({ queryKey: viewsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual (ver
+            // `invalidateForList` en useRecords.ts).
+            invalidateForList(qc, viewsKeys.all, listId);
         },
     });
 }
@@ -76,11 +73,9 @@ export function useDeleteSavedView(listId: string | number) {
             await api.delete(`/lists/${listId}/views/${id}`);
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de views — no podemos filtrar
-            // por listId porque las queries activas usan `slug` y este
-            // hook recibe `id` numérico (mismo bug que useUpdateRecord,
-            // arreglado en 0.57.31).
-            void qc.invalidateQueries({ queryKey: viewsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual (ver
+            // `invalidateForList` en useRecords.ts).
+            invalidateForList(qc, viewsKeys.all, listId);
         },
     });
 }

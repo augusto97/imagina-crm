@@ -93,6 +93,19 @@ export function RecordsPage(): JSX.Element {
     const [state, setState] = useState<RecordsState>(INITIAL_STATE);
     const [activeViewId, setActiveViewId] = useState<number | null>(null);
     const initialViewAppliedRef = useRef<number | null>(null);
+    /**
+     * 0.57.41 — flag para deferir el primer fetch de records hasta que
+     * la vista default haya sido aplicada (o se confirmó que no hay).
+     *
+     * Sin esto, el cold load disparaba DOS fetches consecutivos:
+     *   1. `state=INITIAL_STATE` apenas `views.data` resolvía.
+     *   2. `state=defaultViewState` un tick después, cuando el
+     *      useEffect aplicaba la vista default.
+     *
+     * Visualmente se sentía lento porque el segundo fetch era el que
+     * tenía el `per_page=500` del Kanban/Cards.
+     */
+    const [viewApplied, setViewApplied] = useState(false);
 
     // Para Kanban y Calendar traemos hasta 500 registros (el back-end
     // limita el máximo per_page; 500 cubre la mayoría de tableros y
@@ -132,18 +145,17 @@ export function RecordsPage(): JSX.Element {
         return base;
     }, [state, activeViewId, views.data]);
 
-    // 0.57.6 — paralelización del cold load.
+    // 0.57.41 — un solo fetch de records en el cold load.
     //
-    // Antes el primer fetch de records esperaba a `list.data?.id` Y a
-    // `views.data`. El primero ya está en paralelo con fields/views
-    // gracias al cambio de slug arriba; pero igual no podíamos
-    // disparar `useRecords` hasta tener el id. Ahora le pasamos el
-    // slug y el backend lo resuelve. Combinado con la espera de
-    // `views.data` (para evitar el doble query con per_page=50 →
-    // per_page=500), el primer query de records arranca tan pronto
-    // como las saved views resuelven, paralelo con el chunk JS lazy.
+    // Antes esperábamos sólo a `views.data` para arrancar el fetch,
+    // pero el `state` seguía siendo INITIAL_STATE hasta que el effect
+    // de aplicar la vista default corría → primer fetch con
+    // per_page=50, segundo fetch con per_page=500 (Kanban/Cards) o con
+    // los filtros de la vista. Ahora deferimos hasta `viewApplied`:
+    // cuando el primer fetch sale, el `state` ya refleja la vista
+    // default — un solo round-trip.
     const baseRecords = useRecords(
-        views.data !== undefined ? listSlug : undefined,
+        viewApplied ? listSlug : undefined,
         baseQuery,
     );
 
@@ -211,6 +223,7 @@ export function RecordsPage(): JSX.Element {
         setActiveViewId(null);
         setState(INITIAL_STATE);
         initialViewAppliedRef.current = null;
+        setViewApplied(false);
     }, [list.data?.id]);
 
 const applyView = (view: SavedViewEntity | null): void => {
@@ -226,6 +239,12 @@ const applyView = (view: SavedViewEntity | null): void => {
     // Auto-aplicar la vista default la primera vez que llegan las vistas
     // para esta lista. Usamos un ref para evitar re-aplicarla cuando el
     // usuario decida explícitamente ir a "Todos" o cambiar de tab.
+    //
+    // 0.57.41 — además del ref, seteamos `viewApplied=true` para que
+    // `useRecords` pueda arrancar AHORA con el `state` correcto. El
+    // primer fetch sale con la config de la vista default en vez de
+    // INITIAL_STATE → un solo round-trip, sin el `per_page=50 → 500`
+    // que antes pegaba dos veces al backend.
     useEffect(() => {
         if (!views.data || !list.data) return;
         if (initialViewAppliedRef.current === list.data.id) return;
@@ -235,6 +254,7 @@ const applyView = (view: SavedViewEntity | null): void => {
         if (def) {
             applyView(def);
         }
+        setViewApplied(true);
     }, [views.data, list.data?.id]);
 
     const setFilterTree = (filterTree: import('@/types/record').FilterTree): void => {

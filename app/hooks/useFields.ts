@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { invalidateForList } from '@/hooks/useRecords';
 import type { CreateFieldInput, FieldEntity, UpdateFieldInput } from '@/types/field';
 
 export const fieldsKeys = {
@@ -73,10 +74,8 @@ export function useCreateField(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de fields — las queries
-            // activas pueden usar `slug` mientras este hook recibe `id`
-            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
-            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual.
+            invalidateForList(qc, fieldsKeys.all, listId);
         },
     });
 }
@@ -89,10 +88,8 @@ export function useUpdateField(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de fields — las queries
-            // activas pueden usar `slug` mientras este hook recibe `id`
-            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
-            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual.
+            invalidateForList(qc, fieldsKeys.all, listId);
         },
     });
 }
@@ -106,10 +103,8 @@ export function useDeleteField(listId: string | number) {
             });
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de fields — las queries
-            // activas pueden usar `slug` mientras este hook recibe `id`
-            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
-            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual.
+            invalidateForList(qc, fieldsKeys.all, listId);
         },
     });
 }
@@ -121,10 +116,8 @@ export function useReorderFields(listId: string | number) {
             await api.post(`/lists/${listId}/fields/reorder`, { order });
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de fields — las queries
-            // activas pueden usar `slug` mientras este hook recibe `id`
-            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
-            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual.
+            invalidateForList(qc, fieldsKeys.all, listId);
         },
     });
 }
@@ -155,10 +148,8 @@ export function useAppendFieldOption(listId: string | number) {
             return res.data;
         },
         onSuccess: () => {
-            // Invalidamos TODAS las queries de fields — las queries
-            // activas pueden usar `slug` mientras este hook recibe `id`
-            // numérico (mismo bug que useUpdateRecord, fix 0.57.31).
-            void qc.invalidateQueries({ queryKey: fieldsKeys.all });
+            // 0.57.41 — scope a id+slug de la lista actual.
+            invalidateForList(qc, fieldsKeys.all, listId);
         },
     });
 }
