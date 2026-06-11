@@ -20,7 +20,7 @@ export function StatDeltaWidget({ dashboardId, widget }: StatDeltaWidgetProps): 
     const data = useWidgetData(dashboardId, widget.id);
 
     return (
-        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-1.5">
             <header>
                 <h3 className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
                     {widget.title || __('Crecimiento')}
@@ -28,7 +28,7 @@ export function StatDeltaWidget({ dashboardId, widget }: StatDeltaWidgetProps): 
             </header>
 
             <div
-                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-gap-1.5 imcrm-min-h-0"
+                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-gap-1 imcrm-min-h-0"
                 style={{ containerType: 'size' }}
             >
                 {data.isLoading ? (
@@ -68,20 +68,21 @@ function Body({
 
     return (
         <>
-            <span
-                className="imcrm-font-bold imcrm-leading-none imcrm-tabular-nums imcrm-text-foreground"
-                // Mismo tamaño fluido que el KPI — no se corta en tiles
-                // chicos ni abre desproporcionado en grandes.
-                style={{ fontSize: 'clamp(1.375rem, 16cqh, 2.5rem)' }}
-            >
-                {format(value)}
-            </span>
-
-            <div className="imcrm-flex imcrm-items-center imcrm-gap-2 imcrm-text-xs">
+            {/* 0.57.42 — número + pill de delta en la MISMA línea
+              * (estilo Stripe); la comparación textual va debajo en una
+              * línea compacta. Antes el número iba solo y el delta en
+              * otra fila → el card necesitaba más alto para lo mismo. */}
+            <div className="imcrm-flex imcrm-flex-wrap imcrm-items-center imcrm-gap-x-2 imcrm-gap-y-0.5">
+                <span
+                    className="imcrm-font-bold imcrm-leading-none imcrm-tabular-nums imcrm-text-foreground"
+                    style={{ fontSize: 'clamp(1.375rem, 26cqh, 2.25rem)' }}
+                >
+                    {format(value)}
+                </span>
                 {deltaPct !== null && (
                     <span
                         className={cn(
-                            'imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-px-1.5 imcrm-py-0.5 imcrm-font-semibold',
+                            'imcrm-inline-flex imcrm-items-center imcrm-gap-1 imcrm-rounded imcrm-px-1.5 imcrm-py-0.5 imcrm-text-xs imcrm-font-semibold',
                             isUp
                                 ? 'imcrm-bg-success/10 imcrm-text-success'
                                 : isDown
@@ -94,15 +95,15 @@ function Body({
                         {deltaPct.toFixed(1)}%
                     </span>
                 )}
-                <span className="imcrm-text-muted-foreground">
-                    {sprintf(
-                        /* translators: 1: previous period value, 2: previous period days */
-                        __('vs %1$s en los %2$d días previos'),
-                        format(previous),
-                        periodDays,
-                    )}
-                </span>
             </div>
+            <span className="imcrm-text-[11px] imcrm-leading-tight imcrm-text-muted-foreground">
+                {sprintf(
+                    /* translators: 1: previous period value, 2: previous period days */
+                    __('vs %1$s en los %2$d días previos'),
+                    format(previous),
+                    periodDays,
+                )}
+            </span>
         </>
     );
 }

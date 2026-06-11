@@ -45,6 +45,48 @@ export interface WidgetLayout {
 }
 
 /**
+ * Tamaño inicial por tipo de widget (0.57.42). Antes TODOS los
+ * widgets nacían con 4×3 — un KPI quedaba con la mitad del card en
+ * blanco y una tabla quedaba apretada. Unidades del grid: 12 cols,
+ * rowHeight 64px.
+ *
+ * El `y: 9999` manda el widget nuevo AL FINAL del dashboard
+ * (compactType vertical lo sube hasta tocar la última fila) en vez
+ * de insertarlo arriba a la izquierda desplazando a los demás.
+ */
+export function defaultLayoutForType(type: WidgetType): WidgetLayout {
+    switch (type) {
+        case 'kpi':
+        case 'stat_delta':
+            return { x: 0, y: 9999, w: 3, h: 2 };
+        case 'chart_pie':
+        case 'chart_bar':
+        case 'funnel':
+            return { x: 0, y: 9999, w: 4, h: 4 };
+        case 'chart_line':
+        case 'chart_area':
+            return { x: 0, y: 9999, w: 6, h: 4 };
+        case 'table':
+            return { x: 0, y: 9999, w: 6, h: 5 };
+        default:
+            return { x: 0, y: 9999, w: 4, h: 3 };
+    }
+}
+
+/** Tamaño mínimo por tipo — un KPI puede ser 2×2, un chart no baja de 3×3. */
+export function minLayoutForType(type: WidgetType): { minW: number; minH: number } {
+    switch (type) {
+        case 'kpi':
+        case 'stat_delta':
+            return { minW: 2, minH: 2 };
+        case 'table':
+            return { minW: 3, minH: 3 };
+        default:
+            return { minW: 3, minH: 3 };
+    }
+}
+
+/**
  * Granularidad temporal para charts con eje de fecha. Cuando se setea
  * sobre `chart_bar`/`chart_pie` con un `group_by_field_id` de tipo
  * date/datetime, o sobre `chart_line`/`chart_area` (que siempre usan

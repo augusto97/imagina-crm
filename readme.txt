@@ -4,7 +4,7 @@ Tags: crm, lists, records, automation, kanban
 Requires at least: 6.4
 Tested up to: 6.6
 Requires PHP: 8.2
-Stable tag: 0.57.41
+Stable tag: 0.57.42
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,35 @@ Más detalles en `README.md` en la raíz del repo.
   `languages/imagina-crm-<locale>-imagina-crm-admin.json`.
 
 == Changelog ==
+
+= 0.57.42 =
+**Dashboards más densos: tamaños por tipo de widget + KPIs
+compactos.**
+
+Feedback: los widgets desperdiciaban espacio (KPIs con la mitad del
+card en blanco) y todos nacían del mismo tamaño.
+
+* **Tamaño inicial según el tipo de widget**: KPI y Delta nacen
+  compactos (3×2), torta/barras/embudo 4×4, línea/área 6×4, tabla
+  6×5. Antes todo nacía 4×3. Los widgets nuevos además se insertan
+  AL FINAL del dashboard en vez de arriba a la izquierda desplazando
+  a los existentes.
+
+* **Grid más denso**: altura de fila 80→64px y separación 16→12px.
+  Un KPI de 2 filas pasa de 176px a 140px de alto — ~25% más
+  contenido por pantalla, estilo Linear. (Los widgets ya colocados
+  conservan su posición; solo se vuelven proporcionalmente más
+  compactos.)
+
+* **KPI rediseñado**: número y label de métrica en una sola línea
+  baseline (estilo Stripe) en vez de apilados — el card chico ya no
+  tiene a mitad vacía.
+
+* **Delta rediseñado**: número + pill de % en la misma línea, con la
+  comparación textual debajo en tipografía compacta.
+
+* **Mínimos por tipo**: un KPI puede achicarse hasta 2×2; los charts
+  no bajan de 3×3 (donde dejan de ser legibles).
 
 = 0.57.41 =
 **Perf: arregla las dos regresiones de lentitud al cargar listas y

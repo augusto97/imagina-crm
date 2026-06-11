@@ -17,7 +17,7 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
     const data = useWidgetData(dashboardId, widget.id);
 
     return (
-        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-3">
+        <div className="imcrm-flex imcrm-h-full imcrm-flex-col imcrm-gap-1.5">
             <header className="imcrm-flex imcrm-items-start imcrm-justify-between imcrm-gap-2">
                 <h3 className="imcrm-text-[11px] imcrm-font-bold imcrm-uppercase imcrm-tracking-[0.06em] imcrm-text-muted-foreground">
                     {widget.title || __('KPI')}
@@ -25,7 +25,7 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
             </header>
 
             <div
-                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-gap-1 imcrm-min-h-0"
+                className="imcrm-flex imcrm-flex-1 imcrm-flex-col imcrm-justify-center imcrm-min-h-0"
                 // Container query: permite que el valor use `cqh` (altura del
                 // widget) para escalar tipografía. El alto es definido por la
                 // grilla (rowHeight fijo), así que `size` es seguro acá.
@@ -42,13 +42,13 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
                         {__('Error al cargar')}
                     </span>
                 ) : data.data && 'value' in data.data ? (
-                    <>
+                    // 0.57.42 — número + label de métrica en una sola línea
+                    // baseline (estilo Stripe). Antes iban apilados y el
+                    // card necesitaba más altura para lo mismo.
+                    <div className="imcrm-flex imcrm-flex-wrap imcrm-items-baseline imcrm-gap-x-2 imcrm-gap-y-0.5">
                         <span
                             className="imcrm-font-bold imcrm-tabular-nums imcrm-leading-none imcrm-text-foreground"
-                            // Tamaño fluido: escala con el alto del widget para que
-                            // el número no se corte en tiles chicos ni abra
-                            // desproporcionado en tiles grandes (cap 2.5rem).
-                            style={{ fontSize: 'clamp(1.375rem, 16cqh, 2.5rem)' }}
+                            style={{ fontSize: 'clamp(1.375rem, 26cqh, 2.25rem)' }}
                         >
                             {formatValue(data.data.value, data.data.metric)}
                         </span>
@@ -57,7 +57,7 @@ export function KpiWidget({ dashboardId, widget }: KpiWidgetProps): JSX.Element 
                                 {labelForMetric(widget.config.metric)}
                             </span>
                         )}
-                    </>
+                    </div>
                 ) : null}
             </div>
         </div>

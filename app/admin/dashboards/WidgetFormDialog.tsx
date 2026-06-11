@@ -10,12 +10,13 @@ import { useFields } from '@/hooks/useFields';
 import { useLists } from '@/hooks/useLists';
 import { __ } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type {
-    ChartTimeBucket,
-    KpiMetric,
-    WidgetPeriod,
-    WidgetSpec,
-    WidgetType,
+import {
+    defaultLayoutForType,
+    type ChartTimeBucket,
+    type KpiMetric,
+    type WidgetPeriod,
+    type WidgetSpec,
+    type WidgetType,
 } from '@/types/dashboard';
 import {
     DATE_RANGE_PRESETS,
@@ -201,7 +202,9 @@ export function WidgetFormDialog({
                         ? { field_id: periodFieldId, preset: periodPreset }
                         : null,
             }),
-            layout: initial?.layout ?? { x: 0, y: 0, w: 4, h: 3 },
+            // 0.57.42 — tamaño inicial según el tipo (KPI compacto,
+            // tabla ancha…) y posicionado al FINAL del dashboard.
+            layout: initial?.layout ?? defaultLayoutForType(type),
         };
         onSave(widget);
         onOpenChange(false);
