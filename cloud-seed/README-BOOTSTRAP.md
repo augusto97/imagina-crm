@@ -17,9 +17,17 @@ git clone git@github.com:augusto97/imagina-crm-cloud.git
 cd imagina-crm-cloud
 
 # Documentos de contexto (el "cerebro" transferido):
-cp ../imagina-crm/cloud-seed/CLAUDE.md    ./CLAUDE.md
+cp ../imagina-crm/cloud-seed/CLAUDE.md     ./CLAUDE.md
 cp ../imagina-crm/cloud-seed/STANDALONE.md ./STANDALONE.md
-cp ../imagina-crm/cloud-seed/HANDOFF.md   ./HANDOFF.md
+cp ../imagina-crm/cloud-seed/HANDOFF.md    ./HANDOFF.md
+cp ../imagina-crm/cloud-seed/CONTRACT.md   ./CONTRACT.md
+
+# Backend PHP del plugin como REFERENCIA de solo lectura (máxima
+# fidelidad de comportamiento — CONTRACT.md apunta acá para los
+# detalles finos: matriz de permisos, validaciones exactas, etc.):
+mkdir -p reference
+cp -r ../imagina-crm/src reference/plugin-backend
+echo "Código del plugin WP hermano. SOLO LECTURA — consultar, no portar 1:1." > reference/plugin-backend/README.md
 
 # El frontend heredado (se adaptará en F1, pero viaja desde el día 0):
 mkdir -p apps/web
@@ -43,15 +51,23 @@ En claude.ai/code: crear un environment apuntando a
 
 Primer mensaje sugerido:
 
-> Lee CLAUDE.md, STANDALONE.md y HANDOFF.md completos. Después arranca la
-> fase F0 del roadmap: monorepo pnpm+Turborepo, esqueleto NestJS+Drizzle,
-> Docker Compose (Postgres 16 + Redis 7), tenancy con RLS funcionando y el
-> package shared/ con los primeros schemas Zod. Marca F0 en el CLAUDE.md
-> cuando termines.
+> Lee CLAUDE.md, STANDALONE.md, HANDOFF.md y CONTRACT.md completos. Después
+> arranca la fase F0 del roadmap: monorepo pnpm+Turborepo, esqueleto
+> NestJS+Drizzle, Docker Compose (Postgres 16 + Redis 7), tenancy con RLS
+> funcionando y el package shared/ con los primeros schemas Zod. Marca F0
+> en el CLAUDE.md cuando termines.
 
-Con esos tres documentos, cualquier sesión nueva tiene: la arquitectura
-completa con sus porqués (STANDALONE), las reglas de trabajo (CLAUDE) y los
-errores ya pagados que no debe repetir (HANDOFF).
+Con esos documentos + las dos fuentes de código, cualquier sesión nueva
+tiene TODO el contexto:
+
+| Pieza | Qué aporta |
+|---|---|
+| STANDALONE.md | La arquitectura y los porqués (ADRs) |
+| CLAUDE.md | Reglas de trabajo y tracker de fases |
+| HANDOFF.md | Los errores ya pagados (no repetirlos) |
+| CONTRACT.md | El comportamiento funcional exacto a replicar |
+| `apps/web/` | El frontend completo = el contrato visto desde el consumidor |
+| `reference/plugin-backend/` | El PHP original = fidelidad total ante cualquier duda |
 
 ## 5. Mantener el puente con el plugin
 

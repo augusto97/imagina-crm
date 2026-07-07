@@ -9,6 +9,10 @@
 > - **`HANDOFF.md`** — lecciones aprendidas durante el desarrollo del plugin
 >   WordPress hermano (bugs reales que costaron días). Evitan repetir
 >   errores ya pagados.
+> - **`CONTRACT.md`** — especificación funcional exacta heredada del plugin:
+>   operadores de filtros, reglas de slugs, capabilities, tipos de campo,
+>   shapes de vistas/automatizaciones/portal. Ante dudas más finas:
+>   `reference/plugin-backend/` (el PHP original, solo lectura).
 
 ---
 
